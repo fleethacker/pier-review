@@ -116,7 +116,7 @@ def test_nan_and_infinity_are_rejected_everywhere(bad):
 # ---------- Legacy compatibility: absence means unknown ----------
 
 def test_mock_responses_have_no_validity_and_read_as_unknown():
-    r = client.post(f"{P}/tugs/hold-plan", json=EXAMPLES["tugs_hold_plan"])  # still a mock module
+    r = client.post(f"{P}/approach/route", json=EXAMPLES["approach_route"])  # still a mock module
     assert r.status_code == 200
     j = r.json()
     assert j["validity"] is None and j["manifest"] is None

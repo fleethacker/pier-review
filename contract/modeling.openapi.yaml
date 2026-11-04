@@ -2323,10 +2323,12 @@ components:
           type: string
           format: date-time
           title: Start Utc
+          description: First feasible minute (inclusive).
         end_utc:
           type: string
           format: date-time
           title: End Utc
+          description: Last feasible minute (inclusive).
         max_current_kt:
           type: number
           title: Max Current Kt
@@ -2383,6 +2385,33 @@ components:
             minimum: 0.0
           - type: 'null'
           title: Max Gust Kt
+        available_tug_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Available Tug Ids
+          description: Fleet requested for the berthing; defaults to the whole catalog fleet.
+        margin:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Margin
+          default: 0.25
+        step_min:
+          type: integer
+          maximum: 60.0
+          minimum: 1.0
+          title: Step Min
+          description: Coarse sampling interval; threshold crossings between samples are refined to 1 min.
+          default: 6
+        min_duration_min:
+          type: number
+          minimum: 0.0
+          title: Min Duration Min
+          description: Windows shorter than this are dropped.
+          default: 0.0
       additionalProperties: false
       type: object
       required:
@@ -2468,6 +2497,23 @@ components:
             $ref: '#/components/schemas/BerthingWindow'
           type: array
           title: Windows
+        forecast_coverage_end_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Forecast Coverage End Utc
+          description: Last time with forecast data; later times are gaps, never windows.
+        gaps:
+          items:
+            type: string
+          type: array
+          title: Gaps
+        resolution_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolution Note
       additionalProperties: false
       type: object
       required:
@@ -6456,6 +6502,44 @@ components:
             type: string
           type: array
           title: Rationale
+        required_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+          description: Wrench the tugs must supply (after margin).
+        delivered_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+        residual_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+          description: required - delivered. Feasible only when every component is within tolerance.
+        binding_constraints:
+          items:
+            type: string
+          type: array
+          title: Binding Constraints
+          description: Rating, direction or hull-point limits that are active.
+        ratings_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ratings Basis
+          description: Where the pull ratings come from (catalog estimate, not certified).
+        assisted_max_pct_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Assisted Max Pct Wll
+          description: 'Holding plans: highest line/fitting utilization from a fresh equilibrium solve with the tugs applied.'
+        assisted_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Assisted Result Id
+          description: 'Holding plans: the analysis envelope of that fresh solve.'
       additionalProperties: false
       type: object
       required:
@@ -6804,6 +6888,25 @@ components:
       - channel_depth_mllw_ft
       - width_ft
       title: Waypoint
+    WrenchLbf:
+      properties:
+        fx_lbf:
+          type: number
+          title: Fx Lbf
+        fy_lbf:
+          type: number
+          title: Fy Lbf
+        mz_ftlbf:
+          type: number
+          title: Mz Ftlbf
+      additionalProperties: false
+      type: object
+      required:
+      - fx_lbf
+      - fy_lbf
+      - mz_ftlbf
+      title: WrenchLbf
+      description: Force and yaw moment in the ship frame (+x forward, +y to port, yaw CCW) about midships.
     Alert:
       additionalProperties: false
       description: Message on WS /ws/alerts.

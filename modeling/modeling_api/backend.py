@@ -18,12 +18,12 @@ from mooring.approach.mock import simulator as approach_sim  # noqa: F401
 # Phase 1c/2: berthing
 from mooring.berthing.mock import sequence  # noqa: F401
 from mooring.berthing.mock import simulator as berthing_sim  # noqa: F401
-from mooring.berthing.mock import tugs as berthing_tugs  # noqa: F401
+from mooring.berthing import service as berthing_tugs  # noqa: F401
 
 # Phase 1: moored
 from mooring.moored import solver  # noqa: F401
 from mooring.moored.mock import optimizer, risk  # noqa: F401
-from mooring.moored.mock import tugs as moored_tugs  # noqa: F401
+from mooring.moored import holding as moored_tugs  # noqa: F401
 
 BACKENDS: dict[str, str] = {
     "M1 environment": "mock",

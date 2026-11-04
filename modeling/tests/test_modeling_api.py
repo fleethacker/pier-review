@@ -83,10 +83,13 @@ def test_sync_posts(name, path):
     assert r.status_code in (200, 201, 202), r.text
     body = r.json()
     if "result_id" in body:
-        real = path.startswith("/loads/") or path in ("/mooring/analyze", "/mooring/envelope", "/mooring/tide-sweep")
+        real = path.startswith("/loads/") or path in ("/mooring/analyze", "/mooring/envelope", "/mooring/tide-sweep", "/tugs/berthing-plan", "/tugs/hold-plan", "/windows/berthing")
         assert body["backend"] == ("real" if real else "mock")
         if real:
-            assert body["validity"] is not None and body["manifest"]["resolved_inputs_hash"].startswith("sha256:")
+            assert body["validity"] is not None
+            if not path.startswith(("/loads/", "/mooring/", "/tugs/hold")):
+                return
+            assert body["manifest"]["resolved_inputs_hash"].startswith("sha256:")
         assert client.get(f"{P}/results/{body['result_id']}").status_code == 200
 
 

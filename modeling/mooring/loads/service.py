@@ -110,3 +110,7 @@ def polar(req: PolarRequest) -> PolarResponse:
                                                 env.current_speed_kt, results)
     assumptions.append("rel_deg is the direction the wind comes from; current flows the same way as the wind.")
     return _response(PolarResponse, req, PolarResult(points=points), assumptions, warnings, validity, _manifest(req, ship))
+
+
+# Public name for other services that need the same assumptions, findings and validity as the /loads endpoints.
+load_metadata = _metadata

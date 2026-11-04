@@ -954,10 +954,12 @@ components:
           type: string
           format: date-time
           title: Start Utc
+          description: First feasible minute (inclusive).
         end_utc:
           type: string
           format: date-time
           title: End Utc
+          description: Last feasible minute (inclusive).
         max_current_kt:
           type: number
           title: Max Current Kt
@@ -2751,6 +2753,44 @@ components:
             type: string
           type: array
           title: Rationale
+        required_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+          description: Wrench the tugs must supply (after margin).
+        delivered_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+        residual_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+          description: required - delivered. Feasible only when every component is within tolerance.
+        binding_constraints:
+          items:
+            type: string
+          type: array
+          title: Binding Constraints
+          description: Rating, direction or hull-point limits that are active.
+        ratings_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ratings Basis
+          description: Where the pull ratings come from (catalog estimate, not certified).
+        assisted_max_pct_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Assisted Max Pct Wll
+          description: 'Holding plans: highest line/fitting utilization from a fresh equilibrium solve with the tugs applied.'
+        assisted_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Assisted Result Id
+          description: 'Holding plans: the analysis envelope of that fresh solve.'
       additionalProperties: false
       type: object
       required:
@@ -2815,6 +2855,25 @@ components:
       required:
       - berth
       title: VisionConfirm
+    WrenchLbf:
+      properties:
+        fx_lbf:
+          type: number
+          title: Fx Lbf
+        fy_lbf:
+          type: number
+          title: Fy Lbf
+        mz_ftlbf:
+          type: number
+          title: Mz Ftlbf
+      additionalProperties: false
+      type: object
+      required:
+      - fx_lbf
+      - fy_lbf
+      - mz_ftlbf
+      title: WrenchLbf
+      description: Force and yaw moment in the ship frame (+x forward, +y to port, yaw CCW) about midships.
     AgentDoneEvent:
       additionalProperties: false
       description: '`event: done`'

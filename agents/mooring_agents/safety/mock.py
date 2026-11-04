@@ -63,7 +63,7 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
     env = report.planning_conditions[0].environment if report else rec.env
     if plan.config is None:
         raise ModelingError(422, "Plan has no configuration to review")
-    body = _analyze_body(rec.scenario, plan.config, env, rec.mst)
+    body = _analyze_body(rec.scenario, plan.config, env, rec.mst, rec.holding_tugs)
     re_an = await tk.analyze(body)
     check("REANALYSIS-NOT-RED", "Independent re-analysis is not RED", re_an.status != "RED", "RED",
           f"Re-analysis status {re_an.status} at gust {env.wind_gust_kt:.0f} kt.", [re_an.result_id])

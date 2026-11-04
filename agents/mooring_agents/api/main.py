@@ -33,7 +33,8 @@ LLM agent service for the mooring assistant. Typical flow: `POST /intake/reports
 (with `intake_report_id`) → `POST /safety/reviews` → `POST /safety-sheets` → approvals, with
 `GET /safety/watch/{plan_id}` for live gust warnings. Agents reach physics only through the Physics agent
 (`/tools`, `/physics/*`), which logs every call; every number in a plan cites a logged `result_id`.
-**All agents currently run as mocks** (deterministic, no LLM).
+**Mixed implementation:** Intake and Planner have guarded optional LLM layers; other agent and modeling
+capabilities still include mocks. See `/version` for module status.
 """
 
 app = FastAPI(title="Mooring Assistant: Agents API", version="1.1.0", description=DESCRIPTION, openapi_tags=TAGS,

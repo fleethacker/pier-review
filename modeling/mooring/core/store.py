@@ -136,6 +136,9 @@ class ResultStore(MutableMapping):
         return iter([r[0] for r in db().execute("SELECT result_id FROM results") if allowed("result",r[0])])
 
     def __len__(self) -> int:
+        from .access import enforced
+        if not enforced.get():
+            return db().execute("SELECT COUNT(*) FROM results")[0][0]
         return sum(1 for _ in self)
 
     def __contains__(self, result_id) -> bool:
@@ -189,6 +192,9 @@ class DocStore(MutableMapping):
         return iter([r[0] for r in db().execute("SELECT key FROM docs WHERE namespace=? ORDER BY rowid", (self.namespace,)) if allowed(self.namespace,r[0])])
 
     def __len__(self) -> int:
+        from .access import enforced
+        if not enforced.get():
+            return db().execute("SELECT COUNT(*) FROM docs WHERE namespace=?", (self.namespace,))[0][0]
         return sum(1 for _ in self)
 
     def __contains__(self, key) -> bool:

@@ -7447,6 +7447,7 @@ components:
       type: object
     SimTugCommandMessage:
       additionalProperties: false
+      description: Client message on WS /ws/sim/{session_id}.
       properties:
         t_s:
           anyOf:

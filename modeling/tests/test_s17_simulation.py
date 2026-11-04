@@ -161,6 +161,8 @@ def test_streaming_contact_energy_compression_and_convergence(setup):
         start=next(e.t_s for e in m.transitions if e.kind=="contact_start")
         assert start==pytest.approx(1/(.5*1.6878098571011957),abs=2e-5)
         assert any(e.kind=="contact_end" for e in m.transitions)
+        # Reported contact speed is the approach speed at impact, not the near-zero speed at peak compression.
+        assert m.contact.lateral_speed_fps==pytest.approx(.5*1.6878098571011957,rel=.02)
         errors.append(abs(m.integrator.state[4]-.5*1.6878098571011957))
     assert max(errors)<.002
 

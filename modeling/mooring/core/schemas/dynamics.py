@@ -149,10 +149,10 @@ class SimSessionCreated(Model):
 
 
 class SimTugCommandMessage(Model):
+    """Client message on WS /ws/sim/{session_id}."""
+
     wire_omitted_defaults = {"t_s": None}
     t_s: float | None = Field(default=None, ge=0, description="Simulation time; absent schedules at the next integration boundary.")
-
-    """Client message on WS /ws/sim/{session_id}."""
 
     type: Literal["tug_command"]
     tug_id: str

@@ -59,6 +59,7 @@ class BerthingModel:
         self.sequence = 0
         self.transitions, self.events = [], []
         self.contact = None
+        self.impact_speed = {}  # fender_id -> lateral speed (ft/s) just before first contact
         self.max_line_tension = self.work = self.dissipated = self.event_energy = 0.0
         self.reasons = [ValidityReason(code="VESSEL_DYNAMICS_UNQUALIFIED",
             message=f"{PARAMETER_SET}: arbitrary synthetic mass/inertia/damping; not identified for {sc.ship_class_id}."),
@@ -183,7 +184,7 @@ class BerthingModel:
                         affected_components=[f"line-{rec.ln.line_number}"]))
                     self.events.append(SimEvent(t_s=t1,kind="line_overload",detail=f"line-{rec.ln.line_number}: breaking strength exceeded"))
                     raise ValueError("line breaking strength exceeded; rupture is not modeled")
-            self.track_contact(s1)
+            self.track_contact(s1, s0)
             self.validity()
             observe(t0,s0,t1,s1)
         def bounded_check():
@@ -224,12 +225,19 @@ class BerthingModel:
             applied_work_ftlbf=self.work, dissipated_energy_ftlbf=self.dissipated, line_event_energy_ftlbf=self.event_energy,
             energy_residual_ftlbf=energy-self.initial_energy-self.work+self.dissipated-self.event_energy, integration_dt_s=self.dt)
 
-    def track_contact(self, s):
+    @staticmethod
+    def lateral_speed(s):
+        return abs(s[3]*math.sin(s[2])+s[4]*math.cos(s[2]))
+
+    def track_contact(self, s, before=None):
+        """`before` is the state at the start of the step; its speed is the approach speed at first contact."""
         for fr,d,_ in self.system.fender_loads(self.body.pose(s)):
             energy = fr.model.energy(d)
             over = fr.model.rated_energy_ftlbf is not None and energy > fr.model.rated_energy_ftlbf
             if d > 0:
-                contact = ContactSummary(lateral_speed_fps=abs(s[3]*math.sin(s[2])+s[4]*math.cos(s[2])),
+                # Report the speed at impact, not at peak compression (where the body is nearly stopped).
+                self.impact_speed.setdefault(fr.model.fender_id, self.lateral_speed(before if before is not None else s))
+                contact = ContactSummary(lateral_speed_fps=self.impact_speed[fr.model.fender_id],
                     energy_ftlbf=energy, fender_id=fr.model.fender_id,
                     pct_rated=100*energy/fr.model.rated_energy_ftlbf if fr.model.rated_energy_ftlbf else 0,
                     status="RED" if over else "AMBER")

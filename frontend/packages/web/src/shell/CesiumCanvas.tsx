@@ -35,6 +35,7 @@ export function CesiumCanvas({ store, onEdit, onScreenUpBearing }: Props) {
       (window as unknown as { __scene: unknown }).__scene = {
         store,
         screenPositionOf: (id: string) => r.screenPositionOf(id),
+        geometryReady: () => r.geometryReady,
         pickAtPage: (x: number, y: number) => r.pickAtPage(x, y),
       };
     }

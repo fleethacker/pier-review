@@ -3,6 +3,7 @@ import type { AppDefinition, AppInstance } from '../../scene/app';
 import { Banner } from './Banner';
 import { MooringController } from './controller';
 import { Dashboard } from './panels/Dashboard';
+import { Overlay } from './panels/Overlay';
 import { ControllerContext } from './panels/context';
 import { Sidebar } from './Sidebar';
 
@@ -27,6 +28,7 @@ export const mooringApp: AppDefinition = {
       Sidebar: withController(controller, Sidebar),
       Bottom: withController(controller, Dashboard),
       Banner: withController(controller, Banner),
+      Overlay: withController(controller, Overlay),
       onEdit: (edit) => controller.onEdit(edit),
       dispose: () => controller.dispose(),
     };

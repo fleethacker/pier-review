@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { entityToFrame } from '../../scene/geometry';
+import * as mapping from './mapping';
 import { buildScene, envVectors, hullPoints, shipEntities, shipPose } from './mapping';
 import { ft } from './units';
 import type { Berth, ShipClass } from './types';
@@ -125,5 +126,46 @@ describe('environment arrows', () => {
     const [wind, current] = envVectors(frame, env, { x: 0, y: 0 });
     expect(wind.angleDeg).toBeCloseTo(0); // from the west, blowing east
     expect(current.angleDeg).toBeCloseTo(90); // flowing north
+  });
+});
+
+describe('tugScene', () => {
+  const shipWithPush = {
+    ...ship,
+    push_points: [
+      { push_point_id: 'PP-FWD-P', x_ft: 150, side: 'port', max_force_lbf: 1 },
+      { push_point_id: 'PP-FWD-S', x_ft: 150, side: 'starboard', max_force_lbf: 1 },
+    ],
+  } as unknown as ShipClass;
+  const frame = { lonDeg: 0, latDeg: 0, xBearingTrueDeg: 105 };
+
+  it('puts tugs on the water side of a starboard-side-to ship, pushing toward the pier', () => {
+    const { tugScene } = mapping;
+    const out = tugScene(
+      shipWithPush, 'starboard', 650, 12,
+      [{ tug_id: 'T1', push_point_id: 'PP-FWD-P', mode: 'push', force_lbf: 36000, direction_true_deg: 195 }],
+      frame,
+    );
+    expect(out.entities).toHaveLength(1);
+    const tug = out.entities[0];
+    // Port side is the water side; the ship centerline is at y = 42 ft, so the tug sits further into the water.
+    expect(tug.pose.y).toBeGreaterThan(ft(42 + 30));
+    expect(tug.pose.x).toBeCloseTo(ft(650 + 150));
+    // Bearing 195 is the direction of -y for a frame whose +x bearing is 105: local angle 270.
+    expect(out.vectors[0].angleDeg).toBeCloseTo(270);
+  });
+
+  it('skips assignments whose push point is unknown or direction missing', () => {
+    const { tugScene } = mapping;
+    const out = tugScene(
+      shipWithPush, 'starboard', 650, 12,
+      [
+        { tug_id: 'T1', push_point_id: 'NOPE', mode: 'push', force_lbf: 1, direction_true_deg: 195 },
+        { tug_id: 'T2', push_point_id: 'PP-FWD-P', mode: 'standby', force_lbf: 0 },
+      ],
+      frame,
+    );
+    expect(out.entities.map((e) => e.label)).toEqual(['T2']);
+    expect(out.vectors).toEqual([]);
   });
 });

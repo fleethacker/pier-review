@@ -242,8 +242,8 @@ function LimitsTab() {
     <div>
       <RunBar kind="envelope" label="Compute wind limits" />
       {env && (
-        <div className="grid grid-cols-[210px_1fr] gap-4">
-          <div className="h-48">
+        <div className="grid grid-cols-[160px_1fr] gap-4">
+          <div className="h-36">
             <PolarEnvelope
               points={env.result.points.map((p) => ({ angle: p.wind_rel_deg, limit: p.limit_wind_kt }))}
               currentWindKt={current}

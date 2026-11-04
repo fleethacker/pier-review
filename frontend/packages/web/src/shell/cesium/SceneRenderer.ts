@@ -7,6 +7,8 @@ import { COLORS, STATUS_COLOR, colorFor } from '../theme';
 import { FrameTransform } from './frameTransform';
 import { ViewController } from './viewController';
 
+const MAX_GEOMETRY_WAIT_MS = 20000;
+const KICK_INTERVAL_MS = 100;
 const FONT = '11px "JetBrains Mono", monospace';
 const css = (c: string) => Cesium.Color.fromCssColorString(c);
 
@@ -63,7 +65,7 @@ export class SceneRenderer {
     this.installInput();
     this.store.capture = () => {
       this.viewer.render();
-      return this.viewer.scene.canvas.toDataURL('image/png');
+      return this.viewer.scene.canvas.toDataURL('image/jpeg', 0.92);
     };
     this.unsubscribe = this.store.subscribe(() => this.sync());
     this.sync();
@@ -80,10 +82,12 @@ export class SceneRenderer {
     const tick = () => {
       if (this.disposed) return;
       this.viewer.scene.requestRender();
-      if (performance.now() < this.kickUntil) requestAnimationFrame(tick);
+      const now = performance.now();
+      const buildingGeometry = !this.viewer.dataSourceDisplay.ready && now < this.kickUntil + MAX_GEOMETRY_WAIT_MS;
+      if (now < this.kickUntil || buildingGeometry) setTimeout(tick, KICK_INTERVAL_MS);
       else this.kicking = false;
     };
-    requestAnimationFrame(tick);
+    tick();
   }
 
   /** Window coordinates (CSS px, relative to the page) of an entity's anchor point; for tests and tooling. */
@@ -95,6 +99,11 @@ export class SceneRenderer {
     if (!pt) return null;
     const rect = this.viewer.scene.canvas.getBoundingClientRect();
     return { x: rect.left + pt.x, y: rect.top + pt.y };
+  }
+
+  /** True once every entity's geometry is built; for tests and tooling. */
+  get geometryReady(): boolean {
+    return this.viewer.dataSourceDisplay.ready;
   }
 
   /** Id of the scene item under a page coordinate; for tests and tooling. */

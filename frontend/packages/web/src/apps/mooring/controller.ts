@@ -2,11 +2,13 @@ import { Store } from '../../lib/store';
 import type { AppHost } from '../../scene/app';
 import type { SceneEdit, SceneState } from '../../scene/types';
 import { awaitJob, modeling, MODELING_BASE, unwrap, wsUrl } from './api';
+import { AgentSession } from './agent';
 import { openJsonStream } from './streams';
 import type { StreamHandle, StreamStatus } from './streams';
 import {
   buildScene,
   envVectors,
+  tugScene,
   IDS,
   lineLinks,
   pierEntities,
@@ -26,6 +28,7 @@ import type {
   ShipClass,
   ShipClassSummary,
   SideTo,
+  TugAssignment,
   TugSpec,
 } from './types';
 import { ft, toFt } from './units';
@@ -125,6 +128,8 @@ export interface MooringState {
   windHistory: WindSample[];
   alerts: AlertItem[];
   alertsStatus: StreamStatus | 'idle';
+  tugAssignments: TugAssignment[];
+  overlay: { kind: 'result'; id: string } | { kind: 'sheet'; id: string } | null;
   risk: {
     running: RiskKind | null;
     error: string | null;
@@ -162,6 +167,8 @@ const INITIAL: MooringState = {
   windHistory: [],
   alerts: [],
   alertsStatus: 'idle',
+  tugAssignments: [],
+  overlay: null,
   risk: { running: null, error: null, timeline: null, envelope: null, exceedance: null },
 };
 
@@ -170,6 +177,7 @@ const ANALYZE_DEBOUNCE_MS = 250;
 /** Owns the mooring app's state, talks to the modeling API and keeps the shared scene in sync. */
 export class MooringController {
   readonly state = new Store<MooringState>(INITIAL);
+  readonly agent: AgentSession = new AgentSession(this);
   private analyzeTimer: ReturnType<typeof setTimeout> | undefined;
   private analyzeSeq = 0;
   private analyzeAbort: AbortController | null = null;
@@ -191,6 +199,7 @@ export class MooringController {
     this.recommendAbort?.abort();
     this.envStream?.close();
     this.alertStream?.close();
+    this.agent.dispose();
     this.unsubscribeScene();
   }
 
@@ -432,6 +441,7 @@ export class MooringController {
         lines,
       },
       environment: env,
+      ...(this.s.tugAssignments.length ? { tugs: this.s.tugAssignments } : {}),
       mst: ship.mst_class as AnalyzeRequest['mst'],
       lines_wet: true,
     };
@@ -505,9 +515,9 @@ export class MooringController {
     this.state.set({ scenarios });
   }
 
-  async saveScenario(name: string): Promise<void> {
+  async saveScenario(name: string): Promise<string | null> {
     const { ship, berth, side, shipXFt, lines, loading, standoffOverrideFt } = this.s;
-    if (!ship || !berth) return;
+    if (!ship || !berth) return null;
     const saved = unwrap(
       await modeling.POST('/api/v1/scenarios', {
         body: {
@@ -528,6 +538,7 @@ export class MooringController {
     );
     this.state.set({ scenarioId: saved.scenario_id, notice: `Saved scenario “${saved.name}”` });
     await this.refreshScenarioList();
+    return saved.scenario_id;
   }
 
   async loadScenario(id: string): Promise<void> {
@@ -705,6 +716,21 @@ export class MooringController {
     return data;
   }
 
+  setTugAssignments(tugAssignments: TugAssignment[]): void {
+    this.state.set({ tugAssignments });
+    this.pushScene('update');
+    this.scheduleAnalyze();
+  }
+
+  /** Replace the lines wholesale (agent plans) and re-analyze. */
+  replaceLines(lines: MooringLine[]): void {
+    this.setLines(lines);
+  }
+
+  openOverlay(overlay: MooringState['overlay']): void {
+    this.state.set({ overlay });
+  }
+
   // ---- scene sync ------------------------------------------------------------------------------------------
 
   /**
@@ -729,6 +755,7 @@ export class MooringController {
           lines: s.lines,
           analysis,
           env: s.env,
+          tugs: s.tugAssignments,
         }),
       );
       return;
@@ -739,10 +766,13 @@ export class MooringController {
     const ship = shipEntities(s.ship, s.loading, s.side, s.shipXFt, standoff, analysis, hasFittings, s.berth);
     // Keep the drag in progress: the shell already owns the hull pose while the pointer is down.
     store.upsertEntities(mode === 'ship' ? ship : [...pierEntities(s.berth, analysis), ...ship]);
+    const tugs = tugScene(s.ship, s.side, s.shipXFt, standoff, s.tugAssignments, frame);
+    store.replaceEntitiesOfKind(['tug'], tugs.entities);
     store.setLinks(lineLinks(s.berth, s.ship, s.lines, analysis));
-    if (mode === 'update') {
-      store.setVectors(envVectors(frame, s.env, { x: ft(s.shipXFt), y: ft(s.ship.beam_ft + standoff + 120) }));
-    }
+    store.setVectors([
+      ...envVectors(frame, s.env, { x: ft(s.shipXFt), y: ft(s.ship.beam_ft + standoff + 120) }),
+      ...tugs.vectors,
+    ]);
   }
 }
 

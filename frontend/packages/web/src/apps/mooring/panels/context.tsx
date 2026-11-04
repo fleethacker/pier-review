@@ -12,3 +12,9 @@ export function useController(): MooringController {
 export function useMooring<S>(selector: (s: MooringState) => S): S {
   return useController().state.use(selector);
 }
+
+import type { AgentState } from '../agent';
+
+export function useAgent<S>(selector: (s: AgentState) => S): S {
+  return useController().agent.state.use(selector);
+}

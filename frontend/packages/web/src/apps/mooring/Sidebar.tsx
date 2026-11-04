@@ -1,9 +1,11 @@
 import { useMooring } from './panels/context';
+import { AgentPanel } from './panels/AgentPanel';
 import { EnvPanel } from './panels/EnvPanel';
 import { LinesPanel } from './panels/LinesPanel';
 import { RecommendPanel } from './panels/RecommendPanel';
 import { ResultPanel } from './panels/ResultPanel';
 import { ScenarioPanel } from './panels/ScenarioPanel';
+import { SequencePanel } from './panels/SequencePanel';
 import { SetupPanel } from './panels/SetupPanel';
 
 export function Sidebar() {
@@ -25,8 +27,10 @@ export function Sidebar() {
       {notice && <div className="rounded-sm border border-mil-amber/40 bg-mil-amber/10 p-2 text-[11px] text-mil-amber">{notice}</div>}
       <SetupPanel />
       <EnvPanel />
+      <AgentPanel />
       <LinesPanel />
       <ResultPanel />
+      <SequencePanel />
       <RecommendPanel />
       <ScenarioPanel />
     </div>

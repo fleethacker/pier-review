@@ -135,7 +135,7 @@ export function PolarEnvelope({
   points,
   currentWindKt,
   worstAngle,
-  size = 190,
+  size = 160,
 }: {
   points: { angle: number; limit: number | null }[];
   currentWindKt?: number;
@@ -153,7 +153,7 @@ export function PolarEnvelope({
   };
   const rings = [0.33, 0.66, 1].map((f) => Math.round(max * f));
   return (
-    <svg viewBox={`0 0 ${size} ${size}`} className="h-full max-h-[190px]" role="img" aria-label="Limiting wind speed by wind angle">
+    <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full" role="img" aria-label="Limiting wind speed by wind angle">
       {rings.map((v) => (
         <g key={v}>
           <circle cx={c} cy={c} r={(v / max) * r} fill="none" stroke={GRID} />

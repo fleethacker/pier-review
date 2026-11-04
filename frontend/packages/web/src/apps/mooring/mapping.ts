@@ -17,6 +17,7 @@ import type {
   MooringLine,
   ShipClass,
   SideTo,
+  TugAssignment,
 } from './types';
 
 const DEFAULT_STANDOFF_FT = 3;
@@ -97,6 +98,7 @@ export interface SceneInput {
   lines: MooringLine[];
   analysis: AnalyzeResponse | null;
   env: Environment | null;
+  tugs?: TugAssignment[];
 }
 
 export function pierEntities(berth: Berth, analysis: AnalyzeResponse | null): SceneEntity[] {
@@ -329,6 +331,73 @@ export function envVectors(frame: LocalFrame, env: Environment | null, center: {
   ];
 }
 
+const TUG_LENGTH_M = 24;
+const TUG_BEAM_M = 8;
+
+/**
+ * Tugs sit on the water side of the hull at their push points, bow toward the ship, with an arrow showing the
+ * force direction the plan assigns (true bearing, converted to the frame).
+ */
+export function tugScene(
+  ship: ShipClass,
+  side: SideTo,
+  shipXFt: number,
+  standoff: number,
+  assignments: TugAssignment[],
+  frame: LocalFrame,
+): { entities: SceneEntity[]; vectors: SceneVector[] } {
+  const pose = shipPose(ship, side, shipXFt, standoff);
+  const entities: SceneEntity[] = [];
+  const vectors: SceneVector[] = [];
+  for (const a of assignments) {
+    const pp = ship.push_points?.find((p) => p.push_point_id === a.push_point_id);
+    if (!pp) continue;
+    const shipSideSign = pp.side === 'port' ? 1 : -1; // +y is port in the ship frame
+    const lateral = ft(ship.beam_ft / 2) + TUG_LENGTH_M / 2 + 2;
+    const [x, y] = entityToFrame(pose, ft(pp.x_ft), shipSideSign * lateral);
+    const heading = pose.headingDeg + (shipSideSign > 0 ? -90 : 90);
+    entities.push({
+      id: `tug:${a.tug_id}:${a.push_point_id}`,
+      kind: 'tug',
+      label: a.tug_id,
+      pose: { x, y, z: 0, headingDeg: heading },
+      geometry: {
+        type: 'polygon',
+        points: [
+          [-TUG_LENGTH_M / 2, -TUG_BEAM_M / 2],
+          [TUG_LENGTH_M / 2 - 5, -TUG_BEAM_M / 2],
+          [TUG_LENGTH_M / 2, 0],
+          [TUG_LENGTH_M / 2 - 5, TUG_BEAM_M / 2],
+          [-TUG_LENGTH_M / 2, TUG_BEAM_M / 2],
+        ],
+        heightM: 4,
+      },
+      color: '#e8a33d',
+      selectable: true,
+      props: [
+        { label: 'Tug', value: a.tug_id },
+        { label: 'Push point', value: a.push_point_id },
+        { label: 'Mode', value: a.mode },
+        { label: 'Force', value: fmt.lbf(a.force_lbf) },
+        { label: 'Direction', value: a.direction_true_deg == null ? 'n/a' : `${fmt.deg(a.direction_true_deg)} true` },
+      ],
+    });
+    if (a.direction_true_deg == null) continue;
+    const angle = bearingToLocalAngle(frame, a.direction_true_deg);
+    const len = Math.min(14 + a.force_lbf / 1800, 60);
+    vectors.push({
+      id: `tugforce:${a.tug_id}:${a.push_point_id}`,
+      kind: 'tug-force',
+      origin: { x, y, z: 6 },
+      angleDeg: angle,
+      lengthM: len,
+      color: '#e8a33d',
+      label: `${a.tug_id} ${fmt.lbf(a.force_lbf)}`,
+    });
+  }
+  return { entities, vectors };
+}
+
 export function buildScene(input: SceneInput): SceneContent {
   const { berth, ship } = input;
   const frame = berthFrame(berth);
@@ -343,5 +412,7 @@ export function buildScene(input: SceneInput): SceneContent {
     links.push(...lineLinks(berth, ship, input.lines, input.analysis));
     center = { x: ft(input.shipXFt), y: ft(ship.beam_ft + input.standoffFt + 120) };
   }
-  return { frame, entities, links, vectors: envVectors(frame, input.env, center) };
+  const tugs = ship && input.tugs?.length ? tugScene(ship, input.side, input.shipXFt, input.standoffFt, input.tugs, frame) : null;
+  if (tugs) entities.push(...tugs.entities);
+  return { frame, entities, links, vectors: [...envVectors(frame, input.env, center), ...(tugs?.vectors ?? [])] };
 }

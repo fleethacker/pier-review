@@ -68,6 +68,12 @@ export class SceneStore {
     this.set({ entities: { ...this.state.entities, ...index(entities) } });
   }
 
+  /** Swap every entity of the given kinds for a new set (e.g. tugs that were added or removed). */
+  replaceEntitiesOfKind(kinds: string[], entities: SceneEntity[]): void {
+    const kept = Object.values(this.state.entities).filter((e) => !kinds.includes(e.kind));
+    this.set({ entities: index([...kept, ...entities]) });
+  }
+
   patchEntity(id: string, patch: Partial<SceneEntity>): void {
     const current = this.state.entities[id];
     if (!current) return;
@@ -102,7 +108,7 @@ export class SceneStore {
     this.set({ fitRevision: this.state.fitRevision + 1 });
   }
 
-  /** Set by the renderer: returns a PNG data URL of the current view, or null before the canvas exists. */
+  /** Set by the renderer: returns a JPEG data URL of the current view, or null before the canvas exists. */
   capture: () => string | null = () => null;
 
   setViewMode(viewMode: ViewMode): void {

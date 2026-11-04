@@ -35,9 +35,9 @@ from mooring.core.schemas import (
 )
 from mooring.rules.nstm582 import RULES, CheckContext, check_all, design_factor
 
-from . import environment
-from ._common import envelope, status_from_pct, worst
-from .forces import crude_loads, off_pier
+from mooring.environment import mock as environment
+from mooring.core.envelopes import envelope, status_from_pct, worst
+from mooring.loads import compute_loads, off_pier
 
 ASSUMPTIONS = [
     "Mock load sharing: lines are linear springs; no equilibrium solve, heave/roll ignored.",
@@ -60,7 +60,7 @@ def solve(req: AnalyzeRequest, *, run_rules: bool = True) -> Solved:
     env = req.environment
     heading = ship_heading_true(berth, cfg.side_to)
     depth = depth_at(berth, cfg.ship_x_ft) + env.water_level_mllw_ft
-    loads = crude_loads(ship, req.loading, heading, env, depth)
+    loads = compute_loads(ship, req.loading, heading, env, depth)
 
     f_off = off_pier(loads.total.fy_lbf, cfg.side_to)
     for t in req.tugs:

@@ -22,7 +22,7 @@ from mooring.core.schemas import (
     StationQuality,
 )
 
-from ._common import new_id, utcnow
+from mooring.core.envelopes import new_id, utcnow
 
 TIDE_PERIOD_H = 12.42
 FLOOD_SET_DEG = 190.0  # cb0402 mean flood direction

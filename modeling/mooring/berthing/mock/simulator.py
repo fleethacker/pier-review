@@ -1,53 +1,35 @@
-"""Mock berthing simulator (M11) and approach planner (M12).
+"""Mock berthing simulator (M11, Phase 2).
 
-Berthing: 1-DOF sway toward the pier (mass + added mass, quadratic drag, tug and environment forces), PIANC-style
+1-DOF sway toward the pier (mass + added mass, quadratic drag, tug and environment forces), PIANC-style
 fender energy at contact. Workstream E replaces it with the 3-DOF model in docs/PLAN.md.
-Approach: a canned NAVSTA Norfolk route (approximate coordinates), Barrass squat for under-keel clearance.
 """
 
 import math
-from datetime import timedelta
 
 from mooring import refdata
 from mooring.core.geometry import ship_heading_true
 from mooring.core.schemas import (
-    ApproachSimRequest,
-    ApproachSimResponse,
-    ApproachSimResult,
-    ApproachTrack,
     BerthingSimRequest,
     BerthingSimResponse,
     BerthingSimResult,
     ContactSummary,
     EnvironmentSnapshot,
     FenderResult,
-    LatLon,
-    RouteRequest,
-    RouteResponse,
-    RouteResult,
     Scenario,
     ShipState,
     SimEvent,
     SimFrame,
     SimSeries,
-    TimeWindow,
-    TrackPoint,
     TugState,
-    UkcLeg,
-    UkcRequest,
-    UkcResponse,
-    UkcResult,
-    Waypoint,
 )
 from mooring.core.units import G_FPS2, KGM3_TO_SLUG_FT3, KT_TO_FPS, LT_TO_LB
 
-from . import environment, scenarios
-from ._common import envelope, utcnow
-from .forces import crude_loads, mean_draft_ft, off_pier
+from mooring import scenarios
+from mooring.core.envelopes import envelope
+from mooring.loads import compute_loads, mean_draft_ft, off_pier
 
 MAX_CONTACT_FPS = 1.5  # NSTM Table 582-2-3 berthing velocity
 SERIES: dict[str, SimSeries] = {}
-TRACKS: dict[str, ApproachTrack] = {}
 
 
 class BerthingModel:
@@ -71,7 +53,7 @@ class BerthingModel:
         self.contact: ContactSummary | None = None
         self.paused = False
         depth = 45.0 + env.water_level_mllw_ft
-        loads = crude_loads(self.ship, sc.loading, self.heading, env, depth)
+        loads = compute_loads(self.ship, sc.loading, self.heading, env, depth)
         self.f_env_toward = -off_pier(loads.total.fy_lbf, sc.side_to)
 
     def command(self, tug_id: str, force_lbf: float, direction_rel_deg: float) -> None:
@@ -151,84 +133,3 @@ def simulate_berthing(req: BerthingSimRequest, job_id: str, base_path: str) -> B
     return envelope(BerthingSimResponse, model="mooring.dynamics.berthing", request=req, result=result, status=status,
                     assumptions=["Mock 1-DOF sway model; lines not modeled yet.",
                                  "Fender energy = 0.5 M v^2 Cm Ce Cs Cc with Ce 0.5, Cs 1.0, Cc 0.9 (PIANC 2002)."])
-
-
-# ---------- Approach ----------
-
-ROUTE = [  # approximate, for development only
-    ("Thimble Shoal Channel entrance", 36.9590, -76.0450, 55.0, 1000.0),
-    ("Thimble Shoal Channel", 36.9660, -76.1600, 55.0, 1000.0),
-    ("Hampton Roads", 36.9640, -76.2700, 50.0, 1500.0),
-    ("NAVSTA approach", 36.9600, -76.3150, 45.0, 800.0),
-]
-
-
-def route(req: RouteRequest) -> RouteResponse:
-    berth = refdata.berth(req.berth_id)
-    wps = [Waypoint(lat=lat, lon=lon, leg_name=n, channel_depth_mllw_ft=d, width_ft=w) for n, lat, lon, d, w in ROUTE]
-    wps.append(Waypoint(lat=berth.origin_lat, lon=berth.origin_lon, leg_name=f"Berth {berth.name}",
-                        channel_depth_mllw_ft=min(p.depth_mllw_ft for p in berth.depth_profile), width_ft=400.0))
-    if req.origin:
-        wps.insert(0, Waypoint(lat=req.origin.lat, lon=req.origin.lon, leg_name="Origin",
-                               channel_depth_mllw_ft=60.0, width_ft=2000.0))
-    result = RouteResult(waypoints=wps, tug_rendezvous=LatLon(lat=36.9620, lon=-76.3000),
-                         abort_points=[LatLon(lat=36.9650, lon=-76.2500), LatLon(lat=36.9620, lon=-76.3000)])
-    return envelope(RouteResponse, model="mooring.approach.route", request=req, result=result, status="GREEN",
-                    assumptions=["Mock route with approximate coordinates; real route from NOAA ENC."])
-
-
-def _leg_nm(a: Waypoint, b: Waypoint) -> float:
-    dlat = (b.lat - a.lat) * 60
-    dlon = (b.lon - a.lon) * 60 * math.cos(math.radians((a.lat + b.lat) / 2))
-    return math.hypot(dlat, dlon)
-
-
-def ukc(req: UkcRequest) -> UkcResponse:
-    ship = refdata.ship(req.ship_class_id)
-    draft = mean_draft_ft(ship, req.loading)
-    t = req.eta_utc
-    legs = []
-    for i, (a, b) in enumerate(zip(req.waypoints, req.waypoints[1:])):
-        v = req.speed_profile_kt[i] if i < len(req.speed_profile_kt) else req.speed_profile_kt[-1]
-        squat = ship.block_coefficient * v**2 / 50 * 3.281  # Barrass, confined channel, metres -> feet
-        wl = environment.synthetic(t, "forecast").water_level_mllw_ft
-        ukc_ft = min(a.channel_depth_mllw_ft, b.channel_depth_mllw_ft) + wl - draft - squat
-        status = "RED" if ukc_ft < 2 else "AMBER" if ukc_ft < 4 else "GREEN"
-        legs.append(UkcLeg(leg_name=b.leg_name, min_ukc_ft=round(ukc_ft, 1), squat_ft=round(squat, 2),
-                           water_level_ft=wl, status=status))
-        t += timedelta(hours=_leg_nm(a, b) / max(v, 0.5))
-    overall = "RED" if any(l.status == "RED" for l in legs) else "AMBER" if any(l.status == "AMBER" for l in legs) else "GREEN"
-    return envelope(UkcResponse, model="mooring.approach.ukc", request=req,
-                    result=UkcResult(legs=legs, window=TimeWindow(earliest_utc=req.eta_utc - timedelta(hours=1),
-                                                                  latest_utc=req.eta_utc + timedelta(hours=2))),
-                    status=overall, assumptions=["Barrass squat (confined): Cb x V^2 / 50 m.", "Mock tide."])
-
-
-def simulate_approach(req: ApproachSimRequest, job_id: str, base_path: str) -> ApproachSimResponse:
-    ship = refdata.ship(req.ship_class_id)
-    draft = mean_draft_ft(ship, req.loading)
-    pts, t_s = [], 0.0
-    for i, (a, b) in enumerate(zip(req.waypoints, req.waypoints[1:])):
-        v = req.speed_profile_kt[i] if i < len(req.speed_profile_kt) else req.speed_profile_kt[-1]
-        hdg = math.degrees(math.atan2((b.lon - a.lon) * math.cos(math.radians(a.lat)), b.lat - a.lat)) % 360
-        dur = _leg_nm(a, b) / max(v, 0.5) * 3600
-        for k in range(10):
-            f = k / 10
-            squat = ship.block_coefficient * v**2 / 50 * 3.281
-            wl = environment.synthetic(req.eta_utc + timedelta(seconds=t_s + f * dur), "forecast").water_level_mllw_ft
-            pts.append(TrackPoint(lat=a.lat + f * (b.lat - a.lat), lon=a.lon + f * (b.lon - a.lon), t_s=round(t_s + f * dur),
-                                  heading_true_deg=round(hdg, 1), speed_kt=v, cross_track_ft=round(20 * math.sin(k), 1),
-                                  ukc_ft=round(min(a.channel_depth_mllw_ft, b.channel_depth_mllw_ft) + wl - draft - squat, 1)))
-        t_s += dur
-    TRACKS[job_id] = ApproachTrack(job_id=job_id, points=pts)
-    min_ukc = min(p.ukc_ft for p in pts) if pts else 0.0
-    result = ApproachSimResult(track_url=f"{base_path}/approach/simulations/{job_id}/track",
-                               max_cross_track_ft=max(abs(p.cross_track_ft) for p in pts) if pts else 0.0,
-                               min_ukc_ft=min_ukc, events=[])
-    return envelope(ApproachSimResponse, model="mooring.dynamics.approach", request=req, result=result,
-                    status="RED" if min_ukc < 2 else "AMBER" if min_ukc < 4 else "GREEN",
-                    assumptions=["Mock straight-line track between waypoints; no maneuvering model yet."])
-
-
-def now_utc():
-    return utcnow()

@@ -82,27 +82,7 @@ The UI talks only to the API layer. The agents reach the planners and physics th
 - **Storage:** YAML catalogs in the repo; SQLite for scenarios, results and sheets.
 - **Jobs:** an in-process async worker for the hackathon, replaceable by a queue later.
 
-**Repo layout.** The `mooring/` package is pure Python with no web imports. `api/` is a thin HTTP layer over it.
-
-```text
-mooring/
-  core/       schemas.py  units.py  frames.py  envelope.py
-  refdata/    ships/*.yaml  lines.yaml  berths/*.yaml  tugs.yaml
-  env/        noaa.py  replay.py  forecast.py  scenario.py  gust_model.py  telemetry.py
-  loads/      ufc_wind.py  ufc_current.py
-  solver/     static.py  line_models.py  fenders.py  envelope.py  tide_sweep.py
-  rules/      nstm582.py
-  risk/       monte_carlo.py  timeline.py  alerts.py
-  tugs/       planner.py  windows.py
-  planning/   optimizer.py  sequence.py  sequence_rules.yaml
-  vision/     berth_extract.py  enc.py
-  agent/      orchestrator.py  tools.py  prompts/
-  sheet/      safety_sheet.py  templates/
-  dynamics/   berthing.py  approach.py  squat.py
-api/          main.py  routers/  jobs.py  ws.py
-tests/        golden/  contract/  agent_evals/
-openapi.yaml
-```
+**Repo layout.** The repo is split into `frontend/` (UI), `modeling/` (physics and ML service), `agents/` (LLM agent service) and `contract/` (generated OpenAPI specs they share). Inside `modeling/`, shared capabilities (environment, loads, tug sizing, telemetry) sit beside one package per phase: `moored/`, `berthing/` and `approach/`. Each folder's README is the current source for its layout: [README](../README.md), [modeling/README.md](../modeling/README.md), [agents/README.md](../agents/README.md), [contract/README.md](../contract/README.md).
 
 ## API conventions
 

@@ -25,6 +25,8 @@ MIGRATIONS: list[str] = [
     CREATE TABLE jobs (job_id TEXT PRIMARY KEY, kind TEXT NOT NULL, state TEXT NOT NULL, created_at_utc TEXT NOT NULL,
                        finished_at_utc TEXT, error TEXT, result TEXT);
     """,
+    # 3: durable resource ownership; preexisting resources stay unowned.
+    "CREATE TABLE ownership (kind TEXT NOT NULL, key TEXT NOT NULL, principal TEXT NOT NULL, PRIMARY KEY(kind,key));",
 ]
 
 
@@ -40,7 +42,11 @@ class Database:
         self.lock = threading.RLock()
         self.conn = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
         self.conn.execute("PRAGMA journal_mode=WAL" if self.path != ":memory:" else "PRAGMA journal_mode=MEMORY")
-        self._migrate()
+        try:
+            self._migrate()
+        except BaseException:
+            self.conn.close()
+            raise
 
     def _migrate(self) -> None:
         with self.lock:
@@ -95,6 +101,8 @@ class ResultStore(MutableMapping):
     """result_id -> envelope dict. Write-once: re-writing identical content is a no-op, different content is an error."""
 
     def __setitem__(self, result_id: str, envelope: dict) -> None:
+        from . import access, metrics
+        access.claim("result",result_id)
         body = canonical(envelope)
         d = db()
         with d.lock:
@@ -107,8 +115,14 @@ class ResultStore(MutableMapping):
             d.execute("INSERT INTO results VALUES (?,?,?,?,?,?)",
                       (result_id, envelope.get("model"), envelope.get("inputs_hash"),
                        manifest.get("resolved_inputs_hash"), envelope.get("computed_at_utc"), body))
+            state = (envelope.get("validity") or {}).get("state", "unknown")
+            metrics.event("result_stored", result_id=result_id, validity=state,
+                          validity_reasons=[r["code"] for r in (envelope.get("validity") or {}).get("reasons", [])])
+            if state == "invalid": metrics.add("solver_failures")
 
     def __getitem__(self, result_id: str) -> dict:
+        from .access import allowed
+        if not allowed("result", result_id): raise KeyError(result_id)
         rows = db().execute("SELECT envelope FROM results WHERE result_id=?", (result_id,))
         if not rows:
             raise KeyError(result_id)
@@ -118,12 +132,15 @@ class ResultStore(MutableMapping):
         raise ImmutableResultError("stored results cannot be deleted")
 
     def __iter__(self) -> Iterator[str]:
-        return iter([r[0] for r in db().execute("SELECT result_id FROM results")])
+        from .access import allowed
+        return iter([r[0] for r in db().execute("SELECT result_id FROM results") if allowed("result",r[0])])
 
     def __len__(self) -> int:
-        return db().execute("SELECT COUNT(*) FROM results")[0][0]
+        return sum(1 for _ in self)
 
     def __contains__(self, result_id) -> bool:
+        from .access import allowed
+        if not allowed("result", result_id): return False
         return bool(db().execute("SELECT 1 FROM results WHERE result_id=?", (result_id,)))
 
 
@@ -146,26 +163,35 @@ class DocStore(MutableMapping):
         self.namespace, self.model = namespace, model
 
     def __setitem__(self, key: str, value) -> None:
+        from .access import claim
+        claim(self.namespace, key)
         d = db()
         with d.lock:
             d.execute("INSERT OR REPLACE INTO docs VALUES (?,?,?)", (self.namespace, key, value.model_dump_json()))
 
     def __getitem__(self, key: str):
+        from .access import allowed
+        if not allowed(self.namespace, key): raise KeyError(key)
         rows = db().execute("SELECT body FROM docs WHERE namespace=? AND key=?", (self.namespace, key))
         if not rows:
             raise KeyError(key)
         return self.model.model_validate_json(rows[0][0])
 
     def __delitem__(self, key: str) -> None:
+        from .access import allowed
+        if not allowed(self.namespace,key): raise KeyError(key)
         d = db()
         with d.lock:
             d.execute("DELETE FROM docs WHERE namespace=? AND key=?", (self.namespace, key))
 
     def __iter__(self) -> Iterator[str]:
-        return iter([r[0] for r in db().execute("SELECT key FROM docs WHERE namespace=? ORDER BY rowid", (self.namespace,))])
+        from .access import allowed
+        return iter([r[0] for r in db().execute("SELECT key FROM docs WHERE namespace=? ORDER BY rowid", (self.namespace,)) if allowed(self.namespace,r[0])])
 
     def __len__(self) -> int:
-        return db().execute("SELECT COUNT(*) FROM docs WHERE namespace=?", (self.namespace,))[0][0]
+        return sum(1 for _ in self)
 
     def __contains__(self, key) -> bool:
+        from .access import allowed
+        if not allowed(self.namespace,key): return False
         return bool(db().execute("SELECT 1 FROM docs WHERE namespace=? AND key=?", (self.namespace, key)))

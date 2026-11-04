@@ -29,7 +29,8 @@ mooring/
   moored/          Phase 1: ship alongside, lines fast
     mock/            solver.py (M4), risk.py (M5), tugs.py (holding tugs), optimizer.py (M7 line plan)
   berthing/        Phases 1c and 2: about two ship lengths off until all lines are fast
-    mock/            tugs.py (assist tugs, berthing windows), sequence.py (M7 line sequence), simulator.py (M11)
+    simulator.py     M11 shared RK4 adapter (synthetic body; unqualified)
+    tugs.py, sequence.py  assist tugs, windows and M7 sequence
   approach/        Phase 3: channel transit to the berth
     mock/            planner.py (route, under-keel clearance), simulator.py (M12)
 
@@ -61,8 +62,9 @@ never import a phase; phases don't import each other.
 - The NSTM 582 rule checks (`GET /rules` shows which are implemented).
 - M3 environmental loads: UFC Chapter 4 wind/current forces and yaw, with source-checked examples and bounded seed calibration.
 
-Everything else (load sharing, risk, tug sizing, optimizer, simulations) is placeholder logic with the
-right shape. Line strengths, berths and tugs are mock data.
+- M11 batch and interactive berthing use shared RK4 mechanics with an explicitly synthetic, unqualified body. See [simulation semantics and limits](../docs/BERTHING_SIMULATION.md).
+
+The current [build-out ledger](../docs/MODELING_BUILDOUT_STATUS.md) records the other implemented capabilities and outstanding gates. Seed line strengths, berths and tugs remain demonstration data. [Readiness controls](../docs/DEPLOYMENT_READINESS.md) are local safeguards, not live-use approval.
 
 ## M3 implementation notes
 

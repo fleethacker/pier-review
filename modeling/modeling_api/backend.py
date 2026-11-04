@@ -17,7 +17,7 @@ from mooring.approach.mock import simulator as approach_sim  # noqa: F401
 
 # Phase 1c/2: berthing
 from mooring.berthing import sequence  # noqa: F401
-from mooring.berthing.mock import simulator as berthing_sim  # noqa: F401
+from mooring.berthing import simulator as berthing_sim  # noqa: F401
 from mooring.berthing import service as berthing_tugs  # noqa: F401
 
 # Phase 1: moored
@@ -35,7 +35,7 @@ BACKENDS: dict[str, str] = {
     "M6 tug planner (moored, berthing)": "mock",
     "M7 optimizer (moored)": "real (bounded search; seed data)",
     "M7 sequence (berthing)": "real (draft, unreviewed, static check)",
-    "M11 berthing simulator": "mock",
+    "M11 berthing simulator": "real (synthetic body; vessel dynamics unqualified)",
     "M12 approach planner": "mock",
     "M13 telemetry ingest": "real (NMEA MWV/HDT, registered load cells)",
 }

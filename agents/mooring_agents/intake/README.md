@@ -3,7 +3,7 @@
 Turns raw and forecast environment data into what the Planner and Safety agents need: windows of concern,
 a Mooring Service Type (MST) assessment and the conditions to design for.
 
-**Status:** mock (`mock.py`), deterministic, no LLM. Endpoints and schemas are live.
+**Status:** real (`agent.py`), with the original deterministic assessment in `core.py` and optional guarded LLM narration. Endpoints and schemas are unchanged.
 
 ## Inputs and outputs
 
@@ -37,12 +37,11 @@ a Mooring Service Type (MST) assessment and the conditions to design for.
     - Broadside current is computed from the ship's heading at the berth.
     - The MST assessment uses `mooring.rules.nstm582.MST_LIMITS` (NSTM Table 582-1-1).
     - Planning conditions: worst gust, strongest current, and now.
-3. **LLM layer (to build):**
+3. **LLM layer:**
     - Write `summary` for a bridge audience.
     - Rank windows by operational impact (for example, a gust window during the planned berthing time).
     - Explain data-quality issues.
-    - Optionally propose an extra planning condition, with a reason. The LLM may add or reorder, but it can't
-      delete a deterministic window or soften a severity.
+    - Optionally propose an extra planning condition, with a reason. The LLM may rank windows and append a forecast condition, but cannot delete or change any deterministic finding; the worst-gust planning condition stays first.
 
 ## Guardrails
 
@@ -58,3 +57,44 @@ a Mooring Service Type (MST) assessment and the conditions to design for.
 - Mock or stale data is reported in `data_quality`.
 - Every tool call is in the ledger under the report id.
 - The LLM summary contains no numbers absent from the report.
+
+## Implementation and configuration
+
+`thresholds.py` names the existing thresholds. MST wind/current limits reference
+NSTM Table 582-1-1 through the canonical `MST_LIMITS` table. The gust alert policy,
+wind-shift trigger, freshness cutoff and low-current berthing cutoff are local
+policies retained from the mock, **not claimed NSTM numeric requirements**.
+The core retains its original synthetic-series handling, summary, chronological
+order, MST decisions and data-quality behavior. Golden reports captured before
+extraction cover forecast, calm and synthetic-storm cases.
+
+Narration uses `shared.llm.get_llm()` and `intake/prompts/summary.txt`. Configure
+`AGENTS_LLM_PROVIDER=openai`, `AGENTS_LLM_MODEL` with your chosen model ID, and
+`OPENAI_API_KEY` through the environment. The shared text-only adapter uses the
+[OpenAI Responses API](https://developers.openai.com/api/docs/guides/text), with
+storage disabled. It does not execute model tool calls. No model is selected
+implicitly and no new dependency is required. Missing configuration returns the
+core report without calling a provider. Incomplete replies, provider errors,
+invalid proposals and a 30-second narration deadline also fall back to the core;
+failures are logged without response payloads or credentials.
+
+The model returns a private JSON proposal, not an IntakeReport. It supplies three
+to five sentence templates, window impact scores, quality explanations, and at
+most one forecast index with a reason. Numbers and times in generated narrative
+must use references to typed report fields; code substitutes the values. Numeric
+literals, common spelled-out quantities, identifiers, narrative fields and unknown
+references are rejected. This prevents invented numerical values; it does not
+prove the semantic accuracy of every model-written statement.
+
+Ranking sorts the original window objects stably by impact score; missing entries
+get zero impact and are never dropped. Quality explanations are appended to the
+original details; issue types, severities and station IDs stay intact. An optional
+condition copies the indexed snapshot from the same forecast fetched by the core,
+never from model-provided environment data. Existing conditions keep their order;
+duplicates are ignored. The whole proposal is validated before applying any part.
+
+`mock.py` remains only as a compatibility re-export because Planner and Safety
+currently import its report store. Core, agent and compatibility imports share
+that store. Agent responses report `backend="real"` even when narration falls back;
+that describes the intake implementation, not whether modeling data is live.
+Underlying mock/stale quality findings remain visible. No endpoint shapes change.

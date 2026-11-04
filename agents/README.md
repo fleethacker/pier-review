@@ -7,14 +7,14 @@ comes from the modeling service through the Physics agent's logged toolkit and i
 
 | Folder | Agent | Job | Status |
 | --- | --- | --- | --- |
-| [`intake/`](mooring_agents/intake/README.md) | Environment/Intake | Environment data → windows of concern, MST assessment, conditions to design for | mock |
+| [`intake/`](mooring_agents/intake/README.md) | Environment/Intake | Environment data → windows of concern, MST assessment, conditions to design for | real core + optional LLM summary |
 | [`physics/`](mooring_agents/physics/README.md) | Physics/Load | Logged tool gateway to modeling: forces, line geometry, bollard strain. No LLM, no math | real gateway |
 | [`planner/`](mooring_agents/planner/README.md) | Planner | Proposes tugs, lines and sequence; runs physics; iterates to acceptable margins | mock |
 | [`safety/`](mooring_agents/safety/README.md) | Safety/Brief | Independent review, gust warnings vs working-load and breaking limits, Safety Sheet | mock review, real sheet |
 | [`vision/`](mooring_agents/vision/README.md) | Berth Map | Berth image → draft berth and line placement, human-confirmed | mock |
 
 Each folder's README is that agent's plan and spec. Each folder holds `schemas.py` (its API types), `mock.py` (the
-current placeholder) and, once built, the real agent beside it.
+placeholder where still needed) and the real agent beside it. Intake's mock is only a compatibility import.
 
 ## How they work together
 
@@ -36,7 +36,7 @@ Full spec: `contract/agents.openapi.yaml`.
 
 ```text
 mooring_agents/
-  shared/llm.py   provider-agnostic LLM interface every agent codes to (no provider wired yet)
+  shared/llm.py   provider-agnostic LLM interface; optional OpenAI text provider
   physics/        client.py, tools.py, toolkit.py (ledger), schemas.py
   intake/ planner/ safety/ vision/   README.md, schemas.py, mock.py (+ safety/sheet.py)
   schemas.py      re-exports every agent's schemas for the contract

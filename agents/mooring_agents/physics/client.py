@@ -12,7 +12,9 @@ import httpx
 from mooring.core.schemas import (
     AnalyzeResponse,
     Berth,
+    BerthingWindowsResponse,
     EnvironmentSnapshot,
+    ForecastSeries,
     ExceedanceResponse,
     LimitEnvelopeResponse,
     RecommendResponse,
@@ -82,11 +84,28 @@ class ModelingClient:
         return await self._req("GET", f"/results/{result_id}")
 
     # ---- Environment ----
-    async def env_now(self, berth_id: str, heading_true_deg: float | None = None) -> EnvironmentSnapshot:
-        params = {"berth_id": berth_id}
+    async def env_now(self, berth_id: str, heading_true_deg: float | None = None,
+                      env_scenario_id: str | None = None) -> EnvironmentSnapshot:
+        params: dict = {"berth_id": berth_id}
         if heading_true_deg is not None:
             params["heading_true_deg"] = heading_true_deg
+        if env_scenario_id:
+            params["env_scenario_id"] = env_scenario_id
         return EnvironmentSnapshot.model_validate(await self._req("GET", "/env/now", params=params))
+
+    async def forecast(self, berth_id: str, hours: int = 24, step_min: int = 30) -> ForecastSeries:
+        params = {"berth_id": berth_id, "hours": hours, "step_min": step_min}
+        return ForecastSeries.model_validate(await self._req("GET", "/env/forecast", params=params))
+
+    # ---- Generic access (used by the tool gateway) ----
+    async def request(self, method: str, path: str, **kw) -> Any:
+        return await self._req(method, path, **kw)
+
+    async def job(self, path: str, body: dict) -> dict:
+        return await self._job(path, body)
+
+    async def windows(self, body: dict) -> BerthingWindowsResponse:
+        return BerthingWindowsResponse.model_validate(await self._req("POST", "/windows/berthing", json=body))
 
     # ---- Physics tools ----
     async def analyze(self, body: dict) -> AnalyzeResponse:

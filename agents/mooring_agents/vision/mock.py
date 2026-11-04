@@ -1,4 +1,4 @@
-"""Mock berth map analysis agent (M8).
+"""Mock Berth Map agent (M8).
 
 Returns a draft of the seed Pier 12 North berth as if extracted from the image, with synthetic detections and
 confirmation questions. Workstream D replaces it with: ENC geometry -> vision LLM extraction -> snapping -> M7.
@@ -7,14 +7,14 @@ confirmation questions. Workstream D replaces it with: ENC geometry -> vision LL
 from mooring.core.envelopes import envelope, new_id
 from mooring.core.schemas import Provenance
 
-from ..clients import ModelingClient
-from ..schemas import Detection, VisionMetadata, VisionResponse, VisionResult
+from ..physics.toolkit import PhysicsToolkit
+from .schemas import Detection, VisionMetadata, VisionResponse, VisionResult
 
 TEMPLATE_BERTH = "NAVSTA-NORFOLK-P12-N"
 
 
-async def analyze(image: bytes, filename: str, meta: VisionMetadata, client: ModelingClient) -> VisionResponse:
-    seed = await client.berth(TEMPLATE_BERTH)
+async def analyze(image: bytes, filename: str, meta: VisionMetadata, tk: PhysicsToolkit) -> VisionResponse:
+    seed = await tk.berth(TEMPLATE_BERTH)
     draft_id = new_id("VISION-DRAFT").upper().replace("_", "-")
     draft = seed.model_copy(update={
         "berth_id": draft_id, "name": meta.berth_name or f"Draft berth from {filename}",
@@ -32,7 +32,7 @@ async def analyze(image: bytes, filename: str, meta: VisionMetadata, client: Mod
     questions.append("Fitting capacities were not visible; defaults from NSTM Table 582-5-6 were used. Confirm.")
     recommended = None
     if meta.ship_class_id:
-        rec = await client.recommend({"ship_class_id": meta.ship_class_id, "berth_id": TEMPLATE_BERTH,
+        rec = await tk.recommend({"ship_class_id": meta.ship_class_id, "berth_id": TEMPLATE_BERTH,
                                       "side_to": meta.side_to or "starboard", "max_candidates": 1})
         recommended = rec.result.candidates[0].config if rec.result.candidates else None
     result = VisionResult(draft_berth=draft, detections=detections, recommended_config=recommended,

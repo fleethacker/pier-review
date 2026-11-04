@@ -1,6 +1,7 @@
-"""Safety sheet builder (M10): assembles the Mooring Evolution Safety Sheet from a finished agent plan.
+"""Safety sheet builder (M10): assembles the Mooring Evolution Safety Sheet from a reviewed plan. Real (no LLM).
 
-Every number comes from a cited modeling result. A sheet locks on its first approval; edits create a new version.
+Every number comes from a cited modeling result. Go/no-go thresholds come from the safety review. A sheet locks on its
+first approval; edits create a new version.
 """
 
 import html
@@ -9,8 +10,17 @@ import math
 from mooring.core.envelopes import new_id, utcnow
 from mooring.core.schemas import Provenance
 
-from ..mock.planner import PlanRecord
-from ..schemas import Approval, ApprovalCreate, GoNoGo, SafetySheet, SheetEnvironment, SheetHeader, SheetLineRow
+from ..planner.mock import PlanRecord
+from .schemas import (
+    Approval,
+    ApprovalCreate,
+    GoNoGo,
+    SafetyReview,
+    SafetySheet,
+    SheetEnvironment,
+    SheetHeader,
+    SheetLineRow,
+)
 
 SHEETS: dict[str, SafetySheet] = {}
 
@@ -18,7 +28,7 @@ DISCLAIMER = ("Decision aid only. The Commanding Officer and pilot retain author
               "Values marked mock or estimated are not validated.")
 
 
-def build(rec: PlanRecord) -> SafetySheet:
+def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
     plan, a = rec.plan, rec.analysis
     if a is None or plan.config is None:
         raise ValueError("Plan has no analysis to build a sheet from")
@@ -28,18 +38,30 @@ def build(rec: PlanRecord) -> SafetySheet:
                          tension_lbf=by_line[ln.line_number].tension_lbf, pct_wll=by_line[ln.line_number].pct_wll,
                          status=by_line[ln.line_number].status) for ln in plan.config.lines]
     top = a.result.min_margin
-    gust = rec.env.wind_gust_kt
-    limit = gust * math.sqrt(100 / top.pct_wll) if top.pct_wll > 0 else None
+    if review and review.thresholds.limit_wll_gust_kt:
+        limit = review.thresholds.limit_wll_gust_kt
+        breaking = review.thresholds.limit_breaking_gust_kt
+    else:
+        gust = rec.env.wind_gust_kt
+        limit = gust * math.sqrt(100 / top.pct_wll) if top.pct_wll > 0 else None
+        breaking = None
     worst_lines = sorted(rows, key=lambda r: -r.pct_wll)[:2]
     go_no_go = []
     if limit:
-        go_no_go.append(GoNoGo(condition=f"Sustained wind above {0.8 * limit / 1.3:.0f} kt",
+        go_no_go.append(GoNoGo(condition=f"Gusts above {0.8 * limit:.0f} kt (80% of plan limit)",
                                action=f"Tend and double up lines {', '.join(str(r.line_number) for r in worst_lines)}"))
-        go_no_go.append(GoNoGo(condition=f"Gusts above {limit:.0f} kt (plan limit)",
+        go_no_go.append(GoNoGo(condition=f"Gusts above {limit:.0f} kt (working-load limit)",
                                action="Call holding tugs; consider an alternate berth"))
+    if breaking:
+        go_no_go.append(GoNoGo(condition=f"Gusts approaching {breaking:.0f} kt (estimated line breaking)",
+                               action="Clear personnel from snap-back zones; get underway or relocate if able"))
     cited = [c for item in plan.rationale for c in item.cites]
+    if review:
+        cited += review.thresholds.cites
+    status = review.status if review else (plan.status or "RED")
     sheet = SafetySheet(
-        sheet_id=new_id("sheet"), version=1, plan_id=plan.plan_id, locked=False, status=plan.status or "RED",
+        sheet_id=new_id("sheet"), version=1, plan_id=plan.plan_id, review_id=review.review_id if review else None,
+        locked=False, status=status,
         header=SheetHeader(ship_class_id=rec.scenario.ship_class_id, berth_id=rec.scenario.berth_id,
                            side_to=rec.scenario.side_to, evolution="moor", planned_utc=utcnow()),
         environment=SheetEnvironment(observed=rec.env, forecast_summary="See risk timeline (mock forecast).",

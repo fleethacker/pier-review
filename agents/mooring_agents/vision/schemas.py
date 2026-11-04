@@ -1,4 +1,4 @@
-"""Berth map analysis schemas (module M8). The image is sent as multipart form data."""
+"""Berth Map agent schemas (M8). The image is sent as multipart form data."""
 
 from typing import Literal
 

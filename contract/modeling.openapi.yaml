@@ -1,0 +1,6044 @@
+openapi: 3.1.0
+info:
+  title: 'Mooring Assistant: Modeling API'
+  description: '
+
+    Physics and ML modeling service for the mooring assistant. **All modules currently run on mock backends**
+
+    (check `backend` in every response envelope and the `X-Mooring-Backend` header).
+
+
+    Conventions: unit-suffixed field names (`_kt`, `_ft`, `_lbf`, `_deg`, `_utc`); wind direction is where it blows
+
+    FROM, current direction is where it flows TOWARD; long-running endpoints return `202` with a job (poll
+
+    `/jobs/{job_id}` or stream `/jobs/{job_id}/events`). WebSocket channels are listed under `x-websockets`.
+
+    '
+  version: 1.0.0
+paths:
+  /api/v1/env/now:
+    get:
+      tags:
+      - M1 Environment
+      summary: Current environment at a berth
+      operationId: env_now_api_v1_env_now_get
+      parameters:
+      - name: berth_id
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Berth Id
+      - name: heading_true_deg
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+            minimum: 0
+            exclusiveMaximum: 360
+          - type: 'null'
+          description: Adds relative bearings.
+          title: Heading True Deg
+        description: Adds relative bearings.
+      - name: env_scenario_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Serve a synthetic scenario instead.
+          title: Env Scenario Id
+        description: Serve a synthetic scenario instead.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentSnapshot'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/env/forecast:
+    get:
+      tags:
+      - M1 Environment
+      summary: Forecast series at a berth
+      operationId: env_forecast_api_v1_env_forecast_get
+      parameters:
+      - name: berth_id
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Berth Id
+      - name: hours
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 120
+          minimum: 1
+          default: 48
+          title: Hours
+      - name: step_min
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 180
+          minimum: 6
+          default: 30
+          title: Step Min
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastSeries'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/env/history:
+    get:
+      tags:
+      - M1 Environment
+      summary: Historical observations for replay
+      operationId: env_history_api_v1_env_history_get
+      parameters:
+      - name: station
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Station
+      - name: start_utc
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: Start Utc
+      - name: end_utc
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date-time
+          title: End Utc
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistorySeries'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/env/scenarios:
+    post:
+      tags:
+      - M1 Environment
+      summary: Create a synthetic environment
+      operationId: env_scenario_create_api_v1_env_scenarios_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnvScenarioCreate'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  name: MST II design condition
+                  kind: steady
+                  wind_speed_kt: 64
+                  wind_gust_kt: 64
+                  wind_from_true_deg: 195
+                  current_speed_kt: 2.0
+                  current_set_true_deg: 15
+                  water_level_mllw_ft: 0.0
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvScenario'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/env/scenarios/{env_scenario_id}:
+    get:
+      tags:
+      - M1 Environment
+      summary: Env Scenario Get
+      operationId: env_scenario_get_api_v1_env_scenarios__env_scenario_id__get
+      parameters:
+      - name: env_scenario_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Env Scenario Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvScenario'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/env/gust-model:
+    get:
+      tags:
+      - M1 Environment
+      summary: Fitted gust factor and current residual model
+      operationId: env_gust_model_api_v1_env_gust_model_get
+      parameters:
+      - name: station
+        in: query
+        required: false
+        schema:
+          type: string
+          default: '8638614'
+          title: Station
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GustModel'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/ships:
+    get:
+      tags:
+      - M2 Reference data
+      summary: List Ships
+      operationId: list_ships_api_v1_ships_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ShipClassSummary'
+                type: array
+                title: Response List Ships Api V1 Ships Get
+  /api/v1/ships/{class_id}:
+    get:
+      tags:
+      - M2 Reference data
+      summary: Get Ship
+      operationId: get_ship_api_v1_ships__class_id__get
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Class Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShipClass'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/lines:
+    get:
+      tags:
+      - M2 Reference data
+      summary: List Lines
+      operationId: list_lines_api_v1_lines_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/LineSpec'
+                type: array
+                title: Response List Lines Api V1 Lines Get
+  /api/v1/lines/{spec_id}:
+    get:
+      tags:
+      - M2 Reference data
+      summary: Get Line
+      operationId: get_line_api_v1_lines__spec_id__get
+      parameters:
+      - name: spec_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Spec Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineSpec'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/berths:
+    get:
+      tags:
+      - M2 Reference data
+      summary: List Berths
+      operationId: list_berths_api_v1_berths_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/BerthSummary'
+                type: array
+                title: Response List Berths Api V1 Berths Get
+    post:
+      tags:
+      - M2 Reference data
+      summary: Add or replace a berth (from the canvas or a confirmed vision draft)
+      operationId: create_berth_api_v1_berths_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Berth'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BerthCreated'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/berths/{berth_id}:
+    get:
+      tags:
+      - M2 Reference data
+      summary: Get Berth
+      operationId: get_berth_api_v1_berths__berth_id__get
+      parameters:
+      - name: berth_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Berth Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Berth'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tugs:
+    get:
+      tags:
+      - M2 Reference data
+      summary: List Tugs
+      operationId: list_tugs_api_v1_tugs_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TugSpec'
+                type: array
+                title: Response List Tugs Api V1 Tugs Get
+  /api/v1/scenarios:
+    get:
+      tags:
+      - M2 Reference data
+      summary: List Scenarios
+      operationId: list_scenarios_api_v1_scenarios_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Scenario'
+                type: array
+                title: Response List Scenarios Api V1 Scenarios Get
+    post:
+      tags:
+      - M2 Reference data
+      summary: Save a scenario
+      operationId: create_scenario_api_v1_scenarios_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioCreate'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  name: DDG at Pier 12 North
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  side_to: starboard
+                  env_source:
+                    mode: mock
+                  config:
+                    side_to: starboard
+                    ship_x_ft: 650.0
+                    lines:
+                    - line_number: 1
+                      role: bow
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-1S
+                      pier_fitting_id: P12N-B17
+                    - line_number: 2
+                      role: spring_aft
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-2S
+                      pier_fitting_id: P12N-B12
+                    - line_number: 3
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-3S
+                      pier_fitting_id: P12N-M06
+                    - line_number: 4
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-4S
+                      pier_fitting_id: P12N-M05
+                    - line_number: 5
+                      role: spring_fwd
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-5S
+                      pier_fitting_id: P12N-B10
+                    - line_number: 6
+                      role: stern
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-6S
+                      pier_fitting_id: P12N-B06
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/scenarios/{scenario_id}:
+    get:
+      tags:
+      - M2 Reference data
+      summary: Get Scenario
+      operationId: get_scenario_api_v1_scenarios__scenario_id__get
+      parameters:
+      - name: scenario_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Scenario Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scenario'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/loads/environmental:
+    post:
+      tags:
+      - M3 Environmental loads
+      summary: Wind and current forces on the ship
+      operationId: environmental_api_v1_loads_environmental_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoadsRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  heading_true_deg: 105.0
+                  water_depth_ft: 46.8
+                  environment:
+                    valid_at_utc: '2026-11-04T15:48:00Z'
+                    source: scenario
+                    wind_speed_kt: 22.0
+                    wind_gust_kt: 30.0
+                    wind_from_true_deg: 200.0
+                    current_speed_kt: 0.6
+                    current_set_true_deg: 10.0
+                    water_level_mllw_ft: 1.8
+                    tide_stage: ebb
+                    air_density_kgm3: 1.225
+                    water_density_kgm3: 1020.0
+                    quality: []
+                  use_gust: true
+                  side_to: starboard
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoadsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/loads/polar:
+    post:
+      tags:
+      - M3 Environmental loads
+      summary: Forces for every relative direction (rose chart)
+      operationId: polar_api_v1_loads_polar_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolarRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  water_depth_ft: 46.8
+                  wind_speed_kt: 50
+                  current_speed_kt: 1.0
+                  apply_to: both
+                  step_deg: 15
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolarResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mooring/analyze:
+    post:
+      tags:
+      - M4 Static mooring
+      summary: Line, fitting and fender loads plus NSTM 582 findings for one environment
+      operationId: analyze_api_v1_mooring_analyze_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  config:
+                    side_to: starboard
+                    ship_x_ft: 650.0
+                    lines:
+                    - line_number: 1
+                      role: bow
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-1S
+                      pier_fitting_id: P12N-B17
+                    - line_number: 2
+                      role: spring_aft
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-2S
+                      pier_fitting_id: P12N-B12
+                    - line_number: 3
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-3S
+                      pier_fitting_id: P12N-M06
+                    - line_number: 4
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-4S
+                      pier_fitting_id: P12N-M05
+                    - line_number: 5
+                      role: spring_fwd
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-5S
+                      pier_fitting_id: P12N-B10
+                    - line_number: 6
+                      role: stern
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-6S
+                      pier_fitting_id: P12N-B06
+                  environment:
+                    valid_at_utc: '2026-11-04T15:48:00Z'
+                    source: scenario
+                    wind_speed_kt: 22.0
+                    wind_gust_kt: 30.0
+                    wind_from_true_deg: 200.0
+                    current_speed_kt: 0.6
+                    current_set_true_deg: 10.0
+                    water_level_mllw_ft: 1.8
+                    tide_stage: ebb
+                    air_density_kgm3: 1.225
+                    water_density_kgm3: 1020.0
+                    quality: []
+                  mst: II
+                  lines_wet: true
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyzeResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mooring/envelope:
+    post:
+      tags:
+      - M4 Static mooring
+      summary: Limiting wind speed for each wind direction
+      operationId: envelope_api_v1_mooring_envelope_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LimitEnvelopeRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  config:
+                    side_to: starboard
+                    ship_x_ft: 650.0
+                    lines:
+                    - line_number: 1
+                      role: bow
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-1S
+                      pier_fitting_id: P12N-B17
+                    - line_number: 2
+                      role: spring_aft
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-2S
+                      pier_fitting_id: P12N-B12
+                    - line_number: 3
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-3S
+                      pier_fitting_id: P12N-M06
+                    - line_number: 4
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-4S
+                      pier_fitting_id: P12N-M05
+                    - line_number: 5
+                      role: spring_fwd
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-5S
+                      pier_fitting_id: P12N-B10
+                    - line_number: 6
+                      role: stern
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-6S
+                      pier_fitting_id: P12N-B06
+                  environment:
+                    valid_at_utc: '2026-11-04T15:48:00Z'
+                    source: scenario
+                    wind_speed_kt: 22.0
+                    wind_gust_kt: 30.0
+                    wind_from_true_deg: 200.0
+                    current_speed_kt: 0.6
+                    current_set_true_deg: 10.0
+                    water_level_mllw_ft: 1.8
+                    tide_stage: ebb
+                    air_density_kgm3: 1.225
+                    water_density_kgm3: 1020.0
+                    quality: []
+                  mst: II
+                  lines_wet: true
+                  step_deg: 15
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LimitEnvelopeResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mooring/tide-sweep:
+    post:
+      tags:
+      - M4 Static mooring
+      summary: Line tensions through the tide and a tending schedule
+      operationId: tide_sweep_api_v1_mooring_tide_sweep_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TideSweepRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  config:
+                    side_to: starboard
+                    ship_x_ft: 650.0
+                    lines:
+                    - line_number: 1
+                      role: bow
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-1S
+                      pier_fitting_id: P12N-B17
+                    - line_number: 2
+                      role: spring_aft
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-2S
+                      pier_fitting_id: P12N-B12
+                    - line_number: 3
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-3S
+                      pier_fitting_id: P12N-M06
+                    - line_number: 4
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-4S
+                      pier_fitting_id: P12N-M05
+                    - line_number: 5
+                      role: spring_fwd
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-5S
+                      pier_fitting_id: P12N-B10
+                    - line_number: 6
+                      role: stern
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-6S
+                      pier_fitting_id: P12N-B06
+                  environment:
+                    valid_at_utc: '2026-11-04T15:48:00Z'
+                    source: scenario
+                    wind_speed_kt: 22.0
+                    wind_gust_kt: 30.0
+                    wind_from_true_deg: 200.0
+                    current_speed_kt: 0.6
+                    current_set_true_deg: 10.0
+                    water_level_mllw_ft: 1.8
+                    tide_stage: ebb
+                    air_density_kgm3: 1.225
+                    water_density_kgm3: 1020.0
+                    quality: []
+                  mst: II
+                  lines_wet: true
+                  from_utc: '2026-11-04T16:00:00Z'
+                  to_utc: '2026-11-05T04:00:00Z'
+                  step_min: 30
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TideSweepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/rules:
+    get:
+      tags:
+      - M4 Static mooring
+      summary: NSTM 582 rule registry
+      operationId: rules_api_v1_rules_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Rule'
+                type: array
+                title: Response Rules Api V1 Rules Get
+  /api/v1/mooring/recommend:
+    post:
+      tags:
+      - M7 Planning
+      summary: Recommend line configurations (job; result is a RecommendResponse)
+      operationId: recommend_api_v1_mooring_recommend_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  side_to: starboard
+                  ship_x_ft: 650
+                  design_mst: II
+                  max_candidates: 3
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mooring/sequence:
+    post:
+      tags:
+      - M7 Planning
+      summary: Ordered line-handling steps for a configuration
+      operationId: sequence_api_v1_mooring_sequence_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  config:
+                    side_to: starboard
+                    ship_x_ft: 650.0
+                    lines:
+                    - line_number: 1
+                      role: bow
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-1S
+                      pier_fitting_id: P12N-B17
+                    - line_number: 2
+                      role: spring_aft
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-2S
+                      pier_fitting_id: P12N-B12
+                    - line_number: 3
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-3S
+                      pier_fitting_id: P12N-M06
+                    - line_number: 4
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-4S
+                      pier_fitting_id: P12N-M05
+                    - line_number: 5
+                      role: spring_fwd
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-5S
+                      pier_fitting_id: P12N-B10
+                    - line_number: 6
+                      role: stern
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-6S
+                      pier_fitting_id: P12N-B06
+                  environment:
+                    valid_at_utc: '2026-11-04T15:48:00Z'
+                    source: scenario
+                    wind_speed_kt: 22.0
+                    wind_gust_kt: 30.0
+                    wind_from_true_deg: 200.0
+                    current_speed_kt: 0.6
+                    current_set_true_deg: 10.0
+                    water_level_mllw_ft: 1.8
+                    tide_stage: ebb
+                    air_density_kgm3: 1.225
+                    water_density_kgm3: 1020.0
+                    quality: []
+                  line_handling_crews: 6
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/risk/exceedance:
+    post:
+      tags:
+      - M5 Risk
+      summary: Monte Carlo probability of exceeding line limits (job; result is an ExceedanceResponse)
+      operationId: exceedance_api_v1_risk_exceedance_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExceedanceRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  config:
+                    side_to: starboard
+                    ship_x_ft: 650.0
+                    lines:
+                    - line_number: 1
+                      role: bow
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-1S
+                      pier_fitting_id: P12N-B17
+                    - line_number: 2
+                      role: spring_aft
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-2S
+                      pier_fitting_id: P12N-B12
+                    - line_number: 3
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-3S
+                      pier_fitting_id: P12N-M06
+                    - line_number: 4
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-4S
+                      pier_fitting_id: P12N-M05
+                    - line_number: 5
+                      role: spring_fwd
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-5S
+                      pier_fitting_id: P12N-B10
+                    - line_number: 6
+                      role: stern
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-6S
+                      pier_fitting_id: P12N-B06
+                  environment:
+                    valid_at_utc: '2026-11-04T15:48:00Z'
+                    source: scenario
+                    wind_speed_kt: 22.0
+                    wind_gust_kt: 30.0
+                    wind_from_true_deg: 200.0
+                    current_speed_kt: 0.6
+                    current_set_true_deg: 10.0
+                    water_level_mllw_ft: 1.8
+                    tide_stage: ebb
+                    air_density_kgm3: 1.225
+                    water_density_kgm3: 1020.0
+                    quality: []
+                  mst: II
+                  lines_wet: true
+                  horizon_hours: 6
+                  n_samples: 200
+                  seed: 42
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/risk/timeline:
+    post:
+      tags:
+      - M5 Risk
+      summary: Plan status through the forecast (job; result is a TimelineResponse)
+      operationId: timeline_api_v1_risk_timeline_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimelineRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  config:
+                    side_to: starboard
+                    ship_x_ft: 650.0
+                    lines:
+                    - line_number: 1
+                      role: bow
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-1S
+                      pier_fitting_id: P12N-B17
+                    - line_number: 2
+                      role: spring_aft
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-2S
+                      pier_fitting_id: P12N-B12
+                    - line_number: 3
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-3S
+                      pier_fitting_id: P12N-M06
+                    - line_number: 4
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-4S
+                      pier_fitting_id: P12N-M05
+                    - line_number: 5
+                      role: spring_fwd
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-5S
+                      pier_fitting_id: P12N-B10
+                    - line_number: 6
+                      role: stern
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-6S
+                      pier_fitting_id: P12N-B06
+                  environment:
+                    valid_at_utc: '2026-11-04T15:48:00Z'
+                    source: scenario
+                    wind_speed_kt: 22.0
+                    wind_gust_kt: 30.0
+                    wind_from_true_deg: 200.0
+                    current_speed_kt: 0.6
+                    current_set_true_deg: 10.0
+                    water_level_mllw_ft: 1.8
+                    tide_stage: ebb
+                    air_density_kgm3: 1.225
+                    water_density_kgm3: 1020.0
+                    quality: []
+                  mst: II
+                  lines_wet: true
+                  forecast_hours: 24
+                  step_min: 60
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tugs/berthing-plan:
+    post:
+      tags:
+      - M6 Tugs
+      summary: Tugs needed to land and hold the ship before lines are fast
+      operationId: berthing_plan_api_v1_tugs_berthing_plan_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BerthingTugRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  side_to: starboard
+                  environment:
+                    valid_at_utc: '2026-11-04T15:48:00Z'
+                    source: scenario
+                    wind_speed_kt: 22.0
+                    wind_gust_kt: 30.0
+                    wind_from_true_deg: 200.0
+                    current_speed_kt: 0.6
+                    current_set_true_deg: 10.0
+                    water_level_mllw_ft: 1.8
+                    tide_stage: ebb
+                    air_density_kgm3: 1.225
+                    water_density_kgm3: 1020.0
+                    quality: []
+                  margin: 0.25
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TugPlanResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tugs/hold-plan:
+    post:
+      tags:
+      - M6 Tugs
+      summary: Tugs needed to relieve overloaded lines on a moored ship
+      operationId: hold_plan_api_v1_tugs_hold_plan_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HoldTugRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  config:
+                    side_to: starboard
+                    ship_x_ft: 650.0
+                    lines:
+                    - line_number: 1
+                      role: bow
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-1S
+                      pier_fitting_id: P12N-B17
+                    - line_number: 2
+                      role: spring_aft
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-2S
+                      pier_fitting_id: P12N-B12
+                    - line_number: 3
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-3S
+                      pier_fitting_id: P12N-M06
+                    - line_number: 4
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-4S
+                      pier_fitting_id: P12N-M05
+                    - line_number: 5
+                      role: spring_fwd
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-5S
+                      pier_fitting_id: P12N-B10
+                    - line_number: 6
+                      role: stern
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-6S
+                      pier_fitting_id: P12N-B06
+                  environment:
+                    valid_at_utc: '2026-11-04T15:48:00Z'
+                    source: scenario
+                    wind_speed_kt: 22.0
+                    wind_gust_kt: 30.0
+                    wind_from_true_deg: 200.0
+                    current_speed_kt: 0.6
+                    current_set_true_deg: 10.0
+                    water_level_mllw_ft: 1.8
+                    tide_stage: ebb
+                    air_density_kgm3: 1.225
+                    water_density_kgm3: 1020.0
+                    quality: []
+                  mst: II
+                  lines_wet: true
+                  margin: 0.25
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TugPlanResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/windows/berthing:
+    post:
+      tags:
+      - M6 Tugs
+      summary: Time windows with low current and gusts for berthing
+      operationId: berthing_windows_api_v1_windows_berthing_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BerthingWindowRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  ship_class_id: DDG-51-FIIA
+                  side_to: starboard
+                  from_utc: '2026-11-04T12:00:00Z'
+                  to_utc: '2026-11-05T12:00:00Z'
+                  max_current_kt: 0.5
+                  max_gust_kt: 25
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BerthingWindowsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/berthing/simulate:
+    post:
+      tags:
+      - M11 Berthing simulator
+      summary: Batch berthing simulation (job; result is a BerthingSimResponse)
+      operationId: simulate_api_v1_berthing_simulate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BerthingSimRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  scenario_id: <scenario_id from POST /scenarios>
+                  initial_state:
+                    x_ft: 650
+                    y_ft: 160
+                    heading_true_deg: 105.0
+                    v_kt: 0.0
+                  tug_commands:
+                  - t_s: 0
+                    tug_id: T1
+                    force_lbf: 40000
+                    direction_rel_deg: 90
+                  - t_s: 0
+                    tug_id: T2
+                    force_lbf: 40000
+                    direction_rel_deg: 90
+                  - t_s: 120
+                    tug_id: T1
+                    force_lbf: 0
+                    direction_rel_deg: 90
+                  - t_s: 120
+                    tug_id: T2
+                    force_lbf: 0
+                    direction_rel_deg: 90
+                  duration_s: 600
+                  dt_s: 0.1
+                  env_mode: steady
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/berthing/simulations/{job_id}/series:
+    get:
+      tags:
+      - M11 Berthing simulator
+      summary: Frames from a batch run (1 Hz)
+      operationId: series_api_v1_berthing_simulations__job_id__series_get
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimSeries'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/berthing/sessions:
+    post:
+      tags:
+      - M11 Berthing simulator
+      summary: Start an interactive session; drive it over WS /ws/sim/{session_id}
+      operationId: create_session_api_v1_berthing_sessions_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimSessionCreate'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  scenario_id: <scenario_id from POST /scenarios>
+                  initial_state:
+                    x_ft: 650
+                    y_ft: 160
+                    heading_true_deg: 105.0
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimSessionCreated'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/approach/route:
+    post:
+      tags:
+      - M12 Approach
+      summary: Channel route from the sea buoy to the berth
+      operationId: route_api_v1_approach_route_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/approach/ukc:
+    post:
+      tags:
+      - M12 Approach
+      summary: Under-keel clearance per leg with tide and squat
+      operationId: ukc_api_v1_approach_ukc_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UkcRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  waypoints:
+                  - lat: 36.959
+                    lon: -76.045
+                    leg_name: Thimble Shoal Channel entrance
+                    channel_depth_mllw_ft: 55
+                    width_ft: 1000
+                  - lat: 36.966
+                    lon: -76.16
+                    leg_name: Thimble Shoal Channel
+                    channel_depth_mllw_ft: 55
+                    width_ft: 1000
+                  - lat: 36.964
+                    lon: -76.27
+                    leg_name: Hampton Roads
+                    channel_depth_mllw_ft: 50
+                    width_ft: 1500
+                  eta_utc: '2026-11-04T18:00:00Z'
+                  speed_profile_kt:
+                  - 12
+                  - 10
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UkcResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/approach/simulate:
+    post:
+      tags:
+      - M12 Approach
+      summary: Approach simulation (job; result is an ApproachSimResponse)
+      operationId: simulate_api_v1_approach_simulate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproachSimRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  waypoints:
+                  - lat: 36.964
+                    lon: -76.27
+                    leg_name: Hampton Roads
+                    channel_depth_mllw_ft: 50
+                    width_ft: 1500
+                  - lat: 36.96
+                    lon: -76.315
+                    leg_name: NAVSTA approach
+                    channel_depth_mllw_ft: 45
+                    width_ft: 800
+                  eta_utc: '2026-11-04T18:00:00Z'
+                  speed_profile_kt:
+                  - 8
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/approach/simulations/{job_id}/track:
+    get:
+      tags:
+      - M12 Approach
+      summary: Track
+      operationId: track_api_v1_approach_simulations__job_id__track_get
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApproachTrack'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/telemetry/batch:
+    post:
+      tags:
+      - M13 Telemetry
+      summary: Ingest sensor records
+      operationId: batch_api_v1_telemetry_batch_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetryBatch'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  records:
+                  - source: ship_nmea
+                    t_utc: '2026-11-04T15:48:00Z'
+                    sentence: $WIMWV,045.0,R,18.5,N,A*1C
+                  - source: load_cell
+                    t_utc: '2026-11-04T15:48:00Z'
+                    line_number: 2
+                    tension_lbf: 31000
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/jobs/{job_id}:
+    get:
+      tags:
+      - System
+      summary: Job status; `result` holds the envelope when done
+      operationId: job_status_api_v1_jobs__job_id__get
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/jobs/{job_id}/events:
+    get:
+      tags:
+      - System
+      summary: 'Server-Sent Events: `progress` and `done` (JobProgressEvent, JobDoneEvent)'
+      operationId: job_events_api_v1_jobs__job_id__events_get
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            text/event-stream: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/results/{result_id}:
+    get:
+      tags:
+      - System
+      summary: Any stored result envelope by id (for citations and audit)
+      operationId: get_result_api_v1_results__result_id__get
+      parameters:
+      - name: result_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Result Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Result Api V1 Results  Result Id  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/health:
+    get:
+      tags:
+      - System
+      summary: Health
+      operationId: health_api_v1_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /api/v1/version:
+    get:
+      tags:
+      - System
+      summary: Version
+      operationId: version_api_v1_version_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionInfo'
+components:
+  schemas:
+    AnalyzeRequest:
+      properties:
+        scenario_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scenario Id
+          description: Informational; inputs are always taken from the body.
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+          examples:
+          - DDG-51-FIIA
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+          examples:
+          - NAVSTA-NORFOLK-P12-N
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          title: Tugs
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          description: 'Sets the design factor: 3.0 (I, II, IIA) or 2.5 (III).'
+          default: II
+        lines_wet:
+          type: boolean
+          title: Lines Wet
+          description: Apply the wet-strength factor (nylon loses 15%).
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - config
+      - environment
+      title: AnalyzeRequest
+    AnalyzeResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        result:
+          $ref: '#/components/schemas/AnalyzeResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: AnalyzeResponse
+    AnalyzeResult:
+      properties:
+        offset:
+          $ref: '#/components/schemas/Offset'
+        lines:
+          items:
+            $ref: '#/components/schemas/LineResult'
+          type: array
+          title: Lines
+        pier_fittings:
+          items:
+            $ref: '#/components/schemas/PierFittingResult'
+          type: array
+          title: Pier Fittings
+        ship_fittings:
+          items:
+            $ref: '#/components/schemas/ShipFittingResult'
+          type: array
+          title: Ship Fittings
+        fenders:
+          items:
+            $ref: '#/components/schemas/FenderResult'
+          type: array
+          title: Fenders
+        min_margin:
+          $ref: '#/components/schemas/MinMargin'
+        findings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Findings
+      additionalProperties: false
+      type: object
+      required:
+      - offset
+      - lines
+      - pier_fittings
+      - ship_fittings
+      - fenders
+      - min_margin
+      - findings
+      title: AnalyzeResult
+    ApproachSimRequest:
+      properties:
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        waypoints:
+          items:
+            $ref: '#/components/schemas/Waypoint'
+          type: array
+          title: Waypoints
+        eta_utc:
+          type: string
+          format: date-time
+          title: Eta Utc
+        speed_profile_kt:
+          items:
+            type: number
+          type: array
+          title: Speed Profile Kt
+        env_mode:
+          type: string
+          enum:
+          - steady
+          - gusting
+          title: Env Mode
+          default: steady
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - waypoints
+      - eta_utc
+      - speed_profile_kt
+      title: ApproachSimRequest
+    ApproachTrack:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+        points:
+          items:
+            $ref: '#/components/schemas/TrackPoint'
+          type: array
+          title: Points
+      additionalProperties: false
+      type: object
+      required:
+      - job_id
+      - points
+      title: ApproachTrack
+    Berth:
+      properties:
+        berth_id:
+          type: string
+          title: Berth Id
+          examples:
+          - NAVSTA-NORFOLK-P12-N
+        name:
+          type: string
+          title: Name
+        face_bearing_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Face Bearing True Deg
+          description: True bearing of the berth frame's +x axis.
+        origin_lat:
+          type: number
+          title: Origin Lat
+        origin_lon:
+          type: number
+          title: Origin Lon
+        face_length_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Face Length Ft
+        deck_height_mllw_ft:
+          type: number
+          title: Deck Height Mllw Ft
+        depth_profile:
+          items:
+            $ref: '#/components/schemas/DepthPoint'
+          type: array
+          title: Depth Profile
+        fittings:
+          items:
+            $ref: '#/components/schemas/PierFitting'
+          type: array
+          title: Fittings
+        fenders:
+          items:
+            $ref: '#/components/schemas/Fender'
+          type: array
+          title: Fenders
+        structure:
+          type: string
+          enum:
+          - open_pile
+          - solid
+          title: Structure
+          default: open_pile
+        env_station_ids:
+          $ref: '#/components/schemas/EnvStations'
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+      additionalProperties: false
+      type: object
+      required:
+      - berth_id
+      - name
+      - face_bearing_true_deg
+      - origin_lat
+      - origin_lon
+      - face_length_ft
+      - deck_height_mllw_ft
+      - depth_profile
+      - fittings
+      - env_station_ids
+      - provenance
+      title: Berth
+    BerthCreated:
+      properties:
+        berth_id:
+          type: string
+          title: Berth Id
+      additionalProperties: false
+      type: object
+      required:
+      - berth_id
+      title: BerthCreated
+    BerthSummary:
+      properties:
+        berth_id:
+          type: string
+          title: Berth Id
+        name:
+          type: string
+          title: Name
+        face_length_ft:
+          type: number
+          title: Face Length Ft
+        min_depth_mllw_ft:
+          type: number
+          title: Min Depth Mllw Ft
+        fitting_count:
+          type: integer
+          title: Fitting Count
+        confidence:
+          type: string
+          enum:
+          - published
+          - estimated
+          - mock
+          - vision
+          title: Confidence
+      additionalProperties: false
+      type: object
+      required:
+      - berth_id
+      - name
+      - face_length_ft
+      - min_depth_mllw_ft
+      - fitting_count
+      - confidence
+      title: BerthSummary
+    BerthingSimRequest:
+      properties:
+        scenario_id:
+          type: string
+          title: Scenario Id
+        initial_state:
+          $ref: '#/components/schemas/ShipState'
+        tug_commands:
+          items:
+            $ref: '#/components/schemas/TugCommand'
+          type: array
+          title: Tug Commands
+        line_events:
+          items:
+            $ref: '#/components/schemas/LineEvent'
+          type: array
+          title: Line Events
+        duration_s:
+          type: number
+          maximum: 7200.0
+          exclusiveMinimum: 0.0
+          title: Duration S
+          default: 900
+        dt_s:
+          type: number
+          maximum: 1.0
+          exclusiveMinimum: 0.0
+          title: Dt S
+          default: 0.1
+        env_mode:
+          type: string
+          enum:
+          - steady
+          - gusting
+          title: Env Mode
+          default: steady
+      additionalProperties: false
+      type: object
+      required:
+      - scenario_id
+      - initial_state
+      title: BerthingSimRequest
+    BerthingTugRequest:
+      properties:
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+          examples:
+          - DDG-51-FIIA
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+        side_to:
+          type: string
+          enum:
+          - port
+          - starboard
+          title: Side To
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        margin:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Margin
+          description: 'Added to the gust load (pilot practice: 20-25%).'
+          default: 0.25
+        available_tug_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Available Tug Ids
+          description: Defaults to the whole fleet.
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - side_to
+      - environment
+      title: BerthingTugRequest
+    BerthingWindow:
+      properties:
+        start_utc:
+          type: string
+          format: date-time
+          title: Start Utc
+        end_utc:
+          type: string
+          format: date-time
+          title: End Utc
+        max_current_kt:
+          type: number
+          title: Max Current Kt
+        max_gust_kt:
+          type: number
+          title: Max Gust Kt
+        required_power_hp:
+          type: number
+          title: Required Power Hp
+      additionalProperties: false
+      type: object
+      required:
+      - start_utc
+      - end_utc
+      - max_current_kt
+      - max_gust_kt
+      - required_power_hp
+      title: BerthingWindow
+    BerthingWindowRequest:
+      properties:
+        berth_id:
+          type: string
+          title: Berth Id
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        side_to:
+          type: string
+          enum:
+          - port
+          - starboard
+          title: Side To
+          default: starboard
+        from_utc:
+          type: string
+          format: date-time
+          title: From Utc
+        to_utc:
+          type: string
+          format: date-time
+          title: To Utc
+        max_current_kt:
+          type: number
+          minimum: 0.0
+          title: Max Current Kt
+          default: 0.5
+        max_gust_kt:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Max Gust Kt
+      additionalProperties: false
+      type: object
+      required:
+      - berth_id
+      - ship_class_id
+      - from_utc
+      - to_utc
+      title: BerthingWindowRequest
+    BerthingWindowsResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        result:
+          $ref: '#/components/schemas/BerthingWindowsResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: BerthingWindowsResponse
+    BerthingWindowsResult:
+      properties:
+        windows:
+          items:
+            $ref: '#/components/schemas/BerthingWindow'
+          type: array
+          title: Windows
+      additionalProperties: false
+      type: object
+      required:
+      - windows
+      title: BerthingWindowsResult
+    DepthPoint:
+      properties:
+        x_ft:
+          type: number
+          title: X Ft
+        depth_mllw_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Depth Mllw Ft
+      additionalProperties: false
+      type: object
+      required:
+      - x_ft
+      - depth_mllw_ft
+      title: DepthPoint
+    Distribution:
+      properties:
+        dist:
+          type: string
+          title: Dist
+          examples:
+          - lognormal
+        params:
+          additionalProperties:
+            type: number
+          type: object
+          title: Params
+      additionalProperties: false
+      type: object
+      required:
+      - dist
+      - params
+      title: Distribution
+    EnvScenario:
+      properties:
+        name:
+          type: string
+          title: Name
+          examples:
+          - MST II design condition
+        kind:
+          type: string
+          enum:
+          - steady
+          - ramp
+          - replay
+          title: Kind
+        wind_speed_kt:
+          type: number
+          minimum: 0.0
+          title: Wind Speed Kt
+          default: 0
+        wind_gust_kt:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Wind Gust Kt
+          description: Defaults to wind_speed_kt.
+        wind_from_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Wind From True Deg
+          default: 0
+        current_speed_kt:
+          type: number
+          minimum: 0.0
+          title: Current Speed Kt
+          default: 0
+        current_set_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Current Set True Deg
+          default: 0
+        water_level_mllw_ft:
+          type: number
+          title: Water Level Mllw Ft
+          default: 0.0
+        ramp_to_wind_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ramp To Wind Kt
+          description: 'kind=''ramp'': wind at the end of the ramp.'
+        ramp_minutes:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Ramp Minutes
+        replay_start_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Replay Start Utc
+          description: 'kind=''replay'': historical window start.'
+        replay_end_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Replay End Utc
+        env_scenario_id:
+          type: string
+          title: Env Scenario Id
+        created_at_utc:
+          type: string
+          format: date-time
+          title: Created At Utc
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - kind
+      - env_scenario_id
+      - created_at_utc
+      title: EnvScenario
+    EnvScenarioCreate:
+      properties:
+        name:
+          type: string
+          title: Name
+          examples:
+          - MST II design condition
+        kind:
+          type: string
+          enum:
+          - steady
+          - ramp
+          - replay
+          title: Kind
+        wind_speed_kt:
+          type: number
+          minimum: 0.0
+          title: Wind Speed Kt
+          default: 0
+        wind_gust_kt:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Wind Gust Kt
+          description: Defaults to wind_speed_kt.
+        wind_from_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Wind From True Deg
+          default: 0
+        current_speed_kt:
+          type: number
+          minimum: 0.0
+          title: Current Speed Kt
+          default: 0
+        current_set_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Current Set True Deg
+          default: 0
+        water_level_mllw_ft:
+          type: number
+          title: Water Level Mllw Ft
+          default: 0.0
+        ramp_to_wind_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ramp To Wind Kt
+          description: 'kind=''ramp'': wind at the end of the ramp.'
+        ramp_minutes:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Ramp Minutes
+        replay_start_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Replay Start Utc
+          description: 'kind=''replay'': historical window start.'
+        replay_end_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Replay End Utc
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - kind
+      title: EnvScenarioCreate
+      description: A synthetic environment for what-if runs and repeatable demos.
+    EnvSource:
+      properties:
+        mode:
+          type: string
+          enum:
+          - live
+          - replay
+          - forecast
+          - scenario
+          - mock
+          title: Mode
+        env_scenario_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Env Scenario Id
+        replay_start_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Replay Start Utc
+        replay_speed:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Replay Speed
+          default: 1.0
+      additionalProperties: false
+      type: object
+      required:
+      - mode
+      title: EnvSource
+    EnvStations:
+      properties:
+        wind:
+          type: string
+          title: Wind
+          examples:
+          - '8638614'
+        current:
+          type: string
+          title: Current
+          examples:
+          - cb0402
+        water_level:
+          type: string
+          title: Water Level
+          examples:
+          - '8638610'
+      additionalProperties: false
+      type: object
+      required:
+      - wind
+      - current
+      - water_level
+      title: EnvStations
+      description: NOAA CO-OPS station ids that feed this berth's environment.
+    EnvironmentSnapshot:
+      properties:
+        valid_at_utc:
+          type: string
+          format: date-time
+          title: Valid At Utc
+        source:
+          type: string
+          enum:
+          - live
+          - replay
+          - forecast
+          - scenario
+          - ship_sensor
+          - mock
+          title: Source
+          default: scenario
+        wind_speed_kt:
+          type: number
+          minimum: 0.0
+          title: Wind Speed Kt
+          description: Sustained wind, 10 m height, 1-minute average.
+        wind_gust_kt:
+          type: number
+          minimum: 0.0
+          title: Wind Gust Kt
+        wind_from_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Wind From True Deg
+          description: Direction the wind blows FROM.
+        current_speed_kt:
+          type: number
+          minimum: 0.0
+          title: Current Speed Kt
+        current_set_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Current Set True Deg
+          description: Direction the current flows TOWARD.
+        water_level_mllw_ft:
+          type: number
+          title: Water Level Mllw Ft
+        tide_stage:
+          anyOf:
+          - type: string
+            enum:
+            - flood
+            - ebb
+            - slack
+          - type: 'null'
+          title: Tide Stage
+        air_density_kgm3:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Air Density Kgm3
+          default: 1.225
+        water_density_kgm3:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Water Density Kgm3
+          description: Brackish Chesapeake default.
+          default: 1020.0
+        wind_rel_ship_deg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Wind Rel Ship Deg
+          description: Relative bearing the wind comes from (0 = bow, 90 = starboard beam).
+        current_rel_ship_deg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Current Rel Ship Deg
+          description: Relative bearing the current flows toward (0 = bow, 90 = starboard beam).
+        quality:
+          items:
+            $ref: '#/components/schemas/StationQuality'
+          type: array
+          title: Quality
+      additionalProperties: false
+      type: object
+      required:
+      - wind_speed_kt
+      - wind_gust_kt
+      - wind_from_true_deg
+      - current_speed_kt
+      - current_set_true_deg
+      - water_level_mllw_ft
+      title: EnvironmentSnapshot
+      description: Wind, current and water level at one time. Wind is normalized to a 10 m, 1-minute sustained speed.
+    ExceedanceRequest:
+      properties:
+        scenario_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scenario Id
+          description: Informational; inputs are always taken from the body.
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+          examples:
+          - DDG-51-FIIA
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+          examples:
+          - NAVSTA-NORFOLK-P12-N
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          title: Tugs
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          description: 'Sets the design factor: 3.0 (I, II, IIA) or 2.5 (III).'
+          default: II
+        lines_wet:
+          type: boolean
+          title: Lines Wet
+          description: Apply the wet-strength factor (nylon loses 15%).
+          default: true
+        horizon_hours:
+          type: number
+          maximum: 72.0
+          exclusiveMinimum: 0.0
+          title: Horizon Hours
+          default: 6
+        n_samples:
+          type: integer
+          maximum: 20000.0
+          minimum: 10.0
+          title: N Samples
+          default: 2000
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed
+        gust_dynamic_factor:
+          type: number
+          maximum: 2.0
+          minimum: 1.0
+          title: Gust Dynamic Factor
+          description: Phase 1 stand-in for gust dynamics.
+          default: 1.0
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - config
+      - environment
+      title: ExceedanceRequest
+    Fender:
+      properties:
+        fender_id:
+          type: string
+          title: Fender Id
+        kind:
+          type: string
+          enum:
+          - camel
+          - pneumatic
+          - foam
+          - separator
+          title: Kind
+        x_ft:
+          type: number
+          title: X Ft
+        length_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Length Ft
+        standoff_ft:
+          type: number
+          minimum: 0.0
+          title: Standoff Ft
+          description: Distance from pier face to the ship's side.
+        stiffness_lbf_per_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Stiffness Lbf Per Ft
+        rated_energy_ftlbf:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Rated Energy Ftlbf
+      additionalProperties: false
+      type: object
+      required:
+      - fender_id
+      - kind
+      - x_ft
+      - length_ft
+      - standoff_ft
+      - stiffness_lbf_per_ft
+      - rated_energy_ftlbf
+      title: Fender
+      description: Camel, separator or fender along the face. x in the berth frame.
+    FenderResult:
+      properties:
+        fender_id:
+          type: string
+          title: Fender Id
+        reaction_lbf:
+          type: number
+          title: Reaction Lbf
+        compression_ft:
+          type: number
+          title: Compression Ft
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+      additionalProperties: false
+      type: object
+      required:
+      - fender_id
+      - reaction_lbf
+      - compression_ft
+      - status
+      title: FenderResult
+    Finding:
+      properties:
+        rule_id:
+          type: string
+          title: Rule Id
+          examples:
+          - LINE-WLL
+        severity:
+          type: string
+          enum:
+          - INFO
+          - AMBER
+          - RED
+          title: Severity
+        element_ids:
+          items:
+            type: string
+          type: array
+          title: Element Ids
+          examples:
+          - - line-2
+        message:
+          type: string
+          title: Message
+        reference:
+          type: string
+          title: Reference
+          description: NSTM 582 paragraph or table the rule implements.
+      additionalProperties: false
+      type: object
+      required:
+      - rule_id
+      - severity
+      - message
+      - reference
+      title: Finding
+      description: One rule result from the NSTM 582 rule registry (see GET /rules).
+    FitWindow:
+      properties:
+        start_utc:
+          type: string
+          format: date-time
+          title: Start Utc
+        end_utc:
+          type: string
+          format: date-time
+          title: End Utc
+        n:
+          type: integer
+          title: N
+      additionalProperties: false
+      type: object
+      required:
+      - start_utc
+      - end_utc
+      - n
+      title: FitWindow
+    ForceComponent:
+      properties:
+        fx_lbf:
+          type: number
+          title: Fx Lbf
+        fy_lbf:
+          type: number
+          title: Fy Lbf
+        mz_ftlbf:
+          type: number
+          title: Mz Ftlbf
+        coefficients:
+          additionalProperties:
+            type: number
+          type: object
+          title: Coefficients
+      additionalProperties: false
+      type: object
+      required:
+      - fx_lbf
+      - fy_lbf
+      - mz_ftlbf
+      title: ForceComponent
+    ForceSet:
+      properties:
+        fx_lbf:
+          type: number
+          title: Fx Lbf
+        fy_lbf:
+          type: number
+          title: Fy Lbf
+        mz_ftlbf:
+          type: number
+          title: Mz Ftlbf
+      additionalProperties: false
+      type: object
+      required:
+      - fx_lbf
+      - fy_lbf
+      - mz_ftlbf
+      title: ForceSet
+      description: Forces and moment in the ship frame (+x forward, +y to port, yaw positive counterclockwise).
+    ForecastSeries:
+      properties:
+        berth_id:
+          type: string
+          title: Berth Id
+        step_min:
+          type: integer
+          title: Step Min
+        series:
+          items:
+            $ref: '#/components/schemas/EnvironmentSnapshot'
+          type: array
+          title: Series
+      additionalProperties: false
+      type: object
+      required:
+      - berth_id
+      - step_min
+      - series
+      title: ForecastSeries
+    GustModel:
+      properties:
+        station_id:
+          type: string
+          title: Station Id
+        sectors:
+          items:
+            $ref: '#/components/schemas/GustSector'
+          type: array
+          title: Sectors
+        current_residual_sigma_kt:
+          type: number
+          title: Current Residual Sigma Kt
+          description: Std. dev. of observed minus predicted current.
+        fitted_on:
+          $ref: '#/components/schemas/FitWindow'
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+      additionalProperties: false
+      type: object
+      required:
+      - station_id
+      - sectors
+      - current_residual_sigma_kt
+      - fitted_on
+      - provenance
+      title: GustModel
+    GustSector:
+      properties:
+        from_deg:
+          type: number
+          title: From Deg
+        to_deg:
+          type: number
+          title: To Deg
+        gust_factor:
+          $ref: '#/components/schemas/Distribution'
+          description: Distribution of gust / sustained wind.
+        dir_sigma_deg:
+          type: number
+          title: Dir Sigma Deg
+          description: Standard deviation of wind direction scatter.
+      additionalProperties: false
+      type: object
+      required:
+      - from_deg
+      - to_deg
+      - gust_factor
+      - dir_sigma_deg
+      title: GustSector
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    Health:
+      properties:
+        status:
+          type: string
+          const: ok
+          title: Status
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          - mixed
+          title: Backend
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - backend
+      title: Health
+    HistorySeries:
+      properties:
+        station_id:
+          type: string
+          title: Station Id
+        start_utc:
+          type: string
+          format: date-time
+          title: Start Utc
+        end_utc:
+          type: string
+          format: date-time
+          title: End Utc
+        series:
+          items:
+            $ref: '#/components/schemas/EnvironmentSnapshot'
+          type: array
+          title: Series
+      additionalProperties: false
+      type: object
+      required:
+      - station_id
+      - start_utc
+      - end_utc
+      - series
+      title: HistorySeries
+    HoldTugRequest:
+      properties:
+        scenario_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scenario Id
+          description: Informational; inputs are always taken from the body.
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+          examples:
+          - DDG-51-FIIA
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+          examples:
+          - NAVSTA-NORFOLK-P12-N
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          title: Tugs
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          description: 'Sets the design factor: 3.0 (I, II, IIA) or 2.5 (III).'
+          default: II
+        lines_wet:
+          type: boolean
+          title: Lines Wet
+          description: Apply the wet-strength factor (nylon loses 15%).
+          default: true
+        margin:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Margin
+          default: 0.25
+        available_tug_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Available Tug Ids
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - config
+      - environment
+      title: HoldTugRequest
+    JobAccepted:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+        kind:
+          type: string
+          title: Kind
+          description: Endpoint family, e.g. 'risk.exceedance'.
+        status_url:
+          type: string
+          title: Status Url
+        events_url:
+          type: string
+          title: Events Url
+          description: Server-Sent Events stream of progress for this job.
+      additionalProperties: false
+      type: object
+      required:
+      - job_id
+      - kind
+      - status_url
+      - events_url
+      title: JobAccepted
+      description: Returned with HTTP 202 by every long-running endpoint.
+    JobStatus:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+        kind:
+          type: string
+          title: Kind
+        state:
+          type: string
+          enum:
+          - queued
+          - running
+          - succeeded
+          - failed
+          title: State
+        progress:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Progress
+        created_at_utc:
+          type: string
+          format: date-time
+          title: Created At Utc
+        finished_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Finished At Utc
+        result:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Result
+          description: The module's response envelope once state is 'succeeded'.
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+      additionalProperties: false
+      type: object
+      required:
+      - job_id
+      - kind
+      - state
+      - progress
+      - created_at_utc
+      title: JobStatus
+    LatLon:
+      properties:
+        lat:
+          type: number
+          title: Lat
+        lon:
+          type: number
+          title: Lon
+      additionalProperties: false
+      type: object
+      required:
+      - lat
+      - lon
+      title: LatLon
+    LimitEnvelopePoint:
+      properties:
+        wind_rel_deg:
+          type: number
+          title: Wind Rel Deg
+        limit_wind_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Limit Wind Kt
+          description: None when wind from this direction loads only the fenders.
+        first_failure_element:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Failure Element
+        failure_mode:
+          type: string
+          enum:
+          - WLL
+          - MBS
+          - fitting
+          - none
+          title: Failure Mode
+      additionalProperties: false
+      type: object
+      required:
+      - wind_rel_deg
+      - limit_wind_kt
+      - first_failure_element
+      - failure_mode
+      title: LimitEnvelopePoint
+    LimitEnvelopeRequest:
+      properties:
+        scenario_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scenario Id
+          description: Informational; inputs are always taken from the body.
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+          examples:
+          - DDG-51-FIIA
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+          examples:
+          - NAVSTA-NORFOLK-P12-N
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          title: Tugs
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          description: 'Sets the design factor: 3.0 (I, II, IIA) or 2.5 (III).'
+          default: II
+        lines_wet:
+          type: boolean
+          title: Lines Wet
+          description: Apply the wet-strength factor (nylon loses 15%).
+          default: true
+        step_deg:
+          type: integer
+          maximum: 90.0
+          minimum: 5.0
+          title: Step Deg
+          default: 15
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - config
+      - environment
+      title: LimitEnvelopeRequest
+    LimitEnvelopeResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        result:
+          $ref: '#/components/schemas/LimitEnvelopeResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: LimitEnvelopeResponse
+    LimitEnvelopeResult:
+      properties:
+        points:
+          items:
+            $ref: '#/components/schemas/LimitEnvelopePoint'
+          type: array
+          title: Points
+        worst:
+          $ref: '#/components/schemas/LimitEnvelopePoint'
+      additionalProperties: false
+      type: object
+      required:
+      - points
+      - worst
+      title: LimitEnvelopeResult
+    LineEvent:
+      properties:
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+        line_number:
+          type: integer
+          title: Line Number
+        event:
+          type: string
+          enum:
+          - secured
+          - tensioned
+          - released
+          title: Event
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - line_number
+      - event
+      title: LineEvent
+    LineInventoryItem:
+      properties:
+        spec_id:
+          type: string
+          title: Spec Id
+          examples:
+          - NYLON-DB-7IN
+        count:
+          type: integer
+          minimum: 0.0
+          title: Count
+      additionalProperties: false
+      type: object
+      required:
+      - spec_id
+      - count
+      title: LineInventoryItem
+    LineResult:
+      properties:
+        line_number:
+          type: integer
+          title: Line Number
+        role:
+          type: string
+          enum:
+          - bow
+          - breast
+          - spring_fwd
+          - spring_aft
+          - stern
+          title: Role
+        tension_lbf:
+          type: number
+          title: Tension Lbf
+        pct_mbs:
+          type: number
+          title: Pct Mbs
+        pct_wll:
+          type: number
+          title: Pct Wll
+        horiz_angle_deg:
+          type: number
+          title: Horiz Angle Deg
+          description: Angle from perpendicular to the ship; breast lines are under 45.
+        vert_angle_deg:
+          type: number
+          title: Vert Angle Deg
+        breast_efficiency:
+          type: number
+          title: Breast Efficiency
+          description: 'cos(horizontal angle): share of tension that holds the ship in.'
+        length_ft:
+          type: number
+          title: Length Ft
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+      additionalProperties: false
+      type: object
+      required:
+      - line_number
+      - role
+      - tension_lbf
+      - pct_mbs
+      - pct_wll
+      - horiz_angle_deg
+      - vert_angle_deg
+      - breast_efficiency
+      - length_ft
+      - status
+      title: LineResult
+    LineSpec:
+      properties:
+        spec_id:
+          type: string
+          title: Spec Id
+          examples:
+          - NYLON-DB-7IN
+        material:
+          type: string
+          enum:
+          - nylon
+          - polyester
+          - aramid
+          - uhmwpe
+          - wire
+          title: Material
+        construction:
+          type: string
+          enum:
+          - three_strand
+          - plaited
+          - double_braid
+          - twelve_strand
+          - four_strand
+          - wire
+          title: Construction
+        size_circ_in:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Size Circ In
+        mbs_lbf:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Mbs Lbf
+          description: Minimum breaking strength, dry, one part.
+        load_elongation:
+          items:
+            prefixItems:
+            - type: number
+            - type: number
+            type: array
+            maxItems: 2
+            minItems: 2
+          type: array
+          title: Load Elongation
+          description: Stretch curve as [fraction of MBS, strain] pairs, starting at [0, 0].
+        wet_strength_factor:
+          type: number
+          maximum: 1.0
+          exclusiveMinimum: 0.0
+          title: Wet Strength Factor
+          description: 0.85 for nylon (NSTM 582-2.4.2.i).
+          default: 1.0
+        weight_lb_per_100ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Weight Lb Per 100Ft
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+      additionalProperties: false
+      type: object
+      required:
+      - spec_id
+      - material
+      - construction
+      - size_circ_in
+      - mbs_lbf
+      - load_elongation
+      - provenance
+      title: LineSpec
+    LineTension:
+      properties:
+        line_number:
+          type: integer
+          title: Line Number
+        tension_lbf:
+          type: number
+          title: Tension Lbf
+      additionalProperties: false
+      type: object
+      required:
+      - line_number
+      - tension_lbf
+      title: LineTension
+    LoadingCondition:
+      properties:
+        name:
+          type: string
+          title: Name
+          examples:
+          - full_load
+        displacement_lt:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Displacement Lt
+        draft_fwd_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Draft Fwd Ft
+        draft_aft_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Draft Aft Ft
+        freeboard_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Freeboard Ft
+          description: Typical freeboard at midships.
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - displacement_lt
+      - draft_fwd_ft
+      - draft_aft_ft
+      - freeboard_ft
+      title: LoadingCondition
+    LoadsRequest:
+      properties:
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+          examples:
+          - DDG-51-FIIA
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        heading_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Heading True Deg
+        water_depth_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Water Depth Ft
+          description: Water depth at the ship; with draft it sets the current coefficient.
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        use_gust:
+          type: boolean
+          title: Use Gust
+          default: true
+        shielding_factor:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Shielding Factor
+          description: Reduction for pier buildings or ships upwind.
+          default: 1.0
+        side_to:
+          anyOf:
+          - type: string
+            enum:
+            - port
+            - starboard
+          - type: 'null'
+          title: Side To
+          description: When given, off_pier_component_lbf is returned.
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - heading_true_deg
+      - water_depth_ft
+      - environment
+      title: LoadsRequest
+    LoadsResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        result:
+          $ref: '#/components/schemas/LoadsResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: LoadsResponse
+    LoadsResult:
+      properties:
+        wind:
+          $ref: '#/components/schemas/ForceComponent'
+        current:
+          $ref: '#/components/schemas/ForceComponent'
+        total:
+          $ref: '#/components/schemas/ForceSet'
+        wind_rel_ship_deg:
+          type: number
+          title: Wind Rel Ship Deg
+        current_rel_ship_deg:
+          type: number
+          title: Current Rel Ship Deg
+        off_pier_component_lbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Off Pier Component Lbf
+          description: Lateral force pushing the ship off the pier (negative = onto the pier).
+      additionalProperties: false
+      type: object
+      required:
+      - wind
+      - current
+      - total
+      - wind_rel_ship_deg
+      - current_rel_ship_deg
+      title: LoadsResult
+    MinMargin:
+      properties:
+        element_id:
+          type: string
+          title: Element Id
+          examples:
+          - line-2
+        pct_wll:
+          type: number
+          title: Pct Wll
+          description: Highest utilization in the plan (lines and fittings).
+      additionalProperties: false
+      type: object
+      required:
+      - element_id
+      - pct_wll
+      title: MinMargin
+    MooringConfig:
+      properties:
+        config_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Config Id
+        side_to:
+          type: string
+          enum:
+          - port
+          - starboard
+          title: Side To
+        ship_x_ft:
+          type: number
+          title: Ship X Ft
+          description: Berth-frame x of the ship's midships.
+        standoff_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Standoff Ft
+          description: Defaults to the berth's camel standoff.
+        lines:
+          items:
+            $ref: '#/components/schemas/MooringLine'
+          type: array
+          title: Lines
+      additionalProperties: false
+      type: object
+      required:
+      - side_to
+      - ship_x_ft
+      - lines
+      title: MooringConfig
+    MooringLine:
+      properties:
+        line_number:
+          type: integer
+          minimum: 1.0
+          title: Line Number
+        role:
+          anyOf:
+          - type: string
+            enum:
+            - bow
+            - breast
+            - spring_fwd
+            - spring_aft
+            - stern
+          - type: 'null'
+          title: Role
+          description: Computed from geometry when omitted. spring_fwd leads forward (stops the ship moving aft).
+        spec_id:
+          type: string
+          title: Spec Id
+          examples:
+          - NYLON-DB-7IN
+        parts:
+          type: integer
+          enum:
+          - 1
+          - 2
+          - 3
+          title: Parts
+          description: 1 = single, 2 = tanker moor, 3 = doubled up.
+          default: 1
+        ship_fitting_id:
+          type: string
+          title: Ship Fitting Id
+          examples:
+          - BITT-1S
+        chock_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Chock Id
+          description: Defaults to the bitt's paired chock.
+        pier_fitting_id:
+          type: string
+          title: Pier Fitting Id
+          examples:
+          - P12N-B16
+        pretension_lbf:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Pretension Lbf
+        slack_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Slack Ft
+      additionalProperties: false
+      type: object
+      required:
+      - line_number
+      - spec_id
+      - ship_fitting_id
+      - pier_fitting_id
+      title: MooringLine
+      description: One mooring line. Lines are numbered forward to aft (NSTM 582-4.2.1).
+    Offset:
+      properties:
+        surge_ft:
+          type: number
+          title: Surge Ft
+        sway_ft:
+          type: number
+          title: Sway Ft
+          description: Positive = away from the pier.
+        yaw_deg:
+          type: number
+          title: Yaw Deg
+      additionalProperties: false
+      type: object
+      required:
+      - surge_ft
+      - sway_ft
+      - yaw_deg
+      title: Offset
+    PierFitting:
+      properties:
+        fitting_id:
+          type: string
+          title: Fitting Id
+          examples:
+          - P12N-B12
+        kind:
+          type: string
+          enum:
+          - bollard_special_a
+          - bollard_special_b
+          - bollard_horn
+          - double_bitt_lip
+          - low_double_bitt
+          - cleat_42
+          - cleat_30
+          title: Kind
+        x_ft:
+          type: number
+          title: X Ft
+        y_ft:
+          type: number
+          title: Y Ft
+        capacity_nominal_lbf:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Capacity Nominal Lbf
+          description: Working capacity (NSTM Table 582-5-6, 'Nom.').
+        capacity_horizontal_lbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Capacity Horizontal Lbf
+        capacity_45deg_lbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Capacity 45Deg Lbf
+        condition:
+          type: string
+          enum:
+          - good
+          - suspect
+          - do_not_use
+          title: Condition
+          default: good
+        occupied_by:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Occupied By
+          description: Another ship's line already on this fitting.
+      additionalProperties: false
+      type: object
+      required:
+      - fitting_id
+      - kind
+      - x_ft
+      - y_ft
+      - capacity_nominal_lbf
+      title: PierFitting
+      description: A bollard, bitt or cleat on the pier. Coordinates in the berth frame (negative y = on the deck).
+    PierFittingResult:
+      properties:
+        fitting_id:
+          type: string
+          title: Fitting Id
+        load_lbf:
+          type: number
+          title: Load Lbf
+        capacity_lbf:
+          type: number
+          title: Capacity Lbf
+        pct:
+          type: number
+          title: Pct
+        lines:
+          items:
+            type: integer
+          type: array
+          title: Lines
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+      additionalProperties: false
+      type: object
+      required:
+      - fitting_id
+      - load_lbf
+      - capacity_lbf
+      - pct
+      - lines
+      - status
+      title: PierFittingResult
+    PolarPoint:
+      properties:
+        fx_lbf:
+          type: number
+          title: Fx Lbf
+        fy_lbf:
+          type: number
+          title: Fy Lbf
+        mz_ftlbf:
+          type: number
+          title: Mz Ftlbf
+        rel_deg:
+          type: number
+          title: Rel Deg
+      additionalProperties: false
+      type: object
+      required:
+      - fx_lbf
+      - fy_lbf
+      - mz_ftlbf
+      - rel_deg
+      title: PolarPoint
+    PolarRequest:
+      properties:
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        water_depth_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Water Depth Ft
+        wind_speed_kt:
+          type: number
+          minimum: 0.0
+          title: Wind Speed Kt
+        current_speed_kt:
+          type: number
+          minimum: 0.0
+          title: Current Speed Kt
+          default: 0
+        apply_to:
+          type: string
+          enum:
+          - wind
+          - current
+          - both
+          title: Apply To
+          default: both
+        step_deg:
+          type: integer
+          maximum: 90.0
+          minimum: 1.0
+          title: Step Deg
+          default: 5
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - water_depth_ft
+      - wind_speed_kt
+      title: PolarRequest
+    PolarResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        result:
+          $ref: '#/components/schemas/PolarResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: PolarResponse
+    PolarResult:
+      properties:
+        points:
+          items:
+            $ref: '#/components/schemas/PolarPoint'
+          type: array
+          title: Points
+      additionalProperties: false
+      type: object
+      required:
+      - points
+      title: PolarResult
+    Provenance:
+      properties:
+        source:
+          type: string
+          title: Source
+          description: Human-readable source, e.g. 'NSTM 582 Table 582-5-6' or 'mock seed data'.
+        url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Url
+        confidence:
+          type: string
+          enum:
+          - published
+          - estimated
+          - mock
+          - vision
+          title: Confidence
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Notes
+      additionalProperties: false
+      type: object
+      required:
+      - source
+      - confidence
+      title: Provenance
+      description: Where a value came from, so the UI and safety sheet can show how much to trust it.
+    PushPoint:
+      properties:
+        push_point_id:
+          type: string
+          title: Push Point Id
+          examples:
+          - PP-FWD-P
+        x_ft:
+          type: number
+          title: X Ft
+        side:
+          type: string
+          enum:
+          - port
+          - starboard
+          title: Side
+        max_force_lbf:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Max Force Lbf
+      additionalProperties: false
+      type: object
+      required:
+      - push_point_id
+      - x_ft
+      - side
+      - max_force_lbf
+      title: PushPoint
+      description: Hull location marked for tug pushing. x in the ship frame.
+    PushPointForce:
+      properties:
+        push_point_id:
+          type: string
+          title: Push Point Id
+        force_lbf:
+          type: number
+          title: Force Lbf
+        mode:
+          type: string
+          enum:
+          - push
+          - pull
+          title: Mode
+      additionalProperties: false
+      type: object
+      required:
+      - push_point_id
+      - force_lbf
+      - mode
+      title: PushPointForce
+    RecommendRequest:
+      properties:
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+          examples:
+          - DDG-51-FIIA
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+        side_to:
+          type: string
+          enum:
+          - port
+          - starboard
+          title: Side To
+        ship_x_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ship X Ft
+          description: Defaults to the middle of the berth face.
+        design_mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Design Mst
+          default: II
+        forecast_env:
+          items:
+            $ref: '#/components/schemas/EnvironmentSnapshot'
+          type: array
+          title: Forecast Env
+          description: Extra conditions to check besides the MST design condition.
+        available_lines:
+          items:
+            $ref: '#/components/schemas/LineInventoryItem'
+          type: array
+          title: Available Lines
+          description: Defaults to the ship's outfit.
+        locked_lines:
+          items:
+            $ref: '#/components/schemas/MooringLine'
+          type: array
+          title: Locked Lines
+        excluded_fitting_ids:
+          items:
+            type: string
+          type: array
+          title: Excluded Fitting Ids
+        max_candidates:
+          type: integer
+          maximum: 10.0
+          minimum: 1.0
+          title: Max Candidates
+          default: 3
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - side_to
+      title: RecommendRequest
+    RouteRequest:
+      properties:
+        origin:
+          anyOf:
+          - $ref: '#/components/schemas/LatLon'
+          - type: 'null'
+          description: Start point; or give anchorage_id.
+        anchorage_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Anchorage Id
+        berth_id:
+          type: string
+          title: Berth Id
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+      additionalProperties: false
+      type: object
+      required:
+      - berth_id
+      - ship_class_id
+      title: RouteRequest
+    RouteResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        result:
+          $ref: '#/components/schemas/RouteResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: RouteResponse
+    RouteResult:
+      properties:
+        waypoints:
+          items:
+            $ref: '#/components/schemas/Waypoint'
+          type: array
+          title: Waypoints
+        tug_rendezvous:
+          $ref: '#/components/schemas/LatLon'
+        abort_points:
+          items:
+            $ref: '#/components/schemas/LatLon'
+          type: array
+          title: Abort Points
+      additionalProperties: false
+      type: object
+      required:
+      - waypoints
+      - tug_rendezvous
+      - abort_points
+      title: RouteResult
+    Rule:
+      properties:
+        rule_id:
+          type: string
+          title: Rule Id
+        title:
+          type: string
+          title: Title
+        severity:
+          type: string
+          enum:
+          - INFO
+          - AMBER
+          - RED
+          title: Severity
+          description: Highest severity the rule can raise.
+        reference:
+          type: string
+          title: Reference
+        applies_to:
+          type: string
+          enum:
+          - line
+          - pier_fitting
+          - ship_fitting
+          - plan
+          - environment
+          - sequence
+          - berthing
+          title: Applies To
+        implemented:
+          type: boolean
+          title: Implemented
+          description: False while the check exists only as registry metadata.
+      additionalProperties: false
+      type: object
+      required:
+      - rule_id
+      - title
+      - severity
+      - reference
+      - applies_to
+      - implemented
+      title: Rule
+    Scenario:
+      properties:
+        name:
+          type: string
+          title: Name
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+        side_to:
+          type: string
+          enum:
+          - port
+          - starboard
+          title: Side To
+        env_source:
+          $ref: '#/components/schemas/EnvSource'
+        config:
+          anyOf:
+          - $ref: '#/components/schemas/MooringConfig'
+          - type: 'null'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          title: Tugs
+        scenario_id:
+          type: string
+          title: Scenario Id
+        created_at_utc:
+          type: string
+          format: date-time
+          title: Created At Utc
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - ship_class_id
+      - berth_id
+      - side_to
+      - env_source
+      - scenario_id
+      - created_at_utc
+      title: Scenario
+    ScenarioCreate:
+      properties:
+        name:
+          type: string
+          title: Name
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+        side_to:
+          type: string
+          enum:
+          - port
+          - starboard
+          title: Side To
+        env_source:
+          $ref: '#/components/schemas/EnvSource'
+        config:
+          anyOf:
+          - $ref: '#/components/schemas/MooringConfig'
+          - type: 'null'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          title: Tugs
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - ship_class_id
+      - berth_id
+      - side_to
+      - env_source
+      title: ScenarioCreate
+      description: 'A saved setup: the UI''s save file.'
+    SequenceRequest:
+      properties:
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        berth_id:
+          type: string
+          title: Berth Id
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        tug_plan_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tug Plan Result Id
+        line_handling_crews:
+          type: integer
+          minimum: 1.0
+          title: Line Handling Crews
+          default: 6
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - config
+      - environment
+      title: SequenceRequest
+    SequenceResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        result:
+          $ref: '#/components/schemas/SequenceResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: SequenceResponse
+    SequenceResult:
+      properties:
+        steps:
+          items:
+            $ref: '#/components/schemas/SequenceStep'
+          type: array
+          title: Steps
+        crews_required:
+          type: integer
+          title: Crews Required
+      additionalProperties: false
+      type: object
+      required:
+      - steps
+      - crews_required
+      title: SequenceResult
+    SequenceStep:
+      properties:
+        step:
+          type: integer
+          title: Step
+        line_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Line Number
+        action:
+          type: string
+          enum:
+          - pass
+          - secure_pier
+          - hold
+          - take_to_power
+          - double_up
+          - tend
+          title: Action
+        station:
+          type: string
+          enum:
+          - forecastle
+          - waist
+          - fantail
+          - bridge
+          - pier
+          title: Station
+        crews:
+          type: integer
+          title: Crews
+        trigger:
+          type: string
+          title: Trigger
+        caution:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Caution
+        reference:
+          type: string
+          title: Reference
+      additionalProperties: false
+      type: object
+      required:
+      - step
+      - line_number
+      - action
+      - station
+      - crews
+      - trigger
+      - reference
+      title: SequenceStep
+    ShipClass:
+      properties:
+        class_id:
+          type: string
+          title: Class Id
+          examples:
+          - DDG-51-FIIA
+        name:
+          type: string
+          title: Name
+        hull_type:
+          type: string
+          title: Hull Type
+          examples:
+          - DDG
+        loa_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Loa Ft
+        lwl_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Lwl Ft
+        beam_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Beam Ft
+        block_coefficient:
+          type: number
+          maximum: 1.0
+          exclusiveMinimum: 0.0
+          title: Block Coefficient
+        loading_conditions:
+          items:
+            $ref: '#/components/schemas/LoadingCondition'
+          type: array
+          title: Loading Conditions
+        wind_area_lateral_ft2:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Wind Area Lateral Ft2
+          description: Side profile area above the waterline.
+        wind_area_frontal_ft2:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Wind Area Frontal Ft2
+        hull_wind_area_lateral_ft2:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Hull Wind Area Lateral Ft2
+          description: Hull-only part of the lateral area (UFC 4-159-03).
+        wind_drag_class:
+          type: string
+          enum:
+          - hull_dominated
+          - typical
+          - extensive_superstructure
+          title: Wind Drag Class
+          description: UFC 4-159-03 Table 4-2 drag class.
+        fittings:
+          items:
+            $ref: '#/components/schemas/ShipFitting'
+          type: array
+          title: Fittings
+        push_points:
+          items:
+            $ref: '#/components/schemas/PushPoint'
+          type: array
+          title: Push Points
+        standard_line_outfit:
+          items:
+            $ref: '#/components/schemas/LineInventoryItem'
+          type: array
+          title: Standard Line Outfit
+        mst_class:
+          type: string
+          enum:
+          - II
+          - IIA
+          title: Mst Class
+          description: CVN 68, LHA 1 and LHD 1/5 are IIA (NSTM 582-1.2.2.2).
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+      additionalProperties: false
+      type: object
+      required:
+      - class_id
+      - name
+      - hull_type
+      - loa_ft
+      - lwl_ft
+      - beam_ft
+      - block_coefficient
+      - loading_conditions
+      - wind_area_lateral_ft2
+      - wind_area_frontal_ft2
+      - hull_wind_area_lateral_ft2
+      - wind_drag_class
+      - mst_class
+      - provenance
+      title: ShipClass
+    ShipClassSummary:
+      properties:
+        class_id:
+          type: string
+          title: Class Id
+        name:
+          type: string
+          title: Name
+        hull_type:
+          type: string
+          title: Hull Type
+        loa_ft:
+          type: number
+          title: Loa Ft
+        beam_ft:
+          type: number
+          title: Beam Ft
+        mst_class:
+          type: string
+          enum:
+          - II
+          - IIA
+          title: Mst Class
+        has_fittings:
+          type: boolean
+          title: Has Fittings
+      additionalProperties: false
+      type: object
+      required:
+      - class_id
+      - name
+      - hull_type
+      - loa_ft
+      - beam_ft
+      - mst_class
+      - has_fittings
+      title: ShipClassSummary
+    ShipFitting:
+      properties:
+        fitting_id:
+          type: string
+          title: Fitting Id
+          examples:
+          - BITT-1S
+        kind:
+          type: string
+          enum:
+          - bitt
+          - chock
+          - cleat
+          - recessed_bitt
+          title: Kind
+        x_ft:
+          type: number
+          title: X Ft
+        y_ft:
+          type: number
+          title: Y Ft
+        z_ft:
+          type: number
+          title: Z Ft
+          description: Height above the waterline at the reference loading.
+        side:
+          type: string
+          enum:
+          - port
+          - starboard
+          - centerline
+          title: Side
+        swl_lbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Swl Lbf
+          description: Safe working load (NSTM Tables 582-5-3/4).
+        max_rope_circ_in:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Rope Circ In
+        paired_chock_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Paired Chock Id
+          description: Chock a line from this bitt leads through.
+      additionalProperties: false
+      type: object
+      required:
+      - fitting_id
+      - kind
+      - x_ft
+      - y_ft
+      - z_ft
+      - side
+      title: ShipFitting
+      description: A bitt, chock or cleat on the ship. Coordinates in the ship frame.
+    ShipFittingResult:
+      properties:
+        fitting_id:
+          type: string
+          title: Fitting Id
+        load_lbf:
+          type: number
+          title: Load Lbf
+        swl_lbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Swl Lbf
+        pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pct
+        lines:
+          items:
+            type: integer
+          type: array
+          title: Lines
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+      additionalProperties: false
+      type: object
+      required:
+      - fitting_id
+      - load_lbf
+      - swl_lbf
+      - pct
+      - lines
+      - status
+      title: ShipFittingResult
+    ShipState:
+      properties:
+        x_ft:
+          type: number
+          title: X Ft
+        y_ft:
+          type: number
+          title: Y Ft
+        heading_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Heading True Deg
+        u_kt:
+          type: number
+          title: U Kt
+          description: Surge speed, + forward.
+          default: 0
+        v_kt:
+          type: number
+          title: V Kt
+          description: Sway speed, + toward the pier.
+          default: 0
+        r_degps:
+          type: number
+          title: R Degps
+          description: Yaw rate.
+          default: 0
+      additionalProperties: false
+      type: object
+      required:
+      - x_ft
+      - y_ft
+      - heading_true_deg
+      title: ShipState
+      description: Ship pose and velocity in the berth frame. y_ft is the distance from the pier face to the centerline.
+    SimFrame:
+      properties:
+        t_s:
+          type: number
+          title: T S
+        pose:
+          $ref: '#/components/schemas/ShipState'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugState'
+          type: array
+          title: Tugs
+        lines:
+          items:
+            $ref: '#/components/schemas/LineTension'
+          type: array
+          title: Lines
+        fenders:
+          items:
+            $ref: '#/components/schemas/FenderResult'
+          type: array
+          title: Fenders
+        alerts:
+          items:
+            type: string
+          type: array
+          title: Alerts
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - pose
+      - tugs
+      - lines
+      - fenders
+      - alerts
+      title: SimFrame
+      description: 'One frame: a WS /ws/sim/{session_id} message, or one entry of a batch run''s series.'
+    SimSeries:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+        frames:
+          items:
+            $ref: '#/components/schemas/SimFrame'
+          type: array
+          title: Frames
+      additionalProperties: false
+      type: object
+      required:
+      - job_id
+      - frames
+      title: SimSeries
+    SimSessionCreate:
+      properties:
+        scenario_id:
+          type: string
+          title: Scenario Id
+        initial_state:
+          $ref: '#/components/schemas/ShipState'
+      additionalProperties: false
+      type: object
+      required:
+      - scenario_id
+      - initial_state
+      title: SimSessionCreate
+    SimSessionCreated:
+      properties:
+        session_id:
+          type: string
+          title: Session Id
+        ws_url:
+          type: string
+          title: Ws Url
+      additionalProperties: false
+      type: object
+      required:
+      - session_id
+      - ws_url
+      title: SimSessionCreated
+    StationQuality:
+      properties:
+        station_id:
+          type: string
+          title: Station Id
+        age_s:
+          type: number
+          minimum: 0.0
+          title: Age S
+          description: Age of the observation when the snapshot was built.
+        flags:
+          items:
+            type: string
+          type: array
+          title: Flags
+      additionalProperties: false
+      type: object
+      required:
+      - station_id
+      - age_s
+      title: StationQuality
+    TelemetryAccepted:
+      properties:
+        accepted:
+          type: integer
+          title: Accepted
+        rejected:
+          type: integer
+          title: Rejected
+        errors:
+          items:
+            type: string
+          type: array
+          title: Errors
+      additionalProperties: false
+      type: object
+      required:
+      - accepted
+      - rejected
+      title: TelemetryAccepted
+    TelemetryBatch:
+      properties:
+        records:
+          items:
+            $ref: '#/components/schemas/TelemetryRecord'
+          type: array
+          title: Records
+      additionalProperties: false
+      type: object
+      required:
+      - records
+      title: TelemetryBatch
+    TelemetryRecord:
+      properties:
+        source:
+          type: string
+          enum:
+          - ship_nmea
+          - load_cell
+          - ais
+          title: Source
+        t_utc:
+          type: string
+          format: date-time
+          title: T Utc
+        sentence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sentence
+          description: Raw NMEA 0183 sentence, e.g. '$WIMWV,...'.
+        line_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Line Number
+          description: 'load_cell: which mooring line.'
+        tension_lbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tension Lbf
+        mmsi:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mmsi
+          description: 'ais: vessel id (tugs).'
+        lat:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Lat
+        lon:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Lon
+      additionalProperties: false
+      type: object
+      required:
+      - source
+      - t_utc
+      title: TelemetryRecord
+    TendingAction:
+      properties:
+        at_utc:
+          type: string
+          format: date-time
+          title: At Utc
+        line_number:
+          type: integer
+          title: Line Number
+        action:
+          type: string
+          enum:
+          - slack
+          - heave
+          title: Action
+        amount_ft:
+          type: number
+          title: Amount Ft
+      additionalProperties: false
+      type: object
+      required:
+      - at_utc
+      - line_number
+      - action
+      - amount_ft
+      title: TendingAction
+    TideStep:
+      properties:
+        valid_at_utc:
+          type: string
+          format: date-time
+          title: Valid At Utc
+        water_level_mllw_ft:
+          type: number
+          title: Water Level Mllw Ft
+        lines:
+          items:
+            $ref: '#/components/schemas/LineTension'
+          type: array
+          title: Lines
+      additionalProperties: false
+      type: object
+      required:
+      - valid_at_utc
+      - water_level_mllw_ft
+      - lines
+      title: TideStep
+    TideSweepRequest:
+      properties:
+        scenario_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scenario Id
+          description: Informational; inputs are always taken from the body.
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+          examples:
+          - DDG-51-FIIA
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+          examples:
+          - NAVSTA-NORFOLK-P12-N
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          title: Tugs
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          description: 'Sets the design factor: 3.0 (I, II, IIA) or 2.5 (III).'
+          default: II
+        lines_wet:
+          type: boolean
+          title: Lines Wet
+          description: Apply the wet-strength factor (nylon loses 15%).
+          default: true
+        from_utc:
+          type: string
+          format: date-time
+          title: From Utc
+        to_utc:
+          type: string
+          format: date-time
+          title: To Utc
+        step_min:
+          type: integer
+          maximum: 180.0
+          minimum: 5.0
+          title: Step Min
+          default: 30
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - config
+      - environment
+      - from_utc
+      - to_utc
+      title: TideSweepRequest
+    TideSweepResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        result:
+          $ref: '#/components/schemas/TideSweepResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: TideSweepResponse
+    TideSweepResult:
+      properties:
+        steps:
+          items:
+            $ref: '#/components/schemas/TideStep'
+          type: array
+          title: Steps
+        tending:
+          items:
+            $ref: '#/components/schemas/TendingAction'
+          type: array
+          title: Tending
+      additionalProperties: false
+      type: object
+      required:
+      - steps
+      - tending
+      title: TideSweepResult
+    TimeWindow:
+      properties:
+        earliest_utc:
+          type: string
+          format: date-time
+          title: Earliest Utc
+        latest_utc:
+          type: string
+          format: date-time
+          title: Latest Utc
+      additionalProperties: false
+      type: object
+      required:
+      - earliest_utc
+      - latest_utc
+      title: TimeWindow
+    TimelineRequest:
+      properties:
+        scenario_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scenario Id
+          description: Informational; inputs are always taken from the body.
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+          examples:
+          - DDG-51-FIIA
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+          examples:
+          - NAVSTA-NORFOLK-P12-N
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          title: Tugs
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          description: 'Sets the design factor: 3.0 (I, II, IIA) or 2.5 (III).'
+          default: II
+        lines_wet:
+          type: boolean
+          title: Lines Wet
+          description: Apply the wet-strength factor (nylon loses 15%).
+          default: true
+        forecast_hours:
+          type: integer
+          maximum: 120.0
+          minimum: 1.0
+          title: Forecast Hours
+          default: 48
+        step_min:
+          type: integer
+          maximum: 180.0
+          minimum: 6.0
+          title: Step Min
+          default: 30
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - config
+      - environment
+      title: TimelineRequest
+    TrackPoint:
+      properties:
+        lat:
+          type: number
+          title: Lat
+        lon:
+          type: number
+          title: Lon
+        t_s:
+          type: number
+          title: T S
+        heading_true_deg:
+          type: number
+          title: Heading True Deg
+        speed_kt:
+          type: number
+          title: Speed Kt
+        cross_track_ft:
+          type: number
+          title: Cross Track Ft
+        ukc_ft:
+          type: number
+          title: Ukc Ft
+      additionalProperties: false
+      type: object
+      required:
+      - lat
+      - lon
+      - t_s
+      - heading_true_deg
+      - speed_kt
+      - cross_track_ft
+      - ukc_ft
+      title: TrackPoint
+    TugAssignment:
+      properties:
+        tug_id:
+          type: string
+          title: Tug Id
+        push_point_id:
+          type: string
+          title: Push Point Id
+        mode:
+          type: string
+          enum:
+          - push
+          - pull
+          - standby
+          title: Mode
+        force_lbf:
+          type: number
+          minimum: 0.0
+          title: Force Lbf
+        direction_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: Direction True Deg
+      additionalProperties: false
+      type: object
+      required:
+      - tug_id
+      - push_point_id
+      - mode
+      - force_lbf
+      title: TugAssignment
+    TugCommand:
+      properties:
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+        tug_id:
+          type: string
+          title: Tug Id
+        force_lbf:
+          type: number
+          minimum: 0.0
+          title: Force Lbf
+        direction_rel_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Direction Rel Deg
+          description: Direction the tug pushes the ship, relative to the bow (90 = toward starboard).
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - tug_id
+      - force_lbf
+      - direction_rel_deg
+      title: TugCommand
+    TugPlanResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        result:
+          $ref: '#/components/schemas/TugPlanResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: TugPlanResponse
+    TugPlanResult:
+      properties:
+        required_lateral_lbf:
+          type: number
+          title: Required Lateral Lbf
+        required_by_point:
+          items:
+            $ref: '#/components/schemas/PushPointForce'
+          type: array
+          title: Required By Point
+        assignments:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          title: Assignments
+        total_bollard_pull_lbf:
+          type: number
+          title: Total Bollard Pull Lbf
+        total_power_hp:
+          type: number
+          title: Total Power Hp
+        recommended_tug_count:
+          type: integer
+          title: Recommended Tug Count
+        feasible:
+          type: boolean
+          title: Feasible
+        rationale:
+          items:
+            type: string
+          type: array
+          title: Rationale
+      additionalProperties: false
+      type: object
+      required:
+      - required_lateral_lbf
+      - required_by_point
+      - assignments
+      - total_bollard_pull_lbf
+      - total_power_hp
+      - recommended_tug_count
+      - feasible
+      - rationale
+      title: TugPlanResult
+    TugSpec:
+      properties:
+        tug_id:
+          type: string
+          title: Tug Id
+          examples:
+          - T1
+        name:
+          type: string
+          title: Name
+        propulsion:
+          type: string
+          enum:
+          - conventional
+          - asd
+          - tractor
+          - vsp
+          title: Propulsion
+        power_hp:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Power Hp
+        bollard_pull_ahead_lbf:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Bollard Pull Ahead Lbf
+        bollard_pull_astern_lbf:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Bollard Pull Astern Lbf
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+      additionalProperties: false
+      type: object
+      required:
+      - tug_id
+      - name
+      - propulsion
+      - power_hp
+      - bollard_pull_ahead_lbf
+      - bollard_pull_astern_lbf
+      - provenance
+      title: TugSpec
+    TugState:
+      properties:
+        tug_id:
+          type: string
+          title: Tug Id
+        force_lbf:
+          type: number
+          title: Force Lbf
+        direction_rel_deg:
+          type: number
+          title: Direction Rel Deg
+      additionalProperties: false
+      type: object
+      required:
+      - tug_id
+      - force_lbf
+      - direction_rel_deg
+      title: TugState
+    UkcLeg:
+      properties:
+        leg_name:
+          type: string
+          title: Leg Name
+        min_ukc_ft:
+          type: number
+          title: Min Ukc Ft
+        squat_ft:
+          type: number
+          title: Squat Ft
+        water_level_ft:
+          type: number
+          title: Water Level Ft
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+      additionalProperties: false
+      type: object
+      required:
+      - leg_name
+      - min_ukc_ft
+      - squat_ft
+      - water_level_ft
+      - status
+      title: UkcLeg
+    UkcRequest:
+      properties:
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        waypoints:
+          items:
+            $ref: '#/components/schemas/Waypoint'
+          type: array
+          title: Waypoints
+        eta_utc:
+          type: string
+          format: date-time
+          title: Eta Utc
+          description: Time at the first waypoint.
+        speed_profile_kt:
+          items:
+            type: number
+          type: array
+          title: Speed Profile Kt
+          description: Speed on each leg (len = waypoints - 1).
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - waypoints
+      - eta_utc
+      - speed_profile_kt
+      title: UkcRequest
+    UkcResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        result:
+          $ref: '#/components/schemas/UkcResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: UkcResponse
+    UkcResult:
+      properties:
+        legs:
+          items:
+            $ref: '#/components/schemas/UkcLeg'
+          type: array
+          title: Legs
+        window:
+          $ref: '#/components/schemas/TimeWindow'
+      additionalProperties: false
+      type: object
+      required:
+      - legs
+      - window
+      title: UkcResult
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    VersionInfo:
+      properties:
+        api_version:
+          type: string
+          title: Api Version
+        modules:
+          additionalProperties:
+            type: string
+          type: object
+          title: Modules
+          description: Module name -> 'mock' or the real module version.
+      additionalProperties: false
+      type: object
+      required:
+      - api_version
+      - modules
+      title: VersionInfo
+    Waypoint:
+      properties:
+        lat:
+          type: number
+          title: Lat
+        lon:
+          type: number
+          title: Lon
+        leg_name:
+          type: string
+          title: Leg Name
+        channel_depth_mllw_ft:
+          type: number
+          title: Channel Depth Mllw Ft
+        width_ft:
+          type: number
+          title: Width Ft
+      additionalProperties: false
+      type: object
+      required:
+      - lat
+      - lon
+      - leg_name
+      - channel_depth_mllw_ft
+      - width_ft
+      title: Waypoint
+    Alert:
+      additionalProperties: false
+      description: Message on WS /ws/alerts.
+      properties:
+        alert_id:
+          title: Alert Id
+          type: string
+        at_utc:
+          format: date-time
+          title: At Utc
+          type: string
+        severity:
+          enum:
+          - INFO
+          - AMBER
+          - RED
+          title: Severity
+          type: string
+        element_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Element Id
+        message:
+          title: Message
+          type: string
+        env:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        limit_wind_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          title: Limit Wind Kt
+      required:
+      - alert_id
+      - at_utc
+      - severity
+      - element_id
+      - message
+      - env
+      title: Alert
+      type: object
+    JobDoneEvent:
+      additionalProperties: false
+      description: SSE `done` event on /jobs/{job_id}/events. Fetch the result from status_url.
+      properties:
+        job_id:
+          title: Job Id
+          type: string
+        state:
+          enum:
+          - queued
+          - running
+          - succeeded
+          - failed
+          title: State
+          type: string
+      required:
+      - job_id
+      - state
+      title: JobDoneEvent
+      type: object
+    JobProgressEvent:
+      additionalProperties: false
+      description: SSE `progress` event on /jobs/{job_id}/events.
+      properties:
+        job_id:
+          title: Job Id
+          type: string
+        progress:
+          title: Progress
+          type: number
+        message:
+          title: Message
+          type: string
+      required:
+      - job_id
+      - progress
+      - message
+      title: JobProgressEvent
+      type: object
+    SimControlMessage:
+      additionalProperties: false
+      properties:
+        type:
+          enum:
+          - pause
+          - resume
+          - reset
+          title: Type
+          type: string
+      required:
+      - type
+      title: SimControlMessage
+      type: object
+    SimLineEventMessage:
+      additionalProperties: false
+      properties:
+        type:
+          const: line_event
+          title: Type
+          type: string
+        line_number:
+          title: Line Number
+          type: integer
+        event:
+          enum:
+          - secured
+          - tensioned
+          - released
+          title: Event
+          type: string
+      required:
+      - type
+      - line_number
+      - event
+      title: SimLineEventMessage
+      type: object
+    SimTugCommandMessage:
+      additionalProperties: false
+      description: Client message on WS /ws/sim/{session_id}.
+      properties:
+        type:
+          const: tug_command
+          title: Type
+          type: string
+        tug_id:
+          title: Tug Id
+          type: string
+        force_lbf:
+          minimum: 0
+          title: Force Lbf
+          type: number
+        direction_rel_deg:
+          exclusiveMaximum: 360
+          minimum: 0
+          title: Direction Rel Deg
+          type: number
+      required:
+      - type
+      - tug_id
+      - force_lbf
+      - direction_rel_deg
+      title: SimTugCommandMessage
+      type: object
+tags:
+- name: M1 Environment
+  description: Wind, current and water level from every source, normalized.
+- name: M2 Reference data
+  description: Ships, lines, berths, tugs and saved scenarios.
+- name: M3 Environmental loads
+  description: Wind and current forces (UFC 4-159-03 Chapter 4).
+- name: M4 Static mooring
+  description: Line and fitting loads, NSTM 582 checks, limiting wind, tide sweep.
+- name: M5 Risk
+  description: Gust exceedance probability and forecast timeline.
+- name: M6 Tugs
+  description: Tug force, bollard pull and horsepower; berthing windows.
+- name: M7 Planning
+  description: Recommended line configuration and line sequence.
+- name: M11 Berthing simulator
+  description: 'Phase 2: time-domain berthing, batch and interactive.'
+- name: M12 Approach
+  description: 'Phase 3: route, under-keel clearance, approach simulation.'
+- name: M13 Telemetry
+  description: Ship sensor ingest for deployment.
+- name: System
+  description: Jobs, stored results, health.
+servers:
+- url: http://localhost:8000
+  description: Local mock server
+x-websockets:
+  /ws/env:
+    query: berth_id, mode=live|replay|scenario, env_scenario_id, replay_start_utc, speed, interval_s, limit
+    server_messages: EnvironmentSnapshot
+  /ws/alerts:
+    query: berth_id, scenario_id, interval_s, limit
+    server_messages: Alert
+  /ws/sim/{session_id}:
+    query: limit
+    client_messages: SimTugCommandMessage | SimLineEventMessage | SimControlMessage
+    server_messages: SimFrame (10 Hz)
+  /ws/telemetry:
+    client_messages: TelemetryRecord
+    server_messages: TelemetryAccepted

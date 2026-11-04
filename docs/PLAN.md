@@ -128,7 +128,7 @@ Every field name carries its unit, in the units a bridge team uses. The physics 
 
 **Coordinate frames:**
 
-- **Berth frame:** origin at the berth reference point on the pier face. +x runs along the face toward the outer end of the pier, +y runs off the face into the water, and +z is up from MLLW. Pier fittings, fenders and camels live in this frame.
+- **Berth frame:** origin at the berth reference point on the pier face. Standing on the pier facing the water, +y points off the face into the water and +x runs along the face to your right; +z is up from MLLW. (+x can't always point toward the outer end of the pier: on the opposite face of the same pier that would flip +y onto the deck.) A ship moored starboard side to has its bow toward +x; port side to, toward −x. Pier fittings, fenders and camels live in this frame.
 - **Ship frame:** origin at midships on the centerline at the waterline. +x is forward, +y is to port, +z is up. Ship fittings, chocks and tug push points live in this frame.
 - **Geo:** WGS84 latitude/longitude, used for berths, environment stations and approach tracks. Each berth stores the true bearing of its face line, which links the berth frame to geo.
 

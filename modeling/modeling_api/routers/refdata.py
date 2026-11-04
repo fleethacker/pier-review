@@ -1,0 +1,83 @@
+from typing import Annotated
+
+from fastapi import APIRouter, Body
+
+from mooring import refdata
+from mooring.core.schemas import (
+    Berth,
+    BerthCreated,
+    BerthSummary,
+    LineSpec,
+    Scenario,
+    ScenarioCreate,
+    ShipClass,
+    ShipClassSummary,
+    TugSpec,
+)
+from mooring.mock.examples import ex
+
+from ..backend import scenarios
+
+router = APIRouter(tags=["M2 Reference data"])
+
+
+@router.get("/ships", response_model=list[ShipClassSummary])
+def list_ships():
+    return [ShipClassSummary(class_id=s.class_id, name=s.name, hull_type=s.hull_type, loa_ft=s.loa_ft,
+                             beam_ft=s.beam_ft, mst_class=s.mst_class, has_fittings=bool(s.fittings))
+            for s in refdata.ships()]
+
+
+@router.get("/ships/{class_id}", response_model=ShipClass)
+def get_ship(class_id: str):
+    return refdata.ship(class_id)
+
+
+@router.get("/lines", response_model=list[LineSpec])
+def list_lines():
+    return refdata.lines()
+
+
+@router.get("/lines/{spec_id}", response_model=LineSpec)
+def get_line(spec_id: str):
+    return refdata.line(spec_id)
+
+
+@router.get("/berths", response_model=list[BerthSummary])
+def list_berths():
+    return [BerthSummary(berth_id=b.berth_id, name=b.name, face_length_ft=b.face_length_ft,
+                         min_depth_mllw_ft=min(p.depth_mllw_ft for p in b.depth_profile),
+                         fitting_count=len(b.fittings), confidence=b.provenance.confidence)
+            for b in refdata.berths()]
+
+
+@router.get("/berths/{berth_id}", response_model=Berth)
+def get_berth(berth_id: str):
+    return refdata.berth(berth_id)
+
+
+@router.post("/berths", response_model=BerthCreated, status_code=201,
+             summary="Add or replace a berth (from the canvas or a confirmed vision draft)")
+def create_berth(berth: Berth):
+    refdata.add_berth(berth)
+    return BerthCreated(berth_id=berth.berth_id)
+
+
+@router.get("/tugs", response_model=list[TugSpec])
+def list_tugs():
+    return refdata.tugs()
+
+
+@router.post("/scenarios", response_model=Scenario, status_code=201, summary="Save a scenario")
+def create_scenario(req: Annotated[ScenarioCreate, Body(openapi_examples=ex("scenario"))]):
+    return scenarios.create(req)
+
+
+@router.get("/scenarios", response_model=list[Scenario])
+def list_scenarios():
+    return scenarios.list_all()
+
+
+@router.get("/scenarios/{scenario_id}", response_model=Scenario)
+def get_scenario(scenario_id: str):
+    return scenarios.get(scenario_id)

@@ -1,0 +1,95 @@
+# Mooring line catalog. Placeholder strengths and stretch curves (elongation at break per NSTM Table 582-2-4).
+# Replace MBS with manufacturer data sheets / MIL spec values (workstream A).
+- spec_id: NYLON-DB-7IN
+  material: nylon
+  construction: double_braid
+  size_circ_in: 7
+  mbs_lbf: 128000
+  load_elongation: &id001
+  - - 0
+    - 0
+  - - 0.1
+    - 0.07
+  - - 0.2
+    - 0.11
+  - - 0.3
+    - 0.15
+  - - 0.5
+    - 0.21
+  - - 0.75
+    - 0.3
+  - - 1.0
+    - 0.4
+  wet_strength_factor: 0.85
+  provenance: &id002
+    source: Mock seed data for development
+    confidence: mock
+    notes: Placeholder values. Not real Navy data; replace before any operational use.
+- spec_id: NYLON-DB-8IN
+  material: nylon
+  construction: double_braid
+  size_circ_in: 8
+  mbs_lbf: 165000
+  load_elongation: *id001
+  wet_strength_factor: 0.85
+  provenance: *id002
+- spec_id: NYLON-DB-9IN
+  material: nylon
+  construction: double_braid
+  size_circ_in: 9
+  mbs_lbf: 205000
+  load_elongation: *id001
+  wet_strength_factor: 0.85
+  provenance: *id002
+- spec_id: POLY-DB-8IN
+  material: polyester
+  construction: double_braid
+  size_circ_in: 8
+  mbs_lbf: 150000
+  load_elongation:
+  - - 0
+    - 0
+  - - 0.1
+    - 0.04
+  - - 0.2
+    - 0.07
+  - - 0.3
+    - 0.1
+  - - 0.5
+    - 0.15
+  - - 0.75
+    - 0.22
+  - - 1.0
+    - 0.3
+  wet_strength_factor: 1.0
+  provenance: *id002
+- spec_id: ARAMID-4S-6IN
+  material: aramid
+  construction: four_strand
+  size_circ_in: 6
+  mbs_lbf: 230000
+  load_elongation: &id003
+  - - 0
+    - 0
+  - - 0.1
+    - 0.012
+  - - 0.2
+    - 0.02
+  - - 0.3
+    - 0.027
+  - - 0.5
+    - 0.038
+  - - 0.75
+    - 0.05
+  - - 1.0
+    - 0.06
+  wet_strength_factor: 1.0
+  provenance: *id002
+- spec_id: ARAMID-4S-8IN
+  material: aramid
+  construction: four_strand
+  size_circ_in: 8
+  mbs_lbf: 380000
+  load_elongation: *id003
+  wet_strength_factor: 1.0
+  provenance: *id002

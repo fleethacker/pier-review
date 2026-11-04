@@ -88,7 +88,9 @@ header and API introduction still say mock: their implementation in
 remain mock even though they now consume UFC loads.
 
 Calibration changes only lateral wind area; hull and frontal areas retain their
-original values. All 16 peak force magnitudes pass the NSTM ±10% check and all
+original values. DDG uses the extensive-superstructure drag class (C=1.02) specified
+for destroyers by UFC Table 4-2; its lateral area is approximately 6.25% above the
+original 14,900 ft² seed. Superstructure height remains frozen from the original areas. All 16 peak force magnitudes pass the NSTM ±10% check and all
 areas remain within ±25%. Peak bearings are 76°/284° (DDG, CG, CVN) and 77°/283°
 (LHD). NSTM bearings use UFC flow-toward, counterclockwise angles: converting them
 to API wind-from with (180 - b) % 360 gives targets 75°/285° (DDG/CG) and

@@ -286,6 +286,9 @@ def test_c_geometry_estimates_and_loading():
     from mooring.loads.service import environmental
     from mooring.core.schemas import LoadsRequest
     ship = refdata.ship("DDG-51-FIIA")
+    assert ship.wind_drag_class == "extensive_superstructure"  # UFC Table 4-2 destroyer class
+    # Height stays frozen from the ORIGINAL seed areas, independent of calibration.
+    assert ship.superstructure_height_ft == pytest.approx(7000 / 466 + (14900 - 7000) / (0.5 * 466))
     assert ship.provenance.confidence == "estimated"
     assert ship.superstructure_height_ft > 0 and ship.midship_coefficient > 0
     full = ufc.ship_inputs(ship, "full_load", 1020)

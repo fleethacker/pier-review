@@ -20,6 +20,9 @@ from mooring.core.schemas import (
     SimControlMessage,
     SimFrame,
     SimLineEventMessage,
+    SimLifecycle,
+    SimRecording,
+    SimScene,
     SimTugCommandMessage,
     TelemetryAccepted,
     TelemetryRecord,
@@ -65,7 +68,8 @@ WEBSOCKETS = {
     "/ws/telemetry": {"client_messages": "TelemetryRecord", "server_messages": "TelemetryAccepted"},
 }
 STREAM_MODELS = [EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, SimLineEventMessage, SimControlMessage,
-                 TelemetryRecord, TelemetryAccepted, JobProgressEvent, JobDoneEvent]
+                 TelemetryRecord, TelemetryAccepted, JobProgressEvent, JobDoneEvent, SimScene, SimLifecycle,
+                 SimRecording]
 
 app = FastAPI(title="Mooring Assistant: Modeling API", version="1.0.0", description=DESCRIPTION,
               openapi_tags=TAGS, separate_input_output_schemas=False)
@@ -126,6 +130,13 @@ def openapi_schema() -> dict:
         comps.setdefault(name, s)
     schema["servers"] = [{"url": "http://localhost:8000", "description": "Local mock server"}]
     schema["x-websockets"] = WEBSOCKETS
+    schema["x-motion-contract"] = {
+        "schema_version": "rm0-v1",
+        "status": "Schemas and mock fixtures only; live producers retain legacy frames until explicitly upgraded.",
+        "models": ["SimFrame", "SimScene", "SimLifecycle", "SimRecording"],
+        "examples": "contract/examples/modeling/sim_*.json",
+        "design": "docs/MOTION_FRAME_DESIGN.md",
+    }
     return schema
 
 

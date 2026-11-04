@@ -1,0 +1,352 @@
+{
+  "availability": "available",
+  "provenance": {
+    "kind": "mock",
+    "source": "RM0 display fixture",
+    "references": [],
+    "notes": []
+  },
+  "validity": {
+    "state": "limited",
+    "reasons": [
+      {
+        "code": "AUTHORED_DISPLAY_FIXTURE",
+        "message": "Authored display value; no physical solution.",
+        "affected_components": [
+          "scene"
+        ]
+      }
+    ],
+    "diagnostics": null
+  },
+  "schema_version": "rm0-v1",
+  "scene_id": "scene_rm0_fixture",
+  "revision": "1",
+  "berth_id": "MOCK-DISPLAY-BERTH",
+  "ship_class_id": "MOCK-DISPLAY-HULL",
+  "loading": "illustrative",
+  "face_bearing_true_deg": 90.0,
+  "deck_height_mllw_ft": 8.0,
+  "ship_reference": "midships at the reference waterline",
+  "berth_outline": [
+    {
+      "x_ft": 0.0,
+      "y_ft": -30.0,
+      "z_mllw_ft": 8.0
+    },
+    {
+      "x_ft": 600.0,
+      "y_ft": -30.0,
+      "z_mllw_ft": 8.0
+    },
+    {
+      "x_ft": 600.0,
+      "y_ft": 0.0,
+      "z_mllw_ft": 8.0
+    },
+    {
+      "x_ft": 0.0,
+      "y_ft": 0.0,
+      "z_mllw_ft": 8.0
+    }
+  ],
+  "ship_hull_outline": [
+    {
+      "x_ft": -100.0,
+      "y_ft": -20.0,
+      "z_ft": 0.0
+    },
+    {
+      "x_ft": 80.0,
+      "y_ft": -20.0,
+      "z_ft": 0.0
+    },
+    {
+      "x_ft": 100.0,
+      "y_ft": 0.0,
+      "z_ft": 0.0
+    },
+    {
+      "x_ft": 80.0,
+      "y_ft": 20.0,
+      "z_ft": 0.0
+    },
+    {
+      "x_ft": -100.0,
+      "y_ft": 20.0,
+      "z_ft": 0.0
+    }
+  ],
+  "ship_fittings": [
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "ship-forward"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "fitting_id": "ship-forward",
+      "position": {
+        "x_ft": 60.0,
+        "y_ft": -20.0,
+        "z_ft": 8.0
+      },
+      "kind": "mooring_bitt",
+      "capacity_lbf": 25000.0
+    },
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "ship-aft"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "fitting_id": "ship-aft",
+      "position": {
+        "x_ft": -60.0,
+        "y_ft": -20.0,
+        "z_ft": 8.0
+      },
+      "kind": "mooring_bitt",
+      "capacity_lbf": 25000.0
+    },
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "push-port-midships"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "fitting_id": "push-port-midships",
+      "position": {
+        "x_ft": 0.0,
+        "y_ft": 20.0,
+        "z_ft": 0.0
+      },
+      "kind": "tug_push_point",
+      "capacity_lbf": null
+    }
+  ],
+  "pier_fittings": [
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "pier-forward"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "fitting_id": "pier-forward",
+      "position": {
+        "x_ft": 360.0,
+        "y_ft": 0.0,
+        "z_mllw_ft": 8.0
+      },
+      "kind": "bollard",
+      "capacity_lbf": 50000.0
+    },
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "pier-aft"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "fitting_id": "pier-aft",
+      "position": {
+        "x_ft": 240.0,
+        "y_ft": 0.0,
+        "z_mllw_ft": 8.0
+      },
+      "kind": "bollard",
+      "capacity_lbf": 50000.0
+    }
+  ],
+  "fenders": [
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "fender-fixture"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "fender_id": "fender-fixture",
+      "position": {
+        "x_ft": 300.0,
+        "y_ft": 0.0,
+        "z_mllw_ft": 4.0
+      },
+      "length_ft": 20.0,
+      "standoff_ft": 2.0
+    }
+  ],
+  "depth_profile": [
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "depth"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "position": {
+        "x_ft": 0.0,
+        "y_ft": 100.0,
+        "z_mllw_ft": null
+      },
+      "depth_mllw_ft": 40.0
+    },
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "depth"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "position": {
+        "x_ft": 300.0,
+        "y_ft": 100.0,
+        "z_mllw_ft": null
+      },
+      "depth_mllw_ft": 40.0
+    },
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "depth"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "position": {
+        "x_ft": 600.0,
+        "y_ft": 100.0,
+        "z_mllw_ft": null
+      },
+      "depth_mllw_ft": 40.0
+    }
+  ]
+}

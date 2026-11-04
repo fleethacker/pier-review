@@ -115,13 +115,12 @@ def test_nan_and_infinity_are_rejected_everywhere(bad):
 
 # ---------- Legacy compatibility: absence means unknown ----------
 
-def test_current_responses_have_no_validity_and_read_as_unknown():
-    r = client.post(f"{P}/mooring/analyze", json=body())
+def test_mock_responses_have_no_validity_and_read_as_unknown():
+    r = client.post(f"{P}/tugs/hold-plan", json=EXAMPLES["tugs_hold_plan"])  # still a mock module
     assert r.status_code == 200
     j = r.json()
     assert j["validity"] is None and j["manifest"] is None
     assert validity_state(j) == "unknown"
-    assert validity_state(AnalyzeResponse.model_validate(j)) == "unknown"
     stored = client.get(f"{P}/results/{j['result_id']}").json()
     assert validity_state(stored) == "unknown"
 
@@ -238,13 +237,17 @@ def test_legacy_line_defaults_unchanged():
                     paid_out_unstretched_length_ft=100, slack_ft=2)
 
 
-def test_unmodelled_line_fields_are_labeled_not_silently_ignored():
+def test_line_length_and_condition_fields_are_honored_by_the_equilibrium_solver():
+    base = post("mooring/analyze", body()).json()
     b = body()
-    b["config"]["lines"][0].update(paid_out_unstretched_length_ft=120.0, condition="dry")
-    j = post("mooring/analyze", b).json()
-    text = " ".join(j["assumptions"])
-    assert "paid_out_unstretched_length_ft is ignored" in text and "condition 'dry' is ignored" in text
-    assert j["result"] == client.post(f"{P}/mooring/analyze", json=body()).json()["result"]
+    b["config"]["lines"][2].update(condition="dry")
+    dry = post("mooring/analyze", b).json()
+    pct = lambda j: {r["line_number"]: r["pct_mbs"] for r in j["result"]["lines"]}
+    assert pct(dry)[3] < pct(base)[3]  # dry strength is higher than wet, so a smaller share of MBS
+    c = body()
+    c["config"]["lines"][2].update(paid_out_unstretched_length_ft=1.0)  # absurdly short: rest length is explicit
+    short = post("mooring/analyze", c)
+    assert short.status_code in (200, 422)
 
 
 def test_unknown_scenario_id_is_422_not_404():

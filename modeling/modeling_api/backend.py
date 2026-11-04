@@ -21,14 +21,15 @@ from mooring.berthing.mock import simulator as berthing_sim  # noqa: F401
 from mooring.berthing.mock import tugs as berthing_tugs  # noqa: F401
 
 # Phase 1: moored
-from mooring.moored.mock import optimizer, risk, solver  # noqa: F401
+from mooring.moored import solver  # noqa: F401
+from mooring.moored.mock import optimizer, risk  # noqa: F401
 from mooring.moored.mock import tugs as moored_tugs  # noqa: F401
 
 BACKENDS: dict[str, str] = {
     "M1 environment": "mock",
     "M2 reference data": "real (seed YAML)",
     "M3 environmental loads": "real",
-    "M4 static solver (moored)": "mock (geometry and rules real)",
+    "M4 static solver (moored)": "real (equilibrium; limited by seed data)",
     "M5 risk engine (moored)": "mock",
     "M6 tug planner (moored, berthing)": "mock",
     "M7 optimizer (moored) and sequence (berthing)": "mock",

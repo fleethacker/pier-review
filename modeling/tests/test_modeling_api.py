@@ -83,7 +83,10 @@ def test_sync_posts(name, path):
     assert r.status_code in (200, 201, 202), r.text
     body = r.json()
     if "result_id" in body:
-        assert body["backend"] == ("real" if path.startswith("/loads/") else "mock")
+        real = path.startswith("/loads/") or path in ("/mooring/analyze", "/mooring/envelope", "/mooring/tide-sweep")
+        assert body["backend"] == ("real" if real else "mock")
+        if real:
+            assert body["validity"] is not None and body["manifest"]["resolved_inputs_hash"].startswith("sha256:")
         assert client.get(f"{P}/results/{body['result_id']}").status_code == 200
 
 
@@ -158,7 +161,9 @@ def test_analyze_example_is_plausible():
     roles = {ln.role for ln in r.result.lines}
     assert {"bow", "breast", "stern", "spring_fwd", "spring_aft"} <= roles
     assert all(ln.length_ft >= 50 for ln in r.result.lines)
-    assert r.status in ("GREEN", "AMBER")
+    # Real equilibrium: the single-part template is overloaded at a 30 kt off-pier gust (a physical finding, not an error).
+    assert r.backend == "real" and r.validity.state == "limited" and r.validity.diagnostics.converged
+    assert r.status == "RED" and any(f.rule_id == "LINE-WLL" and f.severity == "RED" for f in r.result.findings)
 
 
 def test_unknown_ship_is_404():

@@ -60,11 +60,24 @@ def _metadata(ship, loading, depth, water_density, use_gust, current_speed, resu
     return assumptions, warnings, Validity(state=state, reasons=reasons)
 
 
-def _response(cls, req, result, assumptions, warnings, validity):
+def _manifest(req, ship, env=None):
+    from mooring.core import store
+    from mooring.core.envelopes import resolved_inputs_hash
+    from mooring.core.schemas import ManifestRecord, ResultManifest
+
+    snap = {"request": req.model_dump(mode="json"), "ship": ship.model_dump(mode="json")}
+    h = resolved_inputs_hash(snap)
+    store.save_snapshot(h, snap)
+    return ResultManifest(resolved_inputs_hash=h, code_version="mooring.loads.ufc@1.0.0",
+                          records=[ManifestRecord(kind="ship", id=ship.class_id, revision=resolved_inputs_hash(snap["ship"])[:23])],
+                          environment_hash=resolved_inputs_hash(env) if env is not None else None)
+
+
+def _response(cls, req, result, assumptions, warnings, validity, manifest=None):
     base = "RED" if any(w.severity == "RED" for w in warnings) else "AMBER" if warnings else "GREEN"
     response = cls(result_id=new_id("res"), model="mooring.loads.ufc", model_version="1.0.0", backend="real",
                    inputs_hash=inputs_hash(req), computed_at_utc=utcnow(), status=status_with_validity(base, validity),
-                   assumptions=assumptions, warnings=warnings, validity=validity, result=result)
+                   assumptions=assumptions, warnings=warnings, validity=validity, manifest=manifest, result=result)
     RESULTS[response.result_id] = response.model_dump(mode="json")
     return response
 
@@ -78,7 +91,7 @@ def environmental(req: LoadsRequest) -> LoadsResponse:
     assumptions, warnings, validity = _metadata(ship, req.loading, req.water_depth_ft, req.environment.water_density_kgm3,
                                                 req.use_gust, req.environment.current_speed_kt, [result],
                                                 req.environment, req.require_verified_wind_basis)
-    return _response(LoadsResponse, req, result, assumptions, warnings, validity)
+    return _response(LoadsResponse, req, result, assumptions, warnings, validity, _manifest(req, ship, req.environment))
 
 
 def polar(req: PolarRequest) -> PolarResponse:
@@ -96,4 +109,4 @@ def polar(req: PolarRequest) -> PolarResponse:
     assumptions, warnings, validity = _metadata(ship, req.loading, req.water_depth_ft, env.water_density_kgm3, False,
                                                 env.current_speed_kt, results)
     assumptions.append("rel_deg is the direction the wind comes from; current flows the same way as the wind.")
-    return _response(PolarResponse, req, PolarResult(points=points), assumptions, warnings, validity)
+    return _response(PolarResponse, req, PolarResult(points=points), assumptions, warnings, validity, _manifest(req, ship))

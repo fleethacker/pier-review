@@ -21,9 +21,23 @@ def toolkit() -> PhysicsToolkit:
 
 def test_legacy_modeling_response_is_recorded_as_unknown():
     tk = toolkit()
+
+    class Stub:
+        async def analyze(self, body):
+            j = TestClient(modeling_app).post(f"{P}/mooring/analyze", json=body).json()
+            j.pop("validity"), j.pop("manifest")  # a response recorded before S00a
+            return AnalyzeResponse.model_validate(j)
+
+    tk.client = Stub()
     out = asyncio.run(tk.analyze(EXAMPLES["mooring_analyze"]))
     assert out.validity is None
     assert tk.last_call.validity_state == "unknown" and tk.last_call.status in ("GREEN", "AMBER", "RED")
+
+
+def test_new_modeling_response_validity_is_recorded():
+    tk = toolkit()
+    out = asyncio.run(tk.analyze(EXAMPLES["mooring_analyze"]))
+    assert out.validity.state == "limited" and tk.last_call.validity_state == "limited"
 
 
 def test_reported_invalid_validity_reaches_the_ledger():

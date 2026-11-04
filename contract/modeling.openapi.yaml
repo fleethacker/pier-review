@@ -1880,6 +1880,13 @@ components:
           title: Lines Wet
           description: Apply the wet-strength factor (nylon loses 15%).
           default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
       additionalProperties: false
       type: object
       required:
@@ -3047,6 +3054,13 @@ components:
           title: Lines Wet
           description: Apply the wet-strength factor (nylon loses 15%).
           default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
         horizon_hours:
           type: number
           maximum: 72.0
@@ -3142,6 +3156,18 @@ components:
           - AMBER
           - RED
           title: Status
+        energy_ftlbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Energy Ftlbf
+          description: Energy absorbed, integral of force over deflection.
+        pct_rated_energy:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pct Rated Energy
+          description: Absorbed / rated energy x 100, when a rating exists.
       additionalProperties: false
       type: object
       required:
@@ -3419,6 +3445,13 @@ components:
           title: Lines Wet
           description: Apply the wet-strength factor (nylon loses 15%).
           default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
         margin:
           type: number
           maximum: 1.0
@@ -3542,7 +3575,8 @@ components:
           - type: number
           - type: 'null'
           title: Limit Wind Kt
-          description: None when wind from this direction loads only the fenders.
+          description: Highest wind speed verified within limits (conservative end of the bracket). None unless outcome is
+            'limit_found' or 'fails_at_zero_wind' (then 0).
         first_failure_element:
           anyOf:
           - type: string
@@ -3554,8 +3588,46 @@ components:
           - WLL
           - MBS
           - fitting
+          - fender
           - none
           title: Failure Mode
+        outcome:
+          anyOf:
+          - type: string
+            enum:
+            - limit_found
+            - fails_at_zero_wind
+            - no_failure_in_range
+            - undetermined
+            - invalid_inputs
+          - type: 'null'
+          title: Outcome
+          description: Absent on legacy responses.
+        bracket_kt:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          title: Bracket Kt
+          description: '[highest OK speed, lowest failing speed] after refinement.'
+        search_max_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Search Max Kt
+        undetermined_at_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Undetermined At Kt
+          description: Speed where the solve failed before any capacity failure was found.
+        nonmonotone_in_bracket:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Nonmonotone In Bracket
+          description: True if samples inside the bracket were not monotone.
       additionalProperties: false
       type: object
       required:
@@ -3610,12 +3682,40 @@ components:
           title: Lines Wet
           description: Apply the wet-strength factor (nylon loses 15%).
           default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
         step_deg:
           type: integer
           maximum: 90.0
           minimum: 5.0
           title: Step Deg
           default: 15
+        max_search_kt:
+          type: number
+          maximum: 200.0
+          minimum: 10.0
+          title: Max Search Kt
+          description: Highest wind speed searched. No failure up to here is reported as such, not as unlimited.
+          default: 100.0
+        sampling_step_kt:
+          type: number
+          maximum: 20.0
+          exclusiveMinimum: 0.0
+          title: Sampling Step Kt
+          description: Coarse scan interval; failures narrower than this can be missed.
+          default: 5.0
+        tolerance_kt:
+          type: number
+          maximum: 5.0
+          exclusiveMinimum: 0.0
+          title: Tolerance Kt
+          description: Bisection tolerance once a crossing is bracketed.
+          default: 0.25
       additionalProperties: false
       type: object
       required:
@@ -3732,6 +3832,38 @@ components:
       - line_number
       - event
       title: LineEvent
+    LineExtreme:
+      properties:
+        line_number:
+          type: integer
+          title: Line Number
+        max_tension_lbf:
+          type: number
+          title: Max Tension Lbf
+        max_at_utc:
+          type: string
+          format: date-time
+          title: Max At Utc
+        max_pct_wll:
+          type: number
+          title: Max Pct Wll
+        min_tension_lbf:
+          type: number
+          title: Min Tension Lbf
+        min_at_utc:
+          type: string
+          format: date-time
+          title: Min At Utc
+      additionalProperties: false
+      type: object
+      required:
+      - line_number
+      - max_tension_lbf
+      - max_at_utc
+      - max_pct_wll
+      - min_tension_lbf
+      - min_at_utc
+      title: LineExtreme
     LineInventoryItem:
       properties:
         spec_id:
@@ -4229,8 +4361,8 @@ components:
             exclusiveMinimum: 0.0
           - type: 'null'
           title: Paid Out Unstretched Length Ft
-          description: Unstretched length paid out between fittings. Accepted for forward compatibility; the mock solver ignores
-            it and says so in the response assumptions. Cannot be combined with slack_ft.
+          description: Unstretched length paid out between fittings. Used directly as the installed rest length by the M4
+            equilibrium solver. Cannot be combined with slack_ft or pretension_lbf.
         condition:
           anyOf:
           - type: string
@@ -4239,7 +4371,8 @@ components:
             - dry
           - type: 'null'
           title: Condition
-          description: Strength curve for this line. When omitted the request's lines_wet applies (legacy).
+          description: Strength condition for this line (wet applies the spec's wet-strength factor). When omitted the request's
+            lines_wet applies (legacy).
       additionalProperties: false
       type: object
       required:
@@ -5781,6 +5914,36 @@ components:
       - action
       - amount_ft
       title: TendingAction
+    TendingInput:
+      properties:
+        at_utc:
+          type: string
+          format: date-time
+          title: At Utc
+        line_number:
+          type: integer
+          minimum: 1.0
+          title: Line Number
+        action:
+          type: string
+          enum:
+          - slack
+          - heave
+          title: Action
+          description: slack lengthens the rest length, heave shortens it.
+        amount_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Amount Ft
+      additionalProperties: false
+      type: object
+      required:
+      - at_utc
+      - line_number
+      - action
+      - amount_ft
+      title: TendingInput
+      description: An explicit tending action applied to a line's installed rest length from `at_utc` onward.
     TideStep:
       properties:
         valid_at_utc:
@@ -5795,6 +5958,17 @@ components:
             $ref: '#/components/schemas/LineTension'
           type: array
           title: Lines
+        valid:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Valid
+          description: False when this step's equilibrium solve failed; lines is then empty.
+        max_pct_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Pct Wll
       additionalProperties: false
       type: object
       required:
@@ -5848,6 +6022,13 @@ components:
           title: Lines Wet
           description: Apply the wet-strength factor (nylon loses 15%).
           default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
         from_utc:
           type: string
           format: date-time
@@ -5862,6 +6043,12 @@ components:
           minimum: 5.0
           title: Step Min
           default: 30
+        tending:
+          items:
+            $ref: '#/components/schemas/TendingInput'
+          type: array
+          title: Tending
+          description: Explicit tending applied in time order. Nothing is retensioned silently.
       additionalProperties: false
       type: object
       required:
@@ -5954,6 +6141,29 @@ components:
             $ref: '#/components/schemas/TendingAction'
           type: array
           title: Tending
+          description: Recommended actions (not applied) to restore each line's installed tension, at time_resolution_min
+            resolution.
+        time_resolution_min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Time Resolution Min
+          description: Internal evaluation interval; extremes between reported steps are captured at this resolution.
+        line_extremes:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/LineExtreme'
+            type: array
+          - type: 'null'
+          title: Line Extremes
+        applied_tending:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/TendingAction'
+            type: array
+          - type: 'null'
+          title: Applied Tending
+          description: The explicit tending inputs that were applied.
       additionalProperties: false
       type: object
       required:
@@ -6022,6 +6232,13 @@ components:
           title: Lines Wet
           description: Apply the wet-strength factor (nylon loses 15%).
           default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
         forecast_hours:
           type: integer
           maximum: 120.0

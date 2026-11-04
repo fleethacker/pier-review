@@ -52,7 +52,7 @@ def finish(accepted: dict) -> dict:
 def test_gets(path):
     r = client.get(P + path)
     assert r.status_code == 200, r.text
-    assert r.headers["X-Mooring-Backend"] == "mock"
+    assert r.headers["X-Mooring-Backend"] == "mixed"  # M2 and M3 real, the rest mock
 
 
 SYNC_POSTS = {

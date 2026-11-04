@@ -3,9 +3,11 @@ info:
   title: 'Mooring Assistant: Modeling API'
   description: '
 
-    Physics and ML modeling service for the mooring assistant. **All modules currently run on mock backends**
+    Physics and ML modeling service for the mooring assistant. **Most modules still run on mock backends.**
 
-    (check `backend` in every response envelope and the `X-Mooring-Backend` header).
+    Environmental loads (M3, UFC 4-159-03) and reference data are real; `GET /version` lists each module''s status.
+
+    Check `backend` in every response envelope; the `X-Mooring-Backend` header is `mixed` while some modules are mock.
 
 
     Conventions: unit-suffixed field names (`_kt`, `_ft`, `_lbf`, `_deg`, `_utc`); wind direction is where it blows

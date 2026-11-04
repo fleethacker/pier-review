@@ -3,7 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Body
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from mooring import refdata
 from mooring.core.jobs import sse
@@ -44,11 +44,12 @@ def get_review(review_id: str):
 @router.get("/safety/watch/{plan_id}", response_class=StreamingResponse,
             responses={200: {"content": {"text/event-stream": {}}}},
             summary="SSE `warning` events (GustWarning): live gusts vs the plan's working-load and breaking limits")
-def watch(plan_id: str, client: Client, interval_s: float = 5.0, limit: int = 0):
+def watch(plan_id: str, client: Client, interval_s: float = 5.0, limit: int = 0,
+          heartbeat_minutes: float = 5.0):
     plan_record(plan_id)
 
     async def gen():
-        async for w in safety.watch(plan_id, client, interval_s, limit):
+        async for w in safety.watch(plan_id, client, interval_s, limit, heartbeat_minutes):
             yield sse("warning", w.model_dump(mode="json"))
 
     return StreamingResponse(gen(), media_type="text/event-stream")
@@ -82,13 +83,16 @@ def get_sheet(sheet_id: str):
     return _sheet(sheet_id)
 
 
-@router.get("/safety-sheets/{sheet_id}/render", response_class=HTMLResponse,
-            summary="Printable sheet. format=html now; pdf returns 501 until the renderer lands.")
+@router.get("/safety-sheets/{sheet_id}/render",
+            summary="Render the printable sheet as HTML or PDF.")
 def render_sheet(sheet_id: str, format: str = "html"):
     s = _sheet(sheet_id)
-    if format != "html":
-        return JSONResponse(status_code=501, content={"detail": f"format '{format}' not implemented yet"})
-    return HTMLResponse(sheet.render_html(s))
+    if format == "html":
+        return HTMLResponse(sheet.render_html(s))
+    if format == "pdf":
+        return Response(sheet.render_pdf(s), media_type="application/pdf",
+                        headers={"Content-Disposition": f'inline; filename="{sheet_id}.pdf"'})
+    return JSONResponse(status_code=422, content={"detail": f"unsupported format '{format}'"})
 
 
 @router.post("/safety-sheets/{sheet_id}/approvals", response_model=SafetySheet,

@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  body {
+    background-color: #0a1628;
+    color: white;
+    font-family: 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: 0.02em;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    background-color: rgba(13, 31, 60, 0.8);
+    border: 1px solid #1a3a5c;
+    border-radius: 2px;
+    box-shadow: 0 4px 20px 0 rgba(0, 10, 30, 0.8), inset 0 1px 0 0 rgba(0, 229, 255, 0.05);
+  }
+
+  .mil-brackets {
+    position: relative;
+  }
+  .mil-brackets::before,
+  .mil-brackets::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-color: rgba(0, 229, 255, 0.4);
+    pointer-events: none;
+  }
+  .mil-brackets::before {
+    top: -1px;
+    left: -1px;
+    border-top: 2px solid;
+    border-left: 2px solid;
+  }
+  .mil-brackets::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 2px solid;
+    border-right: 2px solid;
+  }
+
+  .mil-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-weight: 500;
+    color: #00e5ff;
+  }
+
+  .mil-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    color: white;
+  }
+
+  .text-glow {
+    text-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+  }
+
+  .text-glow-subtle {
+    text-shadow: 0 0 10px rgba(0, 229, 255, 0.15);
+  }
+}
+
+/* Cesium FPS counter styling */
+.cesium-performanceDisplay-defaultContainer {
+  top: 40px !important;
+  right: 8px !important;
+  left: auto !important;
+  bottom: auto !important;
+}
+.cesium-performanceDisplay-ms,
+.cesium-performanceDisplay-fps {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 10px !important;
+  color: #00e5ff !important;
+  background: rgba(13, 31, 60, 0.9) !important;
+  border: 1px solid #1a3a5c !important;
+  border-radius: 2px !important;
+  padding: 2px 6px !important;
+}

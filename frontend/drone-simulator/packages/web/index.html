@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-DCJ48MM9N1"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+
+        gtag('config', 'G-DCJ48MM9N1');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X-47B Drone Simulator</title>
+    <meta name="description"
+        content="Pilot the Northrop Grumman X-47B drone with advanced physics and stunning visuals">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        html,
+        body,
+        #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'JetBrains Mono', monospace;
+            background: #0a1628;
+        }
+
+        #react-root {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        #react-root>* {
+            pointer-events: auto;
+        }
+
+        /* Loading overlay header/footer */
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 500;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+        #loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        #loading-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 32px;
+            background: #0a1628;
+            border-bottom: 1px solid #1a3a5c;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        #loading-footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 56px;
+            background: #0a1628;
+            border-top: 1px solid #1a3a5c;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .loading-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            font-weight: 500;
+            color: #00e5ff;
+        }
+        .loading-text {
+            font-size: 10px;
+            color: #4a6a8a;
+        }
+        .loading-amber {
+            color: #ffc107;
+        }
+        .loading-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #00e676;
+            animation: loading-pulse 1.5s ease-in-out infinite;
+        }
+        .loading-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #1a3a5c;
+            border-top-color: #00e5ff;
+            border-radius: 50%;
+            animation: loading-spin 1s linear infinite;
+        }
+        @keyframes loading-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        @keyframes loading-spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="cesiumContainer"></div>
+    <div id="react-root"></div>
+
+    <!-- Loading overlay with header/footer during globe zoom -->
+    <div id="loading-overlay">
+        <div id="loading-header">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span class="loading-label loading-amber">DRONE OPS</span>
+                <span class="loading-text">INITIALIZING</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span class="loading-text">X-47B UCAV</span>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span class="loading-text">SYS</span>
+                    <div class="loading-dot"></div>
+                </div>
+            </div>
+        </div>
+        <div id="loading-footer">
+            <div class="loading-spinner"></div>
+            <span class="loading-label">DEPLOYING TO AREA OF OPERATIONS</span>
+        </div>
+    </div>
+
+    <script type="module" src="./src/main-cesium-react.ts"></script>
+</body>
+
+</html>

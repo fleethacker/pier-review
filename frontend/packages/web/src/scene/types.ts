@@ -56,6 +56,8 @@ export interface SceneEntity {
   status?: Status;
   selectable?: boolean;
   editable?: EditPolicy;
+  /** Clicking or dragging this entity acts on another one (a ship's deckhouse stands in for the ship). */
+  selectsId?: string;
   props?: PropRow[];
 }
 

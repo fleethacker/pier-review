@@ -90,7 +90,7 @@ export function Shell({ store }: { store: SceneStore }) {
             )}
           </div>
           {Overlay && (
-            <div className="absolute inset-0 z-20">
+            <div className="pointer-events-none absolute inset-0 z-20">
               <Overlay />
             </div>
           )}

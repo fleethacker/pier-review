@@ -34,6 +34,7 @@ cd frontend/packages/web && npm install && npm run dev      # http://localhost:4
 
 ## Things to say
 
+- Units: the header toggle switches the whole UI between Navy and Metric (the printed sheet stays Navy).
 - Numbers are placeholders. Line geometry and the NSTM rule checks are real; loads and the agent are mock.
 - Every number the agent cites links to a stored result; nothing on the sheet is typed in by a model.
 - The same screen can drive another application. The shell does not know about mooring; the mooring adapter lives in

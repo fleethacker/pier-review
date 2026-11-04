@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { cn } from '../../../lib/cn';
 import { BackendBadge, Button, Citation, Field, Select, StatusChip, inputClass, toStatus } from '../../../shell/ui';
 import type { EnvMode } from '../controller';
-import { fmt } from '../units';
+import { fmt, useUnitSystem } from '../units';
 import { LineChart, PolarEnvelope, ProbabilityBars } from './charts';
 import { useController, useMooring } from './context';
 
@@ -16,6 +16,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export function Dashboard() {
+  useUnitSystem();
   const [tab, setTab] = useState<Tab>('live');
   const alertCount = useMooring((s) => s.alerts.filter((a) => a.severity !== 'INFO').length);
   return (

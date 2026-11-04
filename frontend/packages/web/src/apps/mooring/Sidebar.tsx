@@ -1,5 +1,6 @@
 import { Button } from '../../shell/ui';
 import { useController, useMooring } from './panels/context';
+import { useUnitSystem } from './units';
 import { AgentPanel } from './panels/AgentPanel';
 import { EnvPanel } from './panels/EnvPanel';
 import { LinesPanel } from './panels/LinesPanel';
@@ -10,6 +11,7 @@ import { SequencePanel } from './panels/SequencePanel';
 import { SetupPanel } from './panels/SetupPanel';
 
 export function Sidebar() {
+  useUnitSystem();
   const c = useController();
   const phase = useMooring((s) => s.phase);
   const error = useMooring((s) => s.error);

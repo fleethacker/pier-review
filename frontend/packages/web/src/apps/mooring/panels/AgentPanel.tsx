@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Field, Panel, Select, StatusChip, inputClass } from '../../../shell/ui';
 import type { Objective } from '../agent';
-import { fmt } from '../units';
+import { fmt, useUnitSystem } from '../units';
 import { useAgent, useController, useMooring } from './context';
 import { ResultLink } from './ResultLink';
 
@@ -12,6 +12,7 @@ const OBJECTIVES: { value: Objective; label: string }[] = [
 ];
 
 export function AgentPanel() {
+  useUnitSystem();
   const c = useController();
   const a = useAgent((s) => s);
   const canRun = useMooring((s) => (s.ship?.fittings?.length ?? 0) > 0);
@@ -86,7 +87,7 @@ export function AgentPanel() {
             <div className="rounded-sm border border-mil-border bg-mil-bg/60 p-2 text-[11px]">
               <div className="mil-label !text-mil-amber">Tug assist</div>
               <div className="mt-1 text-white">
-                {a.plan.tug_plan.recommended_tug_count} tugs · {Math.round(a.plan.tug_plan.total_power_hp).toLocaleString('en-US')} hp ·{' '}
+                {a.plan.tug_plan.recommended_tug_count} tugs · {fmt.hp(a.plan.tug_plan.total_power_hp)} ·{' '}
                 {fmt.lbf(a.plan.tug_plan.required_lateral_lbf)} lateral
                 {!a.plan.tug_plan.feasible && <span className="text-mil-red"> · not feasible</span>}
               </div>

@@ -31,7 +31,7 @@ import type {
   TugAssignment,
   TugSpec,
 } from './types';
-import { ft, toFt } from './units';
+import { ft, subscribeUnits, toFt } from './units';
 
 export interface Candidate {
   config: { lines: MooringLine[]; ship_x_ft: number };
@@ -183,6 +183,7 @@ export class MooringController {
   private analyzeAbort: AbortController | null = null;
   private recommendAbort: AbortController | null = null;
   private unsubscribeScene: () => void;
+  private unsubscribeUnits: () => void;
   private disposed = false;
   private envStream: StreamHandle | null = null;
   private alertStream: StreamHandle | null = null;
@@ -190,6 +191,8 @@ export class MooringController {
 
   constructor(readonly host: AppHost) {
     this.unsubscribeScene = host.store.subscribe(() => this.onSelectionChange());
+    // Property text in the scene is formatted in the chosen units, so redraw when they change.
+    this.unsubscribeUnits = subscribeUnits(() => this.pushScene('update'));
   }
 
   dispose(): void {
@@ -201,6 +204,7 @@ export class MooringController {
     this.alertStream?.close();
     this.agent.dispose();
     this.unsubscribeScene();
+    this.unsubscribeUnits();
   }
 
   private get s(): MooringState {

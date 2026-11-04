@@ -61,9 +61,9 @@ describe('ship placement', () => {
 
   it('only shows bitts on the side that faces the pier', () => {
     const s = shipEntities(ship, 'full_load', 'starboard', 650, 12, null, true, berth);
-    expect(s.map((e) => e.id)).toEqual(['ship', 'sfit:BITT-1S']);
+    expect(s.map((e) => e.id).filter((id) => !id.startsWith('ship-part'))).toEqual(['ship', 'sfit:BITT-1S']);
     const p = shipEntities(ship, 'full_load', 'port', 650, 12, null, true, berth);
-    expect(p.map((e) => e.id)).toEqual(['ship', 'sfit:BITT-1P']);
+    expect(p.map((e) => e.id).filter((id) => !id.startsWith('ship-part'))).toEqual(['ship', 'sfit:BITT-1P']);
   });
 
   it('is only draggable when the class has fittings to moor with', () => {
@@ -167,5 +167,39 @@ describe('tugScene', () => {
     );
     expect(out.entities.map((e) => e.label)).toEqual(['T2']);
     expect(out.vectors).toEqual([]);
+  });
+});
+
+describe('superstructure', () => {
+  const pose = { x: 0, y: 0, z: 0, headingDeg: 0 };
+
+  it('differs by hull type and stands in for the ship when clicked', () => {
+    const ddg = mapping.superstructure({ ...ship, hull_type: 'DDG' } as ShipClass, pose, 6);
+    const cvn = mapping.superstructure({ ...ship, hull_type: 'CVN', loa_ft: 1092, beam_ft: 134 } as ShipClass, pose, 6);
+    expect(ddg.length).toBe(3);
+    expect(cvn.length).toBe(2);
+    for (const part of [...ddg, ...cvn]) {
+      expect(part.selectsId).toBe('ship');
+      expect(part.pose.z).toBeGreaterThanOrEqual(6);
+    }
+  });
+
+  it('keeps every block within the ship length', () => {
+    for (const hull of ['DDG', 'CG', 'CVN', 'LHD', 'XYZ']) {
+      const parts = mapping.superstructure({ ...ship, hull_type: hull } as ShipClass, pose, 6);
+      for (const part of parts) {
+        if (part.geometry.type !== 'polygon') continue;
+        const xs = part.geometry.points.map((p) => p[0]);
+        expect(Math.min(...xs)).toBeGreaterThanOrEqual(-ft(250.01));
+        expect(Math.max(...xs)).toBeLessThanOrEqual(ft(250.01));
+      }
+    }
+  });
+
+  it('puts the carrier island on the starboard side of the ship frame', () => {
+    const cvn = mapping.superstructure({ ...ship, hull_type: 'CVN' } as ShipClass, pose, 6);
+    const island = cvn[1];
+    if (island.geometry.type !== 'polygon') throw new Error('expected polygon');
+    expect(island.geometry.points.every((p) => p[1] < 0)).toBe(true);
   });
 });

@@ -175,10 +175,81 @@ export function pierEntities(berth: Berth, analysis: AnalyzeResponse | null): Sc
     props: [
       { label: 'Type', value: f.kind },
       { label: 'Standoff', value: fmt.ft(f.standoff_ft) },
-      { label: 'Stiffness', value: `${fmt.lbf(f.stiffness_lbf_per_ft)}/ft` },
+      { label: 'Stiffness', value: fmt.lbfPerFt(f.stiffness_lbf_per_ft) },
     ],
   }));
   return [deck, ...fittings, ...fenders];
+}
+
+interface Block {
+  /** Center along the ship as a fraction of LOA from midships (+ forward). */
+  x: number;
+  /** Length as a fraction of LOA. */
+  len: number;
+  /** Center across the ship as a fraction of beam (+ to port, - to starboard). */
+  y: number;
+  /** Width as a fraction of beam. */
+  w: number;
+  /** Height above the hull top, meters. */
+  h: number;
+  /** Raised off the hull top, meters (decks above the hull). */
+  lift?: number;
+}
+
+/** Rough above-deck profiles so each class reads as a different ship. Not to scale; the hull outline is what counts. */
+export function superstructureProfile(hullType: string | undefined): Block[] {
+  switch (hullType) {
+    case 'CVN':
+      return [
+        { x: 0, len: 0.96, y: 0, w: 1.45, h: 1.5 },
+        { x: 0.1, len: 0.12, y: -0.62, w: 0.14, h: 20, lift: 1.5 },
+      ];
+    case 'LHD':
+    case 'LHA':
+      return [
+        { x: 0, len: 0.94, y: 0, w: 1.2, h: 1.5 },
+        { x: 0.12, len: 0.14, y: -0.5, w: 0.14, h: 16, lift: 1.5 },
+      ];
+    case 'CG':
+      return [
+        { x: 0.05, len: 0.3, y: 0, w: 0.62, h: 9 },
+        { x: -0.12, len: 0.08, y: 0, w: 0.3, h: 15 },
+        { x: 0.3, len: 0.07, y: 0, w: 0.3, h: 3 },
+      ];
+    default:
+      return [
+        { x: 0.08, len: 0.28, y: 0, w: 0.62, h: 9 },
+        { x: -0.1, len: 0.07, y: 0, w: 0.28, h: 14 },
+        { x: 0.3, len: 0.06, y: 0, w: 0.3, h: 3 },
+      ];
+  }
+}
+
+export function superstructure(ship: ShipClass, pose: Pose, freeboardM: number): SceneEntity[] {
+  return superstructureProfile(ship.hull_type).map((b, i) => {
+    const cx = ft(b.x * ship.loa_ft);
+    const cy = ft(b.y * ship.beam_ft);
+    const hl = ft((b.len * ship.loa_ft) / 2);
+    const hw = ft((b.w * ship.beam_ft) / 2);
+    return {
+      id: `${IDS.ship}-part:${i}`,
+      kind: 'ship-part',
+      pose: { ...pose, z: freeboardM + (b.lift ?? 0) },
+      geometry: {
+        type: 'polygon',
+        points: [
+          [cx - hl, cy - hw],
+          [cx + hl, cy - hw],
+          [cx + hl, cy + hw],
+          [cx - hl, cy + hw],
+        ],
+        heightM: b.h,
+      },
+      color: '#7ba3d1',
+      selectable: true,
+      selectsId: IDS.ship,
+    };
+  });
 }
 
 export function shipEntities(
@@ -212,7 +283,7 @@ export function shipEntities(
     props: [
       { label: 'Class', value: ship.name },
       { label: 'LOA / beam', value: `${fmt.ft(ship.loa_ft)} / ${fmt.ft(ship.beam_ft)}` },
-      { label: 'Loading', value: cond ? `${cond.name}, ${Math.round(cond.displacement_lt).toLocaleString('en-US')} LT` : loading },
+      { label: 'Loading', value: cond ? `${cond.name}, ${fmt.longTons(cond.displacement_lt)}` : loading },
       { label: 'Side to', value: side },
       { label: 'Midships at', value: `x ${fmt.ft(shipXFt)}` },
       { label: 'Standoff', value: fmt.ft(standoff) },
@@ -245,7 +316,7 @@ export function shipEntities(
         ),
       };
     });
-  return [hull, ...fittings];
+  return [hull, ...superstructure(ship, pose, freeboard), ...fittings];
 }
 
 export function lineLinks(

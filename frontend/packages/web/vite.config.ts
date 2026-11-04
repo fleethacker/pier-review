@@ -38,6 +38,10 @@ export default defineConfig(({ mode }) => ({
     }),
   ],
   define: { CESIUM_BASE_URL: JSON.stringify(cesiumBaseUrl) },
+  build: {
+    chunkSizeWarningLimit: 5000,
+    rollupOptions: { output: { manualChunks: { cesium: ['cesium'] } } },
+  },
   server: { port: 4000, proxy: proxy(mode) },
   preview: { host: '0.0.0.0', port: 8888, strictPort: true, allowedHosts: true, proxy: proxy(mode) },
 }));

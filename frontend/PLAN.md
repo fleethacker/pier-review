@@ -13,14 +13,19 @@ from mocks"), and the frontend demo contribution is part of **G2** (approved saf
 | 1 Strip and rebase | Done | Drone code, models and backends removed; `app.sh` and the dev/preview proxies rewritten. |
 | 2 Scene model and shell | Done | Rotating entities was left out (nothing needs it yet). |
 | 3 Mooring adapter (G0) | Done | DDG 51 at Pier 12 North renders from the mocks with analyzed, colored lines. |
-| 4 Canvas editing, 2D/3D | Done | Ship drag, click-to-add lines, recommend, saved scenarios. Ship models are generated hulls. |
+| 4 Canvas editing, 2D/3D | Done | Ship drag, click-to-add lines, recommend, saved scenarios. Ships are generated hulls with per-class deck profiles. |
 | 5 Live dashboard | Done | Env streams (live, replay, storm ramp), alerts, forecast, wind limits, gust risk. |
 | 6 Agent plan | Done | SSE steps, proposal preview, apply with undo, tugs on canvas, line sequence, follow-ups. |
 | 7 Safety sheet | Done | Service-rendered sheet, margins, rationale links, layout image, approvals, print. |
 | 8 Demo hardening | Done for the mock stack | Error and retry states, accessibility fixes, production build checked, [DEMO.md](DEMO.md). |
 
-Verified in headless Chromium (software WebGL) against the running mock servers, plus 32 unit tests, type checking and
-lint. Not done: testing on a real GPU, a real backend (mock responses only), and any browser other than Chromium.
+Verified in headless Chromium (software WebGL) against the running mock servers, plus 41 unit tests, type checking and
+lint. Since the first pass: Cesium is lazy-loaded and split from the app (app code 251 kB, Cesium its own chunk), a
+Navy/Metric toggle was added, ships got per-class superstructure, and a regression where the app's empty overlay layer
+swallowed every canvas click was fixed and covered by a test.
+
+Still not done: rotating entities (nothing needs it), real 3D ship models (none in the repo), testing on a real GPU, a
+real backend (mock responses only), and any browser other than Chromium.
 
 ## What the simulator gave us, and what it did not (at the start)
 
@@ -183,10 +188,10 @@ colored lines and a findings list.
 | ~~Cesium Ion and Mapbox tokens required to boot~~ | Resolved in Phase 0: tokens are optional | Done |
 | ~~2D top-down view reuse~~ | Resolved in Phase 0: ortho camera over the same scene works with picking and dragging | Done |
 | ~~Drag-and-drop, selection and picking did not exist~~ | Resolved: drag along the pier, click selection, click-to-add lines. Rotation is not built. | Done |
-| Ship visuals are generated hulls, not models | Visual credibility; only a carrier model exists for four ship classes | Open |
+| Ship visuals are generated shapes, not models | Visual credibility; no ship models in the repo | Open |
 | Scene model designed from one real app plus a demo | Could encode mooring assumptions | Check against the exercise app before freezing |
 | Where other apps' API specs live | Needs the owner of the exercise application | Open |
-| Navy units only versus a metric toggle | Affects every display component | Open (Navy units only today) |
+| ~~Navy units only versus a metric toggle~~ | Resolved: both, Navy by default | Done |
 | Everything verified against mock backends and software WebGL | Real services and GPUs may differ (frame times, response shapes, job latency) | Before the demo |
-| Production bundle is large (4.5 MB JS, 15 MB total with Cesium assets) | Slow first load on poor links | Open (no code splitting yet) |
+| Cesium is 4.2 MB of JavaScript (1.1 MB gzip) plus its static assets | Slow first load on poor links; the app shell itself is small and loads first | Mitigated by lazy loading |
 | Contract changes while we build | Generated types break at compile time; that is the intended signal | Ongoing |

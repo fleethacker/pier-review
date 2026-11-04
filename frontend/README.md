@@ -70,6 +70,10 @@ packages/web/src/
   lib/, styles/ Small helpers and the Tailwind theme.
 ```
 
+Ship shapes are generated: a hull outline sized from LOA and beam plus a rough above-deck profile per hull type
+(destroyer and cruiser deckhouses, carrier and amphibious flight decks with an island). Clicking or dragging any part
+acts on the ship. There are no ship 3D models in the repo.
+
 Leftovers from the simulator that nothing uses yet: `packages/web/public/carrier*.glb`, the root `*.glb`,
 `scripts/generate-carrier.mjs` and `SIMULATOR_README.md`. They are kept for possible ship models and can be removed.
 
@@ -96,8 +100,10 @@ and the shell only deals with the scene model.
 
 ## Contract conventions the UI follows
 
-- Units are in field names (`_kt`, `_ft`, `_lbf`, `_deg`, ...). The UI shows Navy units and converts at the edge
-  (`apps/mooring/units.ts`); the scene model is in meters.
+- Units are in field names (`_kt`, `_ft`, `_lbf`, `_deg`, ...). The UI shows Navy units by default and has a Navy /
+  Metric toggle in the header (meters, kN, kW, tonnes; speeds stay in knots). All conversion is at the display edge in
+  `apps/mooring/units.ts`; the API always receives Navy units and the scene model is in meters. The service-rendered
+  safety sheet is always in Navy units.
 - Wind direction is where it blows **from**; current is where it flows **toward**. Both degrees true. Arrows on the
   canvas show the direction of motion.
 - Berth frame: standing on the pier facing the water, +y points into the water and +x runs to your right. Ship frame:
@@ -142,4 +148,3 @@ and the shell only deals with the scene model.
 
 - **Where other apps' API specs live.** `contract/` currently holds only the mooring specs. Options: sibling folders
   (`contract/<app>/`), or each app publishes its own spec that the frontend consumes.
-- **Units toggle.** Navy units only (as proposed in the plan) or a metric toggle.

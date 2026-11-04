@@ -3,11 +3,12 @@ import { cn } from '../../../lib/cn';
 import { BackendBadge, Button, Citation, Field, Panel, Select, StatusChip, inputClass, toStatus } from '../../../shell/ui';
 import { fetchResult } from '../agent';
 import type { Role } from '../agent';
-import { fmt } from '../units';
+import { fmt, useUnitSystem } from '../units';
 import { useAgent, useController, useMooring } from './context';
 import { ResultLink } from './ResultLink';
 
 export function Overlay() {
+  useUnitSystem();
   const overlay = useMooring((s) => s.overlay);
   if (!overlay) return null;
   return overlay.kind === 'result' ? <ResultViewer id={overlay.id} /> : <SheetViewer />;
@@ -15,7 +16,7 @@ export function Overlay() {
 
 function Frame({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
-    <div className="flex h-full w-full items-start justify-center overflow-auto bg-mil-bg/80 p-6" role="dialog" aria-label={title}>
+    <div className="pointer-events-auto flex h-full w-full items-start justify-center overflow-auto bg-mil-bg/80 p-6" role="dialog" aria-label={title}>
       <div className={cn('w-full', wide ? 'max-w-6xl' : 'max-w-3xl')}>
         <Panel className="p-0">
           <div className="flex items-center justify-between border-b border-mil-border px-4 py-2">

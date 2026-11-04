@@ -410,7 +410,7 @@ export class SceneRenderer {
     const state = this.store.getState();
 
     if (ev.button === 0 && id?.startsWith('e:')) {
-      const entity = state.entities[id.slice(2)];
+      const entity = this.resolveEntity(id.slice(2), state);
       if (entity?.editable) {
         const grab = this.ground(pos);
         if (grab) {
@@ -485,8 +485,9 @@ export class SceneRenderer {
     } else if (clicked && ev.button === 0) {
       const state = this.store.getState();
       const id = down!.id;
-      if (id?.startsWith('e:') && state.entities[id.slice(2)]?.selectable !== false) {
-        this.store.select({ type: 'entity', id: id.slice(2) });
+      const target = id?.startsWith('e:') ? this.resolveEntity(id.slice(2), state) : undefined;
+      if (target && target.selectable !== false) {
+        this.store.select({ type: 'entity', id: target.id });
       } else if (id?.startsWith('l:') && state.links[id.slice(2)]?.selectable !== false) {
         this.store.select({ type: 'link', id: id.slice(2) });
       } else {
@@ -507,6 +508,12 @@ export class SceneRenderer {
     this.kick();
     this.onViewChange();
   };
+
+  /** An entity that stands in for another (selectsId) resolves to that other entity. */
+  private resolveEntity(id: string, state: SceneState): SceneEntity | undefined {
+    const e = state.entities[id];
+    return e?.selectsId ? state.entities[e.selectsId] ?? e : e;
+  }
 
   private rectLeft(): number {
     return this.viewer.scene.canvas.getBoundingClientRect().left;

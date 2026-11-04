@@ -1,9 +1,10 @@
 import { Field, Panel, Select, inputClass } from '../../../shell/ui';
 import { cn } from '../../../lib/cn';
-import { fmt } from '../units';
+import { fmt, lengthFromDisplay, lengthToDisplay, lengthUnit, useUnitSystem } from '../units';
 import { useController, useMooring } from './context';
 
 export function SetupPanel() {
+  useUnitSystem();
   const c = useController();
   const s = useMooring((x) => x);
   const berthLength = s.berth?.face_length_ft ?? 1000;
@@ -76,15 +77,15 @@ export function SetupPanel() {
         />
         <span className="text-[10px] text-mil-dim">Or drag the ship on the canvas.</span>
       </Field>
-      <Field label="Standoff from face (ft)">
+      <Field label={`Standoff from face (${lengthUnit()})`}>
         <input
           type="number"
           className={inputClass}
           min={0}
           step={0.5}
           placeholder="berth default"
-          value={s.standoffOverrideFt ?? ''}
-          onChange={(e) => c.setStandoff(e.target.value === '' ? null : Number(e.target.value))}
+          value={s.standoffOverrideFt == null ? '' : Number(lengthToDisplay(s.standoffOverrideFt).toFixed(2))}
+          onChange={(e) => c.setStandoff(e.target.value === '' ? null : lengthFromDisplay(Number(e.target.value)))}
         />
       </Field>
     </Panel>

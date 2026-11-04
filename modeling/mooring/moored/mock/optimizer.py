@@ -26,18 +26,9 @@ from mooring.rules.nstm582 import MST_LIMITS
 
 from mooring.core.envelopes import envelope
 
+from mooring.templates import TEMPLATE, template_config  # noqa: F401  (re-exported: moved out of the mock)
+
 from .solver import solve
-
-# (line number, bitt number, role, target lead along the ship in ft: + forward)
-TEMPLATE = [
-    (1, 1, "bow", 100.0),
-    (2, 2, "spring_aft", -140.0),
-    (3, 3, "breast", 0.0),
-    (4, 4, "breast", 0.0),
-    (5, 5, "spring_fwd", 140.0),
-    (6, 6, "stern", -100.0),
-]
-
 
 def design_environment(berth: Berth, side_to: str, mst: str, water_level_ft: float = 0.0) -> EnvironmentSnapshot:
     """MST design condition with wind and current both pushing the ship off the pier (NSTM Table 582-1-1)."""
@@ -47,32 +38,6 @@ def design_environment(berth: Berth, side_to: str, mst: str, water_level_ft: flo
     return EnvironmentSnapshot(source="scenario", wind_speed_kt=wind_kt, wind_gust_kt=wind_kt,
                                wind_from_true_deg=pier_side, current_speed_kt=current_kt,
                                current_set_true_deg=(pier_side + 180) % 360, water_level_mllw_ft=water_level_ft)
-
-
-def template_config(ship: ShipClass, berth: Berth, side_to: str, ship_x_ft: float, spec_id: str,
-                    parts: dict[int, int] | None = None, excluded: set[str] | None = None) -> MooringConfig:
-    s = "S" if side_to == "starboard" else "P"
-    fittings = {f.fitting_id: f for f in ship.fittings}
-    if not fittings:
-        raise refdata.InvalidReference(f"{ship.class_id} has no fittings in the seed data yet; use DDG-51-FIIA.")
-    bow_dir = 1 if side_to == "starboard" else -1
-    usable = [f for f in berth.fittings if f.condition == "good" and not f.occupied_by
-              and f.kind.startswith("bollard") and f.fitting_id not in (excluded or set())]
-    back_row = [f for f in usable if f.y_ft < -20]  # set-back bollards give breast lines useful length
-    used: set[str] = set()
-    chosen: dict[int, MooringLine] = {}
-    # Breasts first (they need fittings abeam), then bow and stern, then springs.
-    priority = {"breast": 0, "bow": 1, "stern": 1, "spring_aft": 2, "spring_fwd": 2}
-    for n, bitt_no, role, lead in sorted(TEMPLATE, key=lambda t: priority[t[2]]):
-        bitt = fittings[f"BITT-{bitt_no}{s}"]
-        chock = fittings.get(bitt.paired_chock_id or "", bitt)
-        target_x = ship_x_ft + bow_dir * (chock.x_ft + lead)
-        pool = [f for f in (back_row if role == "breast" and back_row else usable) if f.fitting_id not in used]
-        choice = min(pool, key=lambda f: abs(f.x_ft - target_x))
-        used.add(choice.fitting_id)
-        chosen[n] = MooringLine(line_number=n, role=role, spec_id=spec_id, parts=(parts or {}).get(n, 1),
-                                ship_fitting_id=bitt.fitting_id, pier_fitting_id=choice.fitting_id)
-    return MooringConfig(side_to=side_to, ship_x_ft=ship_x_ft, lines=[chosen[n] for n in sorted(chosen)])
 
 
 def recommend(req: RecommendRequest) -> RecommendResponse:

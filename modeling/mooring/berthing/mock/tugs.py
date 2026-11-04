@@ -14,7 +14,7 @@ from mooring.core.schemas import (
     EnvironmentSnapshot,
     TugPlanResponse,
 )
-from mooring.environment import mock as environment
+from mooring import environment
 from mooring.loads import compute_loads, mean_draft_ft, off_pier, range_findings
 from mooring.tugs import size_tugs
 

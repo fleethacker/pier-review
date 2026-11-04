@@ -10,7 +10,7 @@ from datetime import timedelta
 from mooring import refdata
 from mooring.core.envelopes import envelope
 from mooring.core.schemas import LatLon, RouteRequest, RouteResponse, RouteResult, TimeWindow, UkcLeg, UkcRequest, UkcResponse, UkcResult, Waypoint
-from mooring.environment import mock as environment
+from mooring import environment
 from mooring.loads import mean_draft_ft
 
 ROUTE = [  # approximate, for development only

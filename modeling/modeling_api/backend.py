@@ -7,7 +7,7 @@ implementations directly.
 
 # Shared across phases
 from mooring import scenarios  # noqa: F401
-from mooring.environment import mock as env  # noqa: F401
+from mooring import environment as env  # noqa: F401
 from mooring.loads import service as loads  # noqa: F401
 from mooring.telemetry import mock as telemetry  # noqa: F401
 

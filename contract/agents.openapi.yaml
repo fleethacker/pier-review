@@ -1416,6 +1416,21 @@ components:
         summary:
           type: string
           title: Summary
+        summary_source:
+          anyOf:
+          - type: string
+            enum:
+            - llm
+            - deterministic
+          - type: 'null'
+          title: Summary Source
+          description: Source of narration after the code-owned risk headline; null for legacy reports.
+        narration_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Narration Note
+          description: Sanitized fallback reason; null when narration succeeds.
         tool_call_ids:
           items:
             type: string

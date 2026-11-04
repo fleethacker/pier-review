@@ -132,7 +132,7 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
     report = IntakeReport(report_id=report_id, created_at_utc=utcnow(), berth_id=berth_id, ship_class_id=ship_id,
                           side_to=side, horizon_hours=req.horizon_hours, current=current, mst=mst, windows=windows,
                           planning_conditions=conditions, berthing_windows=berthing, data_quality=quality,
-                          summary=summary, backend="mock",
+                          summary=summary, summary_source="deterministic", narration_note=None, backend="mock",
                           tool_call_ids=[c.call_id for c in calls_for(tk.plan_id) if c.caller == tk.caller])
     REPORTS[report_id] = report
     return report, series

@@ -40,6 +40,11 @@ export const IDS = {
 /** One color per environment variable, shared by the canvas arrows and the data key so the two read as a pair. */
 export const ENV_COLORS = { wind: '#7fd1ff', current: '#7dffb2', water: '#9bb8d9' };
 
+/** What a part count is called aboard: one part is single, two is a tanker moor, three is doubled up. */
+export function partsName(parts: number): string {
+  return parts === 1 ? 'single' : parts === 2 ? 'tanker moor ×2' : 'doubled up ×3';
+}
+
 export function berthFrame(berth: Berth): LocalFrame {
   return { lonDeg: berth.origin_lon, latDeg: berth.origin_lat, xBearingTrueDeg: berth.face_bearing_true_deg };
 }
@@ -399,12 +404,13 @@ export function lineLinks(
       to: { x: ft(pf.x_ft), y: ft(pf.y_ft), z: deckHeight + 0.05 },
       status: r ? statusOf(r.status) : undefined,
       color: '#c9d6e6',
-      widthPx: 2 + line.parts,
-      label: r ? `L${line.line_number} ${fmt.pct(r.pct_wll)}` : `L${line.line_number}`,
+      widthPx: 2 + line.parts * 1.5,
+      strands: line.parts,
+      label: `L${line.line_number}${line.parts > 1 ? ` ×${line.parts}` : ''}${r ? ` ${fmt.pct(r.pct_wll)}` : ''}`,
       selectable: true,
       props: [
         { label: 'Line', value: `#${line.line_number}${line.role ? ` ${line.role}` : ''}` },
-        { label: 'Rope', value: `${line.spec_id} ×${line.parts}` },
+        { label: 'Rope', value: `${line.spec_id} (${partsName(line.parts)})` },
         { label: 'Ship fitting', value: line.ship_fitting_id },
         { label: 'Pier fitting', value: line.pier_fitting_id },
         ...(r

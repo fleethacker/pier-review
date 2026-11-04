@@ -136,7 +136,10 @@ export function DataKey() {
               <RowButton key={l.line_number} onClick={() => select({ type: 'link', id: IDS.line(l.line_number) })}>
                 <span className="text-white">
                   <span style={{ color: r ? STATUS_COLOR[r.status] : '#c9d6e6' }}>L{l.line_number}</span>{' '}
-                  <span className="text-mil-text">{(l.role ?? 'line').replace('_', ' ')}</span>
+                  <span className="text-mil-text">
+                    {(l.role ?? 'line').replace('_', ' ')}
+                    {l.parts > 1 ? ` ×${l.parts}` : ''}
+                  </span>
                 </span>
                 <span className="flex items-center gap-2 text-white">
                   {r ? fmt.pct(r.pct_wll) : '—'}

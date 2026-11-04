@@ -81,6 +81,8 @@ export interface SceneLink {
   status?: Status;
   color?: string;
   widthPx?: number;
+  /** More than one: drawn heavier with a light outline, so a doubled-up line is told apart at a glance. */
+  strands?: number;
   label?: string;
   selectable?: boolean;
   props?: PropRow[];

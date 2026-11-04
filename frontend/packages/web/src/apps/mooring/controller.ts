@@ -417,6 +417,12 @@ export class MooringController {
     this.setLines(this.s.lines.map((l) => (l.line_number === lineNumber ? { ...l, ...patch } : l)));
   }
 
+  /** Double up or single up every line at once, keeping each line's rope and fittings. */
+  setAllParts(parts: 1 | 2 | 3): void {
+    if (this.s.lines.length === 0) return;
+    this.setLines(this.s.lines.map((l) => ({ ...l, parts })));
+  }
+
   private setLines(lines: MooringLine[]): void {
     this.state.set({ lines, scenarioId: null });
     this.pushScene('update');

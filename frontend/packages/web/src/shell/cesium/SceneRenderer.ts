@@ -345,8 +345,11 @@ export class SceneRenderer {
     const options: Cesium.Entity.ConstructorOptions = {
       polyline: {
         positions,
-        width: (l.widthPx ?? 3) + 5 + (selected ? 3 : 0),
-        material: new Cesium.PolylineGlowMaterialProperty({ color: glowColor, glowPower: selected ? 0.4 : pulsing ? 0.35 : 0.22 }),
+        width: (l.widthPx ?? 3) + ((l.strands ?? 1) > 1 ? 2 : 5) + (selected ? 3 : 0),
+        material:
+          (l.strands ?? 1) > 1
+            ? new Cesium.PolylineOutlineMaterialProperty({ color: glowColor, outlineColor: css('#ffffff'), outlineWidth: 1.5 })
+            : new Cesium.PolylineGlowMaterialProperty({ color: glowColor, glowPower: selected ? 0.4 : pulsing ? 0.35 : 0.22 }),
         arcType: Cesium.ArcType.NONE,
       },
     };

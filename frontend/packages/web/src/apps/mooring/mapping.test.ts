@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { entityToFrame } from '../../scene/geometry';
 import * as mapping from './mapping';
-import { buildScene, envReadouts, envVectors, hullPoints, pierEntities, shipEntities, shipPose } from './mapping';
+import { partsName, lineLinks, buildScene, envReadouts, envVectors, hullPoints, pierEntities, shipEntities, shipPose } from './mapping';
 import { ft } from './units';
 import type { Berth, ShipClass } from './types';
 
@@ -253,5 +253,25 @@ describe('visual effects data', () => {
     const edge = pierEntities(berth, null).find((e) => e.id === 'pier-edge')!;
     expect(edge.selectable).toBe(false);
     expect(edge.noOutline).toBe(true);
+  });
+});
+
+describe('doubled-up lines', () => {
+  it('names the part counts the way they are used aboard', () => {
+    expect(partsName(1)).toBe('single');
+    expect(partsName(2)).toBe('tanker moor ×2');
+    expect(partsName(3)).toBe('doubled up ×3');
+  });
+
+  it('tags a doubled line on the canvas, draws it heavier, and leaves a single line plain', () => {
+    const mk = (parts: 1 | 3) =>
+      lineLinks(berth, ship, [{ line_number: 4, role: 'stern', spec_id: 'N', parts, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1' } as never], null)[0];
+    const single = mk(1);
+    const doubled = mk(3);
+    expect(single.label).toBe('L4');
+    expect(doubled.label).toBe('L4 ×3');
+    expect(doubled.strands).toBe(3);
+    expect(single.strands).toBe(1);
+    expect(doubled.widthPx!).toBeGreaterThan(single.widthPx!);
   });
 });

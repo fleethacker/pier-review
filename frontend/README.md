@@ -74,9 +74,6 @@ Ship shapes are generated: a hull outline sized from LOA and beam plus a rough a
 (destroyer and cruiser deckhouses, carrier and amphibious flight decks with an island). Clicking or dragging any part
 acts on the ship. There are no ship 3D models in the repo.
 
-Leftovers from the simulator that nothing uses yet: `packages/web/public/carrier*.glb`, the root `*.glb`,
-`scripts/generate-carrier.mjs` and `SIMULATOR_README.md`. They are kept for possible ship models and can be removed.
-
 ## Multiple applications
 
 The shell must not know about mooring. Application knowledge lives in an **adapter**, one per backend application,

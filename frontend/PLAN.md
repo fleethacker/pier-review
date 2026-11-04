@@ -24,6 +24,9 @@ lint. Since the first pass: Cesium is lazy-loaded and split from the app (app co
 Navy/Metric toggle was added, ships got per-class superstructure, and a regression where the app's empty overlay layer
 swallowed every canvas click was fixed and covered by a test.
 
+Unused simulator leftovers (carrier models, model-generation script, the old README, the root package.json) and the
+unused lucide-react dependency have been deleted; they are in git history.
+
 Still not done: rotating entities (nothing needs it), real 3D ship models (none in the repo), testing on a real GPU, a
 real backend (mock responses only), and any browser other than Chromium.
 

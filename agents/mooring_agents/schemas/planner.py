@@ -12,6 +12,7 @@ from mooring.core.schemas import TugPlanResult
 
 class AgentPlanRequest(Model):
     scenario_id: str
+    intake_report_id: str | None = Field(default=None, description="Design for this report's first condition.")
     objective: Literal["moor_for_forecast", "berthing", "storm_prep"] = "moor_for_forecast"
     target_margin_pct_wll: float = Field(default=80, gt=0, le=100, description="Plan is GREEN only below this.")
     max_iterations: int = Field(default=8, ge=1, le=20)
@@ -32,6 +33,7 @@ class RationaleItem(Model):
 class AgentPlan(Model):
     plan_id: str
     scenario_id: str
+    intake_report_id: str | None = None
     state: JobState
     status: Status | None = None
     config: MooringConfig | None = None

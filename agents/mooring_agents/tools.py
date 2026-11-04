@@ -40,6 +40,8 @@ TOOLS: list[ToolSpec] = [
              method="POST", path="/mooring/recommend", request_schema="RecommendRequest"),
     ToolSpec(name="plan_tugs", description="Tug force, bollard pull and horsepower to land and hold the ship.",
              method="POST", path="/tugs/berthing-plan", request_schema="BerthingTugRequest"),
+    ToolSpec(name="hold_tugs", description="Tugs needed to relieve overloaded lines on a moored ship.",
+             method="POST", path="/tugs/hold-plan", request_schema="HoldTugRequest"),
     ToolSpec(name="berthing_windows", description="Times with low current and gusts for berthing.",
              method="POST", path="/windows/berthing", request_schema="BerthingWindowRequest"),
     ToolSpec(name="generate_sequence", description="Ordered line-handling steps for a configuration.",

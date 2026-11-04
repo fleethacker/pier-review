@@ -438,6 +438,11 @@ components:
         scenario_id:
           type: string
           title: Scenario Id
+        intake_report_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Intake Report Id
         state:
           type: string
           enum:
@@ -527,6 +532,12 @@ components:
         scenario_id:
           type: string
           title: Scenario Id
+        intake_report_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Intake Report Id
+          description: Design for this report's first condition.
         objective:
           type: string
           enum:

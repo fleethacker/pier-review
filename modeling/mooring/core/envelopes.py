@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel
 
-from mooring.core.schemas import Finding
+from mooring.core.schemas import Finding, ResultManifest, Validity, ValidityState
 
 MOCK_NOTE = "MOCK BACKEND: placeholder values for UI development, not validated physics."
 MOCK_VERSION = "0.0.0-mock"
@@ -36,6 +36,37 @@ def inputs_hash(request: BaseModel | dict | None) -> str:
     return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 
+def resolved_inputs_hash(resolved: BaseModel | dict) -> str:
+    """Hash of the inputs after defaults and references are resolved (canonical, key-sorted JSON).
+
+    Distinct from `inputs_hash`, whose meaning (the request as sent) is unchanged. Stable across dict ordering.
+    """
+    import json
+
+    data = resolved.model_dump(mode="json") if isinstance(resolved, BaseModel) else resolved
+    raw = json.dumps(data, sort_keys=True, separators=(",", ":"), default=str, allow_nan=False).encode()
+    return "sha256:" + hashlib.sha256(raw).hexdigest()
+
+
+def validity_state(env: BaseModel | dict) -> ValidityState:
+    """Validity of an envelope or its JSON dict. A response without validity is `unknown`, never `valid`."""
+    v = env.get("validity") if isinstance(env, dict) else getattr(env, "validity", None)
+    if v is None:
+        return "unknown"
+    return v["state"] if isinstance(v, dict) else v.state
+
+
+def status_with_validity(status: str, validity: Validity | None) -> str:
+    """Lift a computed status so it agrees with its validity: invalid is RED, limited is at least AMBER."""
+    if validity is None:
+        return status
+    if validity.state == "invalid":
+        return "RED"
+    if validity.state == "limited":
+        return worst([status, "AMBER"])
+    return status
+
+
 def worst(statuses: Iterable[str]) -> str:
     order = {"GREEN": 0, "INFO": 0, "AMBER": 1, "RED": 2}
     w = max((order[s] for s in statuses), default=0)
@@ -59,6 +90,8 @@ def envelope(
     status: str,
     assumptions: Iterable[str] = (),
     warnings: Iterable[Finding] = (),
+    validity: Validity | None = None,
+    manifest: ResultManifest | None = None,
 ):
     env = cls(
         result_id=new_id("res"),
@@ -67,9 +100,11 @@ def envelope(
         backend="mock",
         inputs_hash=inputs_hash(request),
         computed_at_utc=utcnow(),
-        status=status,
+        status=status_with_validity(status, validity),
         assumptions=[MOCK_NOTE, *assumptions],
         warnings=list(warnings),
+        validity=validity,
+        manifest=manifest,
         result=result,
     )
     RESULTS[env.result_id] = env.model_dump(mode="json")

@@ -172,10 +172,22 @@ def solve(req: AnalyzeRequest, *, run_rules: bool = True) -> Solved:
     return Solved(result, geoms, k, wll, status)
 
 
+def _ignored_line_fields(req: AnalyzeRequest) -> list[str]:
+    """Line fields the mock accepts for forward compatibility but does not model; never ignore silently."""
+    notes = []
+    for ln in req.config.lines:
+        if ln.paid_out_unstretched_length_ft is not None:
+            notes.append(f"line {ln.line_number}: paid_out_unstretched_length_ft is ignored by the mock solver.")
+        if ln.condition is not None and (ln.condition == "wet") != req.lines_wet:
+            notes.append(f"line {ln.line_number}: condition '{ln.condition}' is ignored; lines_wet={req.lines_wet} applies.")
+    return notes
+
+
 def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     s = solve(req)
     return envelope(AnalyzeResponse, model="mooring.solver.static", request=req, result=s.result, status=s.status,
-                    assumptions=ASSUMPTIONS + [f"Design factor {design_factor(req.mst)} (MST {req.mst})."],
+                    assumptions=ASSUMPTIONS + [f"Design factor {design_factor(req.mst)} (MST {req.mst})."]
+                    + _ignored_line_fields(req),
                     warnings=[f for f in s.result.findings if f.severity != "INFO"])
 
 

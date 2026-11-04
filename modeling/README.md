@@ -1,7 +1,8 @@
 # modeling
 
 Physics and ML modeling service (FastAPI, port 8000). Modules M1–M7 and M11–M13 from
-[docs/PLAN.md](../docs/PLAN.md), organized by mooring phase.
+[docs/PLAN.md](../docs/PLAN.md), organized by mooring phase. What validity, diagnostics, input precedence and
+environment metadata mean: [docs/CONTRACT_SEMANTICS.md](../docs/CONTRACT_SEMANTICS.md).
 
 ```text
 mooring/

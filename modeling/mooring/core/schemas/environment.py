@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import Model, Provenance
 
@@ -12,6 +12,48 @@ EnvSourceKind = Literal["live", "replay", "forecast", "scenario", "ship_sensor",
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+class EnvironmentMetadata(Model):
+    """Where an environment snapshot came from and how to read its numbers (S00a).
+
+    Optional: absent means the basis is undocumented, and the legacy meaning applies (wind is a 10 m, 1-minute
+    sustained speed; the gust is assumed to be 30 s). Supplying metadata never changes the numerical values.
+    """
+
+    basis: Literal["observation", "prediction", "scenario"] = Field(
+        description="Measured, forecast/model output, or synthetic what-if input."
+    )
+    source: str | None = Field(default=None, description="Provider or station, e.g. 'NOAA CO-OPS 8638610'.", examples=["NOAA CO-OPS 8638610"])
+    issued_at_utc: datetime | None = Field(default=None, description="When the observation or forecast was produced.")
+    valid_from_utc: datetime | None = None
+    valid_to_utc: datetime | None = None
+    wind_averaging_s: float | None = Field(default=None, gt=0, description="Averaging time of wind_speed_kt.")
+    gust_duration_s: float | None = Field(default=None, gt=0, description="Duration of wind_gust_kt.")
+    wind_reference_height_m: float | None = Field(default=None, gt=0, description="Anemometer or model height.")
+    current_depth_ft: float | None = Field(default=None, ge=0, description="Depth of the current measurement below the surface.")
+    current_bin: str | None = Field(default=None, description="Instrument bin or model layer id.")
+    vertical_datum: Literal["MLLW", "MSL", "NAVD88", "other"] | None = Field(
+        default=None, description="Datum of water_level_mllw_ft. Its name says MLLW; any other value is a conflict."
+    )
+    quality: Literal["good", "suspect", "poor", "unknown"] = "unknown"
+    age_s: float | None = Field(default=None, ge=0, description="Age of the newest observation when the snapshot was built.")
+    original: dict[str, float | str] | None = Field(
+        default=None,
+        description="Provider values exactly as received, with their units in the key names, before normalization.",
+    )
+
+    @model_validator(mode="after")
+    def _consistent(self):
+        if self.valid_from_utc and self.valid_to_utc and self.valid_to_utc < self.valid_from_utc:
+            raise ValueError("valid_to_utc is before valid_from_utc")
+        if self.wind_averaging_s and self.gust_duration_s and self.gust_duration_s >= self.wind_averaging_s:
+            raise ValueError("gust_duration_s must be shorter than wind_averaging_s")
+        if self.basis == "observation" and self.age_s is None and self.issued_at_utc is None:
+            raise ValueError("an observation needs age_s or issued_at_utc so freshness can be judged")
+        if self.vertical_datum not in (None, "MLLW"):
+            raise ValueError("water_level_mllw_ft is relative to MLLW; convert before sending other datums")
+        return self
 
 
 class StationQuality(Model):
@@ -41,6 +83,9 @@ class EnvironmentSnapshot(Model):
         default=None, description="Relative bearing the current flows toward (0 = bow, 90 = starboard beam)."
     )
     quality: list[StationQuality] = Field(default_factory=list)
+    metadata: EnvironmentMetadata | None = Field(
+        default=None, description="Basis, timing, averaging and datum. Absent means undocumented (legacy)."
+    )
 
 
 class ForecastSeries(Model):
@@ -71,6 +116,24 @@ class EnvScenarioCreate(Model):
     ramp_minutes: float | None = Field(default=None, gt=0)
     replay_start_utc: datetime | None = Field(default=None, description="kind='replay': historical window start.")
     replay_end_utc: datetime | None = None
+
+    @model_validator(mode="after")
+    def _kind_fields(self):
+        ramp = (self.ramp_to_wind_kt, self.ramp_minutes)
+        replay = (self.replay_start_utc, self.replay_end_utc)
+        if self.kind == "ramp" and any(v is None for v in ramp):
+            raise ValueError("kind 'ramp' needs ramp_to_wind_kt and ramp_minutes")
+        if self.kind != "ramp" and any(v is not None for v in ramp):
+            raise ValueError("ramp_to_wind_kt and ramp_minutes apply only to kind 'ramp'")
+        if self.kind != "replay" and any(v is not None for v in replay):
+            raise ValueError("replay_start_utc and replay_end_utc apply only to kind 'replay'")
+        if self.kind == "replay" and self.replay_start_utc is None:
+            raise ValueError("kind 'replay' needs replay_start_utc")
+        if self.replay_start_utc and self.replay_end_utc and self.replay_end_utc <= self.replay_start_utc:
+            raise ValueError("replay_end_utc must be after replay_start_utc")
+        if self.wind_gust_kt is not None and self.wind_gust_kt < self.wind_speed_kt and self.kind != "ramp":
+            raise ValueError("wind_gust_kt cannot be below wind_speed_kt")
+        return self
 
 
 class EnvScenario(EnvScenarioCreate):

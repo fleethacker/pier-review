@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import Field
 
-from mooring.core.schemas import Model, Status
+from mooring.core.schemas import Model, Status, ValidityState
 
 
 class ToolInvocation(Model):
@@ -25,6 +25,10 @@ class ToolCall(Model):
     request_hash: str
     result_id: str | None = Field(description="Envelope result_id when the tool returns one.")
     status: Status | None
+    validity_state: ValidityState = Field(
+        default="unknown",
+        description="Validity the modeling service reported. 'unknown' when it reported none: never read as valid.",
+    )
     duration_ms: float
     error: str | None = None
 

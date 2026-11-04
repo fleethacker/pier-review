@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import Model, SideTo
 
@@ -23,8 +23,31 @@ class MooringLine(Model):
     ship_fitting_id: str = Field(examples=["BITT-1S"])
     chock_id: str | None = Field(default=None, description="Defaults to the bitt's paired chock.")
     pier_fitting_id: str = Field(examples=["P12N-B16"])
-    pretension_lbf: float | None = Field(default=None, ge=0)
-    slack_ft: float | None = Field(default=None, ge=0)
+    pretension_lbf: float | None = Field(
+        default=None, ge=0,
+        description="Initial tension. Legacy default when omitted: 2% of effective MBS (0 if slack_ft > 0). "
+        "Mutually exclusive with a positive slack_ft: a slack line carries no tension.",
+    )
+    slack_ft: float | None = Field(
+        default=None, ge=0, description="Extra line length beyond the straight-line distance, in feet of stretched length."
+    )
+    paid_out_unstretched_length_ft: float | None = Field(
+        default=None, gt=0,
+        description="Unstretched length paid out between fittings. Accepted for forward compatibility; the mock "
+        "solver ignores it and says so in the response assumptions. Cannot be combined with slack_ft.",
+    )
+    condition: Literal["wet", "dry"] | None = Field(
+        default=None,
+        description="Strength curve for this line. When omitted the request's lines_wet applies (legacy).",
+    )
+
+    @model_validator(mode="after")
+    def _tension_semantics(self):
+        if self.pretension_lbf and self.slack_ft:
+            raise ValueError("pretension_lbf and slack_ft conflict: a slack line carries no tension; send only one")
+        if self.paid_out_unstretched_length_ft is not None and self.slack_ft:
+            raise ValueError("paid_out_unstretched_length_ft and slack_ft both define line length; send only one")
+        return self
 
 
 class MooringConfig(Model):
@@ -49,6 +72,14 @@ class EnvSource(Model):
     replay_start_utc: datetime | None = None
     replay_speed: float = Field(default=1.0, gt=0)
 
+    @model_validator(mode="after")
+    def _mode_fields(self):
+        if self.mode == "scenario" and not self.env_scenario_id:
+            raise ValueError("mode 'scenario' needs env_scenario_id")
+        if self.mode != "scenario" and self.env_scenario_id:
+            raise ValueError("env_scenario_id conflicts with mode '%s'; use mode 'scenario'" % self.mode)
+        return self
+
 
 class ScenarioCreate(Model):
     """A saved setup: the UI's save file."""
@@ -61,6 +92,12 @@ class ScenarioCreate(Model):
     env_source: EnvSource
     config: MooringConfig | None = None
     tugs: list[TugAssignment] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _side_agrees(self):
+        if self.config is not None and self.config.side_to != self.side_to:
+            raise ValueError(f"side_to '{self.side_to}' conflicts with config.side_to '{self.config.side_to}'")
+        return self
 
 
 class Scenario(ScenarioCreate):

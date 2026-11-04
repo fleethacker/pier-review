@@ -105,8 +105,18 @@ def proposal(**updates):
     ], window_priorities=[], data_quality_explanations=[], extra_condition=None) | updates
 
 
+def _without_additive_nulls(value):
+    """Drop keys added after the golden fixture was recorded whose value is null (S00a: EnvironmentSnapshot.metadata)."""
+    if isinstance(value, dict):
+        return {k: _without_additive_nulls(v) for k, v in value.items() if not (k == "metadata" and v is None)}
+    if isinstance(value, list):
+        return [_without_additive_nulls(v) for v in value]
+    return value
+
+
 def normalized(report):
-    return report.model_dump(mode="json", exclude={"report_id", "created_at_utc", "tool_call_ids", "backend", "summary_source", "narration_note"})
+    return _without_additive_nulls(report.model_dump(
+        mode="json", exclude={"report_id", "created_at_utc", "tool_call_ids", "backend", "summary_source", "narration_note"}))
 
 
 @pytest.mark.parametrize("name,calm,synthetic", [("forecast", False, False), ("calm", True, False), ("storm", False, True)])

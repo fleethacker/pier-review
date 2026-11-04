@@ -11,7 +11,7 @@ import { runScenario, statesAt, validateScenario } from './sim';
 import type { Trajectory } from './sim';
 import type { Behavior, Environment, LonLat, ScenarioConfig, UnitConfig, UnitState, Waypoint } from './types';
 
-export type FollowMode = 'off' | 'follow' | 'chase';
+export type FollowMode = 'off' | 'follow' | 'chase' | 'orbit';
 export const PLAYBACK_RATES = [1, 5, 10, 30, 60, 120, 300, 600];
 
 /** Simulated time, advanced by wall-clock time times the playback rate. */
@@ -69,6 +69,8 @@ export interface ExerciseState {
   placing: boolean;
   playing: boolean;
   rate: number;
+  /** Full-screen presentation: the map covers the page and the panels are out of the way. */
+  presenting: boolean;
   /** Bumps when a different scenario is loaded, so the map re-frames it. */
   scenarioRevision: number;
   /** Bumps when the user asks to see everything. */
@@ -101,6 +103,7 @@ export class ExerciseController {
       placing: false,
       playing: false,
       rate: 30,
+      presenting: false,
       scenarioRevision: 0,
       fitRevision: 0,
       notice: null,
@@ -168,8 +171,13 @@ export class ExerciseController {
     this.state.set({ mapStyle });
   }
 
+  setPresenting(presenting: boolean): void {
+    this.state.set({ presenting });
+  }
+
+  /** 'orbit' circles the selected ship, or the whole group when nothing is selected, so it needs no selection. */
   setFollow(follow: FollowMode): void {
-    if (follow !== 'off' && !this.state.get().selectedId) {
+    if ((follow === 'follow' || follow === 'chase') && !this.state.get().selectedId) {
       this.notify('Select a ship first, then follow it.');
       return;
     }
@@ -184,7 +192,7 @@ export class ExerciseController {
     this.state.set((s) => ({
       selectedId: id,
       placing: id ? s.placing : false,
-      follow: id ? s.follow : 'off',
+      follow: id || s.follow === 'orbit' ? s.follow : 'off',
     }));
   }
 

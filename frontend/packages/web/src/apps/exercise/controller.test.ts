@@ -208,6 +208,34 @@ describe('ExerciseController playback', () => {
   });
 });
 
+describe('camera and presentation', () => {
+  it('lets the camera orbit with nothing selected, but follow and chase need a ship', () => {
+    const c = make();
+    c.setFollow('orbit');
+    expect(c.state.get().follow).toBe('orbit');
+    c.setFollow('follow');
+    expect(c.state.get().follow).toBe('orbit');
+    expect(c.state.get().notice).toContain('Select a ship');
+    c.select('cvn1');
+    c.select(null);
+    expect(c.state.get().follow).toBe('orbit');
+    c.setFollow('off');
+    c.select('cvn1');
+    c.setFollow('chase');
+    c.select(null);
+    expect(c.state.get().follow).toBe('off');
+  });
+
+  it('turns presentation mode on and off', () => {
+    const c = make();
+    expect(c.state.get().presenting).toBe(false);
+    c.setPresenting(true);
+    expect(c.state.get().presenting).toBe(true);
+    c.setPresenting(false);
+    expect(c.state.get().presenting).toBe(false);
+  });
+});
+
 describe('simulation cost', () => {
   it('re-runs the longest preset fast enough to do on every edit', () => {
     const preset = PRESET_SCENARIOS.reduce((a, b) => (b.durationS > a.durationS ? b : a));

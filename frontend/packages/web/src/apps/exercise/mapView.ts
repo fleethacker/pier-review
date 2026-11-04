@@ -1,8 +1,9 @@
 import type { Map as MapboxMap, MapMouseEvent } from 'mapbox-gl';
 import type { ExerciseController, ExerciseState } from './controller';
-import { installAtmosphere, installLayers, PICK_LAYERS, setFrameData, setLabelsVisible, setStaticData } from './mapLayers';
+import { installAtmosphere, installLayers, PICK_LAYERS, setFrameData, setLabelsVisible, setLightLevel, setStaticData } from './mapLayers';
 import { styleById } from './mapStyles';
-import { boundsOf, buildFrameData, buildStaticData } from './scene';
+import { boundsOf, buildFrameData, buildStaticData, groupStates } from './scene';
+import type { FollowMode } from './controller';
 import { statesAt } from './sim';
 
 type MapboxModule = typeof import('mapbox-gl').default;
@@ -15,6 +16,8 @@ export interface MapProblem {
 
 const START_PITCH = 62;
 const START_BEARING = -25;
+const INTRO_MS = 3800;
+const ORBIT_DEG_PER_S = 5;
 
 /** Draws the running exercise on a Mapbox map and turns map clicks into controller actions. No React in here. */
 export class ExerciseMapView {
@@ -41,9 +44,9 @@ export class ExerciseMapView {
       container,
       style: styleById(state.mapStyle).url,
       center: [state.scenario.center.lon, state.scenario.center.lat],
-      zoom: 11.5,
-      pitch: START_PITCH,
-      bearing: START_BEARING,
+      zoom: 8.2,
+      pitch: 28,
+      bearing: 30,
       antialias: true,
       projection: 'mercator',
       maxPitch: 85,
@@ -66,6 +69,7 @@ export class ExerciseMapView {
   dispose(): void {
     this.offStore();
     this.offClock();
+    cancelAnimationFrame(this.orbiting);
     this.resizer?.disconnect();
     this.map.remove();
   }
@@ -82,12 +86,14 @@ export class ExerciseMapView {
       }
     }
     this.styleReady = true;
+    setLightLevel(this.map, state.active.scenario.lightPreset);
     setLabelsVisible(this.map, state.view.showLabels);
     this.refreshStatic();
     this.draw();
     if (!this.framed) {
       this.framed = true;
-      this.fitAll(false);
+      // Open high and tilted down, then glide in to the main group so the ships are big enough to see in 3D.
+      this.fitAll(true, { pitch: START_PITCH, bearing: START_BEARING, duration: INTRO_MS, group: true });
     }
   };
 
@@ -116,8 +122,9 @@ export class ExerciseMapView {
       return;
     }
     if (!this.styleReady) return;
-    if (now.active.scenario.lightPreset !== was.active.scenario.lightPreset && styleById(now.mapStyle).standard) {
-      this.map.setConfigProperty('basemap', 'lightPreset', now.active.scenario.lightPreset);
+    if (now.active.scenario.lightPreset !== was.active.scenario.lightPreset) {
+      setLightLevel(this.map, now.active.scenario.lightPreset);
+      if (styleById(now.mapStyle).standard) this.map.setConfigProperty('basemap', 'lightPreset', now.active.scenario.lightPreset);
     }
     if (now.view.showLabels !== was.view.showLabels) setLabelsVisible(this.map, now.view.showLabels);
     if (
@@ -127,7 +134,9 @@ export class ExerciseMapView {
     ) {
       this.refreshStatic();
     }
-    if (now.scenarioRevision !== was.scenarioRevision || now.fitRevision !== was.fitRevision) this.fitAll(true);
+    if (now.scenarioRevision !== was.scenarioRevision) this.fitAll(true, { group: true });
+    else if (now.fitRevision !== was.fitRevision) this.fitAll(true);
+    if (now.follow !== was.follow) this.setOrbiting(now.follow);
     this.map.getCanvas().style.cursor = now.placing ? 'crosshair' : '';
     this.draw();
   };
@@ -142,26 +151,53 @@ export class ExerciseMapView {
     const s = this.controller.state.get();
     const t = this.controller.clock.timeS;
     setFrameData(this.map, buildFrameData(s.active.scenario, s.active.trajectory, t, s.view, s.selectedId));
-    if (s.follow !== 'off' && s.selectedId) {
-      const i = s.active.trajectory.unitIds.indexOf(s.selectedId);
-      if (i >= 0) {
-        const st = statesAt(s.active.trajectory, t)[i];
-        this.map.jumpTo(s.follow === 'chase' ? { center: [st.lon, st.lat], bearing: st.headingDeg } : { center: [st.lon, st.lat] });
-      }
-    }
+    this.keepCentered(s.follow, s.selectedId, t);
   };
 
-  /** Frame every unit at the current instant, keeping the viewer's tilt. */
-  fitAll(animate: boolean): void {
+  private orbiting = 0;
+  private lastOrbitMs = 0;
+
+  /** Orbiting turns the camera even while the clock is paused, so it runs on its own frame loop. */
+  private setOrbiting(follow: FollowMode): void {
+    cancelAnimationFrame(this.orbiting);
+    this.orbiting = 0;
+    if (follow !== 'orbit') return;
+    this.lastOrbitMs = 0;
+    const step = (ms: number) => {
+      const dt = this.lastOrbitMs ? Math.min((ms - this.lastOrbitMs) / 1000, 0.1) : 0;
+      this.lastOrbitMs = ms;
+      this.map.jumpTo({ bearing: this.map.getBearing() + ORBIT_DEG_PER_S * dt });
+      this.orbiting = requestAnimationFrame(step);
+    };
+    this.orbiting = requestAnimationFrame(step);
+  }
+
+  private keepCentered(follow: FollowMode, selectedId: string | null, t: number): void {
+    if (follow === 'off') return;
+    const { active } = this.controller.state.get();
+    const states = statesAt(active.trajectory, t);
+    const i = selectedId ? active.trajectory.unitIds.indexOf(selectedId) : -1;
+    if (i >= 0) {
+      const st = states[i];
+      this.map.jumpTo(follow === 'chase' ? { center: [st.lon, st.lat], bearing: st.headingDeg } : { center: [st.lon, st.lat] });
+      return;
+    }
+    const b = boundsOf(states);
+    if (follow === 'orbit' && b) this.map.jumpTo({ center: [(b[0][0] + b[1][0]) / 2, (b[0][1] + b[1][1]) / 2] });
+  }
+
+  /** Frame the units at the current instant, keeping the viewer's tilt: all of them, or just the main group. */
+  fitAll(animate: boolean, camera: { pitch?: number; bearing?: number; duration?: number; group?: boolean } = {}): void {
     const s = this.controller.state.get();
-    const b = boundsOf(statesAt(s.active.trajectory, this.controller.clock.timeS));
+    const states = statesAt(s.active.trajectory, this.controller.clock.timeS);
+    const b = boundsOf(camera.group ? groupStates(states) : states);
     if (!b) return;
     this.map.fitBounds(b, {
-      padding: { top: 90, bottom: 90, left: 90, right: 90 },
-      maxZoom: 12.5,
-      pitch: this.map.getPitch(),
-      bearing: this.map.getBearing(),
-      duration: animate ? 1200 : 0,
+      padding: camera.group ? 70 : { top: 100, bottom: 100, left: 100, right: 100 },
+      maxZoom: camera.group ? 12.8 : 12.5,
+      pitch: camera.pitch ?? this.map.getPitch(),
+      bearing: camera.bearing ?? this.map.getBearing(),
+      duration: camera.duration ?? (animate ? 1200 : 0),
     });
   }
 

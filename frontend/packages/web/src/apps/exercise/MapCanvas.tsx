@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '../../lib/cn';
 import { Button, inputClass } from '../../shell/ui';
-import { useController, useExercise } from './context';
+import { useClockSecond, useController, useExercise } from './context';
+import { PLAYBACK_RATES } from './controller';
+import { formatClock } from './geo';
 import { getMapboxToken, saveMapboxToken } from './mapStyles';
 import type { ExerciseMapView, MapProblem } from './mapView';
 
@@ -83,6 +85,12 @@ function Toolbar() {
         <ToolButton title="Follow the selected ship and look the way it points" pressed={follow === 'chase'} onClick={() => c.setFollow(follow === 'chase' ? 'off' : 'chase')}>
           Chase
         </ToolButton>
+        <ToolButton title="Circle the selected ship, or the whole group" pressed={follow === 'orbit'} onClick={() => c.setFollow(follow === 'orbit' ? 'off' : 'orbit')}>
+          Orbit
+        </ToolButton>
+        <ToolButton title="Hide the panels and fill the screen with the map" onClick={() => c.setPresenting(true)}>
+          Present
+        </ToolButton>
         <ToolButton title="Click the map to add waypoints to the selected ship" pressed={placing} onClick={() => c.setPlacing(!placing)}>
           Add waypoints
         </ToolButton>
@@ -96,6 +104,42 @@ function Toolbar() {
   );
 }
 
+/** The little that stays on screen in presentation mode: what this is, the time, and the playback controls. */
+function PresentHud() {
+  const c = useController();
+  const second = useClockSecond();
+  const name = useExercise((s) => s.active.scenario.name);
+  const playing = useExercise((s) => s.playing);
+  const rate = useExercise((s) => s.rate);
+  const duration = useExercise((s) => s.active.scenario.durationS);
+  return (
+    <>
+      <div className="pointer-events-none absolute right-5 top-4 z-10 text-right drop-shadow-[0_1px_6px_rgba(0,0,0,0.8)]">
+        <div className="font-mono text-[11px] uppercase tracking-[0.25em] text-mil-cyan">{name}</div>
+        <div className="mt-1 font-mono text-3xl font-light tabular-nums text-white">T+{formatClock(second)}</div>
+      </div>
+      <div className="absolute inset-x-0 bottom-5 z-10 flex justify-center">
+        <div className="flex items-center gap-3 rounded-sm border border-mil-border bg-mil-panel/80 px-4 py-2 backdrop-blur" role="group" aria-label="Presentation controls">
+          <button aria-label={playing ? 'Pause' : 'Play'} onClick={() => c.togglePlay()} className="w-14 font-mono text-[11px] uppercase tracking-wider text-mil-cyan hover:text-white">
+            {playing ? 'Pause' : 'Play'}
+          </button>
+          <input type="range" aria-label="Time" className="w-72" min={0} max={duration} step={1} value={second} onChange={(e) => c.seek(Number(e.target.value))} />
+          <select aria-label="Playback speed" className="rounded-sm border border-mil-border bg-mil-bg px-1.5 py-1 font-mono text-xs text-white" value={rate} onChange={(e) => c.setRate(Number(e.target.value))}>
+            {PLAYBACK_RATES.map((r) => (
+              <option key={r} value={r}>
+                {r}×
+              </option>
+            ))}
+          </select>
+          <button onClick={() => c.setPresenting(false)} className="font-mono text-[11px] uppercase tracking-wider text-mil-text hover:text-white">
+            Exit
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function MapCanvas() {
   const c = useController();
   const host = useRef<HTMLDivElement>(null);
@@ -103,6 +147,14 @@ export function MapCanvas() {
   const [problem, setProblem] = useState<MapProblem | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const presenting = useExercise((s) => s.presenting);
+
+  useEffect(() => {
+    if (!presenting) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !c.state.get().placing && c.setPresenting(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [presenting, c]);
 
   useEffect(() => {
     if (!token || !host.current) return;
@@ -141,7 +193,7 @@ export function MapCanvas() {
     );
   }
   return (
-    <div className="absolute inset-0 bg-mil-bg">
+    <div className={cn('bg-mil-bg', presenting ? 'fixed inset-0 z-50' : 'absolute inset-0')}>
       {/* Inline size: Mapbox's stylesheet sets position: relative on its container and would otherwise win over a class. */}
       <div ref={host} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} data-testid="exercise-map" />
       {loading && !loadError && <p className="absolute left-1/2 top-1/2 -translate-x-1/2 text-xs text-mil-cyan">Loading map…</p>}
@@ -151,6 +203,7 @@ export function MapCanvas() {
         </p>
       )}
       <Toolbar />
+      {presenting && <PresentHud />}
     </div>
   );
 }

@@ -121,16 +121,22 @@ the tab says so if Mapbox refuses.
   speed and an optional turn-rate limit. Every ship has one behavior: follow a **route** (waypoints with optional
   per-leg speed, optional loop; click the map to add waypoints), keep **station** on another ship (ahead and abeam
   offsets), **pursue** a ship and shadow it, or **hold** and drift.
-- Playback: play, pause, restart, scrub, 1x to 600x. Camera: fit all, follow, chase. View: ship size exaggeration (so
-  ships read when zoomed out), wake length, names, routes, sensor ring.
+- Playback: play, pause, restart, scrub, 1x to 600x. Camera: fit all, follow, chase, orbit (circles the selected ship, or
+  the whole group), and **Present**, which hides the panels and fills the screen with the map plus a minimal HUD (Esc
+  exits). The view opens with a fly-in to the main group. View: ship size exaggeration (so ships read when zoomed
+  out), wake length, names, routes, sensor ring.
+- Look: the light preset (dawn, day, dusk, night) lights the sea, and at dusk and night the ships' navigation and deck
+  lights glow. Dusk and night are the most dramatic; the presets use them.
 
 Three presets ship with it: a carrier group transit, a surface contact intercept at dusk, and a formation drill. Use
 **Edit as JSON** or **Download** in the Scenario panel to save or load your own.
 
 **How it works.** `apps/exercise/sim.ts` runs the whole scenario up front at a fixed step (deterministic, so scrubbing
 and rewinding are free) and the map interpolates between samples. Ships are generated hull outlines with
-class-specific deckhouses, drawn as Mapbox fill-extrusions at true size times the size slider, with wakes as gradient
-lines. Ship dimensions and handling are rounded, illustrative figures, not for operational use. Handling is simple on
+class-specific superstructure (masts, radar domes, flight-deck markings and parked aircraft on the carriers, container
+stacks on the merchant), drawn as Mapbox fill-extrusions at true size times the size slider. Hulls are stacked slices,
+which gives a dark waterline band and a flared deck edge. Wakes are a fading center trail plus a V; foam around the hull
+scales with speed; lights are tiny emissive pillars with a soft glow. Ship dimensions and handling are rounded, illustrative figures, not for operational use. Handling is simple on
 purpose: speed and turn rate are limited per class, and escorts hold station with a proportional controller. Formation
 turns need a slow guide turn rate (see `maxTurnRateDegPerS` in the presets), because an escort 1.5 km abeam cannot keep
 up with a guide that turns on a 300 m radius.

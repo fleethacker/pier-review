@@ -1,5 +1,6 @@
 import type { AnyLayer as Layer, AnySourceData as Source, GeoJSONSource, Map as MapboxMap } from 'mapbox-gl';
 import type { FrameData, StaticData } from './scene';
+import type { LightPreset } from './types';
 
 const empty = { type: 'FeatureCollection', features: [] } as const;
 
@@ -9,6 +10,9 @@ export const PICK_LAYERS = ['ship-markers', 'ship-parts', 'ship-hulls', 'ship-ha
 /** Source id to the data it carries. Every source starts empty and is filled by `setFrameData` and `setStaticData`. */
 const SOURCES: Record<string, Source> = {
   'ex-halos': { type: 'geojson', data: empty },
+  'ex-foam': { type: 'geojson', data: empty },
+  'ex-lights': { type: 'geojson', data: empty },
+  'ex-glows': { type: 'geojson', data: empty },
   'ex-routes': { type: 'geojson', data: empty },
   'ex-waypoints': { type: 'geojson', data: empty },
   'ex-trails': { type: 'geojson', data: empty, lineMetrics: true },
@@ -17,6 +21,17 @@ const SOURCES: Record<string, Source> = {
   'ex-overlays': { type: 'geojson', data: empty },
   'ex-markers': { type: 'geojson', data: empty },
 };
+
+/** How much of the lighting shows at each time of day. Lights are barely there at noon and blaze at night. */
+export const LIGHT_LEVEL: Record<LightPreset, { pillars: number; glow: number }> = {
+  day: { pillars: 0.4, glow: 0 },
+  dawn: { pillars: 0.85, glow: 0.35 },
+  dusk: { pillars: 1, glow: 0.8 },
+  night: { pillars: 1, glow: 1 },
+};
+
+/** Bloom radius in screen pixels at zoom 0 per meter of light size, at about 33 degrees north (a few percent off elsewhere). */
+const GLOW_PX0 = (512 * 4) / (40_075_016.686 * Math.cos((33 * Math.PI) / 180));
 
 const FONT = ['DIN Pro Bold', 'Arial Unicode MS Bold'];
 const get = (key: string) => ['get', key];
@@ -36,6 +51,13 @@ function layers(): Layer[] {
         'fill-opacity': ['case', get('selected'), 0.5, 0.28],
         'fill-emissive-strength': 1,
       },
+    },
+    {
+      id: 'ship-foam',
+      type: 'fill',
+      source: 'ex-foam',
+      ...slot,
+      paint: { 'fill-color': '#f4fbff', 'fill-opacity': ['*', get('foam'), 0.55], 'fill-emissive-strength': 0.9 },
     },
     {
       id: 'route-lines',
@@ -61,7 +83,8 @@ function layers(): Layer[] {
         'line-width': ['interpolate', ['exponential', 2], ['zoom'], 0, get('widthPx0'), 24, ['*', get('widthPx0'), 16777216]],
         'line-gradient': ['interpolate', ['linear'], ['line-progress'], 0, 'rgba(255,255,255,0.85)', 0.25, 'rgba(235,245,255,0.45)', 1, 'rgba(235,245,255,0)'],
         'line-blur': 2,
-        'line-emissive-strength': 0.8,
+        'line-opacity': 0.85,
+        'line-emissive-strength': 0.4,
       },
     },
     {
@@ -72,7 +95,7 @@ function layers(): Layer[] {
       paint: {
         'fill-extrusion-color': get('color'),
         'fill-extrusion-height': get('height'),
-        'fill-extrusion-base': 0,
+        'fill-extrusion-base': get('base'),
         'fill-extrusion-opacity': 1,
         'fill-extrusion-vertical-gradient': true,
         'fill-extrusion-ambient-occlusion-intensity': 0.35,
@@ -95,6 +118,20 @@ function layers(): Layer[] {
       },
     },
     {
+      id: 'ship-lights',
+      type: 'fill-extrusion',
+      source: 'ex-lights',
+      ...slot,
+      paint: {
+        'fill-extrusion-color': get('color'),
+        'fill-extrusion-height': get('height'),
+        'fill-extrusion-base': get('base'),
+        'fill-extrusion-opacity': LIGHT_LEVEL.day.pillars,
+        'fill-extrusion-emissive-strength': 1,
+        'fill-extrusion-cast-shadows': false,
+      },
+    },
+    {
       id: 'overlay-selection',
       type: 'line',
       source: 'ex-overlays',
@@ -109,6 +146,19 @@ function layers(): Layer[] {
       ...slot,
       filter: ['==', get('kind'), 'range'],
       paint: { 'line-color': get('color'), 'line-width': 1.5, 'line-opacity': 0.9, 'line-dasharray': [4, 3], 'line-emissive-strength': 1 },
+    },
+    {
+      id: 'light-glows',
+      type: 'circle',
+      source: 'ex-glows',
+      ...slot,
+      paint: {
+        'circle-color': get('color'),
+        'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 0, ['*', get('sizeM'), GLOW_PX0], 24, ['*', get('sizeM'), GLOW_PX0 * 16777216]],
+        'circle-blur': 1,
+        'circle-opacity': LIGHT_LEVEL.day.glow,
+        'circle-emissive-strength': 1,
+      },
     },
     {
       id: 'ship-markers',
@@ -155,12 +205,16 @@ function layers(): Layer[] {
       source: 'ex-markers',
       ...slot,
       layout: {
-        'text-field': ['get', 'name'],
+        // Names only when zoomed out, so a crowded group stays readable; speed and heading once the ships are big enough.
+        'text-field': ['step', ['zoom'], ['get', 'name'], 11.5, ['format', ['get', 'name'], {}, '\n', {}, ['get', 'info'], { 'font-scale': 0.78, 'text-color': '#d6e6ff' }]],
+        'symbol-sort-key': ['case', get('selected'), 0, 1],
+        'text-padding': 6,
         'text-font': FONT,
-        'text-size': 12,
-        'text-offset': [0, 1.4],
+        'text-size': 13,
+        'text-line-height': 1.25,
+        'text-offset': [0, 1.5],
         'text-anchor': 'top',
-        'text-allow-overlap': true,
+        'text-allow-overlap': false,
       },
       paint: {
         'text-color': get('color'),
@@ -199,8 +253,17 @@ function setData(map: MapboxMap, id: string, data: unknown): void {
   (map.getSource(id) as GeoJSONSource | undefined)?.setData(data as never);
 }
 
+export function setLightLevel(map: MapboxMap, preset: LightPreset): void {
+  const level = LIGHT_LEVEL[preset];
+  if (map.getLayer('ship-lights')) map.setPaintProperty('ship-lights', 'fill-extrusion-opacity', level.pillars);
+  if (map.getLayer('light-glows')) map.setPaintProperty('light-glows', 'circle-opacity', level.glow);
+}
+
 export function setFrameData(map: MapboxMap, f: FrameData): void {
   setData(map, 'ex-halos', f.halos);
+  setData(map, 'ex-foam', f.foam);
+  setData(map, 'ex-lights', f.lights);
+  setData(map, 'ex-glows', f.glows);
   setData(map, 'ex-trails', f.trails);
   setData(map, 'ex-hulls', f.hulls);
   setData(map, 'ex-parts', f.parts);

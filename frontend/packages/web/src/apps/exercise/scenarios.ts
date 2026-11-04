@@ -20,7 +20,7 @@ const transit: ScenarioConfig = {
     'A carrier steams east and makes two course changes while a cruiser and two destroyers hold screen stations. A merchant crosses ahead.',
   center: OCEAN_CENTER,
   durationS: 5400,
-  lightPreset: 'day',
+  lightPreset: 'dusk',
   environment: CALM,
   units: [
     {
@@ -84,7 +84,7 @@ const encounter: ScenarioConfig = {
     'Three fast attack craft run at a destroyer pair. A cruiser closes from the north-west to shadow the lead craft while a merchant passes through.',
   center: OCEAN_CENTER,
   durationS: 2700,
-  lightPreset: 'dusk',
+  lightPreset: 'night',
   environment: { windFromDeg: 300, windKt: 18, currentToDeg: 90, currentKt: 1.2 },
   units: [
     {

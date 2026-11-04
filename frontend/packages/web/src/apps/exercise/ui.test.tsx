@@ -345,6 +345,48 @@ describe('MapCanvas', () => {
     expect(view.created[0].disposed).toBe(false);
   });
 
+  it('orbits from the toolbar without a selection', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
+    const { controller } = withController(<MapCanvas />);
+    await waitFor(() => expect(view.created).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Orbit' }));
+    expect(controller.state.get().follow).toBe('orbit');
+    expect(screen.getByRole('button', { name: 'Orbit' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Orbit' }));
+    expect(controller.state.get().follow).toBe('off');
+  });
+
+  it('fills the screen in presentation mode with a minimal HUD, and gives the page back on Exit or Escape', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
+    const { controller } = withController(<MapCanvas />);
+    await waitFor(() => expect(view.created).toHaveLength(1));
+    const frame = () => screen.getByTestId('exercise-map').parentElement!;
+    expect(frame().className).toContain('absolute');
+    expect(screen.queryByRole('group', { name: 'Presentation controls' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Present' }));
+    expect(controller.state.get().presenting).toBe(true);
+    expect(frame().className).toContain('fixed');
+    const hud = within(screen.getByRole('group', { name: 'Presentation controls' }));
+    expect(screen.getByText('Carrier group transit')).toBeTruthy();
+    expect(screen.getByText('T+00:00:00')).toBeTruthy();
+
+    fireEvent.click(hud.getByRole('button', { name: 'Play' }));
+    expect(controller.clock.playing).toBe(true);
+    fireEvent.change(hud.getByLabelText('Time'), { target: { value: '120' } });
+    expect(controller.clock.timeS).toBe(120);
+    fireEvent.change(hud.getByLabelText('Playback speed'), { target: { value: '300' } });
+    expect(controller.clock.rate).toBe(300);
+
+    fireEvent.click(hud.getByRole('button', { name: 'Exit' }));
+    expect(controller.state.get().presenting).toBe(false);
+    expect(frame().className).toContain('absolute');
+
+    act(() => controller.setPresenting(true));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(controller.state.get().presenting).toBe(false);
+  });
+
   it('drives the camera and waypoint tools from the toolbar', async () => {
     vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
     const { controller } = withController(<MapCanvas />);

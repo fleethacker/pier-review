@@ -1,4 +1,4 @@
-import { circleRing, stationFrom } from './geo';
+import { bearingTo, circleRing, destination, distanceM, stationFrom } from './geo';
 import { SHIP_CLASSES, SIDE_COLORS, shipShape } from './ships';
 import { statesAt, trailOf } from './sim';
 import type { Trajectory } from './sim';
@@ -43,6 +43,11 @@ export interface FrameData {
   hulls: FeatureCollection<Poly>;
   parts: FeatureCollection<Poly>;
   halos: FeatureCollection<Poly>;
+  foam: FeatureCollection<Poly>;
+  /** Tiny emissive pillars: navigation and deck lights. */
+  lights: FeatureCollection<Poly>;
+  /** The same lights as points, for a soft glow around them. */
+  glows: FeatureCollection<Pt>;
   markers: FeatureCollection<Pt>;
   trails: FeatureCollection<Line>;
   overlays: FeatureCollection<Line>;
@@ -77,6 +82,9 @@ export function buildFrameData(
   const hulls: Feature<Poly>[] = [];
   const parts: Feature<Poly>[] = [];
   const halos: Feature<Poly>[] = [];
+  const foam: Feature<Poly>[] = [];
+  const lights: Feature<Poly>[] = [];
+  const glows: Feature<Pt>[] = [];
   const markers: Feature<Pt>[] = [];
   const trails: Feature<Line>[] = [];
   const overlays: Feature<Line>[] = [];
@@ -90,11 +98,13 @@ export function buildFrameData(
     const sideColor = SIDE_COLORS[unit.side];
     const here = { lon: st.lon, lat: st.lat };
 
-    hulls.push({
-      type: 'Feature',
-      properties: { id: unit.id, height: cls.freeboardM * s, color: cls.hullColor },
-      geometry: { type: 'Polygon', coordinates: [ring(here, st.headingDeg, shape.hull, s)] },
-    });
+    for (const slice of shape.slices) {
+      hulls.push({
+        type: 'Feature',
+        properties: { id: unit.id, base: slice.base * s, height: slice.top * s, color: slice.color },
+        geometry: { type: 'Polygon', coordinates: [ring(here, st.headingDeg, shape.hull.map(([x, y]): [number, number] => [x * slice.stretch, y * slice.beamScale]), s)] },
+      });
+    }
     for (const part of shape.parts) {
       parts.push({
         type: 'Feature',
@@ -107,9 +117,32 @@ export function buildFrameData(
       properties: { id: unit.id, color: sideColor, selected },
       geometry: { type: 'Polygon', coordinates: [ring(here, st.headingDeg, shape.hull, s, 1.35)] },
     });
+    foam.push({
+      type: 'Feature',
+      properties: { id: unit.id, foam: Math.min(1, st.speedKt / 18) },
+      geometry: { type: 'Polygon', coordinates: [ring(here, st.headingDeg, shape.hull, s, 1.16)] },
+    });
+    for (const light of shape.lights) {
+      const half = (light.size * s) / 2;
+      const at = shipPoint(here, st.headingDeg, light.x * s, light.y * s);
+      const corner = (dx: number, dy: number) => shipPoint(here, st.headingDeg, light.x * s + dx, light.y * s + dy);
+      lights.push({
+        type: 'Feature',
+        properties: { id: unit.id, color: light.color, base: (light.height - light.size / 2) * s, height: (light.height + light.size / 2) * s },
+        geometry: { type: 'Polygon', coordinates: [[corner(-half, -half), corner(half, -half), corner(half, half), corner(-half, half), corner(-half, -half)]] },
+      });
+      glows.push({ type: 'Feature', properties: { id: unit.id, color: light.color, sizeM: light.size * s }, geometry: { type: 'Point', coordinates: at } });
+    }
     markers.push({
       type: 'Feature',
-      properties: { id: unit.id, name: unit.name, color: sideColor, selected, speedKt: Math.round(st.speedKt) },
+      properties: {
+        id: unit.id,
+        name: unit.name,
+        info: `${Math.round(st.speedKt)} kt  ${Math.round(st.headingDeg).toString().padStart(3, '0')}°`,
+        color: sideColor,
+        selected,
+        speedKt: Math.round(st.speedKt),
+      },
       geometry: { type: 'Point', coordinates: [st.lon, st.lat] },
     });
 
@@ -119,11 +152,33 @@ export function buildFrameData(
       const stern = shipPoint(here, st.headingDeg, (-cls.loaM / 2) * s, 0);
       const line = [stern, ...back.slice(1)];
       if (line.length >= 2) {
+        const beam = cls.beamM * s;
         trails.push({
           type: 'Feature',
-          properties: { id: unit.id, widthPx0: widthPxAtZoom0(cls.beamM * 0.9 * s, st.lat) },
+          properties: { id: unit.id, widthPx0: widthPxAtZoom0(beam * 0.9, st.lat) },
           geometry: { type: 'LineString', coordinates: line },
         });
+        // The V of the wake: two arms that open at about 19 degrees and fade like the trail does.
+        const arms: [number, number][][] = [[], []];
+        let behind = 0;
+        line.forEach((pt, k) => {
+          if (k > 0) behind += distanceM({ lon: line[k - 1][0], lat: line[k - 1][1] }, { lon: pt[0], lat: pt[1] });
+          const next = line[Math.min(k + 1, line.length - 1)];
+          const prev = line[Math.max(k - 1, 0)];
+          const along = bearingTo({ lon: prev[0], lat: prev[1] }, { lon: next[0], lat: next[1] });
+          const spread = beam * 0.45 + behind * 0.28;
+          [90, -90].forEach((turn, arm) => {
+            const p = destination({ lon: pt[0], lat: pt[1] }, along + turn, spread);
+            arms[arm].push([p.lon, p.lat]);
+          });
+        });
+        for (const arm of arms) {
+          trails.push({
+            type: 'Feature',
+            properties: { id: unit.id, widthPx0: widthPxAtZoom0(beam * 0.16, st.lat) },
+            geometry: { type: 'LineString', coordinates: arm },
+          });
+        }
       }
     }
 
@@ -147,6 +202,9 @@ export function buildFrameData(
     hulls: collection(hulls),
     parts: collection(parts),
     halos: collection(halos),
+    foam: collection(foam),
+    lights: collection(lights),
+    glows: collection(glows),
     markers: collection(markers),
     trails: collection(trails),
     overlays: collection(overlays),
@@ -184,6 +242,13 @@ export function buildStaticData(scenario: ScenarioConfig, view: ViewOptions, sel
     }
   }
   return { routes: collection(routes), waypoints: collection(waypoints) };
+}
+
+/** The units within `radiusM` of the one at `anchor` (counting it): the main group, for the opening camera shot. */
+export function groupStates(states: UnitState[], anchor = 0, radiusM = 8000): UnitState[] {
+  const a = states[anchor];
+  if (!a) return [];
+  return states.filter((st) => distanceM(a, st) <= radiusM);
 }
 
 /** Everything the camera needs to frame all units at one instant. */

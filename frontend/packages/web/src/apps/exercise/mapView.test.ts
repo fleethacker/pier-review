@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ExerciseController } from './controller';
-import { installLayers, PICK_LAYERS } from './mapLayers';
+import { installLayers, LIGHT_LEVEL, PICK_LAYERS } from './mapLayers';
 import { ExerciseMapView } from './mapView';
 import type { MapProblem } from './mapView';
 import { PRESET_SCENARIOS } from './scenarios';
@@ -15,6 +15,8 @@ class FakeMap {
   layers = new Map<string, { id: string }>();
   config: Record<string, unknown> = {};
   layout: Record<string, unknown> = {};
+  paint: Record<string, unknown> = {};
+  bearing = -25;
   jumps: Record<string, unknown>[] = [];
   fits: { bounds: unknown; options: Record<string, unknown> }[] = [];
   styleUrls: string[] = [];
@@ -52,6 +54,9 @@ class FakeMap {
   setConfigProperty(_fragment: string, key: string, value: unknown) {
     this.config[key] = value;
   }
+  setPaintProperty(id: string, key: string, value: unknown) {
+    this.paint[`${id}.${key}`] = value;
+  }
   setFog() {}
   setStyle(url: string) {
     this.styleUrls.push(url);
@@ -60,6 +65,7 @@ class FakeMap {
   }
   jumpTo(o: Record<string, unknown>) {
     this.jumps.push(o);
+    if (typeof o.bearing === 'number') this.bearing = o.bearing;
   }
   fitBounds(bounds: unknown, options: Record<string, unknown>) {
     this.fits.push({ bounds, options });
@@ -68,7 +74,7 @@ class FakeMap {
     return 60;
   }
   getBearing() {
-    return -25;
+    return this.bearing;
   }
   getCanvas() {
     return this.canvas;
@@ -101,15 +107,34 @@ function setup(initial = PRESET_SCENARIOS[0]) {
   return { controller, view, map, problems, data };
 }
 
+/** A hand-cranked animation frame, so orbiting can be stepped deterministically. */
+function fakeFrames() {
+  let next = 1;
+  const pending = new Map<number, (ms: number) => void>();
+  vi.stubGlobal('requestAnimationFrame', (cb: (ms: number) => void) => {
+    pending.set(next, cb);
+    return next++;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => pending.delete(id));
+  return {
+    pending: () => pending.size,
+    run(ms: number) {
+      const callbacks = [...pending.values()];
+      pending.clear();
+      callbacks.forEach((cb) => cb(ms));
+    },
+  };
+}
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe('ExerciseMapView', () => {
-  it('creates the map with the token, the scenario center and a tilted view', () => {
+  it('creates the map with the token, the scenario center, opening high for the fly-in', () => {
     const { map } = setup();
     expect((fakeMapbox as unknown as { accessToken: string }).accessToken).toBe('pk.test.token');
     expect(map.options.style).toBe('mapbox://styles/mapbox/standard');
     expect(map.options.center).toEqual([PRESET_SCENARIOS[0].center.lon, PRESET_SCENARIOS[0].center.lat]);
-    expect(map.options.pitch).toBeGreaterThan(45);
+    expect(map.options.zoom).toBeLessThan(10);
     expect(map.options.projection).toBe('mercator');
   });
 
@@ -117,14 +142,27 @@ describe('ExerciseMapView', () => {
     const { map, data } = setup();
     expect(map.layers.size).toBe(0);
     map.fire('style.load');
-    expect(map.sources.size).toBe(8);
+    expect(map.sources.size).toBe(11);
     expect(map.layers.size).toBeGreaterThanOrEqual(10);
     for (const id of PICK_LAYERS) expect(map.getLayer(id), id).toBeDefined();
-    expect(data('ex-hulls')).toHaveLength(5);
+    expect(data('ex-hulls')).toHaveLength(15);
     expect(data('ex-markers')).toHaveLength(5);
+    expect(data('ex-foam')).toHaveLength(5);
+    expect(data('ex-lights').length).toBeGreaterThan(20);
     expect(data('ex-routes').length).toBeGreaterThan(0);
+    expect(map.paint['ship-lights.fill-extrusion-opacity']).toBe(LIGHT_LEVEL.dusk.pillars);
+    expect(map.paint['light-glows.circle-opacity']).toBe(LIGHT_LEVEL.dusk.glow);
+  });
+
+  it('glides in to the main group on first load, tilted down on it, leaving distant ships out of frame', () => {
+    const { map, controller } = setup();
+    map.fire('style.load');
     expect(map.fits).toHaveLength(1);
-    expect(map.fits[0].options.duration).toBe(0);
+    expect(map.fits[0].options).toMatchObject({ duration: 3800, pitch: 62 });
+    const [[, south], [, north]] = map.fits[0].bounds as [[number, number], [number, number]];
+    const merchant = controller.currentStates()[4];
+    expect(merchant.lat).toBeGreaterThan(north);
+    expect(south).toBeLessThanOrEqual(north);
   });
 
   it('installing layers twice does not duplicate them', () => {
@@ -135,17 +173,22 @@ describe('ExerciseMapView', () => {
     expect(map.layers.size).toBe(before);
   });
 
-  it('applies the light preset on Standard styles only', () => {
+  it('applies the light preset, and the light level for the ship lights, per time of day', () => {
     const { map, controller } = setup({ ...PRESET_SCENARIOS[1] });
     map.fire('style.load');
-    expect(map.config.lightPreset).toBe('dusk');
-    controller.patchScenario({ lightPreset: 'night' });
     expect(map.config.lightPreset).toBe('night');
+    expect(map.paint['light-glows.circle-opacity']).toBe(LIGHT_LEVEL.night.glow);
+    controller.patchScenario({ lightPreset: 'dawn' });
+    expect(map.config.lightPreset).toBe('dawn');
+    expect(map.paint['light-glows.circle-opacity']).toBe(LIGHT_LEVEL.dawn.glow);
 
+    // Non-Standard styles have no light preset to set, but the ship lights still follow the time of day.
     controller.setMapStyle('dark');
     map.fire('style.load');
-    controller.patchScenario({ lightPreset: 'dawn' });
-    expect(map.config.lightPreset).toBe('night');
+    controller.patchScenario({ lightPreset: 'day' });
+    expect(map.config.lightPreset).toBe('dawn');
+    expect(map.paint['light-glows.circle-opacity']).toBe(0);
+    expect(map.paint['ship-lights.fill-extrusion-opacity']).toBe(LIGHT_LEVEL.day.pillars);
   });
 
   it('moves the ships as the clock moves', () => {
@@ -167,14 +210,64 @@ describe('ExerciseMapView', () => {
     expect(map.fits).toHaveLength(1);
   });
 
-  it('reframes when a scenario is loaded or Fit all is pressed', () => {
+  it('orbits the whole group when nothing is selected, turning even while the clock is paused', () => {
+    const frames = fakeFrames();
     const { map, controller } = setup();
     map.fire('style.load');
-    controller.loadPreset('formation-drill');
+    controller.setFollow('orbit');
+    expect(controller.state.get().follow).toBe('orbit');
+    expect(frames.pending()).toBe(1);
+    map.jumps.length = 0;
+    frames.run(1000);
+    frames.run(3000);
+    expect(map.jumps.at(-1)).toEqual({ bearing: -25 + 5 * 0.1 });
+    expect(map.jumps[0]).toEqual({ bearing: -25 });
+    controller.seek(300);
+    expect(map.jumps.some((j) => Array.isArray(j.center))).toBe(true);
+  });
+
+  it('orbits the selected ship, and clicking empty water does not stop an orbit', () => {
+    fakeFrames();
+    const { map, controller } = setup();
+    map.fire('style.load');
+    controller.select('cvn1');
+    controller.setFollow('orbit');
+    map.jumps.length = 0;
+    controller.seek(600);
+    const [state] = controller.currentStates();
+    expect(map.jumps.at(-1)).toEqual({ center: [state.lon, state.lat] });
+    map.hits = [];
+    map.fire('click', { point: { x: 1, y: 1 }, lngLat: { lng: -62, lat: 33 } });
+    expect(controller.state.get().selectedId).toBeNull();
+    expect(controller.state.get().follow).toBe('orbit');
+  });
+
+  it('stops turning when orbit ends or the view is disposed', () => {
+    const frames = fakeFrames();
+    const { map, controller, view } = setup();
+    map.fire('style.load');
+    controller.setFollow('orbit');
+    controller.setFollow('off');
+    expect(frames.pending()).toBe(0);
+    controller.setFollow('orbit');
+    expect(frames.pending()).toBe(1);
+    view.dispose();
+    expect(frames.pending()).toBe(0);
+  });
+
+  it('frames the main group when a scenario is loaded, and every ship when Fit all is pressed', () => {
+    const { map, controller } = setup();
+    map.fire('style.load');
+    controller.loadPreset('surface-encounter');
     expect(map.fits).toHaveLength(2);
     expect(map.fits[1].options.duration).toBe(1200);
     controller.fitAll();
     expect(map.fits).toHaveLength(3);
+    const span = (f: { bounds: unknown }) => {
+      const [[w], [e]] = f.bounds as [[number, number], [number, number]];
+      return e - w;
+    };
+    expect(span(map.fits[2])).toBeGreaterThan(span(map.fits[1]) * 1.5);
   });
 
   it('selects the ship that was clicked, and clears the selection when the click hits nothing', () => {

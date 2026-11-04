@@ -30,11 +30,13 @@ def test_reported_invalid_validity_reaches_the_ledger():
     tk = toolkit()
 
     class Stub:
-        async def analyze(self, body):
-            j = TestClient(modeling_app).post(f"{P}/mooring/analyze", json=body).json()
+        """Modeling client whose responses report invalid validity (the gateway calls the generic request())."""
+
+        async def request(self, method, path, **kw):
+            j = TestClient(modeling_app).post(f"{P}{path}", json=kw["json"]).json()
             j["status"] = "RED"
             j["validity"] = {"state": "invalid", "reasons": [{"code": "NO_EQUILIBRIUM_FOUND", "message": "solver stalled"}]}
-            return AnalyzeResponse.model_validate(j)
+            return AnalyzeResponse.model_validate(j).model_dump(mode="json")
 
     tk.client = Stub()
     out = asyncio.run(tk.analyze(EXAMPLES["mooring_analyze"]))

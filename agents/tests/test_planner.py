@@ -2,6 +2,7 @@
 import asyncio
 import json
 from types import SimpleNamespace
+from urllib.parse import unquote
 
 import httpx
 import pytest
@@ -36,6 +37,27 @@ class PhysicsClient:
         self.tug_status = self.sequence_status = self.risk_status = "GREEN"
         self.feasible = True
         self.holding = [{"tug_id": "T1", "push_point_id": "PP-FWD-S", "force_lbf": 1000, "mode": "push"}]
+
+    async def request(self, method, path, **kwargs):
+        # The toolkit's typed helpers now share its validated generic HTTP path.
+        if method == "GET":
+            if path == "/env/now":
+                params = kwargs["params"]
+                result = await self.env_now(params["berth_id"], env_scenario_id=params.get("env_scenario_id"))
+            else:
+                resource, identifier = path.strip("/").split("/", 1)
+                handler = {"scenarios": self.scenario, "ships": self.ship, "berths": self.berth}[resource]
+                result = await handler(unquote(identifier))
+        else:
+            assert method == "POST"
+            handler = {"/mooring/analyze": self.analyze, "/tugs/berthing-plan": self.berthing_tugs,
+                       "/tugs/hold-plan": self.hold_tugs, "/mooring/sequence": self.sequence}[path]
+            result = await handler(kwargs["json"])
+        return result.model_dump(mode="json")
+
+    async def job(self, path, body):
+        handler = {"/mooring/recommend": self.recommend, "/risk/exceedance": self.exceedance}[path]
+        return (await handler(body)).model_dump(mode="json")
 
     async def scenario(self, _): return self.sc
     async def ship(self, _): return refdata.ship(self.sc.ship_class_id).model_copy(deep=True)
@@ -281,7 +303,9 @@ def test_missing_scenario_environment_never_falls_back_to_live(setup):
     client, tk = setup
     client.sc.env_source.mode = "scenario"
     with pytest.raises(ModelingError) as exc: run(tk)
-    assert exc.value.status == 422 and client.env_requests == []
+    # S00a made a scenario-mode environment without an ID invalid in the schema, so the Physics gateway rejects the
+    # malformed modeling response (502) before the planner's own 422 check runs. Either way: never the live feed.
+    assert exc.value.status == 502 and "get_scenario" in exc.value.detail and client.env_requests == []
 
 
 def test_last_iteration_does_not_apply_unevaluated_move(setup, monkeypatch):
@@ -380,3 +404,25 @@ def test_infeasible_tug_plan_for_any_condition_blocks_green(setup, monkeypatch):
     rec = run(tk, intake_report_id="intake")
     assert rec.plan.status == "RED" and not rec.plan.tug_plan.feasible
 
+
+
+# ---- Review fixes (PR #14 integration): the planner stays within its tool budget ----
+
+def test_planner_caps_iterations_to_fit_the_tool_budget(setup, monkeypatch):
+    monkeypatch.setenv("AGENTS_MAX_TOOL_CALLS", "12")
+    client = PhysicsClient()
+    tk = PhysicsToolkit(client, "planner")
+    monkeypatch.setitem(REPORTS, "intake", report_for(client))
+    client.analyze_fn = lambda b: ("AMBER", 95)  # never converges: would iterate to max_iterations
+    rec = run(tk, intake_report_id="intake", max_iterations=20)
+    assert rec.plan.state == "succeeded" and rec.plan.tug_plan is not None and rec.plan.sequence is not None
+    assert any("Iterations capped" in a for a in rec.plan.assumptions)
+    assert len(calls_for(rec.plan.plan_id)) <= 12
+
+
+def test_max_iterations_with_default_budget_completes(setup, monkeypatch):
+    client, tk = setup
+    monkeypatch.setitem(REPORTS, "intake", report_for(client))
+    client.analyze_fn = lambda b: ("AMBER", 95)
+    rec = run(tk, intake_report_id="intake", max_iterations=20)
+    assert rec.plan.state == "succeeded" and len(calls_for(rec.plan.plan_id)) <= 40

@@ -61,8 +61,12 @@ _ENVIRONMENT_FIELDS = (
 )
 _MST_FIELDS = ("mst_required", "ship_mst", "exceeds_ship_mst", "max_wind_kt", "max_broadside_current_kt")
 _RISK_LANGUAGE = re.compile(
-    r"\b(?:RED|AMBER|GREEN|safe(?:r|st)?|calm(?:er|est)?|benign)\b|\blow[\W_]+risk\b|"
-    r"\bMST[\s:=-]+[IVXLCDM]+A?\b", re.IGNORECASE,
+    r"\b(?:RED|AMBER|GREEN|safe(?:r|st|ly)?|calm(?:er|est)?|benign|harmless|favou?rable|reassuring)\b"
+    r"|\blow[\W_]+risk\b"
+    r"|\b(?:no|minimal|negligible|little|zero|limited)[\W_]+(?:risk|concern|threat|danger|hazard)s?\b"
+    r"|\bnothing[\W_]+to[\W_]+worry\b"
+    # Mooring Service Type levels must come from the code-owned headline or a fact reference.
+    r"|\b(?:MST|Mooring[\W_]+Service[\W_]+Type|Type)[\s:=-]+[IVXLCDM]+A?\b", re.IGNORECASE,
 )
 _UNIT_TOKENS = re.compile(r"(?<!\w)(?:kts?|knots?|m\s*/\s*s|mph|deg(?:ree)?s?|ft)(?!\w)|°", re.IGNORECASE)
 

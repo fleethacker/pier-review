@@ -293,6 +293,9 @@ def test_intake_ledger_still_belongs_to_report(monkeypatch):
     "Conditions are calm and safe for berthing.", "The gust window is low risk.",
     "Conditions are MST III.", "Conditions are MST: III.", "The windows are GREEN.",
     "The situation is benign.", "Conditions are amber.", "The window is RED.",
+    "Conditions meet Mooring Service Type III limits.", "This is a Type II storm mooring.",
+    "There is no risk to the moored ship.", "Gusts are of minimal concern.",
+    "Conditions are favourable for berthing.", "There is nothing to worry about.",
 ])
 def test_model_cannot_replace_risk_headline(monkeypatch, sentence):
     baseline = run()
@@ -427,3 +430,15 @@ def test_incomplete_or_tool_response_records_guardrail(monkeypatch, tool_call):
     result = run()
     assert result.summary_source == "deterministic"
     assert result.narration_note == "guardrail: incomplete response or tool call"
+
+
+@pytest.mark.parametrize("sentence", [
+    "Gusts reach {{/current/wind_gust_kt}} during the window.",
+    "The strongest window is rated {{/windows/0/severity}}.",
+    "The required service type is {{/mst/mst_required}}.",
+    "Expect the strongest gusts when the wind backs toward the pier.",
+])
+def test_legitimate_narration_still_passes(sentence):
+    facts = {"/current/wind_gust_kt": "14.0 kt", "/windows/0/severity": "RED", "/mst/mst_required": "II"}
+    assert agent._render(sentence, facts, sentence=True)
+

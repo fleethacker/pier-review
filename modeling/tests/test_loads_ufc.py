@@ -116,3 +116,97 @@ def test_b_seelig_curve():
     results = [ufc.transverse_current_coefficient(100, 20, 10, 5000, 0.8, 10 / r) for r in (0.25, 0.5, 0.75, 1)]
     assert results == pytest.approx([1.025, 1.46, 2.185, 3.2])
     assert results == sorted(results)
+
+
+@pytest.mark.parametrize("angle", [0, 30, 90, 135, 180, 225, 270, 330])
+def test_d_frames_and_reflection(angle):
+    from mooring.loads import compute_loads
+    ship = synthetic_ship()
+    env = environment(wind_from_true_deg=angle, current_set_true_deg=angle, current_speed_kt=1)
+    result = compute_loads(ship, "full_load", 0, env, 50)
+    reflected = compute_loads(ship, "full_load", 0, env.model_copy(update={"wind_from_true_deg": (-angle) % 360, "current_set_true_deg": (-angle) % 360}), 50)
+    rotated = compute_loads(ship, "full_load", 37, env.model_copy(update={"wind_from_true_deg": (angle + 37) % 360, "current_set_true_deg": (angle + 37) % 360}), 50)
+    for kind in ("wind", "current"):
+        a, b, r = getattr(result, kind), getattr(reflected, kind), getattr(rotated, kind)
+        assert a.fx_lbf == pytest.approx(b.fx_lbf, abs=1e-8)
+        assert a.fy_lbf == pytest.approx(-b.fy_lbf, abs=1e-8)
+        assert a.mz_ftlbf == pytest.approx(-b.mz_ftlbf, abs=1e-7)
+        for field in ("fx_lbf", "fy_lbf", "mz_ftlbf"):
+            assert getattr(a, field) == pytest.approx(getattr(r, field), abs=1e-7)
+    if angle == 90:
+        assert result.wind.fy_lbf > 0 > result.current.fy_lbf
+    if angle == 0:
+        assert result.wind.fx_lbf < 0 < result.current.fx_lbf
+    if angle == 180:
+        assert result.wind.fx_lbf > 0 > result.current.fx_lbf
+
+
+def test_d_shielding_and_zero_speeds():
+    ship = synthetic_ship()
+    env = environment(current_speed_kt=1)
+    a = ufc.compute_loads(ship, "full_load", 0, env, 50)
+    b = ufc.compute_loads(ship, "full_load", 0, env, 50, shielding_factor=0)
+    assert b.wind.fx_lbf == b.wind.fy_lbf == b.wind.mz_ftlbf == 0
+    assert a.current == b.current
+    z = ufc.compute_loads(ship, "full_load", 0, environment(wind_speed_kt=0, wind_gust_kt=0), 50)
+    assert z.total.fx_lbf == z.total.fy_lbf == z.total.mz_ftlbf == 0
+
+
+def test_e_endpoints_and_stored_result():
+    from fastapi.testclient import TestClient
+    from modeling_api.main import app
+    from mooring.core.schemas import LoadsResponse, PolarResponse
+    from mooring.examples import EXAMPLES
+    client = TestClient(app)
+    for name, path, model in (("loads_environmental", "environmental", LoadsResponse), ("loads_polar", "polar", PolarResponse)):
+        response = client.post(f"/api/v1/loads/{path}", json=EXAMPLES[name])
+        assert response.status_code == 200, response.text
+        parsed = model.model_validate(response.json())
+        assert parsed.backend == "real" and parsed.model_version == "1.0.0"
+        assert not any("MOCK BACKEND" in text for text in parsed.assumptions)
+        assert client.get(f"/api/v1/results/{parsed.result_id}").json() == response.json()
+
+
+def test_e_clamps_and_off_pier():
+    from mooring.loads.service import environmental, polar
+    from mooring.core.schemas import LoadsRequest, PolarRequest
+    req = LoadsRequest(ship_class_id="DDG-51-FIIA", heading_true_deg=0, water_depth_ft=1,
+                       environment=environment(current_speed_kt=1), side_to="starboard")
+    a = environmental(req)
+    b = environmental(req.model_copy(update={"side_to": "port"}))
+    assert a.result.off_pier_component_lbf == -b.result.off_pier_component_lbf
+    assert a.result.current.coefficients["depth_draft_ratio"] == 1
+    assert a.status == "AMBER"
+    assert any(w.rule_id == "UFC-DEPTH-RANGE" for w in a.warnings)
+    assert any("clamped" in text for text in a.assumptions)
+    p = polar(PolarRequest(ship_class_id=req.ship_class_id, water_depth_ft=1, wind_speed_kt=50))
+    assert any(w.rule_id == "UFC-DEPTH-RANGE" for w in p.warnings)
+    assert len(p.result.points) == 72
+
+
+@pytest.mark.parametrize("apply_to", ["wind", "current", "both"])
+def test_e_polar_matches_environmental(apply_to):
+    from mooring.loads.service import environmental, polar
+    from mooring.core.schemas import LoadsRequest, PolarRequest
+    req = PolarRequest(ship_class_id="DDG-51-FIIA", water_depth_ft=50, wind_speed_kt=30,
+                       current_speed_kt=1, step_deg=30, apply_to=apply_to)
+    for point in polar(req).result.points:
+        env = environment(wind_speed_kt=30 if apply_to != "current" else 0,
+                          wind_from_true_deg=point.rel_deg, current_speed_kt=1 if apply_to != "wind" else 0,
+                          current_set_true_deg=(point.rel_deg + 180) % 360)
+        result = environmental(LoadsRequest(ship_class_id=req.ship_class_id, heading_true_deg=0, water_depth_ft=50,
+                                           environment=env, use_gust=False)).result
+        for field in ("fx_lbf", "fy_lbf", "mz_ftlbf"):
+            assert getattr(point, field) == pytest.approx(getattr(result.total, field))
+
+
+def test_e_reynolds_floor_and_high_current_warnings():
+    from mooring.loads.service import environmental
+    from mooring.core.schemas import LoadsRequest
+    req = LoadsRequest(ship_class_id="DDG-51-FIIA", heading_true_deg=0, water_depth_ft=50,
+                       environment=environment(current_speed_kt=0.00001, current_set_true_deg=0))
+    low = environmental(req)
+    assert any(w.rule_id == "UFC-LOW-REYNOLDS" for w in low.warnings)
+    assert math.isfinite(low.result.current.fx_lbf)
+    req.environment.current_speed_kt = 5
+    assert any(w.rule_id == "UFC-CURRENT-SPEED" for w in environmental(req).warnings)

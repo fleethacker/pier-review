@@ -164,8 +164,9 @@ def compute_loads(ship, loading, heading_true_deg, env, water_depth_ft, use_gust
     draft, volume, height, midship, surface, propeller = ship_inputs(ship, loading, env.water_density_kgm3)
     cy = transverse_wind_coefficient(ship.wind_area_lateral_ft2, ship.hull_wind_area_lateral_ft2, ship.lwl_ft, height, ship.wind_drag_class)
     yaw_kind = "destroyer" if ship.hull_type in ("DDG", "CG") else "carrier" if ship.hull_type in ("CVN", "LHD") else "midships"
+    longitudinal_class = "extensive_superstructure" if ship.hull_type in ("DDG", "CG") else ship.wind_drag_class
     wind = ForceComponent(
-        fx_lbf=shielding_factor * longitudinal_wind_force(rho_a, vw, ship.wind_area_frontal_ft2, tw, ship.wind_drag_class),
+        fx_lbf=shielding_factor * longitudinal_wind_force(rho_a, vw, ship.wind_area_frontal_ft2, tw, longitudinal_class),
         fy_lbf=shielding_factor * transverse_wind_force(rho_a, vw, ship.wind_area_lateral_ft2, cy, tw),
         mz_ftlbf=shielding_factor * wind_yaw_moment(rho_a, vw, ship.wind_area_lateral_ft2, ship.loa_ft, tw, yaw_kind),
         coefficients={"cy": cy, "wind_speed_basis_factor": 1.0 if use_gust else c.SUSTAINED_TO_30S},

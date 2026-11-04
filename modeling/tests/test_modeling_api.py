@@ -77,7 +77,7 @@ def test_sync_posts(name, path):
     assert r.status_code in (200, 201, 202), r.text
     body = r.json()
     if "result_id" in body:
-        assert body["backend"] == "mock"
+        assert body["backend"] == ("real" if path.startswith("/loads/") else "mock")
         assert client.get(f"{P}/results/{body['result_id']}").status_code == 200
 
 

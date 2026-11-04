@@ -27,6 +27,7 @@ from mooring.core.schemas import (
 
 from .routers import approach, berthing, env, loads, moored, qualification, refdata as refdata_router, system, telemetry
 from .backend import overall_backend
+from .security import Controls
 from .state import API_PREFIX
 from .ws import router as ws_router
 
@@ -60,7 +61,7 @@ WEBSOCKETS = {
     "/ws/alerts": {"query": "berth_id, scenario_id, interval_s, limit", "server_messages": "Alert"},
     "/ws/sim/{session_id}": {"query": "limit",
                              "client_messages": "SimTugCommandMessage | SimLineEventMessage | SimControlMessage",
-                             "server_messages": "SimFrame (10 Hz)"},
+                             "server_messages": "SimFrame (latest state; nominal 10 Hz at default dt)"},
     "/ws/telemetry": {"client_messages": "TelemetryRecord", "server_messages": "TelemetryAccepted"},
 }
 STREAM_MODELS = [EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, SimLineEventMessage, SimControlMessage,
@@ -68,6 +69,7 @@ STREAM_MODELS = [EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, Sim
 
 app = FastAPI(title="Mooring Assistant: Modeling API", version="1.0.0", description=DESCRIPTION,
               openapi_tags=TAGS, separate_input_output_schemas=False)
+app.add_middleware(Controls)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 

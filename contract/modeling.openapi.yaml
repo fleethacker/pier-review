@@ -1473,7 +1473,7 @@ paths:
     get:
       tags:
       - M11 Berthing simulator
-      summary: Frames from a batch run (1 Hz)
+      summary: Persisted frames and validity from a completed batch run
       operationId: series_api_v1_berthing_simulations__job_id__series_get
       parameters:
       - name: job_id
@@ -1867,6 +1867,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VersionInfo'
+  /api/v1/metrics:
+    get:
+      tags:
+      - System
+      summary: Single-process operational counters (authenticated when enabled)
+      operationId: metrics_snapshot_api_v1_metrics_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: number
+                type: object
+                title: Response Metrics Snapshot Api V1 Metrics Get
 components:
   schemas:
     AnalyzeRequest:
@@ -2276,11 +2292,13 @@ components:
           items:
             $ref: '#/components/schemas/TugCommand'
           type: array
+          maxItems: 1000
           title: Tug Commands
         line_events:
           items:
             $ref: '#/components/schemas/LineEvent'
           type: array
+          maxItems: 1000
           title: Line Events
         duration_s:
           type: number
@@ -2291,9 +2309,16 @@ components:
         dt_s:
           type: number
           maximum: 1.0
-          exclusiveMinimum: 0.0
+          minimum: 0.0001
           title: Dt S
           default: 0.1
+        sample_interval_s:
+          anyOf:
+          - type: number
+            minimum: 0.1
+          - type: 'null'
+          title: Sample Interval S
+          description: Output sampling only; defaults to 1 s.
         env_mode:
           type: string
           enum:
@@ -5909,6 +5934,14 @@ components:
       description: Ship pose and velocity in the berth frame. y_ft is the distance from the pier face to the centerline.
     SimFrame:
       properties:
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+        diagnostics:
+          anyOf:
+          - $ref: '#/components/schemas/SimulationDiagnostics'
+          - type: 'null'
         t_s:
           type: number
           title: T S
@@ -5963,6 +5996,20 @@ components:
       title: SimSeries
     SimSessionCreate:
       properties:
+        dt_s:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.0001
+          - type: 'null'
+          title: Dt S
+        duration_s:
+          anyOf:
+          - type: number
+            maximum: 7200.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Duration S
         scenario_id:
           type: string
           title: Scenario Id
@@ -5976,6 +6023,10 @@ components:
       title: SimSessionCreate
     SimSessionCreated:
       properties:
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
         session_id:
           type: string
           title: Session Id
@@ -5988,6 +6039,57 @@ components:
       - session_id
       - ws_url
       title: SimSessionCreated
+    SimulationDiagnostics:
+      properties:
+        parameter_set:
+          type: string
+          title: Parameter Set
+        qualification:
+          type: string
+          const: unqualified
+          title: Qualification
+          default: unqualified
+        integration_steps:
+          type: integer
+          title: Integration Steps
+        simulated_time_s:
+          type: number
+          title: Simulated Time S
+        initial_energy_ftlbf:
+          type: number
+          title: Initial Energy Ftlbf
+        final_energy_ftlbf:
+          type: number
+          title: Final Energy Ftlbf
+        applied_work_ftlbf:
+          type: number
+          title: Applied Work Ftlbf
+        dissipated_energy_ftlbf:
+          type: number
+          title: Dissipated Energy Ftlbf
+        line_event_energy_ftlbf:
+          type: number
+          title: Line Event Energy Ftlbf
+        energy_residual_ftlbf:
+          type: number
+          title: Energy Residual Ftlbf
+        integration_dt_s:
+          type: number
+          title: Integration Dt S
+      additionalProperties: false
+      type: object
+      required:
+      - parameter_set
+      - integration_steps
+      - simulated_time_s
+      - initial_energy_ftlbf
+      - final_energy_ftlbf
+      - applied_work_ftlbf
+      - dissipated_energy_ftlbf
+      - line_event_energy_ftlbf
+      - energy_residual_ftlbf
+      - integration_dt_s
+      title: SimulationDiagnostics
     SolverDiagnostics:
       properties:
         converged:
@@ -7335,6 +7437,14 @@ components:
     SimLineEventMessage:
       additionalProperties: false
       properties:
+        t_s:
+          anyOf:
+          - minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          description: Simulation time; absent schedules at the next integration boundary.
+          title: T S
         type:
           const: line_event
           title: Type
@@ -7359,6 +7469,14 @@ components:
       additionalProperties: false
       description: Client message on WS /ws/sim/{session_id}.
       properties:
+        t_s:
+          anyOf:
+          - minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          description: Simulation time; absent schedules at the next integration boundary.
+          title: T S
         type:
           const: tug_command
           title: Type
@@ -7418,7 +7536,7 @@ x-websockets:
   /ws/sim/{session_id}:
     query: limit
     client_messages: SimTugCommandMessage | SimLineEventMessage | SimControlMessage
-    server_messages: SimFrame (10 Hz)
+    server_messages: SimFrame (latest state; nominal 10 Hz at default dt)
   /ws/telemetry:
     client_messages: TelemetryRecord
     server_messages: TelemetryAccepted

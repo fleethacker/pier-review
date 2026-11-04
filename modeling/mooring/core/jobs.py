@@ -18,6 +18,7 @@ import asyncio
 import json
 import os
 import threading
+from contextvars import copy_context
 from collections.abc import AsyncIterator, Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -25,7 +26,7 @@ from datetime import datetime, timedelta
 
 from pydantic import BaseModel
 
-from . import store
+from . import store, access, metrics
 from .envelopes import new_id, utcnow
 from .schemas import JobAccepted, JobStatus
 
@@ -67,6 +68,8 @@ class JobContext:
     def check_cancelled(self) -> None:
         if self.cancelled:
             raise JobCancelled()
+        if self._job.deadline_s and self._job.started and (utcnow()-self._job.started).total_seconds()>self._job.deadline_s:
+            raise TimeoutError("job deadline exceeded")
 
 
 @dataclass
@@ -148,27 +151,32 @@ class JobStore:
     def submit(self, kind: str, result: BaseModel | dict | None = None, *, error: str | None = None,
                events: list[tuple[str, dict]] | None = None, job_id: str | None = None) -> JobAccepted:
         jid = job_id or new_id("job")
+        access.claim("job",jid)
         payload = result.model_dump(mode="json") if isinstance(result, BaseModel) else result
         self.jobs[jid] = Job(jid, kind, utcnow(), job_delay_s(), payload, error, events or [])
         return self._accepted(jid, kind)
 
     def active_count(self) -> int:
-        return sum(1 for j in self.jobs.values() if j.task and j.task_state not in TERMINAL)
+        return sum(1 for j in list(self.jobs.values()) if j.task and (j.task_state not in TERMINAL
+                   or (j.future is not None and not j.future.done())))
 
     def submit_task(self, kind: str, fn: Callable[[JobContext], BaseModel | dict | None], *, job_id: str | None = None,
                     deadline_s: float | None = None, on_done: Callable[[Job], None] | None = None) -> JobAccepted:
         """Queue `fn` and return immediately. Raises JobQueueFull when workers and queue are saturated."""
         with self._guard:
             if self.active_count() >= self.workers + self.queue_size:
+                metrics.add("queue_saturation")
                 raise JobQueueFull()
             if self._pool is None:
                 self._pool = ThreadPoolExecutor(max_workers=self.workers, thread_name_prefix="job")
             jid = job_id or new_id("job")
+            access.claim("job",jid)
             job = Job(jid, kind, utcnow(), task=True, deadline_s=deadline_s or self.default_deadline_s)
             job.on_done = on_done  # type: ignore[assignment]
             self.jobs[jid] = job
             self._persist(job)
-            job.future = self._pool.submit(self._run, job, fn)
+            job.future = self._pool.submit(copy_context().run, self._run, job, fn)
+            metrics.event("job_submitted",job_id=jid,kind=kind)
         return self._accepted(jid, kind)
 
     def _run(self, job: Job, fn: Callable[[JobContext], BaseModel | dict | None]) -> None:
@@ -197,6 +205,12 @@ class JobStore:
             callback, job.on_done = job.on_done, None
             job.completed_callbacks += 1
         self._persist(job)
+        metrics.add("jobs_"+state)
+        if state == "cancelled": metrics.add("cancellations")
+        duration = (job.finished-(job.started or job.created)).total_seconds()
+        metrics.add("job_duration_seconds",duration)
+        metrics.event("job_finished",job_id=job.job_id,state=state,duration_s=duration,
+                      result_id=(job.result or {}).get("result_id"))
         if callback:
             try:
                 callback(job)
@@ -278,6 +292,7 @@ class JobStore:
 
     # ---------- reading ----------
     def get(self, job_id: str) -> Job | None:
+        if not access.allowed("job",job_id): return None
         job = self.jobs.get(job_id) or self._from_db(job_id)
         if job is not None:
             self._check_deadline(job)

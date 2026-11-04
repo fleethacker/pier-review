@@ -53,3 +53,12 @@ def health():
 @router.get("/version", response_model=VersionInfo)
 def version():
     return VersionInfo(api_version="1.0.0", modules=BACKENDS)
+
+
+@router.get("/metrics", response_model=dict[str, float], summary="Single-process operational counters (authenticated when enabled)")
+def metrics_snapshot():
+    from mooring.core.metrics import snapshot
+    values=snapshot()
+    values["queue_depth"]=sum(j.task and j.task_state=="queued" for j in list(JOBS.jobs.values()))
+    values["active_jobs"]=JOBS.active_count()
+    return values

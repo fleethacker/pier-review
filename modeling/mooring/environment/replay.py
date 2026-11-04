@@ -43,6 +43,8 @@ class Record:
     gust_duration_s: float | None = None
     wind_reference_height_m: float | None = None
     source: str | None = None
+    current_depth_ft: float | None = None
+    current_bin: str | None = None
 
 
 @dataclass
@@ -71,8 +73,9 @@ def circular_lerp_deg(a: float, b: float, w: float) -> float:
 
 class ReplaySource:
     def __init__(self, raw: list[dict], *, max_gap_s: float = 1800.0, stale_after_s: float = 3600.0, datum_offset_ft: dict[str, float] | None = None,
-                 station: str = "replay"):
+                 station: str = "replay", source_kind: str = "replay", basis: str = "observation"):
         self.max_gap_s, self.stale_after_s, self.station = max_gap_s, stale_after_s, station
+        self.source_kind, self.basis = source_kind, basis
         self.report = ReplayReport()
         self.records = self._normalize(raw, datum_offset_ft or {})
 
@@ -98,7 +101,7 @@ class ReplaySource:
                     raise ReplayError(f"record at {t.isoformat()} is in datum {datum!r}; supply datum_offset_ft[{datum!r}] to convert to MLLW")
                 vals["water_level_ft"] = float(vals["water_level_ft"]) + offsets[datum]
             rec = Record(t, {k: float(v) for k, v in vals.items()}, quality, "MLLW", r.get("wind_averaging_s"), r.get("gust_duration_s"),
-                         r.get("wind_reference_height_m"), r.get("source"))
+                         r.get("wind_reference_height_m"), r.get("source"), r.get("current_depth_ft"), r.get("current_bin"))
             if t in out:
                 old = out[t]
                 if old.values == rec.values:
@@ -141,12 +144,13 @@ class ReplaySource:
             rec_meta, age = lo, (clock - lo.t).total_seconds()
         worst = min((lo, hi), key=lambda r: QUALITY_RANK[r.quality]).quality
         return EnvironmentSnapshot(
-            valid_at_utc=t, source="replay", wind_speed_kt=v["wind_speed_kt"], wind_gust_kt=max(v["wind_gust_kt"], v["wind_speed_kt"]),
+            valid_at_utc=t, source=self.source_kind, wind_speed_kt=v["wind_speed_kt"], wind_gust_kt=max(v["wind_gust_kt"], v["wind_speed_kt"]),
             wind_from_true_deg=v["wind_from_true_deg"] % 360, current_speed_kt=v["current_speed_kt"], current_set_true_deg=v["current_set_true_deg"] % 360,
             water_level_mllw_ft=v["water_level_ft"],
-            metadata=EnvironmentMetadata(basis="observation", source=rec_meta.source or self.station, issued_at_utc=lo.t, valid_from_utc=lo.t, valid_to_utc=hi.t,
+            metadata=EnvironmentMetadata(basis=self.basis, source=rec_meta.source or self.station, issued_at_utc=lo.t, valid_from_utc=lo.t, valid_to_utc=hi.t,
                                          wind_averaging_s=rec_meta.wind_averaging_s, gust_duration_s=rec_meta.gust_duration_s,
-                                         wind_reference_height_m=rec_meta.wind_reference_height_m, vertical_datum="MLLW", quality=worst, age_s=max(age, 0.0)))
+                                         wind_reference_height_m=rec_meta.wind_reference_height_m, vertical_datum="MLLW", quality=worst, age_s=max(age, 0.0),
+                                         current_depth_ft=rec_meta.current_depth_ft, current_bin=rec_meta.current_bin))
 
     def series(self, start: datetime, end: datetime, step: timedelta, *, now: datetime | None = None):
         """(time, snapshot | Unavailable) on a regular grid. Unavailable entries stay in place: gaps are never filled."""

@@ -6,6 +6,7 @@ Every channel accepts `limit` (close after N server messages; 0 = run until the 
 import asyncio
 from datetime import datetime, timedelta
 
+from mooring.environment.coops import ProviderError
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import TypeAdapter, ValidationError
 
@@ -42,7 +43,12 @@ async def ws_env(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", mode: st
                 elapsed = (datetime.now().astimezone() - started) * speed
                 snap = env.synthetic(replay_start + elapsed, "replay")
             else:
-                snap = env.now(berth_id)
+                try:
+                    snap = env.now(berth_id)
+                except ProviderError as e:   # documented provider failure: tell the client and close, never synthesize
+                    await ws.send_json({"error": e.kind, "detail": str(e)})
+                    await ws.close(code=1013)
+                    return
             await ws.send_json(snap.model_dump(mode="json"))
             sent += 1
             await asyncio.sleep(interval_s)

@@ -7,6 +7,20 @@ from pydantic import Field, model_validator
 
 from .common import Envelope, Model, Status, Validity
 from .mooring import FenderResult, LineTension
+from .motion import (
+    _require_qualified_motion,
+    MotionAlert,
+    MotionEnvironment,
+    MotionFenderState,
+    MotionFittingLoad,
+    MotionForces,
+    MotionLineState,
+    MotionProvenance,
+    MotionTugState,
+    ShipMotion,
+    SimLifecycle,
+    SimSamplingPolicy,
+)
 
 # ---------- M11 Berthing ----------
 
@@ -116,8 +130,11 @@ class TugState(Model):
 class SimFrame(Model):
     """One frame: a WS /ws/sim/{session_id} message, or one entry of a batch run's series."""
 
-    wire_omitted_defaults = {"validity": None, "diagnostics": None}
-    validity: Validity | None = None
+    wire_omitted_defaults = dict.fromkeys((
+        "schema_version", "sequence", "session_id", "run_id", "scene_id", "scene_revision", "motion",
+        "tug_states", "environment", "line_states", "fitting_loads", "fender_states", "forces", "validity",
+        "provenance", "structured_alerts", "diagnostics",
+    ))
     diagnostics: SimulationDiagnostics | None = None
 
     t_s: float
@@ -127,10 +144,92 @@ class SimFrame(Model):
     fenders: list[FenderResult]
     alerts: list[str]
 
+    schema_version: Literal["rm0-v1"] | None = None
+    sequence: int | None = Field(default=None, strict=True, ge=0,
+        description="Session-wide sequence, increasing across frames and lifecycle messages, including resets.")
+    session_id: str | None = None
+    run_id: str | None = Field(default=None, description="New run identifier on reset; t_s may then return to zero.")
+    scene_id: str | None = None
+    scene_revision: str | None = None
+    motion: ShipMotion | None = Field(default=None, description="Canonical RM0 axes; legacy pose remains unchanged.")
+    tug_states: list[MotionTugState] | None = Field(default=None, max_length=64)
+    environment: MotionEnvironment | None = None
+    line_states: list[MotionLineState] | None = Field(default=None, max_length=512)
+    fitting_loads: list[MotionFittingLoad] | None = Field(default=None, max_length=1024)
+    fender_states: list[MotionFenderState] | None = Field(default=None, max_length=512)
+    forces: MotionForces | None = None
+    validity: Validity | None = Field(default=None, description="Absent is unknown, never valid.")
+    provenance: MotionProvenance | None = None
+    structured_alerts: list[MotionAlert] | None = Field(default=None, max_length=256)
+
+    @model_validator(mode="after")
+    def motion_metadata_is_consistent(self):
+        if self.schema_version is not None and self.t_s < 0:
+            raise ValueError("RM0 simulation time must be nonnegative")
+        if (self.scene_id is None) != (self.scene_revision is None):
+            raise ValueError("scene_id and scene_revision must be supplied together")
+        if self.environment is not None and self.environment.t_s is not None and self.environment.t_s != self.t_s:
+            raise ValueError("environment.t_s must match the frame simulation time")
+        _require_qualified_motion(self, require_provenance=self.schema_version is not None)
+        return self
+
 
 class SimSeries(Model):
     job_id: str
     frames: list[SimFrame]
+
+
+class SimRecording(Model):
+    """Bounded display recording. Sequence gaps mean decimation, never missing physics integration steps."""
+
+    schema_version: Literal["rm0-v1"] = "rm0-v1"
+    recording_id: str = Field(min_length=1)
+    session_id: str = Field(min_length=1)
+    scene_id: str = Field(min_length=1)
+    scene_revision: str = Field(min_length=1)
+    duration_s: float | None = Field(default=None, ge=0, description="Recorded simulation duration, excluding paused wall time.")
+    sampling: SimSamplingPolicy
+    frames: list[SimFrame] = Field(min_length=1, max_length=10000)
+    lifecycle: list[SimLifecycle] = Field(default_factory=list, max_length=1000)
+    validity: Validity | None = None
+    provenance: MotionProvenance | None = None
+
+    @model_validator(mode="after")
+    def ordered_recording(self):
+        for frame in self.frames:
+            if frame.sequence is None or not frame.run_id or frame.schema_version != self.schema_version:
+                raise ValueError("recorded frames need schema_version, sequence and run_id")
+            if frame.session_id != self.session_id:
+                raise ValueError("recorded frame session_id does not match recording")
+            if (frame.scene_id, frame.scene_revision) != (self.scene_id, self.scene_revision):
+                raise ValueError("recorded frame scene reference does not match recording")
+        for event in self.lifecycle:
+            if event.session_id != self.session_id:
+                raise ValueError("lifecycle session_id does not match recording")
+            if event.scene_id is not None and (event.scene_id, event.scene_revision) != (self.scene_id, self.scene_revision):
+                raise ValueError("lifecycle scene reference does not match recording")
+        for messages in (self.frames, self.lifecycle):
+            if any(current.sequence <= previous.sequence for previous, current in zip(messages, messages[1:])):
+                raise ValueError("recording sequences must be strictly increasing")
+        messages = sorted([*self.frames, *self.lifecycle], key=lambda message: message.sequence)
+        sequences = [message.sequence for message in messages]
+        if len(sequences) != len(set(sequences)):
+            raise ValueError("frame and lifecycle sequences must be unique within a session")
+        times: dict[str, float] = {}
+        completed_runs: set[str] = set()
+        current_run = None
+        for message in messages:
+            if message.t_s < 0 or message.t_s < times.get(message.run_id, 0):
+                raise ValueError("simulation time must be nonnegative and monotonic within a run")
+            if current_run != message.run_id:
+                if message.run_id in completed_runs:
+                    raise ValueError("a recording cannot return to a previous run after reset")
+                if current_run is not None:
+                    completed_runs.add(current_run)
+                current_run = message.run_id
+            times[message.run_id] = message.t_s
+        _require_qualified_motion(self)
+        return self
 
 
 class SimSessionCreate(Model):
@@ -142,10 +241,13 @@ class SimSessionCreate(Model):
 
 
 class SimSessionCreated(Model):
-    wire_omitted_defaults = {"validity": None}
-    validity: Validity | None = None
+    wire_omitted_defaults = {"validity": None, "scene_url": None, "protocol": None}
+
     session_id: str
     ws_url: str
+    validity: Validity | None = None
+    scene_url: str | None = Field(default=None, description="Optional immutable SimScene resource; legacy sessions do not expose it.")
+    protocol: Literal["rm0-v1"] | None = Field(default=None, description="Present only when the session implements the RM0 stream protocol.")
 
 
 class SimTugCommandMessage(Model):

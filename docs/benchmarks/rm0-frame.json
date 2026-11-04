@@ -1,0 +1,30 @@
+{
+  "scope": "RM0 rich-frame schema validation and serialization only; no physics integration",
+  "hardware": {
+    "cpu": "Apple M2 Pro",
+    "logical_cpus": 12,
+    "machine": "arm64",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "python": "3.13.5"
+  },
+  "iterations": 2000,
+  "warmup_iterations": 20,
+  "fixture": "contract/examples/modeling/sim_frame.json",
+  "validation": {
+    "p50_us": 106.416,
+    "p95_us": 120.917
+  },
+  "serialization": {
+    "p50_us": 323.042,
+    "p95_us": 381.75
+  },
+  "compact_frame_bytes": 13823,
+  "published_file_bytes": {
+    "sim_scene.json": 7830,
+    "sim_frame.json": 22653,
+    "sim_recording_60s.json": 847360
+  },
+  "supported_integration_step_s": null,
+  "qualified_concurrent_sessions": null,
+  "limitation": "A serializer benchmark does not establish physics-step timing or real-time capacity."
+}

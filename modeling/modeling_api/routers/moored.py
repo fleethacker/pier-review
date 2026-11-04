@@ -62,14 +62,15 @@ def rules():
              summary="Monte Carlo probability of exceeding line limits (job; result is an ExceedanceResponse)")
 def exceedance(req: Annotated[ExceedanceRequest, Body(openapi_examples=ex("risk_exceedance"))]):
     check_analyze(req)
-    return JOBS.submit_task("risk.exceedance", lambda ctx: risk.exceedance(req))
+    risk.get_model(req.uncertainty_model_id)  # reject an unknown model now (422), not inside the job
+    return JOBS.submit_task("risk.exceedance", lambda ctx: risk.exceedance(req, ctx))
 
 
 @router.post("/risk/timeline", response_model=JobAccepted, status_code=202, tags=["M5 Risk"],
              summary="Plan status through the forecast (job; result is a TimelineResponse)")
 def timeline(req: Annotated[TimelineRequest, Body(openapi_examples=ex("risk_timeline"))]):
     check_analyze(req)
-    return JOBS.submit_task("risk.timeline", lambda ctx: risk.timeline(req))
+    return JOBS.submit_task("risk.timeline", lambda ctx: risk.timeline(req, ctx))
 
 
 # ---- M6 Holding tugs ----

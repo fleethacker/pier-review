@@ -4,8 +4,8 @@ from datetime import datetime
 
 from pydantic import Field
 
-from .common import Envelope, Model, Severity, Status
-from .environment import EnvironmentSnapshot
+from .common import Envelope, Finding, Model, Severity, Status
+from .environment import EnvironmentSnapshot, UncertaintyModel
 from .mooring import AnalyzeRequest
 
 
@@ -13,23 +13,53 @@ class ExceedanceRequest(AnalyzeRequest):
     horizon_hours: float = Field(default=6, gt=0, le=72)
     n_samples: int = Field(default=2000, ge=10, le=20000)
     seed: int | None = None
-    gust_dynamic_factor: float = Field(default=1.0, ge=1.0, le=2.0, description="Phase 1 stand-in for gust dynamics.")
+    gust_dynamic_factor: float = Field(
+        default=1.0, ge=1.0, le=2.0,
+        description="Force multiplier on the wind force, applied exactly once (the wind speed is scaled by its square root). "
+        "It does not touch current, and it is not a validated dynamic model.")
+    uncertainty_model_id: str | None = Field(default=None, description="Defaults to the synthetic demonstration model (unqualified).")
+    include_horizon: bool = Field(default=False, description="Also simulate time-correlated trajectories over horizon_hours.")
+    n_trajectories: int = Field(default=200, ge=10, le=2000)
+    horizon_step_min: int = Field(default=30, ge=6, le=180)
 
 
 class ElementRisk(Model):
     element_id: str
-    p_exceed_wll: float = Field(ge=0, le=1)
-    p_exceed_mbs: float = Field(ge=0, le=1)
-    tension_p50_lbf: float
+    p_exceed_wll: float = Field(ge=0, le=1, description="Probability the element's limit (WLL, or rated capacity for fittings) is exceeded, among valid samples.")
+    p_exceed_mbs: float | None = Field(default=None, ge=0, le=1, description="Lines only; null for fittings and fenders, which have no MBS.")
+    tension_p50_lbf: float = Field(description="Load (lbf) median among valid samples.")
     tension_p95_lbf: float
+    p_exceed_wll_ci95: list[float] | None = Field(default=None, description="95% Wilson interval on p_exceed_wll.")
+
+
+class HorizonRisk(Model):
+    """Probability of the event over the horizon, from correlated trajectories (not a combination of pointwise values)."""
+
+    event: str
+    n_trajectories: int
+    step_min: int
+    horizon_hours: float
+    p_event: float = Field(ge=0, le=1)
+    p_event_ci95: list[float]
+    n_failed: int
+    correlation_time_min: float
 
 
 class ExceedanceResult(Model):
-    n_samples: int
-    p_any_exceeds_wll: float = Field(ge=0, le=1)
+    n_samples: int = Field(description="Samples requested and run; never silently capped.")
+    p_any_exceeds_wll: float = Field(ge=0, le=1, description="Instantaneous probability (pointwise), among valid samples.")
     p_any_exceeds_mbs: float = Field(ge=0, le=1)
     elements: list[ElementRisk]
     governing_element: str
+    n_valid: int | None = None
+    n_failed: int | None = Field(default=None, description="Samples whose equilibrium solve failed; never dropped from the accounting.")
+    p_any_ci95: list[float] | None = Field(default=None, description="95% Wilson interval on p_any_exceeds_wll (valid samples).")
+    p_any_bounds: list[float] | None = Field(default=None, description="[exceedances / n, (exceedances + failed) / n]: bounds if every failed sample were safe / exceeding.")
+    seed: int | None = None
+    uncertainty_model: UncertaintyModel | None = None
+    pointwise_only: bool | None = Field(default=None, description="True when no horizon probability was computed.")
+    horizon: HorizonRisk | None = None
+    error_criterion: str | None = None
 
 
 class ExceedanceResponse(Envelope[ExceedanceResult]):
@@ -39,6 +69,8 @@ class ExceedanceResponse(Envelope[ExceedanceResult]):
 class TimelineRequest(AnalyzeRequest):
     forecast_hours: int = Field(default=48, ge=1, le=120)
     step_min: int = Field(default=30, ge=6, le=180)
+    start_utc: datetime | None = Field(default=None, description="First step time; defaults to the current hour (inject for reproducible runs).")
+    n_samples_per_step: int = Field(default=0, ge=0, le=2000, description="0 = deterministic utilization only, no probability.")
 
 
 class TimelineStep(Model):
@@ -46,8 +78,10 @@ class TimelineStep(Model):
     status: Status
     wind_speed_kt: float
     wind_gust_kt: float
-    p_any_exceeds_wll: float
+    p_any_exceeds_wll: float | None = Field(default=None, description="Null unless n_samples_per_step > 0; pointwise, not a horizon probability.")
     governing_element: str
+    max_pct_wll: float | None = None
+    valid: bool | None = None
 
 
 class TimelineResult(Model):
@@ -71,3 +105,5 @@ class Alert(Model):
     message: str
     env: EnvironmentSnapshot
     limit_wind_kt: float | None = None
+    stale: bool | None = Field(default=None, description="True when the environment snapshot is older than the freshness limit.")
+    provenance: str | None = Field(default=None, description="How the alert was computed (deterministic equilibrium vs probabilistic model).")

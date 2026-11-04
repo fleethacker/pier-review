@@ -3129,8 +3129,32 @@ components:
           maximum: 2.0
           minimum: 1.0
           title: Gust Dynamic Factor
-          description: Phase 1 stand-in for gust dynamics.
+          description: Force multiplier on the wind force, applied exactly once (the wind speed is scaled by its square root).
+            It does not touch current, and it is not a validated dynamic model.
           default: 1.0
+        uncertainty_model_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Uncertainty Model Id
+          description: Defaults to the synthetic demonstration model (unqualified).
+        include_horizon:
+          type: boolean
+          title: Include Horizon
+          description: Also simulate time-correlated trajectories over horizon_hours.
+          default: false
+        n_trajectories:
+          type: integer
+          maximum: 2000.0
+          minimum: 10.0
+          title: N Trajectories
+          default: 200
+        horizon_step_min:
+          type: integer
+          maximum: 180.0
+          minimum: 6.0
+          title: Horizon Step Min
+          default: 30
       additionalProperties: false
       type: object
       required:
@@ -6297,6 +6321,20 @@ components:
           minimum: 6.0
           title: Step Min
           default: 30
+        start_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Start Utc
+          description: First step time; defaults to the current hour (inject for reproducible runs).
+        n_samples_per_step:
+          type: integer
+          maximum: 2000.0
+          minimum: 0.0
+          title: N Samples Per Step
+          description: 0 = deterministic utilization only, no probability.
+          default: 0
       additionalProperties: false
       type: object
       required:
@@ -6941,6 +6979,20 @@ components:
           - type: 'null'
           default: null
           title: Limit Wind Kt
+        stale:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          description: True when the environment snapshot is older than the freshness limit.
+          title: Stale
+        provenance:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: How the alert was computed (deterministic equilibrium vs probabilistic model).
+          title: Provenance
       required:
       - alert_id
       - at_utc

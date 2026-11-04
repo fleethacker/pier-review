@@ -60,7 +60,14 @@ def berthing_plan(req: BerthingTugRequest) -> TugPlanResponse:
                                       message="The requested fleet cannot supply the full wrench; this is a completed RED result, not an error."))
     validity = Validity(state=state, reasons=reasons)
     base = worst(["GREEN" if plan.feasible else "RED", *(w.severity for w in findings)])
-    return envelope(TugPlanResponse, model="mooring.tugs.berthing", request=req, result=plan,
+    from mooring.core.envelopes import resolved_inputs_hash
+    from mooring.core.schemas import ManifestRecord, ResultManifest
+    manifest = ResultManifest(resolved_inputs_hash=resolved_inputs_hash({"request": req.model_dump(mode="json"), "ship": ship.model_dump(mode="json"),
+                                                                         "berth": berth.model_dump(mode="json"), "fleet": [t.model_dump(mode="json") for t in fleet]}),
+                              code_version=CODE, environment_hash=resolved_inputs_hash(req.environment),
+                              records=[ManifestRecord(kind="ship", id=ship.class_id), ManifestRecord(kind="berth", id=berth.berth_id),
+                                       *[ManifestRecord(kind="tug", id=t.tug_id) for t in fleet]])
+    return envelope(TugPlanResponse, model="mooring.tugs.berthing", request=req, result=plan, manifest=manifest,
                     status=status_with_validity(base, validity), warnings=findings, validity=validity, backend="real",
                     model_version="1.0.0",
                     assumptions=["No lines fast: tugs must cancel the whole static wind-and-current wrench (surge, sway, yaw) at the berthing heading.",

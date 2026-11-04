@@ -13,7 +13,7 @@ from mooring.core.schemas import AnalyzeRequest
 from mooring.examples import EXAMPLES
 from mooring.fixtures import breast_config, calm_env, synthetic_berth, synthetic_line_spec, synthetic_ship, tug
 from mooring.mechanics import Pose
-from mooring.moored import equilibrium as eq
+from mooring.mechanics import equilibrium as eq
 from mooring.moored import solver
 
 client = TestClient(app)

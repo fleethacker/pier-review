@@ -30,7 +30,7 @@ from mooring.environment import uncertainty as unc
 from mooring.mechanics import Pose
 from mooring.rules.nstm582 import design_factor
 
-from . import equilibrium as eq
+from mooring.mechanics import equilibrium as eq
 from . import solver
 from .envelopes_real import utilization
 

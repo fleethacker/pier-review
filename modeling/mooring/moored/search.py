@@ -28,7 +28,7 @@ from mooring.core.schemas import (
 from mooring.rules.nstm582 import MST_LIMITS, design_factor
 from mooring.templates import TEMPLATE
 
-from . import equilibrium as eq
+from mooring.mechanics import equilibrium as eq
 from . import solver
 from .envelopes_real import utilization
 

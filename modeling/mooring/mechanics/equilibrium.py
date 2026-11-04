@@ -1,4 +1,4 @@
-"""Quasi-static 3-DOF mooring equilibrium (S06).
+"""Quasi-static 3-DOF mooring equilibrium (S06), a shared mechanical evaluator (moored and berthing both use it).
 
 Unknowns: ship displacement (dx, dy) of the midships reference point in the berth frame and yaw dpsi (CCW). Heave, roll
 and pitch are not modeled; fitting heights are held at the water level at analysis time.
@@ -22,9 +22,9 @@ from mooring.core.schemas import (
     Berth, EnvironmentSnapshot, LineSpec, MooringConfig, MooringLine, ShipClass, TugAssignment,
 )
 from mooring.loads import compute_loads
-from mooring.mechanics import FenderModel, LineModel, Pose, ShipFrame, Wrench, force_wrench, init_line_model
-from mooring.mechanics.geometry import LineState, line_state
-from mooring.mechanics.pose import ZERO, force_wrench_at
+from . import FenderModel, LineModel, Pose, ShipFrame, Wrench, force_wrench, init_line_model
+from .geometry import LineState, line_state
+from .pose import ZERO, force_wrench_at
 
 FORCE_FLOOR_LBF = 1.0
 MOMENT_FLOOR_FTLBF = 1.0
@@ -401,3 +401,33 @@ def build_system(ship: ShipClass, berth: Berth, cfg: MooringConfig, specs: dict[
         trecs.append(TugRec(t, (pp.x_ft, y), ship_dir, berth_dir, pp.max_force_lbf))
     return System(ship=ship, berth=berth, cfg=cfg, env=env, loading=loading, use_gust=use_gust, frame=frame, lines=recs,
                   fenders=fenders, tugs=trecs, ref_len_ft=ship.lwl_ft, notes=notes)
+
+
+def utilization(system: System, pose: Pose, df: float) -> list[tuple[str, float, str]]:
+    """(element, percent of limit, mode) for every line, fitting and fender. Light: no rules, no result objects."""
+    out = []
+    tens = system.line_tensions(pose)
+    for rec, st, t in tens:
+        mbs = rec.model.mbs_eff_lbf
+        out.append((f"line-{rec.ln.line_number}", 100 * t / (mbs / df), "WLL"))
+        if t >= mbs:
+            out.append((f"line-{rec.ln.line_number}", 100 * t / mbs, "MBS"))
+    pier = {f.fitting_id: f for f in system.berth.fittings}
+    ship = {f.fitting_id: f for f in system.ship.fittings}
+    acc_p: dict[str, list[float]] = {}
+    acc_s: dict[str, list[float]] = {}
+    for rec, st, t in tens:
+        for acc, fid in ((acc_p, rec.ln.pier_fitting_id), (acc_s, rec.ln.ship_fitting_id)):
+            v = acc.setdefault(fid, [0.0, 0.0, 0.0])
+            v[0] += t * st.ux; v[1] += t * st.uy; v[2] += t * st.uz
+    for fid, v in acc_p.items():
+        out.append((fid, 100 * math.sqrt(sum(c * c for c in v)) / pier[fid].capacity_nominal_lbf, "fitting"))
+    for fid, v in acc_s.items():
+        if ship[fid].swl_lbf:
+            out.append((fid, 100 * math.sqrt(sum(c * c for c in v)) / ship[fid].swl_lbf, "fitting"))
+    for fr, d, _ in system.fender_loads(pose):
+        if fr.model.rated_energy_ftlbf:
+            out.append((fr.model.fender_id, 100 * fr.model.energy(d) / fr.model.rated_energy_ftlbf, "fender"))
+    return out
+
+

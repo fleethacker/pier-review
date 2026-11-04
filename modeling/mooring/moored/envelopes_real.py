@@ -26,38 +26,11 @@ from mooring.core.schemas import (
 from mooring.mechanics import Pose
 from mooring.rules.nstm582 import design_factor
 
-from . import equilibrium as eq
+from mooring.mechanics import equilibrium as eq
+from mooring.mechanics.equilibrium import utilization  # noqa: F401  (shared evaluator, re-exported)
 from .solver import MODEL, VERSION, solve_request
 
 FINE_STEP_MIN = 5.0
-
-
-def utilization(system: eq.System, pose: Pose, df: float) -> list[tuple[str, float, str]]:
-    """(element, percent of limit, mode) for every line, fitting and fender. Light: no rules, no result objects."""
-    out = []
-    tens = system.line_tensions(pose)
-    for rec, st, t in tens:
-        mbs = rec.model.mbs_eff_lbf
-        out.append((f"line-{rec.ln.line_number}", 100 * t / (mbs / df), "WLL"))
-        if t >= mbs:
-            out.append((f"line-{rec.ln.line_number}", 100 * t / mbs, "MBS"))
-    pier = {f.fitting_id: f for f in system.berth.fittings}
-    ship = {f.fitting_id: f for f in system.ship.fittings}
-    acc_p: dict[str, list[float]] = {}
-    acc_s: dict[str, list[float]] = {}
-    for rec, st, t in tens:
-        for acc, fid in ((acc_p, rec.ln.pier_fitting_id), (acc_s, rec.ln.ship_fitting_id)):
-            v = acc.setdefault(fid, [0.0, 0.0, 0.0])
-            v[0] += t * st.ux; v[1] += t * st.uy; v[2] += t * st.uz
-    for fid, v in acc_p.items():
-        out.append((fid, 100 * math.sqrt(sum(c * c for c in v)) / pier[fid].capacity_nominal_lbf, "fitting"))
-    for fid, v in acc_s.items():
-        if ship[fid].swl_lbf:
-            out.append((fid, 100 * math.sqrt(sum(c * c for c in v)) / ship[fid].swl_lbf, "fitting"))
-    for fr, d, _ in system.fender_loads(pose):
-        if fr.model.rated_energy_ftlbf:
-            out.append((fr.model.fender_id, 100 * fr.model.energy(d) / fr.model.rated_energy_ftlbf, "fender"))
-    return out
 
 
 def _evaluate(system: eq.System, start: Pose, df: float):

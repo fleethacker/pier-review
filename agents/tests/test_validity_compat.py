@@ -65,3 +65,12 @@ def test_modeling_422_on_conflicting_inputs_surfaces_as_error():
     else:
         raise AssertionError("expected a 422")
     assert tk.last_call.error and tk.last_call.validity_state == "unknown"
+
+
+def test_sequence_review_status_reaches_the_safety_sheet():
+    from mooring_agents.safety.sheet import render_html
+    from mooring.core.schemas import SequenceResult
+    from mooring_agents.safety import schemas as S
+    seq = SequenceResult(steps=[], crews_required=4, review_status="draft_unreviewed", limitations=["Static check only."])
+    assert seq.review_status == "draft_unreviewed"
+    assert "sequence_review_status" in S.SafetySheet.model_fields and "sequence_limitations" in S.SafetySheet.model_fields

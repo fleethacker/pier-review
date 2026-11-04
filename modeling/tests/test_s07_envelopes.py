@@ -12,7 +12,7 @@ from mooring.core.schemas import AnalyzeRequest, LimitEnvelopeRequest, TideSweep
 from mooring.examples import EXAMPLES
 from mooring.mechanics import Pose
 from mooring.moored import envelopes_real as er
-from mooring.moored import equilibrium as eq
+from mooring.mechanics import equilibrium as eq
 from mooring.moored import solver
 
 client = TestClient(app)

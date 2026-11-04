@@ -31,7 +31,7 @@ def _util(system, pose, df):
 
 
 def hold_plan(req: HoldTugRequest) -> TugPlanResponse:
-    from mooring.moored import equilibrium as eq
+    from mooring.mechanics import equilibrium as eq
 
     base_req = AnalyzeRequest(**req.model_dump(exclude={"margin", "available_tug_ids"}))
     system, sol, specs = solver.solve_request(base_req)

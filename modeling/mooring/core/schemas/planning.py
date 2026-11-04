@@ -83,11 +83,35 @@ class SequenceStep(Model):
     trigger: str
     caution: str | None = None
     reference: str
+    depends_on: list[int] = Field(default_factory=list, description="Step numbers that must complete first.")
+    duration_min: float | None = Field(default=None, ge=0, description="Planning estimate, unreviewed.")
+    tug_ids: list[str] = Field(default_factory=list, description="Tugs this step relies on.")
+    state_ok: bool | None = Field(default=None, description="Static equilibrium with the lines fast after this step (null when not evaluated).")
+    state_max_pct: float | None = Field(default=None, description="Highest utilization of that intermediate state.")
+    state_note: str | None = None
+
+
+class SequenceIssue(Model):
+    code: str = Field(pattern=r"^[A-Z][A-Z0-9_]*$")
+    severity: Literal["AMBER", "RED"]
+    step: int | None = None
+    line_number: int | None = None
+    message: str
 
 
 class SequenceResult(Model):
     steps: list[SequenceStep]
     crews_required: int
+    issues: list[SequenceIssue] = Field(default_factory=list)
+    review_status: Literal["draft_unreviewed", "reviewed"] = Field(
+        default="draft_unreviewed", description="Generated sequences are drafts until a deck officer or pilot reviews them.")
+    timing_assumptions: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    total_duration_min: float | None = Field(default=None, description="Critical-path estimate from the unreviewed durations.")
+
+
+class SequenceValidateRequest(SequenceRequest):
+    steps: list[SequenceStep] = Field(min_length=1, description="A proposed sequence to check, in execution order.")
 
 
 class SequenceResponse(Envelope[SequenceResult]):

@@ -83,7 +83,7 @@ def test_sync_posts(name, path):
     assert r.status_code in (200, 201, 202), r.text
     body = r.json()
     if "result_id" in body:
-        real = path.startswith("/loads/") or path in ("/mooring/analyze", "/mooring/envelope", "/mooring/tide-sweep", "/tugs/berthing-plan", "/tugs/hold-plan", "/windows/berthing")
+        real = path.startswith("/loads/") or path in ("/mooring/analyze", "/mooring/envelope", "/mooring/tide-sweep", "/tugs/berthing-plan", "/tugs/hold-plan", "/windows/berthing", "/mooring/sequence")
         assert body["backend"] == ("real" if real else "mock")
         if real:
             assert body["validity"] is not None

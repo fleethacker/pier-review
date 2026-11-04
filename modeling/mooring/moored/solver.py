@@ -25,7 +25,7 @@ from mooring.loads.validity import classify_findings, merge_reasons, wind_basis
 from mooring.mechanics import Pose
 from mooring.rules.nstm582 import RULES, CheckContext, check_all, design_factor
 
-from . import equilibrium as eq
+from mooring.mechanics import equilibrium as eq
 
 MODEL = "mooring.solver.equilibrium"
 VERSION = "1.0.0"

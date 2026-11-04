@@ -150,6 +150,9 @@ class SafetySheet(Model):
     fitting_utilization: list[PierFittingResult]
     tug_plan: TugPlanResult | None
     sequence: list[SequenceStep]
+    sequence_review_status: str | None = Field(
+        default=None, description="Review state of the line-handling sequence from the modeling service; 'draft_unreviewed' until a deck officer or pilot reviews it.")
+    sequence_limitations: list[str] = Field(default_factory=list)
     go_no_go: list[GoNoGo]
     warnings: list[Finding]
     rationale: list[RationaleItem]

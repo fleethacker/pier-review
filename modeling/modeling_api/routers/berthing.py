@@ -14,6 +14,7 @@ from mooring.core.schemas import (
     JobAccepted,
     SequenceRequest,
     SequenceResponse,
+    SequenceValidateRequest,
     SimSeries,
     SimSessionCreate,
     SimSessionCreated,
@@ -47,6 +48,12 @@ def berthing_windows(req: Annotated[BerthingWindowRequest, Body(openapi_examples
              summary="Ordered line-handling steps for a configuration")
 def sequence(req: Annotated[SequenceRequest, Body(openapi_examples=ex("mooring_sequence"))]):
     return sequence_impl.sequence(req)
+
+
+@router.post("/mooring/sequence/validate", response_model=SequenceResponse, tags=["M7 Planning"],
+             summary="Check a proposed line-handling sequence: dependencies, crews, tug provenance and intermediate states")
+def sequence_validate(req: SequenceValidateRequest):
+    return sequence_impl.validate_sequence(req)
 
 
 # ---- M11 Berthing simulator ----

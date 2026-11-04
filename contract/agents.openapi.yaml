@@ -2210,6 +2210,18 @@ components:
             $ref: '#/components/schemas/SequenceStep'
           type: array
           title: Sequence
+        sequence_review_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sequence Review Status
+          description: Review state of the line-handling sequence from the modeling service; 'draft_unreviewed' until a deck
+            officer or pilot reviews it.
+        sequence_limitations:
+          items:
+            type: string
+          type: array
+          title: Sequence Limitations
         go_no_go:
           items:
             $ref: '#/components/schemas/GoNoGo'
@@ -2301,6 +2313,38 @@ components:
       - sheet_id
       - version
       title: SafetySheetCreated
+    SequenceIssue:
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+        severity:
+          type: string
+          enum:
+          - AMBER
+          - RED
+          title: Severity
+        step:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Step
+        line_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Line Number
+        message:
+          type: string
+          title: Message
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - severity
+      - message
+      title: SequenceIssue
     SequenceResult:
       properties:
         steps:
@@ -2311,6 +2355,35 @@ components:
         crews_required:
           type: integer
           title: Crews Required
+        issues:
+          items:
+            $ref: '#/components/schemas/SequenceIssue'
+          type: array
+          title: Issues
+        review_status:
+          type: string
+          enum:
+          - draft_unreviewed
+          - reviewed
+          title: Review Status
+          description: Generated sequences are drafts until a deck officer or pilot reviews them.
+          default: draft_unreviewed
+        timing_assumptions:
+          items:
+            type: string
+          type: array
+          title: Timing Assumptions
+        limitations:
+          items:
+            type: string
+          type: array
+          title: Limitations
+        total_duration_min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Total Duration Min
+          description: Critical-path estimate from the unreviewed durations.
       additionalProperties: false
       type: object
       required:
@@ -2360,6 +2433,42 @@ components:
         reference:
           type: string
           title: Reference
+        depends_on:
+          items:
+            type: integer
+          type: array
+          title: Depends On
+          description: Step numbers that must complete first.
+        duration_min:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Duration Min
+          description: Planning estimate, unreviewed.
+        tug_ids:
+          items:
+            type: string
+          type: array
+          title: Tug Ids
+          description: Tugs this step relies on.
+        state_ok:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: State Ok
+          description: Static equilibrium with the lines fast after this step (null when not evaluated).
+        state_max_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: State Max Pct
+          description: Highest utilization of that intermediate state.
+        state_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State Note
       additionalProperties: false
       type: object
       required:

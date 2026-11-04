@@ -11,7 +11,7 @@ from modeling_api.main import app
 from mooring.core.schemas import EnvironmentSnapshot, MooringConfig, MooringLine
 from mooring.examples import EXAMPLES
 from mooring.fixtures import calm_env, synthetic_berth, synthetic_line_spec, synthetic_ship
-from mooring.moored import equilibrium as eq
+from mooring.mechanics import equilibrium as eq
 from mooring.moored import search as S
 from mooring.moored.envelopes_real import utilization
 from mooring.rules.nstm582 import design_factor

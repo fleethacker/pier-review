@@ -122,12 +122,3 @@ class PhysicsToolkit:
 
     async def windows(self, body: dict) -> BerthingWindowsResponse:
         return await self._run("berthing_windows", body, self.client.windows(body))
-
-
-def summarize(value: Any) -> str:
-    """Serialize tool data as data, never as prompt instructions."""
-    import json
-
-    if hasattr(value, "model_dump"):
-        value = value.model_dump(mode="json")
-    return "<physics_data>\n" + json.dumps(value, sort_keys=True, default=str) + "\n</physics_data>"

@@ -205,9 +205,11 @@ def test_malformed_and_disallowed_moves_are_refused(setup, monkeypatch, call):
     client.analyze_fn = lambda b: ("RED", 110)
     monkeypatch.setattr(agent, "get_llm", lambda: FakeLLM(call))
     rec = run(tk)
-    assert rec.plan.status == "RED" and rec.plan.config == client.cfg
+    assert rec.plan.status == "RED" and rec.plan.config == client.cfg  # doubling didn't help: best is kept
     assert any("refused" in q for q in rec.plan.open_questions)
-    assert len(client.requests) == 1
+    assert len(client.requests) == 2  # one deterministic fallback adjustment was evaluated
+    assert client.requests[1]["config"]["lines"][0]["parts"] == 3
+    assert any("deterministic after model" in a for a in rec.plan.assumptions)
 
 
 @pytest.mark.parametrize("error", [TimeoutError("secret"), LLMError("secret"), ValueError("secret")])
@@ -236,7 +238,8 @@ def test_holding_tugs_survive_final_plan_and_what_if(setup, monkeypatch):
     client.analyze_fn = lambda b: ("GREEN", 40) if b["tugs"] else ("RED", 120)
     monkeypatch.setattr(agent, "get_llm", lambda: FakeLLM(move("hold_tugs")))
     rec = run(tk)
-    assert rec.plan.holding_tugs and rec.plan.status == "GREEN"
+    assert rec.plan.holding_tugs and rec.plan.status == "AMBER"  # relies on continuous tug support
+    assert any("holding tugs" in q for q in rec.plan.open_questions)
     asyncio.run(agent.answer(rec, "NW", tk))
     assert client.requests[-1]["tugs"] == rec.holding_tugs
     assert client.requests[-1]["environment"]["wind_gust_kt"] == client.env.wind_gust_kt
@@ -306,3 +309,74 @@ def test_move_cannot_exceed_available_inventory(setup, monkeypatch):
     rec = run(tk)
     assert rec.plan.config == client.cfg
     assert any("no spare line" in q for q in rec.plan.open_questions)
+
+
+# ---- Review fixes: fallback continues, tugs sized per condition, GREEN reachable with intake ----
+
+@pytest.mark.parametrize("error", [TimeoutError("secret"), LLMError("secret")])
+def test_provider_failure_continues_with_deterministic_adjustments(setup, monkeypatch, error):
+    client, tk = setup
+    client.analyze_fn = lambda b: ("AMBER", 95) if b["config"]["lines"][0]["parts"] == 1 else ("GREEN", 40)
+    monkeypatch.setattr(agent, "get_llm", lambda: FakeLLM(error=error))
+    rec = run(tk)
+    assert rec.plan.status == "GREEN" and rec.plan.config.lines[0].parts == 3
+    assert "LLM unavailable" in rec.plan.open_questions[0]
+    assert any("deterministic after provider unavailable" in a for a in rec.plan.assumptions)
+    assert "secret" not in rec.plan.model_dump_json()
+
+
+def test_refused_model_move_falls_back_and_can_still_resolve(setup, monkeypatch):
+    client, tk = setup
+    client.analyze_fn = lambda b: ("AMBER", 95) if b["config"]["lines"][0]["parts"] == 1 else ("GREEN", 40)
+    monkeypatch.setattr(agent, "get_llm", lambda: FakeLLM(move("compute_loads")))
+    rec = run(tk)
+    assert rec.plan.status == "GREEN" and rec.plan.config.lines[0].parts == 3
+    assert any("refused" in q for q in rec.plan.open_questions)
+
+
+def test_intake_plan_with_all_conditions_green_can_be_green(setup, monkeypatch):
+    client, tk = setup
+    monkeypatch.setitem(REPORTS, "intake", report_for(client))
+    client.analyze_fn = lambda b: ("GREEN", 40)
+    rec = run(tk, intake_report_id="intake")
+    assert rec.plan.status == "GREEN"
+    assert len(rec.plan.condition_analysis_result_ids) == 2
+
+
+def test_berthing_tugs_sized_for_most_demanding_condition(setup, monkeypatch):
+    client, tk = setup
+    monkeypatch.setitem(REPORTS, "intake", report_for(client))
+    seen = []
+
+    async def berthing_tugs(body):
+        gust = body["environment"]["wind_gust_kt"]
+        seen.append(gust)
+        result = envelope(TugPlanResponse, {"required_lateral_lbf": gust * 1000, "required_by_point": [],
+            "assignments": [], "total_bollard_pull_lbf": gust * 1500, "total_power_hp": gust * 100,
+            "recommended_tug_count": 2, "feasible": True, "rationale": []})
+        result.result_id = f"tugs-{gust:g}"
+        return result
+
+    client.berthing_tugs = berthing_tugs
+    rec = run(tk, intake_report_id="intake")
+    assert sorted(seen) == sorted([client.env.wind_gust_kt, 99])
+    assert rec.plan.tug_plan.required_lateral_lbf == 99_000
+    tug_cites = {c for item in rec.plan.rationale for c in item.cites if c.startswith("tugs-")}
+    assert tug_cites == {"tugs-99", f"tugs-{client.env.wind_gust_kt:g}"}
+
+
+def test_infeasible_tug_plan_for_any_condition_blocks_green(setup, monkeypatch):
+    client, tk = setup
+    monkeypatch.setitem(REPORTS, "intake", report_for(client))
+    original = client.berthing_tugs
+
+    async def berthing_tugs(body):
+        result = await original(body)
+        if body["environment"]["wind_gust_kt"] == 99:
+            result.result.feasible = False
+        return result
+
+    client.berthing_tugs = berthing_tugs
+    rec = run(tk, intake_report_id="intake")
+    assert rec.plan.status == "RED" and not rec.plan.tug_plan.feasible
+

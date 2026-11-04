@@ -81,8 +81,12 @@ still belongs to the modeling capability and must not be inferred from this agen
 
 The final status includes every analyzed condition, component/finding/warning, berthing-tug feasibility,
 sequence and risk response, plus intake MST and data-quality checks. Risk is evaluated for every planning
-condition. Berthing tugs/sequence currently cover the governing static condition only, so multi-condition
-plans remain at least AMBER with a review question. Unknown feasibility is not a proof of infeasibility.
+condition. Berthing tugs are sized for every planning condition and the most demanding one governs (an
+infeasible tug plan for any condition makes the plan RED); the sequence uses that governing tug plan. A plan
+that stays within limits only with holding tugs is capped at AMBER with an open question. If the provider
+fails or the model's response or adjustment is refused, the loop continues with deterministic adjustments
+(doubling up the governing line) and records the fallback in `assumptions`. Unknown feasibility is not a
+proof of infeasibility.
 
 Follow-ups retain holding assistance and direction-only requests retain gust speed. Speed what-ifs disclose
 the existing 1.3 gust multiplier as an assumption. The Safety reviewer re-analyzes with the same assistance.

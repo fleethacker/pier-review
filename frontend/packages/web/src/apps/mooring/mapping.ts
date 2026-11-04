@@ -32,6 +32,9 @@ export const IDS = {
   wind: 'wind',
   current: 'current',
   water: 'water-level',
+  pierEdge: 'pier-edge',
+  shipHalo: 'ship-halo',
+  shipShadow: 'ship-shadow',
 };
 
 /** One color per environment variable, shared by the canvas arrows and the data key so the two read as a pair. */
@@ -182,7 +185,27 @@ export function pierEntities(berth: Berth, analysis: AnalyzeResponse | null): Sc
       { label: 'Stiffness', value: fmt.lbfPerFt(f.stiffness_lbf_per_ft) },
     ],
   }));
-  return [deck, ...fittings, ...fenders];
+  // A thin lit strip along the pier edge makes the face read as a quay.
+  const edge: SceneEntity = {
+    id: IDS.pierEdge,
+    kind: 'pier-edge',
+    pose: { x: 0, y: 0, z: 0, headingDeg: 0 },
+    geometry: {
+      type: 'polygon',
+      points: [
+        [0, 0.05],
+        [ft(berth.face_length_ft), 0.05],
+        [ft(berth.face_length_ft), -0.7],
+        [0, -0.7],
+      ],
+      heightM: deckHeight + 0.14,
+    },
+    color: '#00e5ff',
+    opacity: 0.85,
+    noOutline: true,
+    selectable: false,
+  };
+  return [deck, edge, ...fittings, ...fenders];
 }
 
 interface Block {
@@ -320,7 +343,35 @@ export function shipEntities(
         ),
       };
     });
-  return [hull, ...superstructure(ship, pose, freeboard), ...fittings];
+  // On the water: a soft shadow under the hull, and a halo in the plan's overall status color.
+  const outline = hullPoints(ship.loa_ft, ship.beam_ft);
+  const grow = (pts: [number, number][], dx: number, dy: number, offX = 0, offY = 0): [number, number][] =>
+    pts.map(([x, y]) => [x + Math.sign(x) * dx + offX, y + Math.sign(y) * dy + offY]);
+  const away = side === 'starboard' ? 1 : -1; // ship +y points away from the pier when starboard side to
+  const halo: SceneEntity = {
+    id: IDS.shipHalo,
+    kind: 'ship-halo',
+    pose: { ...pose, z: 0.03 },
+    geometry: { type: 'polygon', points: grow(outline, 9, 8), heightM: 0 },
+    color: '#00e5ff',
+    status: statusOf(analysis?.status),
+    opacity: 0.26,
+    noOutline: true,
+    selectable: true,
+    selectsId: IDS.ship,
+  };
+  const shadow: SceneEntity = {
+    id: IDS.shipShadow,
+    kind: 'ship-shadow',
+    pose: { ...pose, z: 0.05 },
+    geometry: { type: 'polygon', points: grow(outline, 2.5, 2.5, 0, away * 2.5), heightM: 0 },
+    color: '#000000',
+    opacity: 0.42,
+    noOutline: true,
+    selectable: true,
+    selectsId: IDS.ship,
+  };
+  return [halo, shadow, hull, ...superstructure(ship, pose, freeboard), ...fittings];
 }
 
 export function lineLinks(
@@ -395,6 +446,8 @@ export function envVectors(frame: LocalFrame, env: Environment | null, center: {
       angleDeg: wAngle,
       lengthM: windLen,
       color: ENV_COLORS.wind,
+      // Streaks run faster than the real wind so they read on a 1 km scene; gusts make them surge.
+      flow: { mps: Math.max(4, env.wind_speed_kt * 0.514 * 2.5), gustiness: Math.min(Math.max(env.wind_gust_kt / Math.max(env.wind_speed_kt, 1) - 1, 0), 1) },
       label: `WIND ${fmt.kt(env.wind_speed_kt)}`,
     },
     {
@@ -404,6 +457,7 @@ export function envVectors(frame: LocalFrame, env: Environment | null, center: {
       angleDeg: cAngle,
       lengthM: curLen,
       color: ENV_COLORS.current,
+      flow: { mps: Math.max(1.5, env.current_speed_kt * 0.514 * 8) },
       label: `CURRENT ${env.current_speed_kt.toFixed(1)} kt`,
     },
   ];
@@ -477,6 +531,26 @@ export function tugScene(
         { label: 'Force', value: fmt.lbf(a.force_lbf) },
         { label: 'Direction', value: a.direction_true_deg == null ? 'n/a' : `${fmt.deg(a.direction_true_deg)} true` },
       ],
+    });
+    entities.push({
+      id: `wake:${a.tug_id}:${a.push_point_id}`,
+      kind: 'wake',
+      pose: { x, y, z: 0.06, headingDeg: heading },
+      geometry: {
+        type: 'polygon',
+        points: [
+          [-TUG_LENGTH_M / 2, -TUG_BEAM_M / 2],
+          [-TUG_LENGTH_M / 2, TUG_BEAM_M / 2],
+          [-TUG_LENGTH_M / 2 - 42, TUG_BEAM_M * 1.9],
+          [-TUG_LENGTH_M / 2 - 42, -TUG_BEAM_M * 1.9],
+        ],
+        heightM: 0,
+      },
+      color: '#ffffff',
+      opacity: 0.2,
+      noOutline: true,
+      selectable: true,
+      selectsId: `tug:${a.tug_id}:${a.push_point_id}`,
     });
     if (a.direction_true_deg == null) continue;
     const angle = bearingToLocalAngle(frame, a.direction_true_deg);

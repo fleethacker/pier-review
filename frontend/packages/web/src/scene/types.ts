@@ -50,6 +50,8 @@ export interface SceneEntity {
   label?: string;
   /** Draw the label all the time, not only on hover or selection (point entities). */
   labelAlways?: boolean;
+  /** Skip the dark outline; for translucent decoration such as shadows, halos and wakes. */
+  noOutline?: boolean;
   pose: Pose;
   geometry: Geometry;
   /** CSS color. When `status` is set it overrides the fill. */
@@ -93,6 +95,8 @@ export interface SceneVector {
   lengthM: number;
   label?: string;
   color?: string;
+  /** When set, the shell also streams animated particles along the arrow's direction across the scene. */
+  flow?: { mps: number; /** 0 = steady; 0.3 = speed swings by about +-15%. */ gustiness?: number };
 }
 
 export type Selection = { type: 'entity' | 'link'; id: string } | null;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { entityToFrame } from '../../scene/geometry';
 import * as mapping from './mapping';
-import { buildScene, envReadouts, envVectors, hullPoints, shipEntities, shipPose } from './mapping';
+import { buildScene, envReadouts, envVectors, hullPoints, pierEntities, shipEntities, shipPose } from './mapping';
 import { ft } from './units';
 import type { Berth, ShipClass } from './types';
 
@@ -61,14 +61,16 @@ describe('ship placement', () => {
 
   it('only shows bitts on the side that faces the pier', () => {
     const s = shipEntities(ship, 'full_load', 'starboard', 650, 12, null, true, berth);
-    expect(s.map((e) => e.id).filter((id) => !id.startsWith('ship-part'))).toEqual(['ship', 'sfit:BITT-1S']);
+    expect(s.map((e) => e.id).filter((id) => !id.startsWith('ship-part') && !id.startsWith('ship-'))).toEqual(['ship', 'sfit:BITT-1S']);
     const p = shipEntities(ship, 'full_load', 'port', 650, 12, null, true, berth);
-    expect(p.map((e) => e.id).filter((id) => !id.startsWith('ship-part'))).toEqual(['ship', 'sfit:BITT-1P']);
+    expect(p.map((e) => e.id).filter((id) => !id.startsWith('ship-part') && !id.startsWith('ship-'))).toEqual(['ship', 'sfit:BITT-1P']);
   });
 
   it('is only draggable when the class has fittings to moor with', () => {
-    expect(shipEntities(ship, 'full_load', 'starboard', 650, 12, null, true, berth)[0].editable).toBeDefined();
-    expect(shipEntities(ship, 'full_load', 'starboard', 650, 12, null, false, berth)[0].editable).toBeUndefined();
+    const hullOf = (editable: boolean) =>
+      shipEntities(ship, 'full_load', 'starboard', 650, 12, null, editable, berth).find((e) => e.id === 'ship')!;
+    expect(hullOf(true).editable).toBeDefined();
+    expect(hullOf(false).editable).toBeUndefined();
   });
 
   it('builds a hull that spans LOA and beam', () => {
@@ -146,8 +148,8 @@ describe('tugScene', () => {
       [{ tug_id: 'T1', push_point_id: 'PP-FWD-P', mode: 'push', force_lbf: 36000, direction_true_deg: 195 }],
       frame,
     );
-    expect(out.entities).toHaveLength(1);
-    const tug = out.entities[0];
+    const tug = out.entities.find((e) => e.kind === 'tug')!;
+    expect(out.entities.filter((e) => e.kind === 'wake')).toHaveLength(1);
     // Port side is the water side; the ship centerline is at y = 42 ft, so the tug sits further into the water.
     expect(tug.pose.y).toBeGreaterThan(ft(42 + 30));
     expect(tug.pose.x).toBeCloseTo(ft(650 + 150));
@@ -165,7 +167,7 @@ describe('tugScene', () => {
       ],
       frame,
     );
-    expect(out.entities.map((e) => e.label)).toEqual(['T2']);
+    expect(out.entities.filter((e) => e.kind === 'tug').map((e) => e.label)).toEqual(['T2']);
     expect(out.vectors).toEqual([]);
   });
 });
@@ -220,5 +222,36 @@ describe('superstructure', () => {
     expect(up.selectable).toBe(false);
     expect(envReadouts({ water_level_mllw_ft: -0.5 } as never, { x: 0, y: 0 })[0].label).toBe('WATER LEVEL -0.5 ft');
     expect(envReadouts(null, { x: 0, y: 0 })).toEqual([]);
+  });
+});
+
+describe('visual effects data', () => {
+  it('gives wind and current a flow, faster for stronger wind, with gust surge', () => {
+    const frame = { lonDeg: 0, latDeg: 0, xBearingTrueDeg: 90 };
+    const mk = (wind: number, gust: number) =>
+      envVectors(frame, { wind_from_true_deg: 0, wind_speed_kt: wind, wind_gust_kt: gust, current_speed_kt: 1, current_set_true_deg: 0 } as never, { x: 0, y: 0 });
+    const [calm, , ] = mk(5, 5);
+    const [strong, current] = mk(30, 45);
+    expect(strong.flow!.mps).toBeGreaterThan(calm.flow!.mps);
+    expect(calm.flow!.gustiness).toBe(0);
+    expect(strong.flow!.gustiness).toBeCloseTo(0.5);
+    expect(current.flow!.mps).toBeGreaterThan(0);
+  });
+
+  it('puts a status-colored halo and a shadow under the ship that stand in for the ship when clicked', () => {
+    const s = shipEntities(ship, 'full_load', 'starboard', 650, 12, { status: 'RED', result: { lines: [], ship_fittings: [] } } as never, true, berth);
+    const halo = s.find((e) => e.id === 'ship-halo')!;
+    const shadow = s.find((e) => e.id === 'ship-shadow')!;
+    expect(halo.status).toBe('RED');
+    expect(halo.selectsId).toBe('ship');
+    expect(shadow.selectsId).toBe('ship');
+    expect(halo.pose.z).toBeLessThan(shadow.pose.z);
+    expect(s.findIndex((e) => e.id === 'ship-halo')).toBeLessThan(s.findIndex((e) => e.id === 'ship'));
+  });
+
+  it('lights the pier edge', () => {
+    const edge = pierEntities(berth, null).find((e) => e.id === 'pier-edge')!;
+    expect(edge.selectable).toBe(false);
+    expect(edge.noOutline).toBe(true);
   });
 });

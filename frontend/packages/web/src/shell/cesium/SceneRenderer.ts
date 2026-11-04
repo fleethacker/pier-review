@@ -4,6 +4,7 @@ import { constrainMove, entityToFrame, resolveAnchor, sceneBounds } from '../../
 import type { SceneStore } from '../../scene/store';
 import type { SceneEdit, SceneEntity, SceneLink, SceneState, SceneVector } from '../../scene/types';
 import { COLORS, STATUS_COLOR, colorFor } from '../theme';
+import { SceneEffects } from './effects';
 import { FrameTransform } from './frameTransform';
 import { ViewController } from './viewController';
 
@@ -22,6 +23,7 @@ interface Drag {
 /** Draws a SceneStore with Cesium and turns pointer input into selection, drags and camera moves. */
 export class SceneRenderer {
   readonly view: ViewController;
+  private effects: SceneEffects;
   private viewer: Cesium.Viewer;
   private tf: FrameTransform | null = null;
   private cache = new Map<string, { src: unknown; entity: Cesium.Entity; geomSig: string }>();
@@ -60,6 +62,7 @@ export class SceneRenderer {
       contextOptions: { webgl: { preserveDrawingBuffer: true } },
     });
     this.view = new ViewController(this.viewer.camera);
+    this.effects = new SceneEffects(this.viewer, container);
 
     this.configureScene();
     this.installInput();
@@ -118,6 +121,7 @@ export class SceneRenderer {
   dispose(): void {
     this.disposed = true;
     this.unsubscribe();
+    this.effects.dispose();
     this.store.capture = () => null;
     this.viewer.destroy();
   }
@@ -152,6 +156,7 @@ export class SceneRenderer {
     if (state.frame && (!prev || prev.frame !== state.frame)) {
       this.tf = new FrameTransform(state.frame);
       this.view.setFrame(this.tf);
+      this.effects.setFrame(this.tf);
       this.clearEntities();
     }
     if (!state.frame || !this.tf) {
@@ -183,6 +188,7 @@ export class SceneRenderer {
       const cached = this.cache.get(key);
       if (!cached || cached.src !== v) this.upsert(key, v, this.renderVector(v));
     }
+    if (!prev || prev.vectors !== state.vectors) this.effects.setVectors(Object.values(state.vectors));
     for (const key of [...this.cache.keys()]) {
       if (!seen.has(key)) {
         this.viewer.entities.remove(this.cache.get(key)!.entity);
@@ -205,7 +211,9 @@ export class SceneRenderer {
   private fit(state: SceneState): void {
     const canvas = this.viewer.scene.canvas;
     const aspect = canvas.clientWidth / Math.max(canvas.clientHeight, 1);
-    this.view.fit(sceneBounds(Object.values(state.entities)), aspect);
+    const bounds = sceneBounds(Object.values(state.entities));
+    this.effects.setBounds(bounds);
+    this.view.fit(bounds, aspect);
     this.view.setMode(state.viewMode);
     this.onViewChange();
   }
@@ -273,7 +281,7 @@ export class SceneRenderer {
         height: e.pose.z,
         extrudedHeight: e.geometry.heightM > 0 ? e.pose.z + e.geometry.heightM : undefined,
         material: fill,
-        outline: true,
+        outline: !e.noOutline,
         outlineColor: outline,
         outlineWidth: 2,
       };
@@ -318,11 +326,24 @@ export class SceneRenderer {
     const b = resolveAnchor(l.to, state.entities);
     if (!a || !b) return {};
     const color = css(colorFor(l.status, l.color ?? '#c9d6e6'));
+    // Sag like a real line: a shallow curve, never dipping below the water. Over-limit lines pulse.
+    const horiz = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const midZ = (a[2] + b[2]) / 2;
+    const sag = Math.max(Math.min(0.04 * horiz, 3.5, midZ - 0.5), 0);
+    const SAMPLES = 14;
+    const positions = Array.from({ length: SAMPLES }, (_, i) => {
+      const t = i / (SAMPLES - 1);
+      return tf.toWorld(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t - sag * 4 * t * (1 - t));
+    });
+    const pulsing = this.effects.animated && l.status === 'RED';
+    const glowColor = pulsing
+      ? new Cesium.CallbackProperty(() => color.withAlpha(0.5 + 0.5 * this.effects.pulse), false)
+      : color;
     const options: Cesium.Entity.ConstructorOptions = {
       polyline: {
-        positions: [tf.toWorld(...a), tf.toWorld(...b)],
-        width: (l.widthPx ?? 3) + (selected ? 3 : 0),
-        material: selected ? new Cesium.PolylineGlowMaterialProperty({ color, glowPower: 0.4 }) : color,
+        positions,
+        width: (l.widthPx ?? 3) + 5 + (selected ? 3 : 0),
+        material: new Cesium.PolylineGlowMaterialProperty({ color: glowColor, glowPower: selected ? 0.4 : pulsing ? 0.35 : 0.22 }),
         arcType: Cesium.ArcType.NONE,
       },
     };

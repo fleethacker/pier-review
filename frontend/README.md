@@ -37,7 +37,14 @@ to the agents service (set `MODELING_PROXY_TARGET` and `AGENTS_PROXY_TARGET` in 
 `http://localhost:8000` and `:8001`). REST is under `/api/v1`, WebSockets under `/ws`. Set `VITE_MODELING_URL` or
 `VITE_AGENTS_URL` to an absolute URL to bypass the proxy.
 
-No tokens are needed. The 2D and 3D views are drawn from the berth data itself, with no imagery.
+No tokens are needed. The 2D and 3D views are drawn from the berth data itself.
+
+Optional look-and-feel: set `VITE_MAPBOX_TOKEN` (a public `pk.` token) when building to put Mapbox satellite imagery
+under the scene. Vite bakes it into the bundle, so it must be present at build time (on Domino, as a user or project
+environment variable, since `app.sh` builds in the app container). Without it, or if Mapbox rejects it, the scene falls
+back to the drawn water. Water ripples, wind and current streaks and pulsing over-limit lines are always on, and are
+switched off for users who ask their system for reduced motion. The layout drawn on the imagery is the mock Pier 12,
+not the real pier underneath it.
 
 Other scripts in `packages/web`: `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`, and
 `npm run types` (regenerates `src/api/*.d.ts` from `../../contract/`; commit the result when `contract/` changes).

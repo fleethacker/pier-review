@@ -4,11 +4,12 @@ import { useScene } from '../scene/store';
 
 export function ViewControls({ store, upBearingDeg }: { store: SceneStore; upBearingDeg: number }) {
   const mode = useScene(store, (s) => s.viewMode);
+  const lighting = useScene(store, (s) => s.lighting);
   const btn = (active: boolean) =>
     cn(
       'h-8 px-3 font-mono text-[11px] uppercase tracking-wider border transition-colors',
       active
-        ? 'border-mil-cyan/60 bg-mil-cyan/20 text-mil-cyan'
+        ? 'border-mil-cyan/60 bg-mil-cyan/20 text-mil-cyan shadow-glow-cyan'
         : 'border-mil-border bg-mil-panel/80 text-mil-text hover:text-white',
     );
   return (
@@ -22,6 +23,14 @@ export function ViewControls({ store, upBearingDeg }: { store: SceneStore; upBea
         </button>
         <button className={cn(btn(false), 'ml-2')} onClick={() => store.requestFit()} title="Fit scene to window">
           Fit
+        </button>
+        <button
+          className={cn(btn(false), 'ml-2')}
+          onClick={() => store.setLighting(lighting === 'night' ? 'day' : 'night')}
+          aria-pressed={lighting === 'day'}
+          title="Switch between night and day lighting"
+        >
+          {lighting === 'night' ? 'Day' : 'Night'}
         </button>
       </div>
       <Compass bearingDeg={upBearingDeg} />

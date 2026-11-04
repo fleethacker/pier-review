@@ -1,7 +1,7 @@
 import * as Cesium from 'cesium';
 import { FlowField, flowSpeed } from '../../scene/flow';
 import type { Bounds } from '../../scene/geometry';
-import type { SceneVector } from '../../scene/types';
+import type { Lighting, SceneVector } from '../../scene/types';
 import type { FrameTransform } from './frameTransform';
 
 const css = (c: string) => Cesium.Color.fromCssColorString(c);
@@ -60,6 +60,7 @@ export class SceneEffects {
   private last = 0;
   private disposed = false;
   private removeTileListener: (() => void) | null = null;
+  private lighting: Lighting = 'night';
 
   constructor(
     private viewer: Cesium.Viewer,
@@ -68,6 +69,42 @@ export class SceneEffects {
     this.animated = !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
     viewer.scene.primitives.add(this.lines);
     this.addImagery(container);
+    this.setLighting('night');
+  }
+
+  /**
+   * Night is the dark HUD look with bloom, so lit things glow. Day lifts the imagery to near natural and eases the
+   * glow off, for bright rooms and projectors.
+   */
+  setLighting(mode: Lighting): void {
+    this.lighting = mode;
+    const day = mode === 'day';
+    const scene = this.viewer.scene;
+    if (this.imagery) {
+      this.imagery.brightness = day ? 1.0 : 0.62;
+      this.imagery.contrast = day ? 1.05 : 1.15;
+      this.imagery.saturation = day ? 1.0 : 0.8;
+    }
+    scene.backgroundColor = Cesium.Color.fromCssColorString(day ? '#8fb4d4' : '#0a1628');
+    const bloom = scene.postProcessStages.bloom;
+    bloom.enabled = !day;
+    bloom.uniforms.glowOnly = false;
+    bloom.uniforms.contrast = 128;
+    bloom.uniforms.brightness = -0.55; // high threshold: only the lit accents glow, not the grey pier or imagery
+    bloom.uniforms.delta = 0.9;
+    bloom.uniforms.sigma = 2;
+    bloom.uniforms.stepSize = 1;
+    this.applyWaterLook();
+    scene.requestRender();
+  }
+
+  private applyWaterLook(): void {
+    const u = this.waterMaterial?.uniforms;
+    if (!u) return;
+    const day = this.lighting === 'day';
+    u.deep = css(day ? '#1d6f9f' : '#0a2a48');
+    u.shallow = css(day ? '#4ba3cf' : '#1f6a9a');
+    u.baseAlpha = this.imagery ? (day ? 0.05 : 0.1) : 1;
   }
 
   // ---- imagery -------------------------------------------------------------------------------------------
@@ -152,6 +189,7 @@ export class SceneEffects {
       },
     });
     this.waterMaterial = material;
+    this.applyWaterLook();
     this.water = this.viewer.scene.primitives.add(
       new Cesium.Primitive({
         geometryInstances: new Cesium.GeometryInstance({

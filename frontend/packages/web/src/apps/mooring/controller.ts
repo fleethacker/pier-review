@@ -33,6 +33,7 @@ import type {
   TugSpec,
 } from './types';
 import { ft, subscribeUnits, toFt } from './units';
+import type { BerthSite } from './world';
 
 export interface Candidate {
   config: { lines: MooringLine[]; ship_x_ft: number };
@@ -106,6 +107,8 @@ export interface MooringState {
   error: string | null;
   ships: ShipClassSummary[];
   berths: BerthSummary[];
+  /** Where each berth is, for the world map. Filled from the berth details after startup. */
+  berthSites: BerthSite[];
   lineSpecs: LineSpec[];
   tugs: TugSpec[];
   scenarios: Scenario[];
@@ -145,6 +148,7 @@ const INITIAL: MooringState = {
   error: null,
   ships: [],
   berths: [],
+  berthSites: [],
   lineSpecs: [],
   tugs: [],
   scenarios: [],
@@ -236,12 +240,27 @@ export class MooringController {
         addLine: { ...this.s.addLine, specId: lineSpecs[0]?.spec_id ?? '' },
       });
       await this.loadSelection({ recommend: true });
+      void this.loadBerthSites(berths.map((b) => b.berth_id));
       this.refreshScenarioList().catch(() => undefined);
       this.startAlerts();
       this.state.set({ phase: 'ready' });
     } catch (e) {
       this.state.set({ phase: 'error', error: message(e) });
     }
+  }
+
+  /** Positions of every berth. A berth that fails to load is left off the map; it stays in the list. */
+  private async loadBerthSites(ids: string[]): Promise<void> {
+    const sites = await Promise.all(
+      ids.map((id) =>
+        modeling
+          .GET('/api/v1/berths/{berth_id}', { params: { path: { berth_id: id } } })
+          .then(unwrap)
+          .then((b): BerthSite => ({ berthId: b.berth_id, name: b.name, lat: b.origin_lat, lon: b.origin_lon }))
+          .catch(() => null),
+      ),
+    );
+    if (!this.disposed) this.state.set({ berthSites: sites.filter((s): s is BerthSite => s !== null) });
   }
 
   /** Reload berth, ship and environment for the current selection, redraw everything, optionally recommend lines. */

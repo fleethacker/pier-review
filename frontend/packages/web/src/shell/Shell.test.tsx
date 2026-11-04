@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearApps, registerApp } from '../scene/app';
 import { SceneStore } from '../scene/store';
@@ -67,5 +67,16 @@ describe('Shell layout', () => {
     await waitFor(() => expect(store.getState().viewMode).toBe('3d'));
     screen.getByRole('button', { name: /^2d$/i }).click();
     await waitFor(() => expect(store.getState().viewMode).toBe('2d'));
+  });
+
+  it('toggles night and day lighting through the store', async () => {
+    registerTestApp();
+    const store = new SceneStore();
+    render(<Shell store={store} />);
+    await waitFor(() => expect(screen.getByText('sidebar content')).toBeTruthy());
+    expect(store.getState().lighting).toBe('night');
+    fireEvent.click(screen.getByRole('button', { name: 'Day' }));
+    expect(store.getState().lighting).toBe('day');
+    expect(screen.getByRole('button', { name: 'Night' })).toBeTruthy();
   });
 });

@@ -101,6 +101,7 @@ export interface SceneVector {
 
 export type Selection = { type: 'entity' | 'link'; id: string } | null;
 export type ViewMode = '2d' | '3d';
+export type Lighting = 'day' | 'night';
 
 export interface SceneContent {
   frame: LocalFrame;
@@ -116,6 +117,7 @@ export interface SceneState {
   vectors: Record<string, SceneVector>;
   selection: Selection;
   viewMode: ViewMode;
+  lighting: Lighting;
   /** Incremented whenever the content is replaced; the shell refits the camera when it changes. */
   contentRevision: number;
   /** Incremented to ask the shell to refit the camera to the current content. */

@@ -61,7 +61,8 @@ export class SceneRenderer {
       maximumRenderTimeChange: Infinity,
       contextOptions: { webgl: { preserveDrawingBuffer: true } },
     });
-    this.view = new ViewController(this.viewer.camera);
+    this.view = new ViewController(this.viewer.camera, () => this.viewer.scene.requestRender());
+    if (!(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) this.view.playIntro();
     this.effects = new SceneEffects(this.viewer, container);
 
     this.configureScene();
@@ -157,6 +158,7 @@ export class SceneRenderer {
       this.tf = new FrameTransform(state.frame);
       this.view.setFrame(this.tf);
       this.effects.setFrame(this.tf);
+      if (prev?.frame && !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) this.view.playIntro();
       this.clearEntities();
     }
     if (!state.frame || !this.tf) {
@@ -201,6 +203,7 @@ export class SceneRenderer {
       this.lastFitRevision = state.fitRevision;
       this.fit(state);
     }
+    if (!prev || prev.lighting !== state.lighting) this.effects.setLighting(state.lighting);
     if (!prev || prev.viewMode !== state.viewMode) {
       this.view.setMode(state.viewMode);
       this.onViewChange();

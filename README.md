@@ -4,9 +4,10 @@ Mooring assistant for FLEETHACKER Norfolk 2026. It plans safe moorings, tug assi
 current and tide, and produces a Mooring Evolution Safety Sheet. The plan, phases and module list are in
 [docs/PLAN.md](docs/PLAN.md).
 
-> **Everything runs on mock backends today.** Responses have the right shape and units, and line geometry and
-> NSTM 582 rule checks are real, but loads and agent decisions are placeholders. Every response carries
-> `"backend": "mock"` and an `X-Mooring-Backend: mock` header.
+> **Mostly mock today.** Real: environmental loads (UFC 4-159-03), line geometry, NSTM 582 rule checks and the
+> Physics agent's logged tool gateway. Everything else (mooring load sharing, risk, tugs, optimizer, simulations,
+> agent decisions) is placeholder logic with the right shape. Every envelope carries `"backend": "mock"` or
+> `"real"`; `GET /version` on each service lists module status.
 
 ## Layout
 

@@ -20,7 +20,8 @@ from mooring.core.schemas import (
     TelemetryRecord,
 )
 
-from .routers import approach, berthing, env, loads, mooring, refdata as refdata_router, risk, system, telemetry, tugs
+from .routers import approach, berthing, env, loads, moored, refdata as refdata_router, system, telemetry
+from .backend import overall_backend
 from .state import API_PREFIX
 from .ws import router as ws_router
 
@@ -39,8 +40,9 @@ TAGS = [
 ]
 
 DESCRIPTION = """
-Physics and ML modeling service for the mooring assistant. **All modules currently run on mock backends**
-(check `backend` in every response envelope and the `X-Mooring-Backend` header).
+Physics and ML modeling service for the mooring assistant. **Most modules still run on mock backends.**
+Environmental loads (M3, UFC 4-159-03) and reference data are real; `GET /version` lists each module's status.
+Check `backend` in every response envelope; the `X-Mooring-Backend` header is `mixed` while some modules are mock.
 
 Conventions: unit-suffixed field names (`_kt`, `_ft`, `_lbf`, `_deg`, `_utc`); wind direction is where it blows
 FROM, current direction is where it flows TOWARD; long-running endpoints return `202` with a job (poll
@@ -67,7 +69,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 @app.middleware("http")
 async def backend_header(request: Request, call_next):
     response = await call_next(request)
-    response.headers["X-Mooring-Backend"] = "mock"
+    response.headers["X-Mooring-Backend"] = overall_backend()
     return response
 
 
@@ -81,7 +83,7 @@ async def invalid_reference(_: Request, exc: refdata.InvalidReference):
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
-for r in (env, refdata_router, loads, mooring, risk, tugs, berthing, approach, telemetry, system):
+for r in (env, refdata_router, loads, moored, berthing, approach, telemetry, system):
     app.include_router(r.router, prefix=API_PREFIX)
 app.include_router(ws_router)
 

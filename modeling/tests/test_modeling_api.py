@@ -1,6 +1,7 @@
 """Contract tests for the modeling mock server: every endpoint answers with its declared schema."""
 
 import copy
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,7 +15,7 @@ from mooring.core.schemas import (
     RecommendResponse,
     TimelineResponse,
 )
-from mooring.mock.examples import EXAMPLES
+from mooring.examples import EXAMPLES
 
 P = "/api/v1"
 client = TestClient(app)
@@ -51,7 +52,7 @@ def finish(accepted: dict) -> dict:
 def test_gets(path):
     r = client.get(P + path)
     assert r.status_code == 200, r.text
-    assert r.headers["X-Mooring-Backend"] == "mock"
+    assert r.headers["X-Mooring-Backend"] == "mixed"  # M2 and M3 real, the rest mock
 
 
 SYNC_POSTS = {
@@ -77,7 +78,7 @@ def test_sync_posts(name, path):
     assert r.status_code in (200, 201, 202), r.text
     body = r.json()
     if "result_id" in body:
-        assert body["backend"] == "mock"
+        assert body["backend"] == ("real" if path.startswith("/loads/") else "mock")
         assert client.get(f"{P}/results/{body['result_id']}").status_code == 200
 
 
@@ -96,9 +97,26 @@ def test_jobs(name, path):
     assert "event: done" in text
 
 
-def test_berthing_batch_and_series():
+@pytest.mark.parametrize("hour", range(24))
+def test_berthing_batch_and_series(monkeypatch, hour):
+    from mooring.environment import mock as env_mock
+
+    monkeypatch.setattr(env_mock, "utcnow", lambda: datetime(2026, 11, 4, hour, tzinfo=UTC))
+    scenario = copy.deepcopy(EXAMPLES["scenario"])
+    berth = client.get(f"{P}/berths/{scenario['berth_id']}").json()
+    # Wind FROM the water side (berth +y) pushes onto the pier, independent of ship side-to.
+    env = client.post(f"{P}/env/scenarios", json={
+        "name": "Steady onto-pier berthing test", "kind": "steady",
+        "wind_speed_kt": 10, "wind_gust_kt": 10,
+        "wind_from_true_deg": (berth["face_bearing_true_deg"] + 270) % 360,
+        "current_speed_kt": 0,
+    })
+    assert env.status_code == 201, env.text
+    scenario["env_source"] = {"mode": "scenario", "env_scenario_id": env.json()["env_scenario_id"]}
+    saved = client.post(f"{P}/scenarios", json=scenario)
+    assert saved.status_code == 201, saved.text
     body = copy.deepcopy(EXAMPLES["berthing_simulate"])
-    body["scenario_id"] = scenario_id()
+    body["scenario_id"] = saved.json()["scenario_id"]
     r = client.post(f"{P}/berthing/simulate", json=body)
     assert r.status_code == 202, r.text
     result = finish(r.json())

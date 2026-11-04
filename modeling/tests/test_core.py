@@ -8,8 +8,8 @@ from pathlib import Path
 from mooring import refdata
 from mooring.core.geometry import line_geometry, ship_heading_true, ship_to_berth
 from mooring.core.schemas import AnalyzeRequest, MooringConfig
-from mooring.mock.examples import EXAMPLES
-from mooring.mock.mooring import solve
+from mooring.examples import EXAMPLES
+from mooring.moored.mock.solver import solve
 
 ROOT = Path(__file__).resolve().parents[2]
 DDG = refdata.ship("DDG-51-FIIA")
@@ -37,24 +37,24 @@ def test_breast_efficiency_is_cos_of_lead():
 
 
 def test_wind_load_scales_with_speed_squared():
-    from mooring.mock.forces import crude_loads
+    from mooring.loads import compute_loads
 
     base = AnalyzeRequest(**EXAMPLES["mooring_analyze"]).environment
-    f1 = crude_loads(DDG, "full_load", 105, base.model_copy(update={"wind_gust_kt": 20, "current_speed_kt": 0}), 45)
-    f2 = crude_loads(DDG, "full_load", 105, base.model_copy(update={"wind_gust_kt": 40, "current_speed_kt": 0}), 45)
+    f1 = compute_loads(DDG, "full_load", 105, base.model_copy(update={"wind_gust_kt": 20, "current_speed_kt": 0}), 45)
+    f2 = compute_loads(DDG, "full_load", 105, base.model_copy(update={"wind_gust_kt": 40, "current_speed_kt": 0}), 45)
     assert math.isclose(f2.wind.fy_lbf / f1.wind.fy_lbf, 4.0, rel_tol=1e-9)
 
 
 def test_seed_wind_areas_match_nstm_table_at_50kt():
-    """NSTM Table 582-3-1 50-kt loads; mock drag model must be within 10% at the beam."""
+    """NSTM Table 582-3-1 50-kt loads; calibrated UFC beam loads stay within 10%."""
     from mooring.core.schemas import EnvironmentSnapshot
-    from mooring.mock.forces import crude_loads
+    from mooring.loads import compute_loads
 
     targets = {"DDG-51-FIIA": 116_000, "CG-47": 224_000, "LHD-1": 421_000, "CVN-68": 459_000}
     env = EnvironmentSnapshot(wind_speed_kt=50, wind_gust_kt=50, wind_from_true_deg=90, current_speed_kt=0,
                               current_set_true_deg=0, water_level_mllw_ft=0)
     for cid, target in targets.items():
-        f = crude_loads(refdata.ship(cid), "full_load", 0, env, 50).wind.fy_lbf
+        f = compute_loads(refdata.ship(cid), "full_load", 0, env, 50).wind.fy_lbf
         assert abs(f - target) / target < 0.10, (cid, f)
 
 

@@ -1,10 +1,15 @@
-"""Swap point: which implementation serves each agent. Change an import when the LLM-backed agent lands."""
+"""Swap point: which implementation serves each agent. Change one import when an agent's real version lands."""
 
-from .mock import sheet, vision  # noqa: F401
+from .intake import agent as intake  # noqa: F401
 from .planner import agent as planner  # noqa: F401
+from .safety import mock as safety  # noqa: F401
+from .safety import sheet  # noqa: F401
+from .vision import mock as vision  # noqa: F401
 
 BACKENDS: dict[str, str] = {
-    "M8 berth vision": "mock",
-    "M9 planning agent": "OpenAI tool loop (deterministic fallback)",
-    "M10 safety sheet": "real assembly over mock inputs",
+    "Environment/Intake agent": "real (deterministic core, optional guarded LLM summary)",
+    "Physics/Load agent": "real (logged tool gateway; physics itself is mock in modeling/)",
+    "Planner agent (M9)": "real (guarded adjustments, deterministic fallback; modeling capabilities remain mixed)",
+    "Safety/Brief agent (M10)": "mock review and warnings; real sheet assembly",
+    "Berth Map agent (M8)": "mock",
 }

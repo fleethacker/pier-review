@@ -25,8 +25,9 @@ This repo holds the mooring assistant: `frontend/` (UI), `modeling/` (physics an
 | `ws-a` | Data and platform (M1, M2, M13, API skeleton) | `ws-a/noaa-replay-feed` |
 | `ws-b` | Physics core (M3, M4, rules) | `ws-b/ufc-wind-loads` |
 | `ws-c` | Risk and tugs (M5, M6) | `ws-c/gust-monte-carlo` |
-| `ws-d` | Planning (M7, in `modeling/`) and agents (M8–M10, in `agents/`) | `ws-d/safety-sheet-render` |
+| `ws-d` | Planning (M7, in `modeling/`) | `ws-d/optimizer-search` |
 | `ws-e` | Dynamics (M11, M12) | `ws-e/berthing-3dof` |
+| `agents` | Agent work in `agents/`; start the description with the agent name | `agents/planner-llm-loop` |
 | `ui` | UI work in `frontend/` | `ui/pier-canvas` |
 | `docs` | Documentation only | `docs/update-plan` |
 | `fix` | Bug fixes outside a workstream | `fix/env-timezone` |
@@ -67,7 +68,7 @@ If `dev` moves while your PR is open, update your branch with `git pull origin d
 - Tag a reviewer from each team that consumes the changed spec (UI for either spec; agents for `modeling.openapi.yaml`).
 - Adding fields is fine. Renaming or removing fields is a breaking change: discuss it with the team first.
 - Follow the conventions in [contract/README.md](contract/README.md) (units in field names, wind *from* / current *toward*, berth and ship frames).
-- `agents/` must reach physics only through the modeling API, never by importing `mooring` physics or mock code.
+- `agents/` must reach physics only through the Physics agent's `PhysicsToolkit` (which calls the modeling API), never by importing `mooring` physics or mock code. See [agents/README.md](agents/README.md) for the rules every agent follows.
 
 ## Releasing `dev` into `main`
 

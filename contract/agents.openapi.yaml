@@ -3,26 +3,38 @@ info:
   title: 'Mooring Assistant: Agents API'
   description: '
 
-    LLM agent service for the mooring assistant. Agents reach physics only through the modeling API
+    LLM agent service for the mooring assistant. Typical flow: `POST /intake/reports` → `POST /agent/plans`
 
-    (`contract/modeling.openapi.yaml`) and cite every number by `result_id`. **All agents currently run as mocks**
+    (with `intake_report_id`) → `POST /safety/reviews` → `POST /safety-sheets` → approvals, with
 
-    (deterministic, no LLM). Plan progress streams as Server-Sent Events: `step`, `proposal`, `message`, `done`.
+    `GET /safety/watch/{plan_id}` for live gust warnings. Agents reach physics only through the Physics agent
+
+    (`/tools`, `/physics/*`), which logs every call; every number in a plan cites a logged `result_id`.
+
+    **Mixed implementation:** Intake and Planner have guarded optional LLM layers; other agent and modeling
+
+    capabilities still include mocks. See `/version` for module status.
 
     '
-  version: 1.0.0
+  version: 1.1.0
 paths:
-  /api/v1/berth-vision/analyze:
+  /api/v1/intake/reports:
     post:
       tags:
-      - M8 Berth vision
-      summary: 'Analyze a berth image (multipart: image + metadata JSON). Job result is a VisionResponse.'
-      operationId: vision_analyze_api_v1_berth_vision_analyze_post
+      - Intake agent
+      summary: Assess the environment for a berth (job; result is an IntakeReport)
+      operationId: create_intake_report_api_v1_intake_reports_post
       requestBody:
         content:
-          multipart/form-data:
+          application/json:
             schema:
-              $ref: '#/components/schemas/Body_vision_analyze_api_v1_berth_vision_analyze_post'
+              $ref: '#/components/schemas/IntakeRequest'
+            examples:
+              default:
+                summary: Next 24 h for a saved scenario
+                value:
+                  scenario_id: <scenario_id from modeling POST /scenarios>
+                  horizon_hours: 24
         required: true
       responses:
         '202':
@@ -37,32 +49,105 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/berth-vision/{job_id}/confirm:
-    post:
+  /api/v1/intake/reports/{report_id}:
+    get:
       tags:
-      - M8 Berth vision
-      summary: Save the human-confirmed berth to the modeling service
-      operationId: vision_confirm_api_v1_berth_vision__job_id__confirm_post
+      - Intake agent
+      summary: Get Intake Report
+      operationId: get_intake_report_api_v1_intake_reports__report_id__get
       parameters:
-      - name: job_id
+      - name: report_id
         in: path
         required: true
         schema:
           type: string
-          title: Job Id
+          title: Report Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntakeReport'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tools:
+    get:
+      tags:
+      - Physics agent
+      summary: Physics tools agents may call
+      operationId: tools_api_v1_tools_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ToolSpec'
+                type: array
+                title: Response Tools Api V1 Tools Get
+  /api/v1/physics/tools/{tool_name}:
+    post:
+      tags:
+      - Physics agent
+      summary: Run one physics tool through the logged gateway
+      operationId: run_tool_api_v1_physics_tools__tool_name__post
+      parameters:
+      - name: tool_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tool Name
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VisionConfirm'
+              $ref: '#/components/schemas/ToolInvocation'
       responses:
-        '201':
+        '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BerthCreated'
+                $ref: '#/components/schemas/ToolCallResult'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/physics/calls:
+    get:
+      tags:
+      - Physics agent
+      summary: Tool-call ledger, optionally for one plan
+      operationId: list_calls_api_v1_physics_calls_get
+      parameters:
+      - name: plan_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Plan Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ToolCall'
+                title: Response List Calls Api V1 Physics Calls Get
         '422':
           description: Validation Error
           content:
@@ -72,8 +157,8 @@ paths:
   /api/v1/agent/plans:
     post:
       tags:
-      - M9 Planning agent
-      summary: Start the planning agent on a saved scenario
+      - Planner agent
+      summary: Start the planner on a saved scenario, optionally designing for an intake report
       operationId: create_plan_api_v1_agent_plans_post
       requestBody:
         content:
@@ -85,6 +170,7 @@ paths:
                 summary: Plan for a saved scenario
                 value:
                   scenario_id: <scenario_id from modeling POST /scenarios>
+                  intake_report_id: <optional report_id from POST /intake/reports>
                   objective: moor_for_forecast
                   target_margin_pct_wll: 80
         required: true
@@ -104,7 +190,7 @@ paths:
   /api/v1/agent/plans/{plan_id}:
     get:
       tags:
-      - M9 Planning agent
+      - Planner agent
       summary: Get Plan
       operationId: get_plan_api_v1_agent_plans__plan_id__get
       parameters:
@@ -130,7 +216,7 @@ paths:
   /api/v1/agent/plans/{plan_id}/events:
     get:
       tags:
-      - M9 Planning agent
+      - Planner agent
       summary: 'SSE: step (AgentStepEvent), proposal (AgentProposalEvent), message (AgentMessageEvent), done (AgentDoneEvent).
         follow=true keeps the stream open for follow-up answers.'
       operationId: plan_events_api_v1_agent_plans__plan_id__events_get
@@ -162,7 +248,7 @@ paths:
   /api/v1/agent/plans/{plan_id}/messages:
     post:
       tags:
-      - M9 Planning agent
+      - Planner agent
       summary: Ask a follow-up; the answer streams as a `message` event
       operationId: plan_message_api_v1_agent_plans__plan_id__messages_post
       parameters:
@@ -191,11 +277,106 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/safety/reviews:
+    post:
+      tags:
+      - Safety agent
+      summary: Independently review a finished plan (job; result is a SafetyReview)
+      operationId: create_review_api_v1_safety_reviews_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SafetyReviewRequest'
+            examples:
+              default:
+                summary: Review a plan
+                value:
+                  plan_id: <plan_id>
+                  intake_report_id: <optional report_id>
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/safety/reviews/{review_id}:
+    get:
+      tags:
+      - Safety agent
+      summary: Get Review
+      operationId: get_review_api_v1_safety_reviews__review_id__get
+      parameters:
+      - name: review_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Review Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SafetyReview'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/safety/watch/{plan_id}:
+    get:
+      tags:
+      - Safety agent
+      summary: 'SSE `warning` events (GustWarning): live gusts vs the plan''s working-load and breaking limits'
+      operationId: watch_api_v1_safety_watch__plan_id__get
+      parameters:
+      - name: plan_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Plan Id
+      - name: interval_s
+        in: query
+        required: false
+        schema:
+          type: number
+          default: 5.0
+          title: Interval S
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 0
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            text/event-stream: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/safety-sheets:
     post:
       tags:
-      - M10 Safety sheet
-      summary: Build a safety sheet from a finished plan
+      - Safety agent
+      summary: Build a safety sheet from a reviewed plan (runs a review if none is given)
       operationId: create_sheet_api_v1_safety_sheets_post
       requestBody:
         content:
@@ -219,7 +400,7 @@ paths:
   /api/v1/safety-sheets/{sheet_id}:
     get:
       tags:
-      - M10 Safety sheet
+      - Safety agent
       summary: Get Sheet
       operationId: get_sheet_api_v1_safety_sheets__sheet_id__get
       parameters:
@@ -245,7 +426,7 @@ paths:
   /api/v1/safety-sheets/{sheet_id}/render:
     get:
       tags:
-      - M10 Safety sheet
+      - Safety agent
       summary: Printable sheet. format=html now; pdf returns 501 until the renderer lands.
       operationId: render_sheet_api_v1_safety_sheets__sheet_id__render_get
       parameters:
@@ -278,7 +459,7 @@ paths:
   /api/v1/safety-sheets/{sheet_id}/approvals:
     post:
       tags:
-      - M10 Safety sheet
+      - Safety agent
       summary: Record an approval or rejection; the sheet locks on the first one
       operationId: approve_sheet_api_v1_safety_sheets__sheet_id__approvals_post
       parameters:
@@ -308,6 +489,63 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SafetySheet'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/berth-vision/analyze:
+    post:
+      tags:
+      - Berth map agent
+      summary: 'Analyze a berth image (multipart: image + metadata JSON). Job result is a VisionResponse.'
+      operationId: vision_analyze_api_v1_berth_vision_analyze_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_vision_analyze_api_v1_berth_vision_analyze_post'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/berth-vision/{job_id}/confirm:
+    post:
+      tags:
+      - Berth map agent
+      summary: Save the human-confirmed berth to the modeling service
+      operationId: vision_confirm_api_v1_berth_vision__job_id__confirm_post
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisionConfirm'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BerthCreated'
         '422':
           description: Validation Error
           content:
@@ -364,22 +602,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/tools:
-    get:
-      tags:
-      - System
-      summary: Modeling tools the agents may call
-      operationId: tools_api_v1_tools_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/ToolSpec'
-                type: array
-                title: Response Tools Api V1 Tools Get
   /api/v1/health:
     get:
       tags:
@@ -502,6 +724,18 @@ components:
           - type: string
           - type: 'null'
           title: Safety Sheet Id
+        holding_tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          title: Holding Tugs
+          description: Assistance included in final analyses.
+        condition_analysis_result_ids:
+          items:
+            type: string
+          type: array
+          title: Condition Analysis Result Ids
+          description: Final analysis for each required condition.
       additionalProperties: false
       type: object
       required:
@@ -537,7 +771,7 @@ components:
           - type: string
           - type: 'null'
           title: Intake Report Id
-          description: Design for this report's first condition.
+          description: Evaluate every planning condition in this report.
         objective:
           type: string
           enum:
@@ -713,6 +947,34 @@ components:
       required:
       - berth_id
       title: BerthCreated
+    BerthingWindow:
+      properties:
+        start_utc:
+          type: string
+          format: date-time
+          title: Start Utc
+        end_utc:
+          type: string
+          format: date-time
+          title: End Utc
+        max_current_kt:
+          type: number
+          title: Max Current Kt
+        max_gust_kt:
+          type: number
+          title: Max Gust Kt
+        required_power_hp:
+          type: number
+          title: Required Power Hp
+      additionalProperties: false
+      type: object
+      required:
+      - start_utc
+      - end_utc
+      - max_current_kt
+      - max_gust_kt
+      - required_power_hp
+      title: BerthingWindow
     Body_vision_analyze_api_v1_berth_vision_analyze_post:
       properties:
         image:
@@ -730,6 +992,127 @@ components:
       - image
       - metadata
       title: Body_vision_analyze_api_v1_berth_vision_analyze_post
+    CheckResult:
+      properties:
+        check_id:
+          type: string
+          title: Check Id
+          examples:
+          - CITES-IN-LEDGER
+        title:
+          type: string
+          title: Title
+        passed:
+          type: boolean
+          title: Passed
+        severity:
+          type: string
+          enum:
+          - INFO
+          - AMBER
+          - RED
+          title: Severity
+          description: Severity when the check fails (INFO when it passes).
+        detail:
+          type: string
+          title: Detail
+        cites:
+          items:
+            type: string
+          type: array
+          title: Cites
+      additionalProperties: false
+      type: object
+      required:
+      - check_id
+      - title
+      - passed
+      - severity
+      - detail
+      title: CheckResult
+    ConcernWindow:
+      properties:
+        start_utc:
+          type: string
+          format: date-time
+          title: Start Utc
+        end_utc:
+          type: string
+          format: date-time
+          title: End Utc
+        kind:
+          type: string
+          enum:
+          - gust
+          - sustained_wind
+          - current
+          - wind_shift
+          - data_gap
+          title: Kind
+        severity:
+          type: string
+          enum:
+          - INFO
+          - AMBER
+          - RED
+          title: Severity
+        peak_value:
+          type: number
+          title: Peak Value
+        unit:
+          type: string
+          enum:
+          - kt
+          - deg
+          - min
+          title: Unit
+        reason:
+          type: string
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - start_utc
+      - end_utc
+      - kind
+      - severity
+      - peak_value
+      - unit
+      - reason
+      title: ConcernWindow
+      description: A stretch of the horizon that matters for mooring.
+    DataQualityIssue:
+      properties:
+        station_id:
+          type: string
+          title: Station Id
+        issue:
+          type: string
+          enum:
+          - stale
+          - missing
+          - flagged
+          - out_of_range
+          - mock
+          title: Issue
+        severity:
+          type: string
+          enum:
+          - INFO
+          - AMBER
+          - RED
+          title: Severity
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - station_id
+      - issue
+      - severity
+      - detail
+      title: DataQualityIssue
     DepthPoint:
       properties:
         x_ft:
@@ -991,6 +1374,149 @@ components:
       - status
       - backend
       title: Health
+    IntakeReport:
+      properties:
+        report_id:
+          type: string
+          title: Report Id
+        created_at_utc:
+          type: string
+          format: date-time
+          title: Created At Utc
+        berth_id:
+          type: string
+          title: Berth Id
+        ship_class_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ship Class Id
+        side_to:
+          anyOf:
+          - type: string
+            enum:
+            - port
+            - starboard
+          - type: 'null'
+          title: Side To
+        horizon_hours:
+          type: integer
+          title: Horizon Hours
+        current:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        mst:
+          $ref: '#/components/schemas/MstAssessment'
+        windows:
+          items:
+            $ref: '#/components/schemas/ConcernWindow'
+          type: array
+          title: Windows
+        planning_conditions:
+          items:
+            $ref: '#/components/schemas/PlanningCondition'
+          type: array
+          title: Planning Conditions
+          description: Worst case first. The Planner designs for these.
+        berthing_windows:
+          items:
+            $ref: '#/components/schemas/BerthingWindow'
+          type: array
+          title: Berthing Windows
+        data_quality:
+          items:
+            $ref: '#/components/schemas/DataQualityIssue'
+          type: array
+          title: Data Quality
+        summary:
+          type: string
+          title: Summary
+        summary_source:
+          anyOf:
+          - type: string
+            enum:
+            - llm
+            - deterministic
+          - type: 'null'
+          title: Summary Source
+          description: Source of narration after the code-owned risk headline; null for legacy reports.
+        narration_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Narration Note
+          description: Sanitized fallback reason; null when narration succeeds.
+        tool_call_ids:
+          items:
+            type: string
+          type: array
+          title: Tool Call Ids
+          description: Ledger entries (GET /physics/calls) behind this report.
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+      additionalProperties: false
+      type: object
+      required:
+      - report_id
+      - created_at_utc
+      - berth_id
+      - ship_class_id
+      - side_to
+      - horizon_hours
+      - current
+      - mst
+      - windows
+      - planning_conditions
+      - berthing_windows
+      - data_quality
+      - summary
+      - tool_call_ids
+      - backend
+      title: IntakeReport
+    IntakeRequest:
+      properties:
+        scenario_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scenario Id
+          description: Takes berth, ship and side from the scenario.
+        berth_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Berth Id
+        ship_class_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ship Class Id
+        side_to:
+          anyOf:
+          - type: string
+            enum:
+            - port
+            - starboard
+          - type: 'null'
+          title: Side To
+        horizon_hours:
+          type: integer
+          maximum: 120.0
+          minimum: 1.0
+          title: Horizon Hours
+          default: 24
+        env_scenario_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Env Scenario Id
+          description: Use a synthetic environment instead of live data.
+      additionalProperties: false
+      type: object
+      title: IntakeRequest
     JobAccepted:
       properties:
         job_id:
@@ -1173,6 +1699,52 @@ components:
       - pier_fitting_id
       title: MooringLine
       description: One mooring line. Lines are numbered forward to aft (NSTM 582-4.2.1).
+    MstAssessment:
+      properties:
+        mst_required:
+          anyOf:
+          - type: string
+            enum:
+            - I
+            - II
+            - IIA
+            - III
+          - type: string
+            const: exceeds_III
+          title: Mst Required
+          description: Lowest Mooring Service Type whose limits cover the horizon.
+        ship_mst:
+          anyOf:
+          - type: string
+            enum:
+            - II
+            - IIA
+          - type: 'null'
+          title: Ship Mst
+        exceeds_ship_mst:
+          type: boolean
+          title: Exceeds Ship Mst
+        max_wind_kt:
+          type: number
+          title: Max Wind Kt
+        max_broadside_current_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Broadside Current Kt
+        reason:
+          type: string
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - mst_required
+      - ship_mst
+      - exceeds_ship_mst
+      - max_wind_kt
+      - max_broadside_current_kt
+      - reason
+      title: MstAssessment
     PierFitting:
       properties:
         fitting_id:
@@ -1272,6 +1844,26 @@ components:
       - lines
       - status
       title: PierFittingResult
+    PlanningCondition:
+      properties:
+        label:
+          type: string
+          title: Label
+          examples:
+          - Worst gust in horizon
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        why:
+          type: string
+          title: Why
+      additionalProperties: false
+      type: object
+      required:
+      - label
+      - environment
+      - why
+      title: PlanningCondition
+      description: An environment the Planner must design for, with why it was chosen.
     Provenance:
       properties:
         source:
@@ -1341,6 +1933,83 @@ components:
       - text
       - cites
       title: RationaleItem
+    SafetyReview:
+      properties:
+        review_id:
+          type: string
+          title: Review Id
+        plan_id:
+          type: string
+          title: Plan Id
+        created_at_utc:
+          type: string
+          format: date-time
+          title: Created At Utc
+        verdict:
+          type: string
+          enum:
+          - ready_for_signature
+          - revise
+          - reject
+          title: Verdict
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        checks:
+          items:
+            $ref: '#/components/schemas/CheckResult'
+          type: array
+          title: Checks
+        thresholds:
+          $ref: '#/components/schemas/Thresholds'
+        summary:
+          type: string
+          title: Summary
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+      additionalProperties: false
+      type: object
+      required:
+      - review_id
+      - plan_id
+      - created_at_utc
+      - verdict
+      - status
+      - checks
+      - thresholds
+      - summary
+      - backend
+      title: SafetyReview
+    SafetyReviewRequest:
+      properties:
+        plan_id:
+          type: string
+          title: Plan Id
+        intake_report_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Intake Report Id
+          description: Re-check against this report's conditions.
+        target_margin_pct_wll:
+          type: number
+          maximum: 100.0
+          exclusiveMinimum: 0.0
+          title: Target Margin Pct Wll
+          default: 80
+      additionalProperties: false
+      type: object
+      required:
+      - plan_id
+      title: SafetyReviewRequest
     SafetySheet:
       properties:
         sheet_id:
@@ -1352,6 +2021,11 @@ components:
         plan_id:
           type: string
           title: Plan Id
+        review_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Review Id
         locked:
           type: boolean
           title: Locked
@@ -1452,6 +2126,12 @@ components:
         plan_id:
           type: string
           title: Plan Id
+        review_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Review Id
+          description: Use this review; one is run if omitted.
       additionalProperties: false
       type: object
       required:
@@ -1671,6 +2351,144 @@ components:
       - station_id
       - age_s
       title: StationQuality
+    Thresholds:
+      properties:
+        wind_rel_deg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Wind Rel Deg
+          description: Worst relative wind direction from the limit envelope.
+        governing_element:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Governing Element
+        limit_wll_gust_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Limit Wll Gust Kt
+          description: Gust at which the first element reaches its working limit.
+        limit_breaking_gust_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Limit Breaking Gust Kt
+          description: Gust at which the first line reaches breaking strength.
+        forecast_max_gust_kt:
+          type: number
+          title: Forecast Max Gust Kt
+        cites:
+          items:
+            type: string
+          type: array
+          title: Cites
+      additionalProperties: false
+      type: object
+      required:
+      - wind_rel_deg
+      - governing_element
+      - limit_wll_gust_kt
+      - limit_breaking_gust_kt
+      - forecast_max_gust_kt
+      - cites
+      title: Thresholds
+      description: Wind limits for this plan. Breaking is estimated from the working-load limit and the design factor.
+    ToolCall:
+      properties:
+        call_id:
+          type: string
+          title: Call Id
+        at_utc:
+          type: string
+          format: date-time
+          title: At Utc
+        caller:
+          type: string
+          title: Caller
+        plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Plan Id
+        tool:
+          type: string
+          title: Tool
+        request_hash:
+          type: string
+          title: Request Hash
+        result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Result Id
+          description: Envelope result_id when the tool returns one.
+        status:
+          anyOf:
+          - type: string
+            enum:
+            - GREEN
+            - AMBER
+            - RED
+          - type: 'null'
+          title: Status
+        duration_ms:
+          type: number
+          title: Duration Ms
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+      additionalProperties: false
+      type: object
+      required:
+      - call_id
+      - at_utc
+      - caller
+      - plan_id
+      - tool
+      - request_hash
+      - result_id
+      - status
+      - duration_ms
+      title: ToolCall
+      description: One ledger entry. Safety uses the ledger to prove every cited number came from a recorded tool call.
+    ToolCallResult:
+      properties:
+        call:
+          $ref: '#/components/schemas/ToolCall'
+        output:
+          title: Output
+          description: The modeling endpoint's response body, unchanged.
+      additionalProperties: false
+      type: object
+      required:
+      - call
+      - output
+      title: ToolCallResult
+    ToolInvocation:
+      properties:
+        input:
+          additionalProperties: true
+          type: object
+          title: Input
+          description: Path params, query params or request body.
+        caller:
+          type: string
+          title: Caller
+          description: 'Who is calling: ''ui'', ''intake'', ''planner'', ''safety'', ...'
+          default: ui
+        plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Plan Id
+          description: Ties the call to a plan for audit.
+      additionalProperties: false
+      type: object
+      title: ToolInvocation
     ToolSpec:
       properties:
         name:
@@ -1681,17 +2499,25 @@ components:
           title: Description
         method:
           type: string
+          enum:
+          - GET
+          - POST
           title: Method
         path:
           type: string
           title: Path
-          description: Modeling service path under /api/v1.
+          description: Modeling path under /api/v1. {placeholders} are filled from the input.
         request_schema:
           anyOf:
           - type: string
           - type: 'null'
           title: Request Schema
           description: Component name in contract/modeling.openapi.yaml.
+        async_job:
+          type: boolean
+          title: Async Job
+          description: True when the endpoint returns a job the gateway polls.
+          default: false
       additionalProperties: false
       type: object
       required:
@@ -1914,6 +2740,43 @@ components:
       - result_id
       title: AgentStepEvent
       type: object
+    Detection:
+      additionalProperties: false
+      properties:
+        item_id:
+          title: Item Id
+          type: string
+        kind:
+          description: Pier fitting kind, 'fender', 'camel', 'pier_face' or 'obstruction'.
+          title: Kind
+          type: string
+        bbox_px:
+          description: '[x, y, width, height] in image pixels.'
+          maxItems: 4
+          minItems: 4
+          prefixItems:
+          - type: number
+          - type: number
+          - type: number
+          - type: number
+          title: Bbox Px
+          type: array
+        confidence:
+          maximum: 1
+          minimum: 0
+          title: Confidence
+          type: number
+        needs_confirmation:
+          title: Needs Confirmation
+          type: boolean
+      required:
+      - item_id
+      - kind
+      - bbox_px
+      - confidence
+      - needs_confirmation
+      title: Detection
+      type: object
     Georef:
       additionalProperties: false
       properties:
@@ -1959,6 +2822,64 @@ components:
       - lon
       title: GeorefPoint
       type: object
+    GustWarning:
+      additionalProperties: false
+      description: SSE `warning` event on GET /safety/watch/{plan_id}.
+      properties:
+        warning_id:
+          title: Warning Id
+          type: string
+        plan_id:
+          title: Plan Id
+          type: string
+        at_utc:
+          format: date-time
+          title: At Utc
+          type: string
+        severity:
+          enum:
+          - INFO
+          - AMBER
+          - RED
+          title: Severity
+          type: string
+        gust_kt:
+          title: Gust Kt
+          type: number
+        wind_from_true_deg:
+          title: Wind From True Deg
+          type: number
+        pct_of_wll_limit:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pct Of Wll Limit
+        pct_of_breaking_limit:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pct Of Breaking Limit
+        element_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Element Id
+        message:
+          title: Message
+          type: string
+      required:
+      - warning_id
+      - plan_id
+      - at_utc
+      - severity
+      - gust_kt
+      - wind_from_true_deg
+      - pct_of_wll_limit
+      - pct_of_breaking_limit
+      - element_id
+      - message
+      title: GustWarning
+      type: object
     VisionMetadata:
       additionalProperties: false
       description: Sent as the `metadata` form field (a JSON string) next to the `image` file.
@@ -2001,15 +2922,104 @@ components:
       - image_kind
       title: VisionMetadata
       type: object
+    VisionResponse:
+      additionalProperties: false
+      properties:
+        result_id:
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+          title: Result Id
+          type: string
+        model:
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+          title: Model
+          type: string
+        model_version:
+          title: Model Version
+          type: string
+        backend:
+          description: '''mock'' until the workstream''s real module lands.'
+          enum:
+          - mock
+          - real
+          title: Backend
+          type: string
+        inputs_hash:
+          description: sha256 of the canonical request JSON.
+          title: Inputs Hash
+          type: string
+        computed_at_utc:
+          format: date-time
+          title: Computed At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        assumptions:
+          items:
+            type: string
+          title: Assumptions
+          type: array
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          title: Warnings
+          type: array
+        result:
+          $ref: '#/components/schemas/VisionResult'
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: VisionResponse
+      type: object
+    VisionResult:
+      additionalProperties: false
+      properties:
+        draft_berth:
+          $ref: '#/components/schemas/Berth'
+        detections:
+          items:
+            $ref: '#/components/schemas/Detection'
+          title: Detections
+          type: array
+        recommended_config:
+          anyOf:
+          - $ref: '#/components/schemas/MooringConfig'
+          - type: 'null'
+        questions:
+          items:
+            type: string
+          title: Questions
+          type: array
+      required:
+      - draft_berth
+      - detections
+      - recommended_config
+      - questions
+      title: VisionResult
+      type: object
 tags:
-- name: M8 Berth vision
+- name: Intake agent
+  description: Environment data -> windows of concern, MST assessment, design conditions.
+- name: Physics agent
+  description: 'Logged gateway to modeling tools. No LLM, no math: modeling computes.'
+- name: Planner agent
+  description: Plan, evaluate, adjust loop over physics tools; streams progress.
+- name: Safety agent
+  description: Independent review, live gust warnings, Mooring Evolution Safety Sheet.
+- name: Berth map agent
   description: Image of a berth -> draft berth and line placement, human-confirmed.
-- name: M9 Planning agent
-  description: Plan, evaluate, adjust loop over modeling tools; streams progress.
-- name: M10 Safety sheet
-  description: Mooring Evolution Safety Sheet assembly, rendering and approvals.
 - name: System
-  description: Jobs, tool catalog, health.
+  description: Jobs, health.
 servers:
 - url: http://localhost:8001
   description: Local mock server

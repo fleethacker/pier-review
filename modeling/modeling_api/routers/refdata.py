@@ -14,7 +14,7 @@ from mooring.core.schemas import (
     ShipClassSummary,
     TugSpec,
 )
-from mooring.mock.examples import ex
+from mooring.examples import ex
 
 from ..backend import scenarios
 

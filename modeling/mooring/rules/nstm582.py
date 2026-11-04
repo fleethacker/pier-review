@@ -1,4 +1,4 @@
-"""NSTM 582 rule registry used by the compliance checker (module M4).
+"""NSTM 582 rule registry used by the compliance checker (module M4), plus UFC load-model validity rules.
 
 Rule IDs are stable: safety sheets cite them. Add a rule here with a test case. References are paragraph and
 table numbers only; do not paste NSTM text into this repo (Distribution Statement B).
@@ -60,6 +60,13 @@ RULES: list[Rule] = [
          reference="NSTM Table 582-2-3", applies_to="berthing", implemented=False),
     Rule(rule_id="FITTING-CONDITION", title="Don't use suspect, damaged or occupied fittings", severity="RED",
          reference="NSTM 582-2.3.1", applies_to="pier_fitting", implemented=True),
+    # Load-model validity (UFC 4-159-03), raised by mooring.loads.range_findings, not by NSTM checks.
+    Rule(rule_id="UFC-DEPTH-RANGE", title="Water depth at or below draft: current coefficient clamped at T/d = 1",
+         severity="AMBER", reference="UFC 4-159-03 Figure 4-9; Eq. 4-10", applies_to="environment", implemented=True),
+    Rule(rule_id="UFC-CURRENT-SPEED", title="Current above the 1.5 m/s range of the current-force coefficient",
+         severity="AMBER", reference="UFC 4-159-03 4-5.1", applies_to="environment", implemented=True),
+    Rule(rule_id="UFC-LOW-REYNOLDS", title="Very low current speed: friction Reynolds number floored",
+         severity="AMBER", reference="UFC 4-159-03 Eqs. 4-19/4-20", applies_to="environment", implemented=True),
 ]
 
 RULES_BY_ID = {r.rule_id: r for r in RULES}

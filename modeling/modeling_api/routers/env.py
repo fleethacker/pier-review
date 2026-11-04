@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Query
 
 from mooring.core.schemas import EnvironmentSnapshot, EnvScenario, EnvScenarioCreate, ForecastSeries, GustModel, HistorySeries
-from mooring.mock.examples import ex
+from mooring.examples import ex
 
 from ..backend import env as impl
 

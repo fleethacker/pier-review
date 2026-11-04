@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Body
 
 from mooring.core.schemas import TelemetryAccepted, TelemetryBatch
-from mooring.mock.examples import ex
+from mooring.examples import ex
 
 from ..backend import telemetry as impl
 

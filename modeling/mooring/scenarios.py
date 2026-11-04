@@ -3,8 +3,8 @@
 from mooring import refdata
 from mooring.core.schemas import EnvironmentSnapshot, Scenario, ScenarioCreate
 
-from . import environment
-from ._common import new_id, utcnow
+from mooring.environment import mock as environment
+from mooring.core.envelopes import new_id, utcnow
 
 _store: dict[str, Scenario] = {}
 

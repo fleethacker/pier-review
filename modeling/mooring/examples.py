@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from mooring import refdata
 from mooring.core.schemas import EnvironmentSnapshot
 
-from .planning import template_config
+from mooring.moored.mock.optimizer import template_config
 
 T0 = datetime(2026, 11, 4, 15, 48, tzinfo=UTC)
 SHIP = "DDG-51-FIIA"

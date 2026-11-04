@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from modeling_api.main import app as modeling_app
-from mooring.mock.examples import EXAMPLES
+from mooring.examples import EXAMPLES
 from mooring_agents.api.main import app, get_client
 from mooring_agents.clients import ModelingClient
 from mooring_agents.schemas import AgentPlan, SafetySheet

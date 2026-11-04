@@ -19,7 +19,7 @@ from mooring.core.schemas import (
     TimelineStep,
 )
 
-from mooring.environment import mock as environment
+from mooring import environment
 from mooring.core.envelopes import envelope, new_id, utcnow
 from .solver import solve
 

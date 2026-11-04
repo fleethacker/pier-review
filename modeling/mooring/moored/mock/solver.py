@@ -35,7 +35,7 @@ from mooring.core.schemas import (
 )
 from mooring.rules.nstm582 import RULES, CheckContext, check_all, design_factor
 
-from mooring.environment import mock as environment
+from mooring import environment
 from mooring.core.envelopes import envelope, status_from_pct, worst
 from mooring.loads import compute_loads, mean_draft_ft, off_pier, range_findings
 

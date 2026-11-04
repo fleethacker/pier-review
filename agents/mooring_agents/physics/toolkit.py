@@ -186,6 +186,9 @@ class PhysicsToolkit:
     async def berthing_tugs(self, body: dict) -> TugPlanResponse:
         return await self._typed("plan_tugs", body, TugPlanResponse)
 
+    async def hold_tugs(self, body: dict) -> TugPlanResponse:
+        return await self._typed("hold_tugs", body, TugPlanResponse)
+
     async def exceedance(self, body: dict) -> ExceedanceResponse:
         return await self._typed("risk_exceedance", body, ExceedanceResponse)
 

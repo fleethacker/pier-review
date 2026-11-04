@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 from mooring import refdata
-from mooring.core.envelopes import envelope
+from mooring.core.envelopes import envelope, worst
 from mooring.core.geometry import depth_at, ship_heading_true
 from mooring.core.schemas import (
     BerthingTugRequest,
@@ -15,7 +15,7 @@ from mooring.core.schemas import (
     TugPlanResponse,
 )
 from mooring.environment import mock as environment
-from mooring.loads import compute_loads, off_pier
+from mooring.loads import compute_loads, mean_draft_ft, off_pier, range_findings
 from mooring.tugs import size_tugs
 
 
@@ -30,8 +30,11 @@ def berthing_plan(req: BerthingTugRequest) -> TugPlanResponse:
                  f"give {abs(f_off):,.0f} lbf {'off' if f_off > 0 else 'onto'} the pier; "
                  f"{req.margin:.0%} margin added."]
     result = size_tugs(ship, required, f_off < 0, req.side_to, heading, req.available_tug_ids, rationale)
+    load_warnings, _ = range_findings(depth, mean_draft_ft(ship, req.loading), req.environment.current_speed_kt,
+                                      [loads.current.coefficients.get("reynolds", 0.0)])
     return envelope(TugPlanResponse, model="mooring.tugs.berthing", request=req, result=result,
-                    status="GREEN" if result.feasible else "RED",
+                    status=worst(["GREEN" if result.feasible else "RED", *(w.severity for w in load_warnings)]),
+                    warnings=load_warnings,
                     assumptions=["No lines fast: tugs carry the whole lateral load.",
                                  "Bollard pull from the fleet catalog; equal split fore and aft (yaw ignored)."])
 

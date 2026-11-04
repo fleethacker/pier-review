@@ -3,9 +3,11 @@ info:
   title: 'Mooring Assistant: Modeling API'
   description: '
 
-    Physics and ML modeling service for the mooring assistant. **All modules currently run on mock backends**
+    Physics and ML modeling service for the mooring assistant. **Most modules still run on mock backends.**
 
-    (check `backend` in every response envelope and the `X-Mooring-Backend` header).
+    Environmental loads (M3, UFC 4-159-03) and reference data are real; `GET /version` lists each module''s status.
+
+    Check `backend` in every response envelope; the `X-Mooring-Backend` header is `mixed` while some modules are mock.
 
 
     Conventions: unit-suffixed field names (`_kt`, `_ft`, `_lbf`, `_deg`, `_utc`); wind direction is where it blows
@@ -4707,6 +4709,35 @@ components:
           exclusiveMinimum: 0.0
           title: Hull Wind Area Lateral Ft2
           description: Hull-only part of the lateral area (UFC 4-159-03).
+        superstructure_height_ft:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Superstructure Height Ft
+          description: Superstructure height above the reference waterline; estimated from profile areas when absent.
+        midship_coefficient:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Midship Coefficient
+          description: Immersed midship area / (beam * draft); UFC Eq. 4-14.
+        propeller_expanded_area_ft2:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Propeller Expanded Area Ft2
+          description: Total expanded blade area; zero for no exposed propellers, estimated when absent.
+        wetted_surface_ft2:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Wetted Surface Ft2
+          description: Wetted surface at full_load; other loadings and missing values use UFC Eq. 4-18.
         wind_drag_class:
           type: string
           enum:

@@ -1,0 +1,397 @@
+{
+  "forecast": {
+    "berth_id": "NAVSTA-NORFOLK-P12-N",
+    "ship_class_id": "DDG-51-FIIA",
+    "side_to": "starboard",
+    "horizon_hours": 2,
+    "current": {
+      "valid_at_utc": "2026-11-04T12:00:00Z",
+      "source": "mock",
+      "wind_speed_kt": 64.0,
+      "wind_gust_kt": 64.0,
+      "wind_from_true_deg": 37.0,
+      "current_speed_kt": 2.0,
+      "current_set_true_deg": 127.0,
+      "water_level_mllw_ft": 0.0,
+      "tide_stage": null,
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "TEST",
+          "age_s": 1000.0,
+          "flags": [
+            "mock"
+          ]
+        }
+      ]
+    },
+    "mst": {
+      "mst_required": "II",
+      "ship_mst": "II",
+      "exceeds_ship_mst": false,
+      "max_wind_kt": 64.0,
+      "max_broadside_current_kt": 0.75,
+      "reason": "Max sustained 64 kt and broadside current 0.7 kt over 2 h fit MST II."
+    },
+    "windows": [
+      {
+        "start_utc": "2026-11-04T12:00:00Z",
+        "end_utc": "2026-11-04T12:00:00Z",
+        "kind": "gust",
+        "severity": "RED",
+        "peak_value": 64.0,
+        "unit": "kt",
+        "reason": "Gusts to 64 kt"
+      },
+      {
+        "start_utc": "2026-11-04T12:00:00Z",
+        "end_utc": "2026-11-04T12:00:00Z",
+        "kind": "sustained_wind",
+        "severity": "RED",
+        "peak_value": 64.0,
+        "unit": "kt",
+        "reason": "Sustained wind 64 kt, above MST I"
+      },
+      {
+        "start_utc": "2026-11-04T13:00:00Z",
+        "end_utc": "2026-11-04T14:00:00Z",
+        "kind": "wind_shift",
+        "severity": "AMBER",
+        "peak_value": 90.0,
+        "unit": "deg",
+        "reason": "Wind shifts 90 deg; lines may load on the other side"
+      },
+      {
+        "start_utc": "2026-11-04T14:00:00Z",
+        "end_utc": "2026-11-04T14:00:00Z",
+        "kind": "gust",
+        "severity": "RED",
+        "peak_value": 40.0,
+        "unit": "kt",
+        "reason": "Gusts to 40 kt"
+      }
+    ],
+    "planning_conditions": [
+      {
+        "label": "Worst gust in horizon",
+        "environment": {
+          "valid_at_utc": "2026-11-04T12:00:00Z",
+          "source": "mock",
+          "wind_speed_kt": 64.0,
+          "wind_gust_kt": 64.0,
+          "wind_from_true_deg": 37.0,
+          "current_speed_kt": 2.0,
+          "current_set_true_deg": 127.0,
+          "water_level_mllw_ft": 0.0,
+          "tide_stage": null,
+          "air_density_kgm3": 1.225,
+          "water_density_kgm3": 1020.0,
+          "wind_rel_ship_deg": null,
+          "current_rel_ship_deg": null,
+          "quality": [
+            {
+              "station_id": "TEST",
+              "age_s": 1000.0,
+              "flags": [
+                "mock"
+              ]
+            }
+          ]
+        },
+        "why": "Gusts peak at 64 kt at 12:00Z."
+      },
+      {
+        "label": "Now",
+        "environment": {
+          "valid_at_utc": "2026-11-04T12:00:00Z",
+          "source": "mock",
+          "wind_speed_kt": 64.0,
+          "wind_gust_kt": 64.0,
+          "wind_from_true_deg": 37.0,
+          "current_speed_kt": 2.0,
+          "current_set_true_deg": 127.0,
+          "water_level_mllw_ft": 0.0,
+          "tide_stage": null,
+          "air_density_kgm3": 1.225,
+          "water_density_kgm3": 1020.0,
+          "wind_rel_ship_deg": null,
+          "current_rel_ship_deg": null,
+          "quality": [
+            {
+              "station_id": "TEST",
+              "age_s": 1000.0,
+              "flags": [
+                "mock"
+              ]
+            }
+          ]
+        },
+        "why": "Conditions at the time of planning."
+      }
+    ],
+    "berthing_windows": [],
+    "data_quality": [
+      {
+        "station_id": "TEST",
+        "issue": "stale",
+        "severity": "AMBER",
+        "detail": "Observation is 17 min old."
+      },
+      {
+        "station_id": "TEST",
+        "issue": "mock",
+        "severity": "INFO",
+        "detail": "Synthetic data from the mock environment service."
+      }
+    ],
+    "summary": "Next 2 h at Mock Pier 12 North face (NAVSTA Norfolk): 4 window(s) of concern, 3 severe. Gusts peak 64 kt; MST II conditions."
+  },
+  "calm": {
+    "berth_id": "NAVSTA-NORFOLK-P12-N",
+    "ship_class_id": "DDG-51-FIIA",
+    "side_to": "starboard",
+    "horizon_hours": 2,
+    "current": {
+      "valid_at_utc": "2026-11-04T12:00:00Z",
+      "source": "mock",
+      "wind_speed_kt": 5.0,
+      "wind_gust_kt": 8.0,
+      "wind_from_true_deg": 37.0,
+      "current_speed_kt": 0.2,
+      "current_set_true_deg": 127.0,
+      "water_level_mllw_ft": 0.0,
+      "tide_stage": null,
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "TEST",
+          "age_s": 1000.0,
+          "flags": [
+            "mock"
+          ]
+        }
+      ]
+    },
+    "mst": {
+      "mst_required": "I",
+      "ship_mst": "II",
+      "exceeds_ship_mst": false,
+      "max_wind_kt": 5.0,
+      "max_broadside_current_kt": 0.07,
+      "reason": "Max sustained 5 kt and broadside current 0.1 kt over 2 h fit MST I."
+    },
+    "windows": [],
+    "planning_conditions": [
+      {
+        "label": "Worst gust in horizon",
+        "environment": {
+          "valid_at_utc": "2026-11-04T12:00:00Z",
+          "source": "mock",
+          "wind_speed_kt": 5.0,
+          "wind_gust_kt": 8.0,
+          "wind_from_true_deg": 37.0,
+          "current_speed_kt": 0.2,
+          "current_set_true_deg": 127.0,
+          "water_level_mllw_ft": 0.0,
+          "tide_stage": null,
+          "air_density_kgm3": 1.225,
+          "water_density_kgm3": 1020.0,
+          "wind_rel_ship_deg": null,
+          "current_rel_ship_deg": null,
+          "quality": [
+            {
+              "station_id": "TEST",
+              "age_s": 1000.0,
+              "flags": [
+                "mock"
+              ]
+            }
+          ]
+        },
+        "why": "Gusts peak at 8 kt at 12:00Z."
+      },
+      {
+        "label": "Now",
+        "environment": {
+          "valid_at_utc": "2026-11-04T12:00:00Z",
+          "source": "mock",
+          "wind_speed_kt": 5.0,
+          "wind_gust_kt": 8.0,
+          "wind_from_true_deg": 37.0,
+          "current_speed_kt": 0.2,
+          "current_set_true_deg": 127.0,
+          "water_level_mllw_ft": 0.0,
+          "tide_stage": null,
+          "air_density_kgm3": 1.225,
+          "water_density_kgm3": 1020.0,
+          "wind_rel_ship_deg": null,
+          "current_rel_ship_deg": null,
+          "quality": [
+            {
+              "station_id": "TEST",
+              "age_s": 1000.0,
+              "flags": [
+                "mock"
+              ]
+            }
+          ]
+        },
+        "why": "Conditions at the time of planning."
+      }
+    ],
+    "berthing_windows": [],
+    "data_quality": [
+      {
+        "station_id": "TEST",
+        "issue": "stale",
+        "severity": "AMBER",
+        "detail": "Observation is 17 min old."
+      },
+      {
+        "station_id": "TEST",
+        "issue": "mock",
+        "severity": "INFO",
+        "detail": "Synthetic data from the mock environment service."
+      }
+    ],
+    "summary": "Next 2 h at Mock Pier 12 North face (NAVSTA Norfolk): 0 window(s) of concern. Gusts peak 8 kt; MST I conditions."
+  },
+  "storm": {
+    "berth_id": "NAVSTA-NORFOLK-P12-N",
+    "ship_class_id": "DDG-51-FIIA",
+    "side_to": "starboard",
+    "horizon_hours": 2,
+    "current": {
+      "valid_at_utc": "2026-11-04T12:00:00Z",
+      "source": "mock",
+      "wind_speed_kt": 64.0,
+      "wind_gust_kt": 64.0,
+      "wind_from_true_deg": 37.0,
+      "current_speed_kt": 2.0,
+      "current_set_true_deg": 127.0,
+      "water_level_mllw_ft": 0.0,
+      "tide_stage": null,
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "TEST",
+          "age_s": 1000.0,
+          "flags": [
+            "mock"
+          ]
+        }
+      ]
+    },
+    "mst": {
+      "mst_required": "II",
+      "ship_mst": "II",
+      "exceeds_ship_mst": false,
+      "max_wind_kt": 64.0,
+      "max_broadside_current_kt": 0.75,
+      "reason": "Max sustained 64 kt and broadside current 0.7 kt over 2 h fit MST II."
+    },
+    "windows": [
+      {
+        "start_utc": "2026-11-04T12:00:00Z",
+        "end_utc": "2026-11-04T14:00:00Z",
+        "kind": "gust",
+        "severity": "RED",
+        "peak_value": 64.0,
+        "unit": "kt",
+        "reason": "Gusts to 64 kt"
+      },
+      {
+        "start_utc": "2026-11-04T12:00:00Z",
+        "end_utc": "2026-11-04T14:00:00Z",
+        "kind": "sustained_wind",
+        "severity": "RED",
+        "peak_value": 64.0,
+        "unit": "kt",
+        "reason": "Sustained wind 64 kt, above MST I"
+      }
+    ],
+    "planning_conditions": [
+      {
+        "label": "Worst gust in horizon",
+        "environment": {
+          "valid_at_utc": "2026-11-04T12:00:00Z",
+          "source": "mock",
+          "wind_speed_kt": 64.0,
+          "wind_gust_kt": 64.0,
+          "wind_from_true_deg": 37.0,
+          "current_speed_kt": 2.0,
+          "current_set_true_deg": 127.0,
+          "water_level_mllw_ft": 0.0,
+          "tide_stage": null,
+          "air_density_kgm3": 1.225,
+          "water_density_kgm3": 1020.0,
+          "wind_rel_ship_deg": null,
+          "current_rel_ship_deg": null,
+          "quality": [
+            {
+              "station_id": "TEST",
+              "age_s": 1000.0,
+              "flags": [
+                "mock"
+              ]
+            }
+          ]
+        },
+        "why": "Gusts peak at 64 kt at 12:00Z."
+      },
+      {
+        "label": "Now",
+        "environment": {
+          "valid_at_utc": "2026-11-04T12:00:00Z",
+          "source": "mock",
+          "wind_speed_kt": 64.0,
+          "wind_gust_kt": 64.0,
+          "wind_from_true_deg": 37.0,
+          "current_speed_kt": 2.0,
+          "current_set_true_deg": 127.0,
+          "water_level_mllw_ft": 0.0,
+          "tide_stage": null,
+          "air_density_kgm3": 1.225,
+          "water_density_kgm3": 1020.0,
+          "wind_rel_ship_deg": null,
+          "current_rel_ship_deg": null,
+          "quality": [
+            {
+              "station_id": "TEST",
+              "age_s": 1000.0,
+              "flags": [
+                "mock"
+              ]
+            }
+          ]
+        },
+        "why": "Conditions at the time of planning."
+      }
+    ],
+    "berthing_windows": [],
+    "data_quality": [
+      {
+        "station_id": "TEST",
+        "issue": "stale",
+        "severity": "AMBER",
+        "detail": "Observation is 17 min old."
+      },
+      {
+        "station_id": "TEST",
+        "issue": "mock",
+        "severity": "INFO",
+        "detail": "Synthetic data from the mock environment service."
+      }
+    ],
+    "summary": "Next 2 h at Mock Pier 12 North face (NAVSTA Norfolk): 2 window(s) of concern, 2 severe. Gusts peak 64 kt; MST II conditions."
+  }
+}

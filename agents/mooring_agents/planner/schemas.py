@@ -7,12 +7,12 @@ from pydantic import Field
 from mooring.core.schemas import JobState, Model, Status
 from mooring.core.schemas import MooringConfig
 from mooring.core.schemas import SequenceResult
-from mooring.core.schemas import TugPlanResult
+from mooring.core.schemas import TugPlanResult, TugAssignment
 
 
 class AgentPlanRequest(Model):
     scenario_id: str
-    intake_report_id: str | None = Field(default=None, description="Design for this report's worst condition.")
+    intake_report_id: str | None = Field(default=None, description="Evaluate every planning condition in this report.")
     objective: Literal["moor_for_forecast", "berthing", "storm_prep"] = "moor_for_forecast"
     target_margin_pct_wll: float = Field(default=80, gt=0, le=100, description="Plan is GREEN only below this.")
     max_iterations: int = Field(default=8, ge=1, le=20)
@@ -45,6 +45,8 @@ class AgentPlan(Model):
     assumptions: list[str] = Field(default_factory=list)
     open_questions: list[str] = Field(default_factory=list)
     safety_sheet_id: str | None = None
+    holding_tugs: list[TugAssignment] = Field(default_factory=list, description="Assistance included in final analyses.")
+    condition_analysis_result_ids: list[str] = Field(default_factory=list, description="Final analysis for each required condition.")
 
 
 class AgentMessage(Model):

@@ -5,7 +5,7 @@ geometry and bollard strain come from the modeling service (`modeling/`), which 
 makes those calculations safe for agents to call and auditable afterwards.
 
 **Status:** validated gateway, tool schemas, budgets, summaries and optional persistent ledger are implemented.
-The physics behind it is still mock in `modeling/` (M3 is being built now).
+Modeling now has real environmental loads alongside mock downstream capabilities; responses report their backend.
 
 ## What it provides
 
@@ -14,7 +14,7 @@ The physics behind it is still mock in `modeling/` (M3 is being built now).
 - `client.py`: typed async HTTP client for the modeling API (`MODELING_API_URL`).
 - `toolkit.py`: `PhysicsToolkit(client, caller, plan_id)`.
     - Typed helpers: `analyze`, `envelope`, `recommend`, `berthing_tugs`, `sequence`, `exceedance`, `windows`,
-      `env_now`, `forecast`, `scenario`, `ship`, `berth`.
+      `hold_tugs`, `env_now`, `forecast`, `scenario`, `ship`, `berth`.
     - Generic `call(name, input)` validates input, enforces limits, fills path params and polls jobs.
     - Every attempt is recorded with caller, plan id, request hash, `result_id`, status, duration and any error.
 - `ledger.py`: in-memory or SQLite audit storage, accessed through `calls_for(plan_id=None)`.

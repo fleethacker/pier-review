@@ -75,5 +75,8 @@ class IntakeReport(Model):
     berthing_windows: list[BerthingWindow]
     data_quality: list[DataQualityIssue]
     summary: str
+    summary_source: Literal["llm", "deterministic"] | None = Field(
+        default=None, description="Source of narration after the code-owned risk headline; null for legacy reports.")
+    narration_note: str | None = Field(default=None, description="Sanitized fallback reason; null when narration succeeds.")
     tool_call_ids: list[str] = Field(description="Ledger entries (GET /physics/calls) behind this report.")
     backend: Literal["mock", "real"]

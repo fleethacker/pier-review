@@ -300,3 +300,62 @@ def test_c_geometry_estimates_and_loading():
     response = environmental(LoadsRequest(ship_class_id=ship.class_id, loading="light", heading_true_deg=0,
                                          water_depth_ft=50, environment=environment()))
     assert any("Wetted surface estimated" in a for a in response.assumptions)
+
+
+
+def _shallow_berth(client, depth_ft):
+    berth = client.get("/api/v1/berths/NAVSTA-NORFOLK-P12-N").json()
+    berth["berth_id"] = f"TEST-SHALLOW-{int(depth_ft)}"
+    berth["depth_profile"] = [{"x_ft": 0, "depth_mllw_ft": depth_ft}, {"x_ft": 1350, "depth_mllw_ft": depth_ft}]
+    assert client.post("/api/v1/berths", json=berth).status_code == 201
+    return berth["berth_id"]
+
+
+def test_g_load_warnings_reach_analysis_and_tug_plan():
+    """Range warnings computed by the load model must not be dropped by downstream modules."""
+    import copy
+
+    from fastapi.testclient import TestClient
+
+    from modeling_api.main import app
+    from mooring.examples import EXAMPLES
+
+    client = TestClient(app)
+    berth_id = _shallow_berth(client, 25.0)  # DDG full-load draft 30.5 ft: depth below draft
+
+    body = copy.deepcopy(EXAMPLES["mooring_analyze"])
+    body["berth_id"] = berth_id
+    body["environment"]["current_speed_kt"] = 3.5  # above the 1.5 m/s current-model range
+    analysis = client.post("/api/v1/mooring/analyze", json=body).json()
+    rules = {f["rule_id"] for f in analysis["result"]["findings"]}
+    assert {"UFC-DEPTH-RANGE", "UFC-CURRENT-SPEED"} <= rules
+    assert {"UFC-DEPTH-RANGE", "UFC-CURRENT-SPEED"} <= {w["rule_id"] for w in analysis["warnings"]}
+    assert analysis["status"] in ("AMBER", "RED")
+
+    tug_body = copy.deepcopy(EXAMPLES["tugs_berthing_plan"])
+    tug_body["berth_id"] = berth_id
+    plan = client.post("/api/v1/tugs/berthing-plan", json=tug_body).json()
+    assert "UFC-DEPTH-RANGE" in {w["rule_id"] for w in plan["warnings"]}
+    assert plan["status"] in ("AMBER", "RED")
+
+    deep = client.post("/api/v1/mooring/analyze", json=EXAMPLES["mooring_analyze"]).json()
+    assert not {f["rule_id"] for f in deep["result"]["findings"]} & {"UFC-DEPTH-RANGE", "UFC-CURRENT-SPEED"}
+
+
+def test_g_rules_registry_lists_load_validity_rules():
+    from fastapi.testclient import TestClient
+
+    from modeling_api.main import app
+
+    ids = {r["rule_id"] for r in TestClient(app).get("/api/v1/rules").json()}
+    assert {"UFC-DEPTH-RANGE", "UFC-CURRENT-SPEED", "UFC-LOW-REYNOLDS"} <= ids
+
+
+def test_g_service_reports_mixed_backend():
+    from fastapi.testclient import TestClient
+
+    from modeling_api.main import app
+
+    client = TestClient(app)
+    assert client.get("/api/v1/health").json()["backend"] == "mixed"
+    assert client.get("/api/v1/version").json()["modules"]["M3 environmental loads"] == "real"

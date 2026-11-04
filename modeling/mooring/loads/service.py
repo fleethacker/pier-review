@@ -3,13 +3,13 @@
 from mooring import refdata
 from mooring.core.envelopes import RESULTS, inputs_hash, new_id, utcnow
 from mooring.core.schemas import (
-    EnvironmentSnapshot, Finding, LoadsRequest, LoadsResponse, PolarPoint, PolarRequest,
+    EnvironmentSnapshot, LoadsRequest, LoadsResponse, PolarPoint, PolarRequest,
     PolarResponse, PolarResult,
 )
-from mooring.core.units import KT_TO_FPS
 from . import coefficients as c
 from .helpers import off_pier
 from .ufc import compute_loads, ship_inputs
+from .warnings import range_findings
 
 
 def _metadata(ship, loading, depth, water_density, use_gust, current_speed, results):
@@ -34,17 +34,9 @@ def _metadata(ship, loading, depth, water_density, use_gust, current_speed, resu
             assumptions.append(explanation)
     if ship.provenance.confidence == "estimated":
         assumptions.append(f"Ship geometry is estimated: {ship.provenance.notes or ship.provenance.source}")
-    warnings = []
-    if depth <= draft:
-        message = "Depth/draft clamped to 1.0 (T/d=1) for UFC Figure 4-9." if depth < draft else "Depth equals draft (T/d=1); no under-keel clearance."
-        assumptions.append(message)
-        warnings.append(Finding(rule_id="UFC-DEPTH-RANGE", severity="AMBER", message=message + " Ground contact is outside this model.", reference="UFC Figure 4-9; Eq. 4-10"))
-    if current_speed * KT_TO_FPS > c.CURRENT_LIMIT_FPS:
-        warnings.append(Finding(rule_id="UFC-CURRENT-SPEED", severity="AMBER", message="Current exceeds the 1.5 m/s range of the Seelig coefficient; results extrapolate without modeling heel or channel blockage.", reference="UFC 4-5.1, pp. 72–73"))
-    if any(0 < r.current.coefficients["reynolds"] < c.MIN_FRICTION_REYNOLDS for r in results):
-        message = f"Friction Reynolds number floored at {c.MIN_FRICTION_REYNOLDS:g}; numerical regularization, not a UFC low-speed prescription."
-        assumptions.append(message)
-        warnings.append(Finding(rule_id="UFC-LOW-REYNOLDS", severity="AMBER", message=message, reference="UFC Eqs. 4-19/4-20"))
+    warnings, notes = range_findings(depth, draft, current_speed,
+                                     [r.current.coefficients["reynolds"] for r in results])
+    assumptions.extend(notes)
     return assumptions, warnings
 
 

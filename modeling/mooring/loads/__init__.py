@@ -2,5 +2,6 @@
 
 from .helpers import mean_draft_ft, off_pier
 from .ufc import compute_loads
+from .warnings import range_findings
 
-__all__ = ["compute_loads", "mean_draft_ft", "off_pier"]
+__all__ = ["compute_loads", "mean_draft_ft", "off_pier", "range_findings"]

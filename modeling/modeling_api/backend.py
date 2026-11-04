@@ -36,3 +36,9 @@ BACKENDS: dict[str, str] = {
     "M12 approach planner": "mock",
     "M13 telemetry ingest": "mock",
 }
+
+
+def overall_backend() -> str:
+    """'real' if every module is real, 'mock' if none is, else 'mixed'. Drives /health and X-Mooring-Backend."""
+    real = [v.startswith("real") for v in BACKENDS.values()]
+    return "real" if all(real) else "mock" if not any(real) else "mixed"

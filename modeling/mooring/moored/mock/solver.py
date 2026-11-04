@@ -37,7 +37,7 @@ from mooring.rules.nstm582 import RULES, CheckContext, check_all, design_factor
 
 from mooring.environment import mock as environment
 from mooring.core.envelopes import envelope, status_from_pct, worst
-from mooring.loads import compute_loads, off_pier
+from mooring.loads import compute_loads, mean_draft_ft, off_pier, range_findings
 
 ASSUMPTIONS = [
     "Mock load sharing: lines are linear springs; no equilibrium solve, heave/roll ignored.",
@@ -159,6 +159,9 @@ def solve(req: AnalyzeRequest, *, run_rules: bool = True) -> Solved:
             ship=ship, berth=berth, env=env, mst=req.mst, heading_true_deg=heading, geometries=geoms,
             line_results=line_results, specs=specs, pier_results=pier_results, ship_results=ship_results,
             bow_x_berth_ft=bow_x, bow_dir=1 if cfg.side_to == "starboard" else -1))
+        # Load-model validity warnings (shallow water, fast current) travel with the analysis.
+        findings += range_findings(depth, mean_draft_ft(ship, req.loading), env.current_speed_kt,
+                                   [loads.current.coefficients.get("reynolds", 0.0)])[0]
 
     result = AnalyzeResult(
         offset=Offset(surge_ft=round(surge, 2), sway_ft=round(sway, 2), yaw_deg=0.0),

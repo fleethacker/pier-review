@@ -82,10 +82,16 @@ avoid its singularity; this is an engineering regularization, not a UFC rule.
 Speeds above 1.5 m/s generate a current-model applicability warning. Yaw assumes
 CG at midships and a level keel; LHD uses carrier coefficients by analogy.
 
-The load envelopes and stored results report `backend="real"`. The global HTTP
-header and API introduction still say mock: their implementation in
-`modeling_api/main.py` is outside this chunk's allowed file scope. Other modules
-remain mock even though they now consume UFC loads.
+The load envelopes and stored results report `backend="real"`. The service-level
+`X-Mooring-Backend` header and `/health` report `mixed` (derived from `BACKENDS`).
+Other modules remain mock even though they now consume UFC loads.
+
+Load-model validity warnings (`UFC-DEPTH-RANGE`, `UFC-CURRENT-SPEED`,
+`UFC-LOW-REYNOLDS`, from `loads/warnings.py`) are reported by `/loads/*`,
+`/mooring/analyze` (as findings) and `/tugs/berthing-plan`. They are listed in
+`GET /rules`. Modules that run many load evaluations (risk Monte Carlo and
+timeline, berthing windows, holding tugs) don't aggregate them yet; add that when
+those modules become real.
 
 Calibration changes only lateral wind area; hull and frontal areas retain their
 original values. DDG uses the extensive-superstructure drag class (C=1.02) specified
@@ -96,3 +102,10 @@ areas remain within ±25%. Peak bearings are 76°/284° (DDG, CG, CVN) and 77°/
 to API wind-from with (180 - b) % 360 gives targets 75°/285° (DDG/CG) and
 80°/280° (LHD/CVN). All 16 bearing tests pass, with errors of 1–4°. The DDG shallow-water current/wind ratio is approximately 3.84.
 No UFC coefficient was tuned to match the bearings.
+
+## Known limitations (follow-ups)
+
+- **Gust duration (M1).** Loads treat `wind_gust_kt` as a 30-second wind at 10 m. Station gusts are
+  shorter peaks, so loads are overstated (conservative). When M1 ingests real NOAA data, it must state each
+  source's gust definition and normalize gusts to a 30-second basis (UFC Section 3-8.1, Figure 3-5), or add
+  an explicit `gust_duration_s` to `EnvironmentSnapshot` for `compute_loads` to convert.

@@ -1,7 +1,9 @@
 import { Store } from '../../lib/store';
 import type { AppHost } from '../../scene/app';
 import type { SceneEdit, SceneState } from '../../scene/types';
-import { awaitJob, modeling, MODELING_BASE, unwrap } from './api';
+import { awaitJob, modeling, MODELING_BASE, unwrap, wsUrl } from './api';
+import { openJsonStream } from './streams';
+import type { StreamHandle, StreamStatus } from './streams';
 import {
   buildScene,
   envVectors,
@@ -16,6 +18,7 @@ import type {
   AnalyzeResponse,
   Berth,
   BerthSummary,
+  Alert,
   Environment,
   LineSpec,
   MooringLine,
@@ -35,6 +38,64 @@ export interface Candidate {
   analysis_result_id: string;
   why: string[];
 }
+
+export interface TimelineStep {
+  valid_at_utc: string;
+  status: 'GREEN' | 'AMBER' | 'RED';
+  wind_speed_kt: number;
+  wind_gust_kt: number;
+  p_any_exceeds_wll: number;
+  governing_element: string | null;
+}
+export interface TimelineResult {
+  steps: TimelineStep[];
+  first_amber_utc: string | null;
+  first_red_utc: string | null;
+  recommended_actions: unknown[];
+}
+export interface EnvelopePoint {
+  wind_rel_deg: number;
+  limit_wind_kt: number | null;
+  first_failure_element: string | null;
+  failure_mode: string;
+}
+export interface EnvelopeResult {
+  points: EnvelopePoint[];
+  worst: EnvelopePoint | null;
+}
+export interface ExceedanceResult {
+  n_samples: number;
+  p_any_exceeds_wll: number;
+  p_any_exceeds_mbs: number;
+  governing_element: string | null;
+  elements: { element_id: string; p_exceed_wll: number; p_exceed_mbs: number; tension_p50_lbf: number; tension_p95_lbf: number }[];
+}
+export interface Enveloped<R> {
+  result_id: string;
+  backend: string;
+  status: 'GREEN' | 'AMBER' | 'RED';
+  computed_at_utc: string;
+  assumptions?: string[];
+  result: R;
+}
+export interface AlertItem {
+  id: string;
+  at: string;
+  severity: 'INFO' | 'AMBER' | 'RED';
+  message: string;
+  reference?: string;
+  elementId?: string | null;
+  source: 'service' | 'analysis';
+  windKt?: number;
+  gustKt?: number;
+}
+export type EnvMode = 'manual' | 'live' | 'replay' | 'storm';
+export interface WindSample {
+  t: number;
+  wind: number;
+  gust: number;
+}
+export type RiskKind = 'timeline' | 'envelope' | 'exceedance';
 
 export interface MooringState {
   phase: 'loading' | 'ready' | 'error';
@@ -60,6 +121,17 @@ export interface MooringState {
   scenarioId: string | null;
   notice: string | null;
   backend: string | null;
+  envMode: { kind: EnvMode; status: StreamStatus | 'idle'; detail: string | null };
+  windHistory: WindSample[];
+  alerts: AlertItem[];
+  alertsStatus: StreamStatus | 'idle';
+  risk: {
+    running: RiskKind | null;
+    error: string | null;
+    timeline: Enveloped<TimelineResult> | null;
+    envelope: Enveloped<EnvelopeResult> | null;
+    exceedance: Enveloped<ExceedanceResult> | null;
+  };
 }
 
 const INITIAL: MooringState = {
@@ -86,6 +158,11 @@ const INITIAL: MooringState = {
   scenarioId: null,
   notice: null,
   backend: null,
+  envMode: { kind: 'manual', status: 'idle', detail: null },
+  windHistory: [],
+  alerts: [],
+  alertsStatus: 'idle',
+  risk: { running: null, error: null, timeline: null, envelope: null, exceedance: null },
 };
 
 const ANALYZE_DEBOUNCE_MS = 250;
@@ -99,6 +176,9 @@ export class MooringController {
   private recommendAbort: AbortController | null = null;
   private unsubscribeScene: () => void;
   private disposed = false;
+  private envStream: StreamHandle | null = null;
+  private alertStream: StreamHandle | null = null;
+  private lastAnalysisKey = '';
 
   constructor(readonly host: AppHost) {
     this.unsubscribeScene = host.store.subscribe(() => this.onSelectionChange());
@@ -109,6 +189,8 @@ export class MooringController {
     clearTimeout(this.analyzeTimer);
     this.analyzeAbort?.abort();
     this.recommendAbort?.abort();
+    this.envStream?.close();
+    this.alertStream?.close();
     this.unsubscribeScene();
   }
 
@@ -140,6 +222,7 @@ export class MooringController {
       });
       await this.loadSelection({ recommend: true });
       this.refreshScenarioList().catch(() => undefined);
+      this.startAlerts();
       this.state.set({ phase: 'ready' });
     } catch (e) {
       this.state.set({ phase: 'error', error: message(e) });
@@ -185,6 +268,8 @@ export class MooringController {
   async setBerth(berthId: string): Promise<void> {
     this.state.set({ berthId, env: null });
     await this.guarded(() => this.loadSelection({ recommend: true }));
+    await this.setEnvMode('manual');
+    this.startAlerts();
   }
 
   async setShip(shipClassId: string): Promise<void> {
@@ -225,6 +310,7 @@ export class MooringController {
 
   setEnv(patch: Partial<Environment>): void {
     if (!this.s.env) return;
+    if (this.s.envMode.kind !== 'manual') void this.setEnvMode('manual');
     this.state.set({ env: { ...this.s.env, ...patch } });
     this.pushScene('update');
     this.scheduleAnalyze();
@@ -362,6 +448,7 @@ export class MooringController {
       if (seq !== this.analyzeSeq || this.disposed) return;
       this.state.set({ analysis: { state: 'ok', response, error: null } });
       this.pushScene('update');
+      this.recordAnalysisAlerts(response);
     } catch (e) {
       if (abort.signal.aborted || seq !== this.analyzeSeq || this.disposed) return;
       this.state.set({ analysis: { state: 'error', response: this.s.analysis.response, error: message(e) } });
@@ -460,6 +547,162 @@ export class MooringController {
       this.pushScene('update');
       this.scheduleAnalyze();
     });
+  }
+
+  // ---- live environment and alerts -------------------------------------------------------------------------
+
+  async setEnvMode(
+    kind: EnvMode,
+    opts: { replayStartUtc?: string; speed?: number; rampToKt?: number; rampMinutes?: number } = {},
+  ): Promise<void> {
+    this.envStream?.close();
+    this.envStream = null;
+    if (kind === 'manual') {
+      this.state.set({ envMode: { kind, status: 'idle', detail: null } });
+      return;
+    }
+    const query: Record<string, string | number | undefined> = { berth_id: this.s.berthId };
+    try {
+      if (kind === 'live') {
+        Object.assign(query, { mode: 'live', interval_s: 3 });
+      } else if (kind === 'replay') {
+        Object.assign(query, {
+          mode: 'replay',
+          replay_start_utc: opts.replayStartUtc,
+          speed: opts.speed ?? 3600,
+          interval_s: 1,
+        });
+      } else {
+        const base = this.s.env;
+        const wind = base?.wind_speed_kt ?? 10;
+        const created = unwrap(
+          await modeling.POST('/api/v1/env/scenarios', {
+            body: {
+              name: 'Storm ramp (from UI)',
+              kind: 'ramp',
+              wind_speed_kt: wind,
+              wind_gust_kt: base?.wind_gust_kt ?? wind * 1.4,
+              wind_from_true_deg: base?.wind_from_true_deg ?? 200,
+              current_speed_kt: base?.current_speed_kt ?? 0.5,
+              current_set_true_deg: base?.current_set_true_deg ?? 10,
+              water_level_mllw_ft: base?.water_level_mllw_ft ?? 0,
+              ramp_to_wind_kt: opts.rampToKt ?? 50,
+              ramp_minutes: opts.rampMinutes ?? 3,
+            },
+          }),
+        );
+        Object.assign(query, { mode: 'scenario', env_scenario_id: created.env_scenario_id, interval_s: 2 });
+      }
+    } catch (e) {
+      this.state.set({ notice: `Could not start the ${kind} environment: ${message(e)}` });
+      return;
+    }
+    this.state.set({ windHistory: [], envMode: { kind, status: 'connecting', detail: null } });
+    this.envStream = openJsonStream<Partial<Environment>>(
+      wsUrl(MODELING_BASE, '/ws/env', query),
+      (m) => this.onEnvMessage(m),
+      (status) => this.state.set({ envMode: { ...this.s.envMode, kind, status } }),
+    );
+  }
+
+  private onEnvMessage(m: Partial<Environment>): void {
+    if (this.disposed || !this.s.env) return;
+    const env = { ...this.s.env, ...m } as Environment;
+    const sample: WindSample = { t: Date.now(), wind: env.wind_speed_kt, gust: env.wind_gust_kt };
+    this.state.set({ env, windHistory: [...this.s.windHistory, sample].slice(-120) });
+    this.pushScene('update');
+    this.scheduleAnalyze();
+  }
+
+  startAlerts(): void {
+    this.alertStream?.close();
+    this.state.set({ alerts: [], alertsStatus: 'connecting' });
+    this.alertStream = openJsonStream<Alert>(
+      wsUrl(MODELING_BASE, '/ws/alerts', { berth_id: this.s.berthId, interval_s: 5 }),
+      (a) => this.pushAlert({
+        id: a.alert_id,
+        at: a.at_utc,
+        severity: a.severity,
+        message: a.message,
+        elementId: a.element_id,
+        source: 'service',
+        windKt: a.env.wind_speed_kt,
+        gustKt: a.env.wind_gust_kt,
+      }),
+      (status) => this.state.set({ alertsStatus: status }),
+    );
+  }
+
+  private pushAlert(item: AlertItem): void {
+    const prev = this.s.alerts[0];
+    // The service repeats the same message every tick; show it once until it changes.
+    if (prev && prev.source === item.source && prev.message === item.message && prev.severity === item.severity) return;
+    this.state.set({ alerts: [item, ...this.s.alerts].slice(0, 60) });
+  }
+
+  /** Turn non-green analysis findings into warnings in the feed, once per distinct situation. */
+  private recordAnalysisAlerts(res: AnalyzeResponse): void {
+    const findings = [...(res.warnings ?? []), ...res.result.findings].filter((f) => f.severity !== 'INFO');
+    const key = `${res.status}|${findings.map((f) => f.rule_id + f.element_ids?.join('+')).join(',')}`;
+    if (key === this.lastAnalysisKey) return;
+    this.lastAnalysisKey = key;
+    const env = this.s.env;
+    const unique = findings.filter((f, i) => findings.findIndex((g) => g.message === f.message) === i);
+    for (const [i, f] of unique.slice(0, 3).entries()) {
+      this.pushAlert({
+        id: `${res.result_id}-${i}`,
+        at: res.computed_at_utc,
+        severity: f.severity,
+        message: f.message,
+        reference: f.reference,
+        elementId: f.element_ids?.[0] ?? null,
+        source: 'analysis',
+        windKt: env?.wind_speed_kt,
+        gustKt: env?.wind_gust_kt,
+      });
+    }
+  }
+
+  // ---- risk, envelope, exceedance --------------------------------------------------------------------------
+
+  async runRisk(kind: RiskKind): Promise<void> {
+    const base = this.buildAnalyzeRequest();
+    if (!base) {
+      this.state.set({ risk: { ...this.s.risk, error: 'Add at least one line first.' } });
+      return;
+    }
+    this.state.set({ risk: { ...this.s.risk, running: kind, error: null } });
+    try {
+      if (kind === 'timeline') {
+        const out = await this.callMaybeJob<Enveloped<TimelineResult>>(
+          modeling.POST('/api/v1/risk/timeline', { body: { ...base, forecast_hours: 24, step_min: 60 } }),
+        );
+        this.state.set({ risk: { ...this.s.risk, running: null, timeline: out } });
+      } else if (kind === 'envelope') {
+        const out = await this.callMaybeJob<Enveloped<EnvelopeResult>>(
+          modeling.POST('/api/v1/mooring/envelope', { body: { ...base, step_deg: 15 } }),
+        );
+        this.state.set({ risk: { ...this.s.risk, running: null, envelope: out } });
+      } else {
+        const out = await this.callMaybeJob<Enveloped<ExceedanceResult>>(
+          modeling.POST('/api/v1/risk/exceedance', {
+            body: { ...base, horizon_hours: 6, n_samples: 200, seed: 42, gust_dynamic_factor: 1.3 },
+          }),
+        );
+        this.state.set({ risk: { ...this.s.risk, running: null, exceedance: out } });
+      }
+    } catch (e) {
+      this.state.set({ risk: { ...this.s.risk, running: null, error: message(e) } });
+    }
+  }
+
+  /** Compute endpoints answer directly, or with a 202 job for slow runs; accept either. */
+  private async callMaybeJob<T>(request: Promise<{ data?: unknown; error?: unknown; response: Response }>): Promise<T> {
+    const data = unwrap(await request) as unknown as T & { job_id?: string };
+    if (data && typeof data === 'object' && 'job_id' in data && data.job_id) {
+      return awaitJob<T>(MODELING_BASE, data as never);
+    }
+    return data;
   }
 
   // ---- scene sync ------------------------------------------------------------------------------------------

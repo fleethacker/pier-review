@@ -97,7 +97,7 @@ export function Shell({ store }: { store: SceneStore }) {
         </main>
       </div>
       {Bottom && (
-        <footer className="h-52 shrink-0 overflow-y-auto border-t border-mil-border bg-mil-panel/60">
+        <footer className="h-64 shrink-0 overflow-hidden border-t border-mil-border bg-mil-panel/60">
           <Bottom />
         </footer>
       )}

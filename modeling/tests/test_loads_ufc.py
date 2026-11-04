@@ -255,13 +255,18 @@ def test_c_nstm_magnitude(class_id, index, speed):
 @pytest.mark.parametrize("class_id", NSTM_TARGETS)
 @pytest.mark.parametrize("speed", (50, 70, 100, 150))
 def test_c_nstm_bearing(class_id, speed):
+    """NSTM Table 582-3-1 uses NCEL/UFC flow-TOWARD, counterclockwise bearings.
+
+    Zero is wind from astern (UFC Figure 4-2). Convert to the API's clockwise
+    wind-FROM bearing with (180 - b) % 360 before comparing the resultant peaks.
+    """
     from mooring import refdata
     _, bearings = wind_peak(refdata.ship(class_id), speed)
-    targets = (105, 255) if class_id in ("DDG-51-FIIA", "CG-47") else (100, 260)
-    error = min(abs((bearing - target + 180) % 360 - 180) for bearing in bearings for target in targets)
-    if error > 20:
-        pytest.xfail(f"UFC resultant peaks at {bearings}, {error} deg from NSTM {targets}; exceeds 20 deg tolerance. Magnitude and area bounds pass separately; coefficients were not tuned.")
-    assert error <= 20
+    nstm_bearings = (105, 255) if class_id in ("DDG-51-FIIA", "CG-47") else (100, 260)
+    targets = [(180 - b) % 360 for b in nstm_bearings]
+    for target in targets:
+        error = min(abs((bearing - target + 180) % 360 - 180) for bearing in bearings)
+        assert error <= 20, (class_id, speed, bearings, target, error)
 
 
 def test_f_shallow_beam_current_to_wind():

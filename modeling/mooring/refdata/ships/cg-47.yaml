@@ -47,7 +47,7 @@ provenance:
   confidence: estimated
   notes: >-
     Wind-force magnitudes calibrated to NSTM Table 582-3-1 with areas within 25% of original seeds;
-    peak bearing remains outside the requested tolerance (see M3 tests).
+    peak bearings also match after converting NSTM flow-toward angles to API wind-from angles.
     Dimensions approximate from public fact sheets; fittings notional.
     Superstructure height frozen before area calibration using original hull area/LWL plus
     original superstructure area/(0.5 LWL), assuming a rectangular half-length superstructure.

@@ -2,6 +2,9 @@
 
 Equation 4-3's missing harmonic and the angle-folding typos are resolved against
 UFC 4-159-03 (2005, Change 2, 2016), Eq. (4) and longitudinal shape definitions.
+NSTM Table 582-3-1 bearings use the same NCEL/UFC flow-TOWARD, counterclockwise
+convention (Figure 4-2): 0 degrees is wind from astern. Convert those bearings to
+API clockwise wind-FROM bearings with (180 - b) % 360.
 No constants are calibrated to the seed ships.
 """
 

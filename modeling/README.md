@@ -90,6 +90,7 @@ remain mock even though they now consume UFC loads.
 Calibration changes only lateral wind area; hull and frontal areas retain their
 original values. All 16 peak force magnitudes pass the NSTM ±10% check and all
 areas remain within ±25%. Peak bearings are 76°/284° (DDG, CG, CVN) and 77°/283°
-(LHD), outside the requested NSTM bearing tolerance; those 16 tests are explicit
-expected failures. The DDG shallow-water current/wind ratio is approximately 3.84.
-No UFC coefficient was tuned to address the bearing discrepancy.
+(LHD). NSTM bearings use UFC flow-toward, counterclockwise angles: converting them
+to API wind-from with (180 - b) % 360 gives targets 75°/285° (DDG/CG) and
+80°/280° (LHD/CVN). All 16 bearing tests pass, with errors of 1–4°. The DDG shallow-water current/wind ratio is approximately 3.84.
+No UFC coefficient was tuned to match the bearings.

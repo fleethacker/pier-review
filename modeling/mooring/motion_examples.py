@@ -152,21 +152,21 @@ def _frame(t_s: float, sequence: int) -> SimFrame:
                  "u_kt": 0, "v_kt": 0.25 / KT_TO_FPS, "r_degps": 0},
         "tugs": [{"tug_id": "tug-fixture", "force_lbf": 1000, "direction_rel_deg": 90}],
         "lines": [{"line_number": 1, "tension_lbf": 12500}, {"line_number": 2, "tension_lbf": 0}],
-        "fenders": [{"fender_id": "fender-fixture", "compression_ft": 0, "reaction_lbf": 0, "status": "GREEN"}],
+        "fenders": [{"fender_id": "fender-fixture", "compression_ft": 0, "reaction_lbf": 0, "status": "AMBER"}],
         "alerts": ["MOCK display fixture; prescribed motion and independent illustrative loads."],
         "motion": _ship_motion(t_s), "tug_states": [_tug(t_s)], "environment": _environment(t_s),
         "line_states": [_line(1, t_s), _line(2, t_s)],
         "fitting_loads": [
             {**_component(f"{owner}-{end}"), "fitting_id": f"{owner}-{end}", "owner": owner,
              "load_lbf": load, "capacity_lbf": capacity, "utilization_pct": pct,
-             "status": "GREEN"}
+             "status": "AMBER"}
             for owner, end, load, capacity, pct in (
                 ("ship", "forward", 12500, 25000, 50), ("pier", "forward", 12500, 50000, 25),
                 ("ship", "aft", 0, 25000, 0), ("pier", "aft", 0, 50000, 0),
             )
         ],
         "fender_states": [{**_component("fender-fixture"), "fender_id": "fender-fixture",
-                           "compression_ft": 0, "reaction_lbf": 0, "status": "GREEN"}],
+                           "compression_ft": 0, "reaction_lbf": 0, "status": "AMBER"}],
         "forces": {
             "wind": _wrench("wind", 500), "current": _wrench("current", 250),
             "waves": {name: {

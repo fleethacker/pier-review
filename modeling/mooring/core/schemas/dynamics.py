@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from .common import Envelope, Model, Status, Validity
 from .mooring import FenderResult, LineTension
@@ -130,6 +130,19 @@ class TugState(Model):
 class SimFrame(Model):
     """One frame: a WS /ws/sim/{session_id} message, or one entry of a batch run's series."""
 
+    # Describe the opt-in identity rule to JSON Schema clients as well as Python.
+    model_config = ConfigDict(json_schema_extra={"allOf": [{
+        "if": {"required": ["schema_version"], "properties": {"schema_version": {"const": "rm0-v1"}}},
+        "then": {
+            "required": ["sequence", "session_id", "run_id", "scene_id", "scene_revision"],
+            "properties": {
+                "sequence": {"type": "integer", "minimum": 0},
+                **{name: {"type": "string", "minLength": 1, "pattern": r"\S"}
+                   for name in ("session_id", "run_id", "scene_id", "scene_revision")},
+            },
+        },
+    }]})
+
     wire_omitted_defaults = dict.fromkeys((
         "schema_version", "sequence", "session_id", "run_id", "scene_id", "scene_revision", "motion",
         "tug_states", "environment", "line_states", "fitting_loads", "fender_states", "forces", "validity",
@@ -171,6 +184,16 @@ class SimFrame(Model):
         if self.environment is not None and self.environment.t_s is not None and self.environment.t_s != self.t_s:
             raise ValueError("environment.t_s must match the frame simulation time")
         _require_qualified_motion(self, require_provenance=self.schema_version is not None)
+        if self.schema_version is not None:
+            if self.sequence is None or any(not value or not value.strip() for value in (
+                self.session_id, self.run_id, self.scene_id, self.scene_revision,
+            )):
+                raise ValueError("RM0 frames require sequence and nonempty session/run/scene identity")
+        for field, keys in (("tug_states", ("tug_id",)), ("line_states", ("line_number",)),
+                            ("fitting_loads", ("owner", "fitting_id")), ("fender_states", ("fender_id",))):
+            identifiers = [tuple(getattr(item, key) for key in keys) for item in getattr(self, field) or []]
+            if len(identifiers) != len(set(identifiers)):
+                raise ValueError(f"{field} identifiers must be unique")
         return self
 
 
@@ -219,6 +242,8 @@ class SimRecording(Model):
         completed_runs: set[str] = set()
         current_run = None
         for message in messages:
+            if isinstance(message, SimLifecycle) and message.state == "reset" and message.run_id == current_run:
+                raise ValueError("reset must use a new run_id")
             if message.t_s < 0 or message.t_s < times.get(message.run_id, 0):
                 raise ValueError("simulation time must be nonnegative and monotonic within a run")
             if current_run != message.run_id:

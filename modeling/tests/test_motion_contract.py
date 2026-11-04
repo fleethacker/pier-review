@@ -50,6 +50,8 @@ LEGACY_FRAME = {
     "alerts": ["Line 3 secured."],
 }
 LEGACY_SESSION = {"session_id": "sim_legacy", "ws_url": "/ws/sim/sim_legacy"}
+RM0_IDENTITY = {"session_id": "session-test", "run_id": "run-test", "sequence": 0,
+                "scene_id": "scene-test", "scene_revision": "r1"}
 MOCK_PROVENANCE = {"kind": "mock", "source": "Authored contract test; no dynamics solver."}
 QUALIFIED_PROVENANCE = {"kind": "qualified", "source": "Qualified contract-test case", "references": ["fixture:benchmark-1"]}
 LIMITED = {
@@ -241,7 +243,7 @@ def test_wave_sources_keep_separate_availability_and_validity():
 
 @pytest.mark.parametrize("kind", ["mock", "estimated", "unknown"])
 def test_frame_cannot_label_unqualified_motion_as_valid(kind):
-    payload = {**LEGACY_FRAME, "schema_version": "rm0-v1", "validity": {"state": "valid"},
+    payload = {**LEGACY_FRAME, **RM0_IDENTITY, "schema_version": "rm0-v1", "validity": {"state": "valid"},
                "provenance": {**MOCK_PROVENANCE, "kind": kind}}
     with pytest.raises(ValidationError, match="qualified provenance"):
         SimFrame.model_validate(payload)
@@ -251,7 +253,7 @@ def test_frame_cannot_label_unqualified_motion_as_valid(kind):
 
 def test_qualified_frame_cannot_hide_explicitly_mock_ship_motion():
     with pytest.raises(ValidationError):
-        SimFrame.model_validate({**LEGACY_FRAME, "schema_version": "rm0-v1", "validity": {"state": "valid"},
+        SimFrame.model_validate({**LEGACY_FRAME, **RM0_IDENTITY, "schema_version": "rm0-v1", "validity": {"state": "valid"},
                                  "provenance": QUALIFIED_PROVENANCE, "motion": motion_payload()})
 
 
@@ -263,7 +265,7 @@ def test_unavailable_environment_has_no_invented_calm_values(availability, model
 
 
 def test_qualified_frame_cannot_hide_mock_force_by_marking_it_unavailable():
-    payload = {**LEGACY_FRAME, "schema_version": "rm0-v1", "validity": {"state": "valid"},
+    payload = {**LEGACY_FRAME, **RM0_IDENTITY, "schema_version": "rm0-v1", "validity": {"state": "valid"},
                "provenance": QUALIFIED_PROVENANCE, "forces": {"wind": {
                    "availability": "unavailable", "provenance": MOCK_PROVENANCE, "force": {"x_lbf": 5000},
                }}}
@@ -365,7 +367,7 @@ def test_line_polyline_cannot_draw_different_attachments_than_reported_endpoints
 
 
 def recording_payload():
-    frame = {**LEGACY_FRAME, "schema_version": "rm0-v1", "session_id": "session-test", "run_id": "run-test",
+    frame = {**LEGACY_FRAME, **RM0_IDENTITY, "schema_version": "rm0-v1", "session_id": "session-test", "run_id": "run-test",
              "scene_id": "scene-test", "scene_revision": "r1"}
     return {
         "recording_id": "recording-test", "session_id": "session-test", "scene_id": "scene-test", "scene_revision": "r1",

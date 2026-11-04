@@ -6899,6 +6899,40 @@ components:
       title: ShipState
       description: Ship pose and velocity in the berth frame. y_ft is the distance from the pier face to the centerline.
     SimFrame:
+      allOf:
+      - if:
+          properties:
+            schema_version:
+              const: rm0-v1
+          required:
+          - schema_version
+        then:
+          properties:
+            sequence:
+              type: integer
+              minimum: 0.0
+            session_id:
+              type: string
+              minLength: 1
+              pattern: \S
+            run_id:
+              type: string
+              minLength: 1
+              pattern: \S
+            scene_id:
+              type: string
+              minLength: 1
+              pattern: \S
+            scene_revision:
+              type: string
+              minLength: 1
+              pattern: \S
+          required:
+          - sequence
+          - session_id
+          - run_id
+          - scene_id
+          - scene_revision
       properties:
         diagnostics:
           anyOf:

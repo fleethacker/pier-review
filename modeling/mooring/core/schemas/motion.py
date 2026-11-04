@@ -18,10 +18,11 @@ MotionDofState = Literal["simulated", "prescribed", "not_simulated", "unknown"]
 def _require_qualified_motion(model: Model, *, require_provenance: bool = True) -> None:
     """An aggregate cannot claim qualification that its supplied components lack."""
     validity = getattr(model, "validity", None)
-    if validity is None or validity.state != "valid":
+    if validity is not None and validity.state == "invalid":
         return
+    is_valid = validity is not None and validity.state == "valid"
     provenance = getattr(model, "provenance", None)
-    if require_provenance or provenance is not None:
+    if is_valid and (require_provenance or provenance is not None):
         if provenance is None or provenance.kind != "qualified":
             raise ValueError("valid motion data needs qualified provenance")
 
@@ -32,13 +33,16 @@ def _require_qualified_motion(model: Model, *, require_provenance: bool = True) 
         elif isinstance(value, Model):
             if hasattr(value, "validity") and hasattr(value, "provenance"):
                 child_validity = value.validity
-                excluded = getattr(value, "availability", None) in ("unavailable", "not_simulated")
-                if excluded and (child_validity is None or child_validity.state == "unknown"):
-                    return
-                if child_validity is None or child_validity.state != "valid":
-                    raise ValueError("valid motion data cannot contain unqualified components")
-                if value.provenance is None or value.provenance.kind != "qualified":
-                    raise ValueError("valid motion data cannot contain unqualified components")
+                if child_validity is not None and child_validity.state == "invalid":
+                    raise ValueError("motion data containing invalid components must be invalid")
+                if is_valid:
+                    excluded = getattr(value, "availability", None) in ("unavailable", "not_simulated")
+                    if excluded and (child_validity is None or child_validity.state == "unknown"):
+                        return
+                    if child_validity is None or child_validity.state != "valid":
+                        raise ValueError("valid motion data cannot contain unqualified components")
+                    if value.provenance is None or value.provenance.kind != "qualified":
+                        raise ValueError("valid motion data cannot contain unqualified components")
             for name in type(value).model_fields:
                 visit(getattr(value, name))
 
@@ -75,7 +79,17 @@ class MotionEvidence(Model):
                 raise ValueError("valid data must be available")
             if self.provenance is None or self.provenance.kind != "qualified":
                 raise ValueError("valid data needs qualified provenance")
-            _require_qualified_motion(self)
+        _require_qualified_motion(self)
+        return self
+
+    @model_validator(mode="after")
+    def status_preserves_validity(self):
+        status = getattr(self, "status", None)
+        if self.validity is not None and status in ("GREEN", "AMBER", "RED"):
+            if self.validity.state == "invalid" and status != "RED":
+                raise ValueError("invalid motion data requires RED status")
+            if self.validity.state == "limited" and status == "GREEN":
+                raise ValueError("limited motion data cannot have GREEN status")
         return self
 
     @model_validator(mode="after")
@@ -425,7 +439,7 @@ class SimLifecycle(Model):
     schema_version: Literal["rm0-v1"] = "rm0-v1"
     session_id: str = Field(min_length=1)
     run_id: str = Field(min_length=1, description="Changes on reset; sequence remains monotonic for the session.")
-    sequence: int = Field(ge=0)
+    sequence: int = Field(ge=0, strict=True)
     t_s: float = Field(ge=0)
     state: Literal["created", "running", "paused", "reset", "ended", "error"]
     scene_id: str | None = None
@@ -436,7 +450,9 @@ class SimLifecycle(Model):
 
     @model_validator(mode="after")
     def error_needs_message(self):
-        if self.state == "error" and not self.message:
+        if self.state == "reset" and self.t_s != 0:
+            raise ValueError("reset lifecycle messages must start at simulation time zero")
+        if self.state == "error" and (not self.message or not self.message.strip()):
             raise ValueError("error lifecycle messages need an explanation")
         if (self.scene_id is None) != (self.scene_revision is None):
             raise ValueError("scene_id and scene_revision must be supplied together")

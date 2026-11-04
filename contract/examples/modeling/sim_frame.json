@@ -30,7 +30,7 @@
       "fender_id": "fender-fixture",
       "reaction_lbf": 0.0,
       "compression_ft": 0.0,
-      "status": "GREEN"
+      "status": "AMBER"
     }
   ],
   "alerts": [
@@ -530,7 +530,7 @@
       "capacity_lbf": 25000.0,
       "utilization_pct": 50.0,
       "force": null,
-      "status": "GREEN"
+      "status": "AMBER"
     },
     {
       "availability": "available",
@@ -559,7 +559,7 @@
       "capacity_lbf": 50000.0,
       "utilization_pct": 25.0,
       "force": null,
-      "status": "GREEN"
+      "status": "AMBER"
     },
     {
       "availability": "available",
@@ -588,7 +588,7 @@
       "capacity_lbf": 25000.0,
       "utilization_pct": 0.0,
       "force": null,
-      "status": "GREEN"
+      "status": "AMBER"
     },
     {
       "availability": "available",
@@ -617,7 +617,7 @@
       "capacity_lbf": 50000.0,
       "utilization_pct": 0.0,
       "force": null,
-      "status": "GREEN"
+      "status": "AMBER"
     }
   ],
   "fender_states": [
@@ -646,7 +646,7 @@
       "compression_ft": 0.0,
       "reaction_lbf": 0.0,
       "force": null,
-      "status": "GREEN"
+      "status": "AMBER"
     }
   ],
   "forces": {

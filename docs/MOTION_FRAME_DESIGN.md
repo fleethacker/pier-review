@@ -6,7 +6,7 @@ continues to emit its legacy frames. Producers opt into new fields after their c
 
 Dependencies: S00a ([PR #11](https://github.com/DDL-Mike-Snyder/pier-review-ship-parking/pull/11),
 `89bdecc`) and S00b ([PR #13](https://github.com/DDL-Mike-Snyder/pier-review-ship-parking/pull/13),
-`51267d0`) are merged. This change is updated to `dev` at `9dd3737`.
+`51267d0`) are merged. This change includes `dev` through `6b35c92` (the DC4 review corrections in PR #21).
 
 ## Coordination and ownership
 
@@ -42,6 +42,9 @@ Rich frames carry `schema_version="rm0-v1"`, `session_id`, `run_id`, `sequence`,
 display decimation. Gaps can indicate sampling or dropped display frames; they do not measure elapsed physics time.
 Reset starts a new `run_id` at `t_s=0` without resetting session sequence. Time cannot go backwards within a run.
 Reconnect retains these identities; a newly created session starts a new sequence namespace.
+Opting into `rm0-v1` requires all five identity fields and an integer sequence; this is enforced
+by both the Python model and public JSON Schema. Legacy frames do not acquire these requirements.
+Rich component IDs are unique within their respective lists; fitting identity is `(owner, fitting_id)`.
 
 ## Coordinate frames and units
 
@@ -106,7 +109,10 @@ Use [S00 validity](CONTRACT_SEMANTICS.md): absent/unknown means not assessed; li
 Backend, convergence and low utilization do not qualify a result. `MotionProvenance` distinguishes mock,
 estimated, qualified and unknown, with source and evidence; qualification requires more than a label.
 Frame validity must preserve contributing limitations. Consumers show a frame badge and retain component
-limitations, including unavailable vertical and wave data.
+limitations, including unavailable vertical and wave data. An invalid descendant requires an invalid
+aggregate, even when the aggregate would otherwise be limited or unknown. New fitting/fender status
+fields obey the envelope status rule: limited is never GREEN and invalid is RED. The model rejects
+contradictions instead of silently rewriting supplied values. The mock examples use AMBER.
 
 All published examples are **MOCK / unqualified**. Authored coordinates, loads and percentages are independent
 UI contract values, not integrated dynamics, observations, approved tug behavior or operating recommendations.
@@ -124,7 +130,9 @@ schemas and files: RM0 does not introduce a live scene route or claim lifecycle 
 
 `SimLifecycle` represents created, running, paused, reset, ended and error with session/run identity, sequence
 and simulation time. S17 owns transitions: pause freezes at a completed step; reset restores initial state and
-returns paused; reconnect stays paused until explicit resume. Ended/error tells the UI that advancement stopped.
+returns paused; reset messages require `t_s=0` and a new run identifier when prior messages are
+available in the recording. Lifecycle sequences are strict integers, matching frame sequences.
+Reconnect stays paused until explicit resume. Ended/error tells the UI that advancement stopped.
 RM5 owns reliable lifecycle delivery and ordering relative to display frames.
 
 ## Sampling, slow clients and recording

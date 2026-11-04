@@ -19,16 +19,22 @@ def toolkit() -> PhysicsToolkit:
                           caller="test")
 
 
+def _legacy_client():
+    class Stub:
+        """Gateway client returning an analysis recorded before S00a (no validity, no manifest)."""
+
+        async def request(self, method, path, **kw):
+            j = TestClient(modeling_app).post(f"{P}{path}", json=kw["json"]).json()
+            j.pop("validity"), j.pop("manifest")
+            return AnalyzeResponse.model_validate(j).model_dump(mode="json")
+
+    return Stub()
+
+
 def test_legacy_modeling_response_is_recorded_as_unknown():
     tk = toolkit()
 
-    class Stub:
-        async def analyze(self, body):
-            j = TestClient(modeling_app).post(f"{P}/mooring/analyze", json=body).json()
-            j.pop("validity"), j.pop("manifest")  # a response recorded before S00a
-            return AnalyzeResponse.model_validate(j)
-
-    tk.client = Stub()
+    tk.client = _legacy_client()
     out = asyncio.run(tk.analyze(EXAMPLES["mooring_analyze"]))
     assert out.validity is None
     assert tk.last_call.validity_state == "unknown" and tk.last_call.status in ("GREEN", "AMBER", "RED")
@@ -44,11 +50,13 @@ def test_reported_invalid_validity_reaches_the_ledger():
     tk = toolkit()
 
     class Stub:
-        async def analyze(self, body):
-            j = TestClient(modeling_app).post(f"{P}/mooring/analyze", json=body).json()
+        """Modeling client whose responses report invalid validity (the gateway calls the generic request())."""
+
+        async def request(self, method, path, **kw):
+            j = TestClient(modeling_app).post(f"{P}{path}", json=kw["json"]).json()
             j["status"] = "RED"
             j["validity"] = {"state": "invalid", "reasons": [{"code": "NO_EQUILIBRIUM_FOUND", "message": "solver stalled"}]}
-            return AnalyzeResponse.model_validate(j)
+            return AnalyzeResponse.model_validate(j).model_dump(mode="json")
 
     tk.client = Stub()
     out = asyncio.run(tk.analyze(EXAMPLES["mooring_analyze"]))
@@ -74,3 +82,21 @@ def test_sequence_review_status_reaches_the_safety_sheet():
     seq = SequenceResult(steps=[], crews_required=4, review_status="draft_unreviewed", limitations=["Static check only."])
     assert seq.review_status == "draft_unreviewed"
     assert "sequence_review_status" in S.SafetySheet.model_fields and "sequence_limitations" in S.SafetySheet.model_fields
+
+
+def test_unknown_ledger_validity_is_omitted_for_legacy_clients():
+    from pydantic import ConfigDict, create_model
+    from mooring_agents.physics.schemas import ToolCall
+
+    LegacyCall = create_model("LegacyCall", __config__=ConfigDict(extra="forbid"),
+                              **{name: (field.annotation, field) for name, field in ToolCall.model_fields.items()
+                                 if name != "validity_state"})
+    tk = toolkit()
+    tk.client = _legacy_client()
+    asyncio.run(tk.analyze(EXAMPLES["mooring_analyze"]))
+    wire = tk.last_call.model_dump(mode="json")
+    assert "validity_state" not in wire
+    LegacyCall.model_validate(wire)
+    assert ToolCall.model_validate(wire).validity_state == "unknown"
+    tk.last_call.validity_state = "invalid"
+    assert tk.last_call.model_dump(mode="json")["validity_state"] == "invalid"

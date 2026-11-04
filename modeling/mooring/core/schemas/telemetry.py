@@ -9,6 +9,8 @@ from .common import Model
 
 
 class TelemetryRecord(Model):
+    wire_omitted_defaults = {"sensor_id": None, "vessel_id": None, "calibration_rev": None, "seq": None, "units": None, "received_utc": None}
+
     source: Literal["ship_nmea", "load_cell", "ais"]
     t_utc: datetime
     sentence: str | None = Field(default=None, description="Raw NMEA 0183 sentence, e.g. '$WIMWV,...'.")
@@ -36,6 +38,8 @@ class TelemetryRejection(Model):
 
 
 class TelemetryAccepted(Model):
+    wire_omitted_defaults = {"rejections": []}
+
     accepted: int
     rejected: int
     errors: list[str] = Field(default_factory=list)

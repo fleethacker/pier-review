@@ -60,10 +60,12 @@ def test_template_config_output_is_unchanged_after_move():
     from mooring.templates import template_config
 
     cfg = template_config(refdata.ship("DDG-51-FIIA"), refdata.berth("NAVSTA-NORFOLK-P12-N"), "starboard", 650.0, "NYLON-DB-7IN")
+    # Golden output captured from dev before the move (pier fittings included, so bollard selection is pinned).
     assert [(ln.line_number, ln.role, ln.ship_fitting_id, ln.pier_fitting_id) for ln in cfg.lines] == [
-        (1, "bow", "BITT-1S", cfg.lines[0].pier_fitting_id), (2, "spring_aft", "BITT-2S", cfg.lines[1].pier_fitting_id),
-        (3, "breast", "BITT-3S", cfg.lines[2].pier_fitting_id), (4, "breast", "BITT-4S", cfg.lines[3].pier_fitting_id),
-        (5, "spring_fwd", "BITT-5S", cfg.lines[4].pier_fitting_id), (6, "stern", "BITT-6S", cfg.lines[5].pier_fitting_id)]
+        (1, "bow", "BITT-1S", "P12N-B17"), (2, "spring_aft", "BITT-2S", "P12N-B12"),
+        (3, "breast", "BITT-3S", "P12N-M06"), (4, "breast", "BITT-4S", "P12N-M05"),
+        (5, "spring_fwd", "BITT-5S", "P12N-B10"), (6, "stern", "BITT-6S", "P12N-B06")]
+    assert {ln.spec_id for ln in cfg.lines} == {"NYLON-DB-7IN"} and {ln.parts for ln in cfg.lines} == {1}
 
 
 def test_environment_interface_exposes_the_swap_surface():

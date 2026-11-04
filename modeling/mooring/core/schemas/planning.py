@@ -11,6 +11,8 @@ from .refdata import LineInventoryItem
 
 
 class RecommendRequest(Model):
+    wire_omitted_defaults = {"max_evaluations": 1500, "neighbors_per_line": 3, "tide_levels_ft": [0.0]}
+
     ship_class_id: str = Field(examples=["DDG-51-FIIA"])
     loading: str = "full_load"
     berth_id: str
@@ -30,6 +32,8 @@ class RecommendRequest(Model):
 
 
 class Candidate(Model):
+    wire_omitted_defaults = {"feasible": None, "worst_case": None, "cases_evaluated": None}
+
     config: MooringConfig
     min_margin_pct_wll: float = Field(description="Highest utilization over every evaluated case (lower is better).")
     limit_wind_kt_worst: float | None
@@ -52,6 +56,8 @@ class SearchDiagnostics(Model):
 
 
 class RecommendResult(Model):
+    wire_omitted_defaults = {"cases": None, "search": None}
+
     candidates: list[Candidate]
     design_environment: EnvironmentSnapshot
     cases: list[str] | None = Field(default=None, description="Every environment case each candidate was evaluated against.")

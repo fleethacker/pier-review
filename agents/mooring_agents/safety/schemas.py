@@ -45,9 +45,20 @@ class Thresholds(Model):
     wind_rel_deg: float | None = Field(description="Worst relative wind direction from the limit envelope.")
     governing_element: str | None
     limit_wll_gust_kt: float | None = Field(description="Gust at which the first element reaches its working limit.")
-    limit_breaking_gust_kt: float | None = Field(description="Gust at which the first line reaches breaking strength.")
+    limit_breaking_gust_kt: float | None = Field(
+        description="Estimated gust at line breaking: working-load limit times sqrt(design factor).")
     forecast_max_gust_kt: float
     cites: list[str]
+    directions: list["DirectionalThreshold"] = Field(default_factory=list)
+
+
+class DirectionalThreshold(Model):
+    """Direction-specific limits. Breaking gust is an estimate, not a direct solver result."""
+
+    wind_rel_deg: float
+    governing_element: str | None
+    limit_wll_gust_kt: float | None
+    estimated_breaking_gust_kt: float | None
 
 
 class SafetyReview(Model):
@@ -59,6 +70,10 @@ class SafetyReview(Model):
     checks: list[CheckResult]
     thresholds: Thresholds
     summary: str
+    brief: str | None = None
+    summary_source: Literal["llm", "deterministic"] | None = None
+    narration_note: str | None = None
+    intake_report_id: str | None = None
     backend: Literal["mock", "real"]
 
 
@@ -154,6 +169,8 @@ class SafetySheet(Model):
         default=None, description="Review state of the line-handling sequence from the modeling service; 'draft_unreviewed' until a deck officer or pilot reviews it.")
     sequence_limitations: list[str] = Field(default_factory=list)
     go_no_go: list[GoNoGo]
+    brief: str | None = None
+    directional_thresholds: list[DirectionalThreshold] = Field(default_factory=list)
     warnings: list[Finding]
     rationale: list[RationaleItem]
     assumptions: list[str]

@@ -10,6 +10,8 @@ from .mooring import AnalyzeRequest
 
 
 class ExceedanceRequest(AnalyzeRequest):
+    wire_omitted_defaults = {**AnalyzeRequest.wire_omitted_defaults, **AnalyzeRequest.wire_omitted_defaults, "uncertainty_model_id": None, "include_horizon": False, "n_trajectories": 200, "horizon_step_min": 30}
+
     horizon_hours: float = Field(default=6, gt=0, le=72)
     n_samples: int = Field(default=2000, ge=10, le=20000)
     seed: int | None = None
@@ -24,6 +26,8 @@ class ExceedanceRequest(AnalyzeRequest):
 
 
 class ElementRisk(Model):
+    wire_omitted_defaults = {"p_exceed_wll_ci95": None}
+
     element_id: str
     p_exceed_wll: float = Field(ge=0, le=1, description="Probability the element's limit (WLL, or rated capacity for fittings) is exceeded, among valid samples.")
     p_exceed_mbs: float | None = Field(default=None, ge=0, le=1, description="Lines only; null for fittings and fenders, which have no MBS.")
@@ -46,6 +50,8 @@ class HorizonRisk(Model):
 
 
 class ExceedanceResult(Model):
+    wire_omitted_defaults = {"n_valid": None, "n_failed": None, "p_any_ci95": None, "p_any_bounds": None, "seed": None, "uncertainty_model": None, "pointwise_only": None, "horizon": None, "error_criterion": None}
+
     n_samples: int = Field(description="Samples requested and run; never silently capped.")
     p_any_exceeds_wll: float = Field(ge=0, le=1, description="Instantaneous probability (pointwise), among valid samples.")
     p_any_exceeds_mbs: float = Field(ge=0, le=1)
@@ -67,6 +73,8 @@ class ExceedanceResponse(Envelope[ExceedanceResult]):
 
 
 class TimelineRequest(AnalyzeRequest):
+    wire_omitted_defaults = {**AnalyzeRequest.wire_omitted_defaults, **AnalyzeRequest.wire_omitted_defaults, "start_utc": None, "n_samples_per_step": 0}
+
     forecast_hours: int = Field(default=48, ge=1, le=120)
     step_min: int = Field(default=30, ge=6, le=180)
     start_utc: datetime | None = Field(default=None, description="First step time; defaults to the current hour (inject for reproducible runs).")
@@ -74,6 +82,8 @@ class TimelineRequest(AnalyzeRequest):
 
 
 class TimelineStep(Model):
+    wire_omitted_defaults = {"max_pct_wll": None, "valid": None}
+
     valid_at_utc: datetime
     status: Status
     wind_speed_kt: float
@@ -97,6 +107,8 @@ class TimelineResponse(Envelope[TimelineResult]):
 
 class Alert(Model):
     """Message on WS /ws/alerts."""
+
+    wire_omitted_defaults = {"stale": None, "provenance": None}
 
     alert_id: str
     at_utc: datetime

@@ -104,7 +104,7 @@ def test_unqualified_model_makes_the_result_limited_and_pointwise_only_is_stated
     j = run(n_samples=200)
     assert j["validity"]["state"] == "limited" and j["status"] != "GREEN"
     assert "UNQUALIFIED_UNCERTAINTY_MODEL" in {r["code"] for r in j["validity"]["reasons"]}
-    assert j["result"]["pointwise_only"] is True and j["result"]["horizon"] is None
+    assert j["result"]["pointwise_only"] is True and j["result"].get("horizon") is None
     assert any(w["rule_id"] == "RISK-HORIZON-UNSUPPORTED" for w in j["warnings"])
     assert client.post(f"{P}/risk/exceedance", json={**EXAMPLES["risk_exceedance"], "uncertainty_model_id": "nope"}).status_code == 422
 

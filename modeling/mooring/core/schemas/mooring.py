@@ -11,6 +11,8 @@ from .plans import LineRole, MooringConfig, TugAssignment
 
 
 class AnalyzeRequest(Model):
+    wire_omitted_defaults = {"installed_at_water_level_mllw_ft": None}
+
     scenario_id: str | None = Field(default=None, description="Informational; inputs are always taken from the body.")
     ship_class_id: str = Field(examples=["DDG-51-FIIA"])
     loading: str = "full_load"
@@ -65,6 +67,8 @@ class ShipFittingResult(Model):
 
 
 class FenderResult(Model):
+    wire_omitted_defaults = {"energy_ftlbf": None, "pct_rated_energy": None}
+
     fender_id: str
     reaction_lbf: float
     compression_ft: float
@@ -93,6 +97,8 @@ class AnalyzeResponse(Envelope[AnalyzeResult]):
 
 
 class LimitEnvelopeRequest(AnalyzeRequest):
+    wire_omitted_defaults = {**AnalyzeRequest.wire_omitted_defaults, **AnalyzeRequest.wire_omitted_defaults, "max_search_kt": 100.0, "sampling_step_kt": 5.0, "tolerance_kt": 0.25}
+
     step_deg: int = Field(default=15, ge=5, le=90)
     max_search_kt: float = Field(default=100.0, ge=10, le=200, description="Highest wind speed searched. No failure up to here is reported as such, not as unlimited.")
     sampling_step_kt: float = Field(default=5.0, gt=0, le=20, description="Coarse scan interval; failures narrower than this can be missed.")
@@ -103,6 +109,8 @@ LimitOutcome = Literal["limit_found", "fails_at_zero_wind", "no_failure_in_range
 
 
 class LimitEnvelopePoint(Model):
+    wire_omitted_defaults = {"outcome": None, "bracket_kt": None, "search_max_kt": None, "undetermined_at_kt": None, "nonmonotone_in_bracket": None}
+
     wind_rel_deg: float
     limit_wind_kt: float | None = Field(
         description="Highest wind speed verified within limits (conservative end of the bracket). None unless outcome is "
@@ -135,6 +143,8 @@ class TendingInput(Model):
 
 
 class TideSweepRequest(AnalyzeRequest):
+    wire_omitted_defaults = {**AnalyzeRequest.wire_omitted_defaults, **AnalyzeRequest.wire_omitted_defaults, "tending": []}
+
     from_utc: datetime
     to_utc: datetime
     step_min: int = Field(default=30, ge=5, le=180)
@@ -147,6 +157,8 @@ class LineTension(Model):
 
 
 class TideStep(Model):
+    wire_omitted_defaults = {"valid": None, "max_pct_wll": None}
+
     valid_at_utc: datetime
     water_level_mllw_ft: float
     lines: list[LineTension]
@@ -183,6 +195,8 @@ class TideSweepResponse(Envelope[TideSweepResult]):
 
 
 class Rule(Model):
+    wire_omitted_defaults = {"coverage": None, "applicability": None}
+
     rule_id: str
     title: str
     severity: Severity = Field(description="Highest severity the rule can raise.")

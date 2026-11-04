@@ -1,6 +1,6 @@
 # Contract semantics (S00a)
 
-Additive rules for validity, diagnostics, inputs and metadata. Generated schemas are in [contract/](../contract/README.md); this page explains what the fields *mean*. Everything here is optional on the wire, so existing request and response bodies keep working.
+Additive rules for validity, diagnostics, inputs and metadata. Generated schemas are in [contract/](../contract/README.md); this page explains what the fields *mean*. New fields are optional; contradictory inputs described below now return 422. Unused additions are omitted from serialized responses so existing strict clients can still read legacy payloads.
 
 ## Validity
 
@@ -16,7 +16,8 @@ Every envelope may carry `validity: {state, reasons[], diagnostics}`.
 - The `Envelope` model rejects a contradictory status/validity pair, so it holds for both services. `status_with_validity()` lifts a computed status; `validity_state()` reads a model or JSON dict and returns `unknown` when validity is missing.
 - Reason `code`s are `UPPER_SNAKE` strings with `affected_components` (element ids). Utilization stays in the result (`min_margin`, `pct_wll`); validity never rewrites it.
 - `backend="real"`, a converged solver, or GREEN never implies `valid`.
-- New real computations must always populate validity. Mocks do not yet (they stay unknown).
+- New real computations must always populate validity. Existing computations do not yet (they stay unknown).
+- Compatibility: unset `validity`, `manifest`, environment `metadata`, and per-line `condition`/`paid_out_unstretched_length_ft` are omitted, including nested payloads, stored results and job results. Unknown ledger `validity_state` is also omitted; parsing it still defaults to `unknown`. Existing optional fields retain their legacy null/default serialization. Explicitly populated additions are serialized and require upgraded consumers: deploy the S00a schemas to consumers before enabling producers that populate them. This PR does not enable such producers.
 
 ## Failure taxonomy
 
@@ -47,13 +48,13 @@ Unknown quantities are `null`. NaN and infinity are rejected on input (`422`) an
 - `slack_ft`: extra length beyond the straight-line distance. A positive `slack_ft` with positive `pretension_lbf` is rejected (a slack line carries no tension).
 - `paid_out_unstretched_length_ft`: new; defines length directly, so it cannot be combined with `slack_ft`.
 - `condition` (`wet`/`dry`): new; omitted means the request's `lines_wet` applies.
-- The mock solver does not model the two new fields. It says so in `assumptions` rather than ignoring them silently.
+- The mock solver does not model the two new fields. Analyze, limiting-envelope, tide-sweep, holding-tug, risk-exceedance and risk-timeline responses disclose ignored paid-out length and conflicting per-line condition in `assumptions`, including stored/job results.
 - Still to define in the packets that need them: parts and reeving, chock routing, loading-dependent fitting heights, tending actions.
 
 ## Environment metadata
 
-`EnvironmentSnapshot.metadata` (`EnvironmentMetadata`): `basis` (observation, prediction or scenario), `source`, `issued_at_utc`, `valid_from_utc`/`valid_to_utc`, `wind_averaging_s`, `gust_duration_s`, `wind_reference_height_m`, `current_depth_ft`/`current_bin`, `vertical_datum` (only MLLW accepted), `quality`, `age_s`, `original` (provider values as received). Absent means undocumented and the legacy meaning applies. Metadata never changes the computed numbers; no code reads it for physics yet.
+`EnvironmentSnapshot.metadata` (`EnvironmentMetadata`): `basis` (observation, prediction or scenario), `source`, `issued_at_utc`, `valid_from_utc`/`valid_to_utc`, `wind_averaging_s`, `gust_duration_s`, `wind_reference_height_m`, `current_depth_ft`/`current_bin`, `vertical_datum` (only MLLW accepted), `quality`, `age_s`, `original` (provider values as received). Absent means undocumented and the legacy meaning applies. Metadata never changes the computed numbers; no code reads it for physics yet. Metadata timestamps and environment-scenario replay start/end timestamps must include an explicit UTC offset (including `Z`). Missing offsets return 422; different explicit offsets are compared by instant.
 
 ## Result manifest
 
-`manifest` (`ResultManifest`): `resolved_inputs_hash`, `code_version`, resolved `records` (kind, id, revision), `environment_hash`, `numerical_settings`, `rng_seed`, `rng_model_revision`. `inputs_hash` keeps its meaning (the request as sent). `resolved_inputs_hash()` hashes canonical key-sorted JSON after defaults and references are resolved. Mocks leave the manifest empty.
+`manifest` (`ResultManifest`): `resolved_inputs_hash`, `code_version`, resolved `records` (kind, id, revision), `environment_hash`, `numerical_settings`, `rng_seed`, `rng_model_revision`. `inputs_hash` preserves its legacy serialization: typed requests include existing defaults/nulls, while dictionary requests use sorted JSON. It is not a hash of raw HTTP bytes. Omitting inactive new fields preserves legacy typed hashes; populated additions participate in the hash. `resolved_inputs_hash()` hashes canonical key-sorted JSON after defaults and references are resolved. Mocks leave the manifest empty.

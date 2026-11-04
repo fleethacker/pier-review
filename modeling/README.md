@@ -4,6 +4,8 @@ Physics and ML modeling service (FastAPI, port 8000). Modules M1–M7 and M11–
 [docs/PLAN.md](../docs/PLAN.md), organized by mooring phase. What validity, diagnostics, input precedence and
 environment metadata mean: [docs/CONTRACT_SEMANTICS.md](../docs/CONTRACT_SEMANTICS.md).
 
+Start implementation with the reviewed [remaining-modeling execution plan](../docs/MODELING_EXECUTION_PLAN.md): dependencies, per-PR scope, validation gates and the first agent handoff.
+
 ```text
 mooring/
   core/            shared types and plumbing
@@ -46,7 +48,7 @@ tests/
     - cross-phase capabilities: the package's `__init__.py` entry point (`compute_loads`, `size_tugs`) and
       `modeling_api/backend.py`;
     - phase modules: `modeling_api/backend.py`.
-3. Delete the mock once nothing imports it, set `backend="real"` in the envelopes it returns, and update
+3. Search callers, examples, jobs and WebSockets for direct mock imports and migrate them through the stable interface. Delete the mock once nothing imports it, set `backend="real"` in the envelopes it returns, and update
    `BACKENDS`.
 4. Keep the API shapes unchanged. If you must change them, run `make contract` and tag the UI team on the PR.
 
@@ -107,6 +109,6 @@ No UFC coefficient was tuned to match the bearings.
 ## Known limitations (follow-ups)
 
 - **Gust duration (M1).** Loads treat `wind_gust_kt` as a 30-second wind at 10 m. Station gusts are
-  shorter peaks, so loads are overstated (conservative). When M1 ingests real NOAA data, it must state each
+  often measured over different durations; their use is not a verified wind basis or a guarantee of conservative coupled behavior. When M1 ingests real NOAA data, it must state each
   source's gust definition and normalize gusts to a 30-second basis (UFC Section 3-8.1, Figure 3-5), or add
   an explicit `gust_duration_s` to `EnvironmentSnapshot` for `compute_loads` to convert.

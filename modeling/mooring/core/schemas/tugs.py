@@ -41,6 +41,8 @@ class WrenchLbf(Model):
 
 
 class TugPlanResult(Model):
+    wire_omitted_defaults = {"required_wrench": None, "delivered_wrench": None, "residual_wrench": None, "binding_constraints": [], "ratings_basis": None, "assisted_max_pct_wll": None, "assisted_result_id": None}
+
     required_lateral_lbf: float
     required_by_point: list[PushPointForce]
     assignments: list[TugAssignment]
@@ -63,6 +65,8 @@ class TugPlanResponse(Envelope[TugPlanResult]):
 
 
 class BerthingWindowRequest(Model):
+    wire_omitted_defaults = {"available_tug_ids": None, "margin": 0.25, "step_min": 6, "min_duration_min": 0.0}
+
     berth_id: str
     ship_class_id: str
     loading: str = "full_load"
@@ -86,6 +90,8 @@ class BerthingWindow(Model):
 
 
 class BerthingWindowsResult(Model):
+    wire_omitted_defaults = {"forecast_coverage_end_utc": None, "gaps": [], "resolution_note": None}
+
     windows: list[BerthingWindow]
     forecast_coverage_end_utc: datetime | None = Field(default=None, description="Last time with forecast data; later times are gaps, never windows.")
     gaps: list[str] = Field(default_factory=list)

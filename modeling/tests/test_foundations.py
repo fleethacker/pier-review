@@ -119,7 +119,7 @@ def test_mock_responses_have_no_validity_and_read_as_unknown():
     r = client.post(f"{P}/approach/route", json=EXAMPLES["approach_route"])  # still a mock module
     assert r.status_code == 200
     j = r.json()
-    assert j["validity"] is None and j["manifest"] is None
+    assert "validity" not in j and "manifest" not in j
     assert validity_state(j) == "unknown"
     stored = client.get(f"{P}/results/{j['result_id']}").json()
     assert validity_state(stored) == "unknown"
@@ -335,3 +335,126 @@ def test_non_finite_json_in_a_request_is_422():
                     headers={"content-type": "application/json"})
     assert r.status_code == 422
 
+
+
+# ---------- PR #11 review regressions ----------
+
+@pytest.mark.parametrize("schema,example,expected", [
+    ("AnalyzeRequest", "mooring_analyze", "c821959813594d16e952f9f8eaa0f818e74cfae00d10957f2a68078910792569"),
+    ("LoadsRequest", "loads_environmental", "8aea8dc4d96f5efc7dc30260c60694467b157314572c781dec2009af97f9f905"),
+    ("RecommendRequest", "mooring_recommend", "76e81a78045368d279871b49931a411de607d187da5e8255d8ae4d89420d27db"),
+    ("ExceedanceRequest", "risk_exceedance", "5b5ae37e74af72fe889a14e1c60e78b648e242760099e8724db51dd46b7e1f49"),
+])
+def test_legacy_typed_request_hashes(schema, example, expected):
+    # Captured with pre-S00a schemas at 5345bdd; unlike dict-only tests, these
+    # exercise Pydantic default serialization, including nested environments/lines.
+    from mooring.core import schemas
+
+    req = getattr(schemas, schema)(**EXAMPLES[example])
+    assert inputs_hash(req) == "sha256:" + expected
+
+
+def test_inactive_additions_omitted_without_dropping_legacy_nulls():
+    from pydantic import ConfigDict, create_model
+
+    def legacy_type(cls, additions):
+        # Strict pre-S00a field sets; existing result types have no S00a additions.
+        return create_model("Legacy" + cls.__name__, __config__=ConfigDict(extra="forbid"),
+                            **{name: (field.annotation, field) for name, field in cls.model_fields.items()
+                               if name not in additions})
+
+    LegacyAnalysis = legacy_type(AnalyzeResponse, {"validity", "manifest"})
+    LegacyEnvironment = legacy_type(EnvironmentSnapshot, {"metadata"})
+    LegacyLine = legacy_type(MooringLine, {"condition", "paid_out_unstretched_length_ft"})
+    req = AnalyzeRequest(**body())
+    wire = req.model_dump(mode="json")
+    LegacyEnvironment.model_validate(wire["environment"])
+    for line in wire["config"]["lines"]:
+        LegacyLine.model_validate(line)
+        assert "slack_ft" in line and line["slack_ft"] is None
+    assert "scenario_id" in wire and wire["scenario_id"] is None
+    # /mooring/analyze is now a real, validity-bearing path; a still-mock endpoint keeps the pre-S00a response shape.
+    from mooring.core.schemas import RouteResponse
+    LegacyRoute = legacy_type(RouteResponse, {"validity", "manifest"})
+    legacy = post("approach/route", EXAMPLES["approach_route"]).json()
+    LegacyRoute.model_validate(legacy)
+    LegacyRoute.model_validate(client.get(f"{P}/results/{legacy['result_id']}").json())
+    response = post("mooring/analyze", wire).json()
+    assert response["validity"] is not None and response["manifest"] is not None
+    explicit_nulls = AnalyzeResponse.model_validate(response | {"validity": None, "manifest": None})
+    assert "validity" not in explicit_nulls.model_dump(mode="json")
+    assert validity_state(explicit_nulls) == "unknown"
+
+
+def test_active_additions_are_serialized_and_change_request_hash():
+    req = AnalyzeRequest(**body())
+    baseline_hash = inputs_hash(req)
+    req.environment.metadata = EnvironmentMetadata(basis="scenario", gust_duration_s=30)
+    req.config.lines[0].condition = "dry"
+    req.config.lines[0].paid_out_unstretched_length_ft = 120
+    wire = json.loads(req.model_dump_json())
+    assert wire["environment"]["metadata"]["gust_duration_s"] == 30
+    assert wire["config"]["lines"][0]["condition"] == "dry"
+    assert wire["config"]["lines"][0]["paid_out_unstretched_length_ft"] == 120
+    assert inputs_hash(req) != baseline_hash
+    env = envelope(AnalyzeResponse, model="test", request=req, result=_analyze_result(), status="GREEN",
+                   validity=Validity(state="limited", reasons=[REASON]),
+                   manifest=ResultManifest(code_version="test"))
+    wire = env.model_dump(mode="json")
+    assert wire["validity"]["state"] == "limited" and wire["manifest"]["code_version"] == "test"
+    assert AnalyzeResponse.model_validate(wire).status == "AMBER"
+
+
+@pytest.mark.parametrize("times", [
+    {"valid_from_utc": "2026-11-04T12:00:00", "valid_to_utc": "2026-11-04T13:00:00Z"},
+    {"valid_from_utc": "2026-11-04T12:00:00Z", "valid_to_utc": "2026-11-04T13:00:00"},
+    {"issued_at_utc": "2026-11-04T12:00:00"},
+])
+def test_metadata_without_timezone_returns_422(times):
+    b = body()
+    b["environment"]["metadata"] = {"basis": "prediction", **times}
+    r = post("mooring/analyze", b)
+    assert r.status_code == 422 and "timezone_aware" in r.text
+
+
+@pytest.mark.parametrize("start,end", [
+    ("2026-11-04T12:00:00", "2026-11-04T13:00:00Z"),
+    ("2026-11-04T12:00:00Z", "2026-11-04T13:00:00"),
+    ("2026-11-04T12:00:00", None),
+])
+def test_replay_without_timezone_returns_422(start, end):
+    r = post("env/scenarios", {"name": "test", "kind": "replay", "replay_start_utc": start,
+                               "replay_end_utc": end})
+    assert r.status_code == 422 and "timezone_aware" in r.text
+
+
+def test_different_explicit_offsets_compare_by_instant():
+    times = {"valid_from_utc": "2026-11-04T12:00:00+02:00", "valid_to_utc": "2026-11-04T11:00:00Z"}
+    b = body()
+    b["environment"]["metadata"] = {"basis": "prediction", **times}
+    assert post("mooring/analyze", b).status_code == 200
+    replay = {"name": "test", "kind": "replay", "replay_start_utc": times["valid_from_utc"],
+              "replay_end_utc": times["valid_to_utc"]}
+    assert post("env/scenarios", replay).status_code == 201
+
+
+@pytest.mark.parametrize("example", ["mooring_analyze", "mooring_envelope", "mooring_tide_sweep",
+                                     "tugs_hold_plan", "risk_exceedance", "risk_timeline"])
+def test_all_analysis_consumers_accept_and_honor_line_length_and_condition_inputs(example):
+    """The equilibrium solver models paid-out length and wet/dry condition, so every consumer accepts them (no 'ignored' note)."""
+    b = copy.deepcopy(EXAMPLES[example])
+    b["config"]["lines"][0].update(paid_out_unstretched_length_ft=20.0, condition="dry")
+    response = post(_PATH[example], b)
+    assert response.status_code in (200, 202), response.text
+    payload = response.json()
+    if response.status_code == 202:
+        import time
+        end = time.monotonic() + 60
+        job = client.get(payload["status_url"]).json()
+        while job["state"] in ("queued", "running") and time.monotonic() < end:
+            time.sleep(0.02)
+            job = client.get(payload["status_url"]).json()
+        assert job["state"] == "succeeded", job
+        payload = job["result"]
+    assert "ignored" not in " ".join(payload["assumptions"])
+    assert payload["validity"] is not None and client.get(f"{P}/results/{payload['result_id']}").json()["assumptions"] == payload["assumptions"]

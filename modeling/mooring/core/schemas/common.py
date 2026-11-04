@@ -7,9 +7,9 @@ Conventions (see docs/PLAN.md, "API conventions"):
 """
 
 from datetime import datetime
-from typing import Any, Generic, Literal, TypeVar
+from typing import Any, ClassVar, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 
 class Model(BaseModel):
@@ -19,6 +19,18 @@ class Model(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid", protected_namespaces=(), allow_inf_nan=False)
+
+    # Only newly introduced, inactive fields are omitted. Do not globally exclude
+    # None/defaults: legacy wire payloads and typed request hashes include them.
+    wire_omitted_defaults: ClassVar[dict[str, Any]] = {}
+
+    @model_serializer(mode="wrap")
+    def _compatible_wire(self, handler):
+        data = handler(self)
+        for name, default in self.wire_omitted_defaults.items():
+            if name in data and data[name] == default:
+                del data[name]
+        return data
 
 
 Status = Literal["GREEN", "AMBER", "RED"]
@@ -142,6 +154,8 @@ T = TypeVar("T")
 class Envelope(Model, Generic[T]):
     """Wrapper returned by every compute endpoint so each number can be traced and reproduced."""
 
+    wire_omitted_defaults = {"validity": None, "manifest": None}
+
     result_id: str = Field(description="Stable id; the agent and safety sheet cite numbers by this id.")
     model: str = Field(description="Module that produced the result, e.g. 'mooring.solver.static'.")
     model_version: str
@@ -153,10 +167,10 @@ class Envelope(Model, Generic[T]):
     warnings: list[Finding] = Field(default_factory=list)
     validity: Validity | None = Field(
         default=None,
-        description="Absent on legacy responses and means UNKNOWN, never valid. New real paths always populate it. "
+        description="Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. "
         "'invalid' requires status RED; 'limited' cannot be GREEN.",
     )
-    manifest: ResultManifest | None = Field(default=None, description="Dependencies for reproducing the result; absent on legacy responses.")
+    manifest: ResultManifest | None = Field(default=None, description="Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.")
     result: T
 
     @model_validator(mode="after")

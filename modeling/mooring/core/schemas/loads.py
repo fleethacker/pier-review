@@ -9,6 +9,8 @@ from .environment import EnvironmentSnapshot
 
 
 class LoadsRequest(Model):
+    wire_omitted_defaults = {"require_verified_wind_basis": False}
+
     ship_class_id: str = Field(examples=["DDG-51-FIIA"])
     loading: str = "full_load"
     heading_true_deg: float = Field(ge=0, lt=360)

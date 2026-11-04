@@ -260,8 +260,26 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
     best = None
     llm_requested = llm is not None
     fallback_reason = None
-    for iteration in range(req.max_iterations):
-        checks, worst_index = await _conditions(tk, sc, cfg, environments, ship.mst_class, tugs)
+    # Keep the essential finishing calls (tugs, risk for every condition, sequence) inside the Planner's tool budget:
+    # each iteration costs one analysis per condition plus a possible holding-tug call.
+    n = len(environments)
+    finishing_calls = 2 * n + 1
+    spent = len(calls_for(plan_id))
+    affordable = max(1, (tk.max_calls - spent - finishing_calls) // (n + 1))
+    iterations = min(req.max_iterations, affordable)
+    if iterations < req.max_iterations:
+        budget_note = (f"Iterations capped at {iterations} of {req.max_iterations} to stay within the tool-call budget "
+                       f"({tk.max_calls}) with {n} planning condition(s).")
+    else:
+        budget_note = None
+    for iteration in range(iterations):
+        try:
+            checks, worst_index = await _conditions(tk, sc, cfg, environments, ship.mst_class, tugs)
+        except ModelingError as exc:
+            if exc.status != 429 or best is None:
+                raise
+            open_questions.append("Tool-call budget exhausted; returning the best evaluated plan.")
+            break
         analysis = checks[worst_index]
         for check in checks:
             step("Evaluated a required planning condition.", "analyze_mooring", check.result_id)
@@ -274,7 +292,7 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
             step("The evaluated plan meets the target and has no RED finding.", "analyze_mooring",
                  analysis.result_id)
             break
-        if iteration == req.max_iterations - 1:
+        if iteration == iterations - 1:
             break
 
         call = None
@@ -383,7 +401,7 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
     ledger_ids = {call.result_id for call in calls_for(plan_id) if call.result_id}
     rationale = [item for item in rationale if item.cites and set(item.cites) <= ledger_ids]
     mode = ("LLM" if llm else f"LLM, then deterministic after {fallback_reason}") if llm_requested else "deterministic"
-    assumptions = [f"Configured model: {model_id}; adjustment mode: {mode}.",
+    assumptions = [f"Configured model: {model_id}; adjustment mode: {mode}.", *([budget_note] if budget_note else []),
                    "Model text is not used as factual rationale; physics results govern status."]
     assumptions.extend(dict.fromkeys(a for result in [*checks, *tug_plans, sequence, *risks]
                                      for a in result.assumptions))

@@ -13,6 +13,8 @@ LineRole = Literal["bow", "breast", "spring_fwd", "spring_aft", "stern"]
 class MooringLine(Model):
     """One mooring line. Lines are numbered forward to aft (NSTM 582-4.2.1)."""
 
+    wire_omitted_defaults = {"paid_out_unstretched_length_ft": None, "condition": None}
+
     line_number: int = Field(ge=1)
     role: LineRole | None = Field(
         default=None,

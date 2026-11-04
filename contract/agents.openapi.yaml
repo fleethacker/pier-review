@@ -2585,7 +2585,8 @@ components:
           - invalid
           - unknown
           title: Validity State
-          description: 'Validity the modeling service reported. ''unknown'' when it reported none: never read as valid.'
+          description: 'Validity the modeling service reported. Defaults to ''unknown'' (omitted on the wire): never read
+            as valid.'
           default: unknown
         duration_ms:
           type: number
@@ -3350,14 +3351,14 @@ components:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
           default: null
-          description: Absent on legacy responses and means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
             requires status RED; 'limited' cannot be GREEN.
         manifest:
           anyOf:
           - $ref: '#/components/schemas/ResultManifest'
           - type: 'null'
           default: null
-          description: Dependencies for reproducing the result; absent on legacy responses.
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/VisionResult'
       required:

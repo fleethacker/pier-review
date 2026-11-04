@@ -172,7 +172,7 @@ def solve(req: AnalyzeRequest, *, run_rules: bool = True) -> Solved:
     return Solved(result, geoms, k, wll, status)
 
 
-def _ignored_line_fields(req: AnalyzeRequest) -> list[str]:
+def ignored_line_fields(req: AnalyzeRequest) -> list[str]:
     """Line fields the mock accepts for forward compatibility but does not model; never ignore silently."""
     notes = []
     for ln in req.config.lines:
@@ -187,7 +187,7 @@ def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     s = solve(req)
     return envelope(AnalyzeResponse, model="mooring.solver.static", request=req, result=s.result, status=s.status,
                     assumptions=ASSUMPTIONS + [f"Design factor {design_factor(req.mst)} (MST {req.mst})."]
-                    + _ignored_line_fields(req),
+                    + ignored_line_fields(req),
                     warnings=[f for f in s.result.findings if f.severity != "INFO"])
 
 
@@ -235,7 +235,8 @@ def limit_envelope(req: LimitEnvelopeRequest) -> LimitEnvelopeResponse:
             status = "AMBER"
     return envelope(LimitEnvelopeResponse, model="mooring.solver.envelope", request=req,
                     result=LimitEnvelopeResult(points=points, worst=worst_pt), status=status,
-                    assumptions=["Mock: utilization scaled with wind speed squared from a 30 kt reference; current excluded."])
+                    assumptions=["Mock: utilization scaled with wind speed squared from a 30 kt reference; current excluded."]
+                    + ignored_line_fields(req))
 
 
 def tide_sweep(req: TideSweepRequest) -> TideSweepResponse:
@@ -273,7 +274,8 @@ def tide_sweep(req: TideSweepRequest) -> TideSweepResponse:
     return envelope(TideSweepResponse, model="mooring.solver.tide_sweep", request=req,
                     result=TideSweepResult(steps=steps, tending=tending), status=status,
                     assumptions=["Mock tide curve; tension change = line stiffness x length change.",
-                                 "Tending slacks to 50% WLL above 80% WLL, heaves to 5% WLL below 500 lbf."])
+                                 "Tending slacks to 50% WLL above 80% WLL, heaves to 5% WLL below 500 lbf."]
+                    + ignored_line_fields(req))
 
 
 def rules() -> list[Rule]:

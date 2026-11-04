@@ -1875,13 +1875,13 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
-          description: Absent on legacy responses and means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
             requires status RED; 'limited' cannot be GREEN.
         manifest:
           anyOf:
           - $ref: '#/components/schemas/ResultManifest'
           - type: 'null'
-          description: Dependencies for reproducing the result; absent on legacy responses.
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/AnalyzeResult'
       additionalProperties: false
@@ -2317,13 +2317,13 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
-          description: Absent on legacy responses and means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
             requires status RED; 'limited' cannot be GREEN.
         manifest:
           anyOf:
           - $ref: '#/components/schemas/ResultManifest'
           - type: 'null'
-          description: Dependencies for reproducing the result; absent on legacy responses.
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/BerthingWindowsResult'
       additionalProperties: false
@@ -3494,13 +3494,13 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
-          description: Absent on legacy responses and means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
             requires status RED; 'limited' cannot be GREEN.
         manifest:
           anyOf:
           - $ref: '#/components/schemas/ResultManifest'
           - type: 'null'
-          description: Dependencies for reproducing the result; absent on legacy responses.
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/LimitEnvelopeResult'
       additionalProperties: false
@@ -3846,13 +3846,13 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
-          description: Absent on legacy responses and means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
             requires status RED; 'limited' cannot be GREEN.
         manifest:
           anyOf:
           - $ref: '#/components/schemas/ResultManifest'
           - type: 'null'
-          description: Dependencies for reproducing the result; absent on legacy responses.
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/LoadsResult'
       additionalProperties: false
@@ -4296,13 +4296,13 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
-          description: Absent on legacy responses and means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
             requires status RED; 'limited' cannot be GREEN.
         manifest:
           anyOf:
           - $ref: '#/components/schemas/ResultManifest'
           - type: 'null'
-          description: Dependencies for reproducing the result; absent on legacy responses.
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/PolarResult'
       additionalProperties: false
@@ -4606,13 +4606,13 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
-          description: Absent on legacy responses and means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
             requires status RED; 'limited' cannot be GREEN.
         manifest:
           anyOf:
           - $ref: '#/components/schemas/ResultManifest'
           - type: 'null'
-          description: Dependencies for reproducing the result; absent on legacy responses.
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/RouteResult'
       additionalProperties: false
@@ -4863,13 +4863,13 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
-          description: Absent on legacy responses and means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
             requires status RED; 'limited' cannot be GREEN.
         manifest:
           anyOf:
           - $ref: '#/components/schemas/ResultManifest'
           - type: 'null'
-          description: Dependencies for reproducing the result; absent on legacy responses.
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/SequenceResult'
       additionalProperties: false
@@ -5687,13 +5687,13 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
-          description: Absent on legacy responses and means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
             requires status RED; 'limited' cannot be GREEN.
         manifest:
           anyOf:
           - $ref: '#/components/schemas/ResultManifest'
           - type: 'null'
-          description: Dependencies for reproducing the result; absent on legacy responses.
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/TideSweepResult'
       additionalProperties: false
@@ -5952,13 +5952,13 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
-          description: Absent on legacy responses and means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
             requires status RED; 'limited' cannot be GREEN.
         manifest:
           anyOf:
           - $ref: '#/components/schemas/ResultManifest'
           - type: 'null'
-          description: Dependencies for reproducing the result; absent on legacy responses.
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/TugPlanResult'
       additionalProperties: false
@@ -6190,13 +6190,13 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
-          description: Absent on legacy responses and means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
             requires status RED; 'limited' cannot be GREEN.
         manifest:
           anyOf:
           - $ref: '#/components/schemas/ResultManifest'
           - type: 'null'
-          description: Dependencies for reproducing the result; absent on legacy responses.
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/UkcResult'
       additionalProperties: false

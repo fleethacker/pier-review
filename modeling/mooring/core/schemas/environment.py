@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import AwareDatetime, Field, model_validator
 
 from .common import Model, Provenance
 
@@ -25,9 +25,9 @@ class EnvironmentMetadata(Model):
         description="Measured, forecast/model output, or synthetic what-if input."
     )
     source: str | None = Field(default=None, description="Provider or station, e.g. 'NOAA CO-OPS 8638610'.", examples=["NOAA CO-OPS 8638610"])
-    issued_at_utc: datetime | None = Field(default=None, description="When the observation or forecast was produced.")
-    valid_from_utc: datetime | None = None
-    valid_to_utc: datetime | None = None
+    issued_at_utc: AwareDatetime | None = Field(default=None, description="When the observation or forecast was produced.")
+    valid_from_utc: AwareDatetime | None = None
+    valid_to_utc: AwareDatetime | None = None
     wind_averaging_s: float | None = Field(default=None, gt=0, description="Averaging time of wind_speed_kt.")
     gust_duration_s: float | None = Field(default=None, gt=0, description="Duration of wind_gust_kt.")
     wind_reference_height_m: float | None = Field(default=None, gt=0, description="Anemometer or model height.")
@@ -64,6 +64,8 @@ class StationQuality(Model):
 
 class EnvironmentSnapshot(Model):
     """Wind, current and water level at one time. Wind is normalized to a 10 m, 1-minute sustained speed."""
+
+    wire_omitted_defaults = {"metadata": None}
 
     valid_at_utc: datetime = Field(default_factory=_now)
     source: EnvSourceKind = "scenario"
@@ -114,8 +116,8 @@ class EnvScenarioCreate(Model):
     water_level_mllw_ft: float = 0.0
     ramp_to_wind_kt: float | None = Field(default=None, description="kind='ramp': wind at the end of the ramp.")
     ramp_minutes: float | None = Field(default=None, gt=0)
-    replay_start_utc: datetime | None = Field(default=None, description="kind='replay': historical window start.")
-    replay_end_utc: datetime | None = None
+    replay_start_utc: AwareDatetime | None = Field(default=None, description="kind='replay': historical window start.")
+    replay_end_utc: AwareDatetime | None = None
 
     @model_validator(mode="after")
     def _kind_fields(self):

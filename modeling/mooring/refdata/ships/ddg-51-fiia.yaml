@@ -17,9 +17,13 @@ loading_conditions:
   draft_fwd_ft: 28.0
   draft_aft_ft: 28.0
   freeboard_ft: 22
-wind_area_lateral_ft2: 14900
+wind_area_lateral_ft2: 17294.42245
 wind_area_frontal_ft2: 3000
 hull_wind_area_lateral_ft2: 7000
+superstructure_height_ft: 48.927039
+midship_coefficient: 0.83
+wetted_surface_ft2: 35119.138681
+propeller_expanded_area_ft2: 367.016706
 wind_drag_class: typical
 fittings:
 - fitting_id: BITT-1P
@@ -228,5 +232,13 @@ mst_class: II
 provenance:
   source: Public fact sheets + NSTM Table 582-3-1 back-calculation
   confidence: estimated
-  notes: Lateral wind area back-calculated from the NSTM Table 582-3-1 50-kt load with the UFC 4-159-03 Table 4-2
-    drag class. Dimensions approximate from public fact sheets. Fittings are notional.
+  notes: >-
+    Wind-force magnitudes calibrated to NSTM Table 582-3-1 with areas within 25% of original seeds;
+    peak bearing remains outside the requested tolerance (see M3 tests).
+    Dimensions approximate from public fact sheets; fittings notional.
+    Superstructure height frozen before area calibration using original hull area/LWL plus
+    original superstructure area/(0.5 LWL), assuming a rectangular half-length superstructure.
+    Midship coefficient 0.83 estimated by analogy to UFC Table 4-8 destroyer.
+    Wetted surface estimated with UFC Eq. 4-18 at full_load and density 1020 kg/m3;
+    other loadings recompute the estimate. Propeller expanded area estimated using
+    Eqs. 4-22/4-23 and Table 4-7, pitch ratio 1 (LHD uses carrier analogy).

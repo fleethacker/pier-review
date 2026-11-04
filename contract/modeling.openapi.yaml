@@ -4707,6 +4707,35 @@ components:
           exclusiveMinimum: 0.0
           title: Hull Wind Area Lateral Ft2
           description: Hull-only part of the lateral area (UFC 4-159-03).
+        superstructure_height_ft:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Superstructure Height Ft
+          description: Superstructure height above the reference waterline; estimated from profile areas when absent.
+        midship_coefficient:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Midship Coefficient
+          description: Immersed midship area / (beam * draft); UFC Eq. 4-14.
+        propeller_expanded_area_ft2:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Propeller Expanded Area Ft2
+          description: Total expanded blade area; zero for no exposed propellers, estimated when absent.
+        wetted_surface_ft2:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Wetted Surface Ft2
+          description: Wetted surface at full_load; other loadings and missing values use UFC Eq. 4-18.
         wind_drag_class:
           type: string
           enum:

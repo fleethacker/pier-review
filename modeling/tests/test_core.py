@@ -46,7 +46,7 @@ def test_wind_load_scales_with_speed_squared():
 
 
 def test_seed_wind_areas_match_nstm_table_at_50kt():
-    """NSTM Table 582-3-1 50-kt loads; mock drag model must be within 10% at the beam."""
+    """NSTM Table 582-3-1 50-kt loads; calibrated UFC beam loads stay within 10%."""
     from mooring.core.schemas import EnvironmentSnapshot
     from mooring.loads import compute_loads
 

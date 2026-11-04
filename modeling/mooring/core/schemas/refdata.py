@@ -65,6 +65,10 @@ class ShipClass(Model):
     wind_area_lateral_ft2: float = Field(gt=0, description="Side profile area above the waterline.")
     wind_area_frontal_ft2: float = Field(gt=0)
     hull_wind_area_lateral_ft2: float = Field(gt=0, description="Hull-only part of the lateral area (UFC 4-159-03).")
+    superstructure_height_ft: float | None = Field(default=None, gt=0, description="Superstructure height above the reference waterline; estimated from profile areas when absent.")
+    midship_coefficient: float | None = Field(default=None, gt=0, le=1, description="Immersed midship area / (beam * draft); UFC Eq. 4-14.")
+    propeller_expanded_area_ft2: float | None = Field(default=None, ge=0, description="Total expanded blade area; zero for no exposed propellers, estimated when absent.")
+    wetted_surface_ft2: float | None = Field(default=None, gt=0, description="Wetted surface at full_load; other loadings and missing values use UFC Eq. 4-18.")
     wind_drag_class: Literal["hull_dominated", "typical", "extensive_superstructure"] = Field(
         description="UFC 4-159-03 Table 4-2 drag class."
     )

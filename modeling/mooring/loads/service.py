@@ -30,7 +30,7 @@ def _metadata(ship, loading, depth, water_density, use_gust, current_speed, resu
         "propeller_expanded_area_ft2": "Propeller expanded area estimated with UFC Eqs. 4-22/4-23, Table 4-7 (unit pitch ratio; LHD uses carrier analogy; unlisted hull types use destroyer analogy).",
     }
     for field, explanation in estimates.items():
-        if getattr(ship, field, None) is None:
+        if getattr(ship, field, None) is None or (field == "wetted_surface_ft2" and loading != "full_load"):
             assumptions.append(explanation)
     if ship.provenance.confidence == "estimated":
         assumptions.append(f"Ship geometry is estimated: {ship.provenance.notes or ship.provenance.source}")

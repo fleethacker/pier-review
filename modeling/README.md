@@ -86,3 +86,10 @@ The load envelopes and stored results report `backend="real"`. The global HTTP
 header and API introduction still say mock: their implementation in
 `modeling_api/main.py` is outside this chunk's allowed file scope. Other modules
 remain mock even though they now consume UFC loads.
+
+Calibration changes only lateral wind area; hull and frontal areas retain their
+original values. All 16 peak force magnitudes pass the NSTM ±10% check and all
+areas remain within ±25%. Peak bearings are 76°/284° (DDG, CG, CVN) and 77°/283°
+(LHD), outside the requested NSTM bearing tolerance; those 16 tests are explicit
+expected failures. The DDG shallow-water current/wind ratio is approximately 3.84.
+No UFC coefficient was tuned to address the bearing discrepancy.

@@ -137,7 +137,7 @@ def ship_inputs(ship, loading, water_density):
         height = ship.hull_wind_area_lateral_ft2 / ship.lwl_ft + (ship.wind_area_lateral_ft2 - ship.hull_wind_area_lateral_ft2) / (c.SUPERSTRUCTURE_LENGTH_FRACTION * ship.lwl_ft)
     midship = getattr(ship, "midship_coefficient", None) or c.ESTIMATED_MIDSHIP_COEFFICIENT
     surface = getattr(ship, "wetted_surface_ft2", None)
-    if surface is None:
+    if surface is None or loading != "full_load":
         surface = wetted_surface(ship.lwl_ft, draft, volume)
     propeller = getattr(ship, "propeller_expanded_area_ft2", None)
     if propeller is None:

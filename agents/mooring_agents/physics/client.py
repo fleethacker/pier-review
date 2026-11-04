@@ -123,5 +123,8 @@ class ModelingClient:
     async def berthing_tugs(self, body: dict) -> TugPlanResponse:
         return TugPlanResponse.model_validate(await self._req("POST", "/tugs/berthing-plan", json=body))
 
+    async def hold_tugs(self, body: dict) -> TugPlanResponse:
+        return TugPlanResponse.model_validate(await self._req("POST", "/tugs/hold-plan", json=body))
+
     async def exceedance(self, body: dict) -> ExceedanceResponse:
         return ExceedanceResponse.model_validate(await self._job("/risk/exceedance", body))

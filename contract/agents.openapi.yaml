@@ -361,6 +361,13 @@ paths:
           type: integer
           default: 0
           title: Limit
+      - name: heartbeat_minutes
+        in: query
+        required: false
+        schema:
+          type: number
+          default: 5.0
+          title: Heartbeat Minutes
       responses:
         '200':
           description: Successful Response
@@ -427,7 +434,7 @@ paths:
     get:
       tags:
       - Safety agent
-      summary: Printable sheet. format=html now; pdf returns 501 until the renderer lands.
+      summary: Render the printable sheet as HTML or PDF.
       operationId: render_sheet_api_v1_safety_sheets__sheet_id__render_get
       parameters:
       - name: sheet_id
@@ -447,9 +454,8 @@ paths:
         '200':
           description: Successful Response
           content:
-            text/html:
-              schema:
-                type: string
+            application/json:
+              schema: {}
         '422':
           description: Validation Error
           content:
@@ -1128,6 +1134,35 @@ components:
       - x_ft
       - depth_mllw_ft
       title: DepthPoint
+    DirectionalThreshold:
+      properties:
+        wind_rel_deg:
+          type: number
+          title: Wind Rel Deg
+        governing_element:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Governing Element
+        limit_wll_gust_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Limit Wll Gust Kt
+        estimated_breaking_gust_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Estimated Breaking Gust Kt
+      additionalProperties: false
+      type: object
+      required:
+      - wind_rel_deg
+      - governing_element
+      - limit_wll_gust_kt
+      - estimated_breaking_gust_kt
+      title: DirectionalThreshold
+      description: Direction-specific limits. Breaking gust is an estimate, not a direct solver result.
     EnvStations:
       properties:
         wind:
@@ -1969,6 +2004,29 @@ components:
         summary:
           type: string
           title: Summary
+        brief:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Brief
+        summary_source:
+          anyOf:
+          - type: string
+            enum:
+            - llm
+            - deterministic
+          - type: 'null'
+          title: Summary Source
+        narration_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Narration Note
+        intake_report_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Intake Report Id
         backend:
           type: string
           enum:
@@ -2065,6 +2123,16 @@ components:
             $ref: '#/components/schemas/GoNoGo'
           type: array
           title: Go No Go
+        brief:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Brief
+        directional_thresholds:
+          items:
+            $ref: '#/components/schemas/DirectionalThreshold'
+          type: array
+          title: Directional Thresholds
         warnings:
           items:
             $ref: '#/components/schemas/Finding'
@@ -2375,7 +2443,7 @@ components:
           - type: number
           - type: 'null'
           title: Limit Breaking Gust Kt
-          description: Gust at which the first line reaches breaking strength.
+          description: 'Estimated gust at line breaking: working-load limit times sqrt(design factor).'
         forecast_max_gust_kt:
           type: number
           title: Forecast Max Gust Kt
@@ -2384,6 +2452,11 @@ components:
             type: string
           type: array
           title: Cites
+        directions:
+          items:
+            $ref: '#/components/schemas/DirectionalThreshold'
+          type: array
+          title: Directions
       additionalProperties: false
       type: object
       required:

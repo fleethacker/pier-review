@@ -55,10 +55,19 @@ def test_safety_sheet_lifecycle(plan_id):
     assert sheet.line_plan and not sheet.locked
     html = client.get(f"{P}/safety-sheets/{sid}/render?format=html")
     assert html.status_code == 200 and "Mooring Evolution Safety Sheet" in html.text
-    assert client.get(f"{P}/safety-sheets/{sid}/render?format=pdf").status_code == 501
+    pdf = client.get(f"{P}/safety-sheets/{sid}/render?format=pdf")
+    from mooring_agents.safety.sheet import pdf_available
+
+    if pdf_available():
+        assert pdf.status_code == 200 and pdf.headers["content-type"] == "application/pdf"
+        assert pdf.content.startswith(b"%PDF")
+    else:  # system libraries missing: a clear 501, never a crash
+        assert pdf.status_code == 501 and "pango" in pdf.json()["detail"].lower()
     approved = client.post(f"{P}/safety-sheets/{sid}/approvals",
                            json={"role": "co", "name": "Commanding Officer", "decision": "approve"}).json()
     assert approved["locked"] and approved["approvals"][0]["role"] == "co"
+    revised = client.post(f"{P}/safety-sheets", json={"plan_id": plan_id})
+    assert revised.status_code == 201 and revised.json()["version"] == 2
 
 
 def test_berth_vision_round_trip():
@@ -173,6 +182,7 @@ def test_safety_review_and_sheet(planned, intake_report):
 
 
 def test_safety_watch_streams_gust_warnings(planned):
-    with client.stream("GET", f"{P}/safety/watch/{planned}", params={"interval_s": 0, "limit": 2}) as s:
+    with client.stream("GET", f"{P}/safety/watch/{planned}",
+                       params={"interval_s": 0, "limit": 2, "heartbeat_minutes": 0}) as s:
         text = "".join(s.iter_text())
     assert text.count("event: warning") == 2 and "pct_of_wll_limit" in text

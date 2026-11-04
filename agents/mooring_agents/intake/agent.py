@@ -3,9 +3,6 @@
 import asyncio
 import json
 import logging
-import re
-import unicodedata
-from datetime import UTC, datetime
 from importlib.resources import files
 
 import httpx
@@ -13,19 +10,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..physics.toolkit import PhysicsToolkit
 from ..shared import llm
+from ..shared.narration import GuardrailError, format_fact as _format_fact, render as _render
 from . import core
 from .schemas import IntakeReport, IntakeRequest, PlanningCondition
 
 REPORTS = core.REPORTS
 logger = logging.getLogger(__name__)
 LLM_TIMEOUT_S = 30
-_REFERENCE = re.compile(r"\{\{([^{}]+)\}\}")
-_NUMBER_WORDS = re.compile(
-    r"\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|"
-    r"fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|"
-    r"sixty|seventy|eighty|ninety|hundred|thousand|million|billion|half|quarter|twice|"
-    r"double|triple|dozen|couple|first|second|third|fourth|fifth)\b", re.IGNORECASE,
-)
 
 
 class _ProposalModel(BaseModel):
@@ -60,21 +51,6 @@ _ENVIRONMENT_FIELDS = (
     "current_set_true_deg", "water_level_mllw_ft",
 )
 _MST_FIELDS = ("mst_required", "ship_mst", "exceeds_ship_mst", "max_wind_kt", "max_broadside_current_kt")
-_RISK_LANGUAGE = re.compile(
-    r"\b(?:RED|AMBER|GREEN|safe(?:r|st|ly)?|calm(?:er|est)?|benign|harmless|favou?rable|reassuring)\b"
-    r"|\blow[\W_]+risk\b"
-    r"|\b(?:no|minimal|negligible|little|zero|limited)[\W_]+(?:risk|concern|threat|danger|hazard)s?\b"
-    r"|\bnothing[\W_]+to[\W_]+worry\b"
-    # Mooring Service Type levels must come from the code-owned headline or a fact reference.
-    r"|\b(?:MST|Mooring[\W_]+Service[\W_]+Type|Type)[\s:=-]+[IVXLCDM]+A?\b", re.IGNORECASE,
-)
-_UNIT_TOKENS = re.compile(r"(?<!\w)(?:kts?|knots?|m\s*/\s*s|mph|deg(?:ree)?s?|ft)(?!\w)|°", re.IGNORECASE)
-
-
-class GuardrailError(ValueError):
-    """A fixed, non-sensitive reason suitable for report provenance."""
-
-
 def _headline(report: IntakeReport) -> str:
     severity = max((w.severity for w in report.windows), key={"INFO": 0, "AMBER": 1, "RED": 2}.get, default=None)
     concern = f"Highest window severity is {severity}" if severity else "No windows of concern"
@@ -85,19 +61,6 @@ def _headline(report: IntakeReport) -> str:
         relation = "exceeds" if report.mst.exceeds_ship_mst else "does not exceed"
         comparison = f"it {relation} the ship's MST {report.mst.ship_mst}"
     return f"{concern}; MST required is {required}; {comparison}."
-
-
-def _format_fact(field, value, unit=None):
-    if field.endswith("_utc"):
-        if not isinstance(value, datetime):
-            raise ValueError("Time facts must be typed datetimes")
-        return value.astimezone(UTC).strftime("%H:%MZ %d %b")
-    if isinstance(value, bool):
-        return "yes" if value else "no"
-    if unit is None:
-        unit = next((suffix for suffix in ("kt", "deg", "ft") if field.endswith("_" + suffix)), None)
-    suffix = "°" if unit == "deg" else f" {unit}" if unit else ""
-    return f"{value}{suffix}"
 
 
 def _environment_facts(value, path, *, include_time):
@@ -120,29 +83,6 @@ def _facts(value, path="") -> dict[str, str]:
         if value["mst"][field] is not None:
             facts[f"/mst/{field}"] = _format_fact(field, value["mst"][field])
     return facts
-
-
-def _render(template: str, facts: dict[str, str], *, sentence=False) -> str:
-    if any(ch.isnumeric() for ch in _REFERENCE.sub("FACT", template)):
-        raise GuardrailError("numeric literal")
-    template = unicodedata.normalize("NFKC", template).strip()
-    literal = _REFERENCE.sub("FACT", template)
-    if (not literal or len(template) > 1000 or any(ch.isnumeric() for ch in literal)
-            or _NUMBER_WORDS.search(literal) or "{" in literal or "}" in literal):
-        raise GuardrailError("numeric literal or malformed reference")
-    if _RISK_LANGUAGE.search(literal):
-        raise GuardrailError("risk language")
-    if _UNIT_TOKENS.search(literal):
-        raise GuardrailError("unit token")
-    if sentence and (not literal.endswith(".") or re.search(r"[.!?]", literal[:-1])):
-        raise GuardrailError("sentence structure")
-
-    def replace(match):
-        if match[1] not in facts:
-            raise GuardrailError("fact reference")
-        return facts[match[1]]
-
-    return _REFERENCE.sub(replace, template)
 
 
 def _unique_indices(items, attribute, length):

@@ -59,8 +59,10 @@ def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
     if review:
         cited += review.thresholds.cites
     status = review.status if review else (plan.status or "RED")
+    # Every sheet built for the same plan gets the next version, locked or not, so versions never repeat.
+    version = max((sheet.version for sheet in SHEETS.values() if sheet.plan_id == plan.plan_id), default=0) + 1
     sheet = SafetySheet(
-        sheet_id=new_id("sheet"), version=1, plan_id=plan.plan_id, review_id=review.review_id if review else None,
+        sheet_id=new_id("sheet"), version=version, plan_id=plan.plan_id, review_id=review.review_id if review else None,
         locked=False, status=status,
         header=SheetHeader(ship_class_id=rec.scenario.ship_class_id, berth_id=rec.scenario.berth_id,
                            side_to=rec.scenario.side_to, evolution="moor", planned_utc=utcnow()),
@@ -68,6 +70,8 @@ def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
                                      mst=rec.mst),
         line_plan=rows, fitting_utilization=a.result.pier_fittings, tug_plan=plan.tug_plan,
         sequence=plan.sequence.steps if plan.sequence else [], go_no_go=go_no_go,
+        brief=review.brief if review else None,
+        directional_thresholds=review.thresholds.directions if review else [],
         warnings=[f for f in a.result.findings if f.severity != "INFO"], rationale=plan.rationale,
         assumptions=plan.assumptions, cited_result_ids=sorted(set(cited + [a.result_id])),
         sources=[Provenance(source="NSTM 582 (paragraph references only)", confidence="published"),
@@ -96,6 +100,14 @@ def render_html(s: SafetySheet) -> str:
     warn = "".join(f"<li>[{w.severity}] {e(w.message)} <small>({e(w.reference)})</small></li>" for w in s.warnings)
     why = "".join(f"<li>{e(r.text)} <small>[{', '.join(r.cites)}]</small></li>" for r in s.rationale)
     appr = "".join(f"<li>{e(a.role.upper())}: {e(a.name)}, {a.decision} {a.at_utc:%Y-%m-%d %H:%MZ}</li>" for a in s.approvals)
+    thresholds = "".join(
+        f"<tr><td>{row.wind_rel_deg:.0f}°</td><td>{e(row.governing_element or '-')}</td>"
+        f"<td>{row.limit_wll_gust_kt:.0f} kt</td>"
+        f"<td>{row.estimated_breaking_gust_kt:.0f} kt (estimated)</td></tr>"
+        if row.limit_wll_gust_kt is not None and row.estimated_breaking_gust_kt is not None
+        else f"<tr><td>{row.wind_rel_deg:.0f}°</td><td>{e(row.governing_element or '-')}</td>"
+             "<td>Fender-loading direction</td><td>—</td></tr>"
+        for row in s.directional_thresholds)
     tug = s.tug_plan
     tug_line = (f"{tug.recommended_tug_count} tugs, {tug.total_power_hp:,.0f} hp, {tug.total_bollard_pull_lbf:,.0f} lbf "
                 f"bollard pull" if tug else "None")
@@ -108,6 +120,10 @@ td,th{{border:1px solid #999;padding:4px 8px;text-align:left}}.st{{font-weight:7
 <p>Wind {s.environment.observed.wind_speed_kt:.0f} kt gusting {s.environment.observed.wind_gust_kt:.0f} kt from
 {s.environment.observed.wind_from_true_deg:03.0f}; current {s.environment.observed.current_speed_kt:.1f} kt;
 MST {s.environment.mst}</p>
+{f'<h2>Bridge brief</h2><p>{e(s.brief)}</p>' if s.brief else ''}
+<h2>Directional gust thresholds</h2>
+<table><tr><th>Relative wind</th><th>Governing element</th><th>Working-load limit</th>
+<th>Breaking threshold estimate</th></tr>{thresholds}</table>
 <h2>Line plan</h2><table><tr><th>#</th><th>Role</th><th>Line</th><th>Parts</th><th>Ship fitting</th>
 <th>Pier fitting</th><th>Tension (lbf)</th><th>% WLL</th><th>Status</th></tr>{lines}</table>
 <h2>Tugs</h2><p>{tug_line}</p>
@@ -117,3 +133,28 @@ MST {s.environment.mst}</p>
 <h2>Agent rationale</h2><ul>{why}</ul>
 <h2>Approvals</h2><ul>{appr or '<li>Pending</li>'}</ul>
 <p><small>{e(s.disclaimer)}</small></p></body></html>"""
+
+
+class PdfUnavailable(RuntimeError):
+    """WeasyPrint is installed but its system libraries (Pango/GObject) are missing."""
+
+
+PDF_SETUP = ("PDF rendering needs the Pango/GObject system libraries used by WeasyPrint: "
+             "`brew install pango` (macOS) or `apt-get install libpango-1.0-0 libpangoft2-1.0-0` (Debian/Ubuntu).")
+
+
+def pdf_available() -> bool:
+    try:
+        import weasyprint  # noqa: F401
+    except (ImportError, OSError):
+        return False
+    return True
+
+
+def render_pdf(s: SafetySheet) -> bytes:
+    """Render the canonical HTML sheet to PDF with WeasyPrint."""
+    try:
+        from weasyprint import HTML
+    except (ImportError, OSError) as exc:
+        raise PdfUnavailable(PDF_SETUP) from exc
+    return HTML(string=render_html(s)).write_pdf()

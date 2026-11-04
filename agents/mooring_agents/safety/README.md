@@ -4,8 +4,8 @@ The last line of defense. It independently validates the Planner's plan, warns w
 working-load and breaking thresholds, and produces the Mooring Evolution Safety Sheet with rationale and safety
 margins for human approval.
 
-**Status:** mock review (`mock.py`) and live warnings, deterministic, no LLM; real sheet assembly and HTML
-rendering (`sheet.py`).
+**Status:** real deterministic review and warning stream (`agent.py`) with optional guarded LLM narration; real sheet
+assembly with HTML and PDF rendering (`sheet.py`).
 
 ## Inputs and outputs
 
@@ -28,7 +28,7 @@ rendering (`sheet.py`).
 | GET | `/api/v1/safety/reviews/{review_id}` | `SafetyReview` |
 | GET | `/api/v1/safety/watch/{plan_id}?interval_s=&limit=` | SSE `warning` events |
 | POST | `/api/v1/safety-sheets` | `201`; runs a review if `review_id` is omitted |
-| GET | `/api/v1/safety-sheets/{id}` · `/render?format=html` | sheet · HTML (`pdf` returns 501 for now) |
+| GET | `/api/v1/safety-sheets/{id}` · `/render?format=html|pdf` | sheet · printable HTML or PDF (PDF returns 501 with setup instructions if Pango is missing) |
 | POST | `/api/v1/safety-sheets/{id}/approvals` | sheet |
 
 ## Checks (deterministic, never decided by an LLM)
@@ -50,15 +50,10 @@ real: ask for the gust at which the governing line reaches its breaking strength
 
 ## Work remaining
 
-1. **LLM brief:** a short narrative for the bridge (what governs, what to watch, when to act), written only from
-   check results and cited numbers. It goes in `SafetyReview.summary` and the sheet.
-2. **Direct breaking-load threshold** from modeling (see above), and per-direction thresholds on the sheet.
-3. **Watch hardening:**
-    - suppress repeats (only warn when severity rises);
-    - escalate when wind direction moves into a weaker sector;
-    - include forecast-ahead warnings from the intake report ("gusts reach 90% of limit at 16:00Z").
-4. **PDF rendering** of the sheet.
-5. **Sheet versioning:** re-reviewing a locked sheet creates version n+1.
+The brief, per-direction working-load thresholds, hardened warning stream, PDF rendering, and locked-sheet
+versioning are implemented. The breaking threshold remains explicitly labeled as an estimate. Modeling still needs
+a direct endpoint that returns the gust at which the governing line reaches breaking strength; Safety must consume
+that result rather than reproduce line physics.
 
 ## Guardrails
 
@@ -75,3 +70,10 @@ real: ask for the gust at which the governing line reaches its breaking strength
 - A forecast beyond the ship's MST makes the verdict `reject`.
 - The watch stream emits AMBER at ≥ 80% and RED at ≥ 100% of the limit for the current wind direction.
 - The sheet contains go/no-go lines for 80% of limit, the limit, and the breaking threshold.
+
+## PDF rendering setup
+
+PDFs are rendered from the HTML sheet with WeasyPrint, which needs the Pango/GObject system libraries:
+`brew install pango` on macOS, or `apt-get install libpango-1.0-0 libpangoft2-1.0-0` on Debian/Ubuntu
+(including container images). Without them, `format=pdf` returns `501` with these instructions and HTML still
+works; the tests accept either outcome.

@@ -98,7 +98,7 @@ export function ProbabilityBars({
   steps,
   height = 70,
 }: {
-  steps: { label: string; p: number; status: 'GREEN' | 'AMBER' | 'RED' }[];
+  steps: { label: string; p: number | null; status: 'GREEN' | 'AMBER' | 'RED' }[];
   height?: number;
 }) {
   if (steps.length === 0) return null;
@@ -110,6 +110,7 @@ export function ProbabilityBars({
         P(any line &gt; WLL)
       </text>
       {steps.map((s, i) => {
+        if (s.p == null) return <text key={i} x={m.l + i * bw} y={height / 2} fontSize="8" fill={TEXT}><title>{s.label}: probability unavailable</title>?</text>;
         const h = Math.max(s.p, 0.01) * (height - m.t - m.b);
         return (
           <rect

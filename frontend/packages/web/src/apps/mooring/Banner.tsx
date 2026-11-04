@@ -10,8 +10,8 @@ export function Banner() {
   const confidence = useMooring((s) => s.berth?.provenance.confidence);
   return (
     <div className="flex items-center gap-3">
-      {backend === 'mock' && (
-        <span className="text-[10px] text-mil-amber">Placeholder numbers: not validated physics. Do not use operationally.</span>
+      {(
+        <span className="text-[10px] text-mil-amber">Development model with unqualified seed data. Not for operational use.</span>
       )}
       <BackendBadge backend={backend} />
       <div role="group" aria-label="Units" className="flex">

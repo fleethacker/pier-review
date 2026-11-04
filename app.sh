@@ -34,4 +34,4 @@ export NODE_OPTIONS="--max-old-space-size=3072"
 cd frontend/packages/web
 npm ci --no-audit --no-fund
 npm run build
-exec npx vite preview --host 0.0.0.0 --port "$PORT" --strictPort
+npx vite preview --host 0.0.0.0 --port "$PORT" --strictPort

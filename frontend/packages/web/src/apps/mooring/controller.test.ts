@@ -144,3 +144,31 @@ describe('moving the ship on the canvas', () => {
     c.dispose();
   });
 });
+
+it('discards an old analysis even when it resolves during the edit debounce', async () => {
+  const { c } = setup();
+  let resolve!: (value: unknown) => void;
+  post.mockReturnValueOnce(new Promise((r) => { resolve = r; }));
+  c.addLine('BITT-1S', 'P1');
+  await vi.advanceTimersByTimeAsync(250);
+  c.setShipX(600);
+  resolve({ data: { result_id: 'obsolete' } });
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(c.state.get().analysis.response).toBeNull();
+  expect(c.state.get().analysis.state).toBe('pending');
+  c.dispose();
+});
+
+it('saves the displayed weather and tugs rather than switching to the live mock feed', async () => {
+  const { c } = setup();
+  post.mockResolvedValueOnce({ data: { env_scenario_id: 'weather-snapshot' } });
+  post.mockResolvedValueOnce({ data: { scenario_id: 'saved', name: 'test' } });
+  vi.spyOn(c, 'refreshScenarioList').mockResolvedValue();
+  await c.saveScenario('test');
+  expect(post.mock.calls[0][0]).toBe('/api/v1/env/scenarios');
+  expect(post.mock.calls[0][1].body).toMatchObject({ kind: 'steady', wind_speed_kt: 10, wind_gust_kt: 15, current_speed_kt: 1 });
+  expect(post.mock.calls[1][1].body.env_source).toMatchObject({ mode: 'scenario', env_scenario_id: 'weather-snapshot' });
+  expect(post.mock.calls[1][1].body.tugs).toEqual([]);
+  c.dispose();
+});

@@ -48,6 +48,7 @@ export async function awaitJob<T>(
     const job = (await res.json()) as JobStatus & { result?: T; error?: string | null };
     onProgress?.(job.progress ?? 0);
     if (job.state === 'succeeded') return job.result as T;
+    if (job.state === 'cancelled') throw new Error('Job cancelled');
     if (job.state === 'failed') {
       throw new Error(job.error ?? `Job failed`);
     }

@@ -37,7 +37,7 @@ to the agents service (set `MODELING_PROXY_TARGET` and `AGENTS_PROXY_TARGET` in 
 `http://localhost:8000` and `:8001`). REST is under `/api/v1`, WebSockets under `/ws`. Set `VITE_MODELING_URL` or
 `VITE_AGENTS_URL` to an absolute URL to bypass the proxy.
 
-No tokens are needed. The 2D and 3D views are drawn from the berth data itself.
+The default local demo needs no credentials. This UI does not yet implement bearer authentication for HTTP, SSE or WebSockets; authenticated deployments require a separate reviewed integration. The 2D and 3D views are drawn from the berth data itself.
 
 Optional look-and-feel: set `VITE_MAPBOX_TOKEN` (a public `pk.` token) when building to put Mapbox satellite imagery
 under the scene. Vite bakes it into the bundle, so it must be present at build time (on Domino, as a user or project
@@ -153,8 +153,10 @@ and the shell only deals with the scene model.
 5. **Safety sheet** (overlay): the service's rendered sheet, margins, rationale, a layout image, approvals by pilot,
    first lieutenant and CO, and print.
 
-## Known limits (mock backends)
+## Known limits and qualification
 
+- Backend `real` identifies the implementation, not qualification. Seed data and synthetic uncertainty remain unqualified; inspect result validity and warnings. Do not use this UI operationally.
+- Saving a scenario freezes the displayed weather into a synthetic steady snapshot, including for agent runs; it does not preserve a live forecast or replay timeline.
 - Only the DDG-51 class has fitting data, so other classes show a hull only and line editing is disabled.
 - The mock alert stream does not escalate during a storm ramp. The UI therefore also raises warnings from the plan
   analysis and labels them as coming from the analysis, not the service.

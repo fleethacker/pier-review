@@ -18,6 +18,7 @@ export function ResultPanel() {
             <StatusChip status={res.status} label={`Overall ${res.status}`} />
             <BackendBadge backend={res.backend} />
           </div>
+          <p className="text-xs text-mil-amber">Validity: {res.validity?.state ?? 'unknown'}. {res.validity?.reasons?.map((r) => r.message).join(' ')}</p>
           <div className="grid grid-cols-2 gap-2 text-[11px]">
             <Metric label="Tightest line" value={`${res.result.min_margin.element_id} · ${fmt.pct(res.result.min_margin.pct_wll)} WLL`} />
             <Metric

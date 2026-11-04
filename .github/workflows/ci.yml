@@ -30,3 +30,23 @@ jobs:
         run: make contract-check
       - name: Tests (offline; no live NOAA or model calls)
         run: make test
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend/packages/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/packages/web/package-lock.json
+      - run: npm ci
+      - run: npm run types && git diff --exit-code -- src/api
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

@@ -67,6 +67,7 @@ export class AgentSession {
   readonly state = new Store<AgentState>(INITIAL);
   private source: EventSource | null = null;
   private disposed = false;
+  private context: string | null = null;
 
   constructor(private readonly parent: MooringController) {}
 
@@ -90,7 +91,9 @@ export class AgentSession {
   async run(): Promise<void> {
     if (this.s.phase === 'running' || this.s.phase === 'saving') return;
     this.source?.close();
+    this.context = this.parent.contextKey();
     this.state.set({
+      undo: null,
       phase: 'saving',
       error: null,
       steps: [],
@@ -164,16 +167,24 @@ export class AgentSession {
 
   /** Put the agent's lines and tugs on the canvas, keeping what was there so it can be undone. */
   applyPlan(plan: AgentPlan | null = this.s.plan): void {
-    if (!plan?.config) return;
+    if (!plan?.config || !this.applicable()) return;
     const { lines, tugAssignments } = this.parent.state.get();
     if (!this.s.undo) this.state.set({ undo: { lines, tugs: tugAssignments } });
     this.parent.setTugAssignments(plan.tug_plan?.assignments ?? []);
     this.parent.replaceLines(plan.config.lines.map((l) => ({ ...l })));
   }
 
+  private applicable(): boolean {
+    if (this.context !== null && this.context !== this.parent.contextKey()) {
+      this.state.set({ error: 'Ship, berth or geometry changed. Run a new plan before applying or undoing it.' });
+      return false;
+    }
+    return true;
+  }
+
   previewProposal(): void {
     const p = this.s.proposal;
-    if (!p) return;
+    if (!p || !this.applicable()) return;
     const { lines, tugAssignments } = this.parent.state.get();
     if (!this.s.undo) this.state.set({ undo: { lines, tugs: tugAssignments } });
     this.parent.replaceLines(p.config.lines.map((l) => ({ ...l })));
@@ -181,7 +192,7 @@ export class AgentSession {
 
   undo(): void {
     const u = this.s.undo;
-    if (!u) return;
+    if (!u || !this.applicable()) return;
     this.parent.setTugAssignments(u.tugs);
     this.parent.replaceLines(u.lines);
     this.state.set({ undo: null });

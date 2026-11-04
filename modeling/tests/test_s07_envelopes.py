@@ -49,13 +49,14 @@ def test_limit_is_confirmed_by_a_direct_analysis_just_below_and_above():
     ratio = base["environment"]["wind_gust_kt"] / base["environment"]["wind_speed_kt"]
     heading = client.get(f"{P}/berths/{base['berth_id']}").json()["face_bearing_true_deg"]
 
-    def worst_pct(v):
+    def overloaded(v):
         b = copy.deepcopy(base); b.pop("step_deg")
         b["environment"].update(wind_speed_kt=v, wind_gust_kt=v * ratio, wind_from_true_deg=(heading + 90) % 360)
         r = client.post(f"{P}/mooring/analyze", json=b).json()["result"]
-        return max([l["pct_wll"] for l in r["lines"]] + [x["pct"] for x in r["pier_fittings"]])
+        # Status is computed before display percentages are rounded to one decimal.
+        return any(x["status"] == "RED" for x in r["lines"] + r["pier_fittings"])
     lo, hi = p["bracket_kt"]
-    assert worst_pct(lo) <= 100.0 + 1e-6 and worst_pct(hi + 1e-6) > 100.0
+    assert not overloaded(lo) and overloaded(hi + 1e-6)
 
 
 def test_zero_wind_overload_is_distinct_from_a_limit():

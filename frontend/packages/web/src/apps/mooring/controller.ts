@@ -38,7 +38,7 @@ import type { BerthSite } from './world';
 export interface Candidate {
   config: { lines: MooringLine[]; ship_x_ft: number };
   min_margin_pct_wll: number;
-  limit_wind_kt_worst: number;
+  limit_wind_kt_worst: number | null;
   line_count: number;
   analysis_result_id: string;
   why: string[];
@@ -49,7 +49,7 @@ export interface TimelineStep {
   status: 'GREEN' | 'AMBER' | 'RED';
   wind_speed_kt: number;
   wind_gust_kt: number;
-  p_any_exceeds_wll: number;
+  p_any_exceeds_wll: number | null;
   governing_element: string | null;
 }
 export interface TimelineResult {
@@ -185,6 +185,7 @@ export class MooringController {
   readonly agent: AgentSession = new AgentSession(this);
   private analyzeTimer: ReturnType<typeof setTimeout> | undefined;
   private analyzeSeq = 0;
+  private selectionSeq = 0;
   private analyzeAbort: AbortController | null = null;
   private recommendAbort: AbortController | null = null;
   private unsubscribeScene: () => void;
@@ -192,6 +193,7 @@ export class MooringController {
   private disposed = false;
   private envStream: StreamHandle | null = null;
   private alertStream: StreamHandle | null = null;
+  private riskSeq = 0;
   private lastAnalysisKey = '';
 
   constructor(readonly host: AppHost) {
@@ -265,6 +267,10 @@ export class MooringController {
 
   /** Reload berth, ship and environment for the current selection, redraw everything, optionally recommend lines. */
   private async loadSelection(opts: { recommend: boolean }): Promise<void> {
+    const seq = ++this.selectionSeq;
+    this.resetAnalysis();
+    this.state.set({ recommend: { state: 'idle', progress: 0, candidates: [], error: null }, tugAssignments: [] });
+    this.recommendAbort?.abort();
     const { berthId, shipClassId } = this.s;
     const [berth, ship, env] = await Promise.all([
       modeling.GET('/api/v1/berths/{berth_id}', { params: { path: { berth_id: berthId } } }).then(unwrap),
@@ -273,7 +279,7 @@ export class MooringController {
         : Promise.resolve(null),
       this.s.env ?? this.fetchEnv(berthId),
     ]);
-    if (this.disposed) return;
+    if (this.disposed || seq !== this.selectionSeq) return;
     const loading = ship?.loading_conditions.find((c) => c.name === this.s.loading)?.name ?? ship?.loading_conditions[0]?.name ?? '';
     const shipXFt = this.s.shipXFt > 0 && this.s.shipXFt < berth.face_length_ft ? this.s.shipXFt : Math.round(berth.face_length_ft / 2 / 5) * 5;
     this.state.set({ berth, ship, env, loading, shipXFt, lines: [], scenarioId: null });
@@ -300,6 +306,8 @@ export class MooringController {
   // ---- setup actions ---------------------------------------------------------------------------------------
 
   async setBerth(berthId: string): Promise<void> {
+    await this.setEnvMode('manual');
+    this.alertStream?.close();
     this.state.set({ berthId, env: null });
     await this.guarded(() => this.loadSelection({ recommend: true }));
     await this.setEnvMode('manual');
@@ -312,7 +320,7 @@ export class MooringController {
   }
 
   async setSide(side: SideTo): Promise<void> {
-    this.state.set({ side });
+    this.state.set({ side, tugAssignments: [], recommend: { state: 'idle', progress: 0, candidates: [], error: null } });
     await this.guarded(async () => {
       this.state.set({ lines: [], scenarioId: null });
       this.resetAnalysis();
@@ -441,20 +449,23 @@ export class MooringController {
   // ---- analysis --------------------------------------------------------------------------------------------
 
   private resetAnalysis(): void {
+    ++this.analyzeSeq;
+    ++this.riskSeq;
+    this.state.set({ risk: { running: null, error: null, timeline: null, envelope: null, exceedance: null } });
     clearTimeout(this.analyzeTimer);
     this.analyzeAbort?.abort();
     this.state.set({ analysis: { state: 'idle', response: null, error: null } });
   }
 
   private scheduleAnalyze(): void {
-    clearTimeout(this.analyzeTimer);
-    const { lines, analysis } = this.s;
+    this.resetAnalysis();
+    const { lines } = this.s;
     if (lines.length === 0) {
       this.resetAnalysis();
       this.pushScene('update');
       return;
     }
-    this.state.set({ analysis: { ...analysis, state: 'pending' } });
+    this.state.set({ analysis: { state: 'pending', response: null, error: null } });
     this.analyzeTimer = setTimeout(() => void this.analyze(), ANALYZE_DEBOUNCE_MS);
   }
 
@@ -492,7 +503,7 @@ export class MooringController {
       this.recordAnalysisAlerts(response);
     } catch (e) {
       if (abort.signal.aborted || seq !== this.analyzeSeq || this.disposed) return;
-      this.state.set({ analysis: { state: 'error', response: this.s.analysis.response, error: message(e) } });
+      this.state.set({ analysis: { state: 'error', response: null, error: message(e) } });
     }
   }
 
@@ -503,6 +514,7 @@ export class MooringController {
     if (!ship || !berth) return;
     this.recommendAbort?.abort();
     const abort = (this.recommendAbort = new AbortController());
+    const context = this.contextKey();
     this.state.set({ recommend: { state: 'running', progress: 0, candidates: [], error: null } });
     try {
       const accepted = unwrap(
@@ -515,6 +527,8 @@ export class MooringController {
             ship_x_ft: shipXFt,
             design_mst: ship.mst_class as 'I' | 'II' | 'IIA' | 'III',
             max_candidates: 3,
+            max_evaluations: 1500,
+            neighbors_per_line: 3,
           },
           signal: abort.signal,
         }),
@@ -525,7 +539,11 @@ export class MooringController {
         (progress) => this.state.set({ recommend: { ...this.s.recommend, progress } }),
         abort.signal,
       );
-      if (this.disposed) return;
+      if (this.disposed || abort.signal.aborted || this.recommendAbort !== abort) return;
+      if (context !== this.contextKey()) {
+        this.state.set({ recommend: { state: 'idle', progress: 0, candidates: [], error: null } });
+        return;
+      }
       const candidates = [...envelope.result.candidates].sort((a, b) => a.min_margin_pct_wll - b.min_margin_pct_wll);
       this.state.set({ recommend: { state: 'idle', progress: 1, candidates, error: null } });
       if (opts.apply && candidates[0]) this.applyCandidate(candidates[0]);
@@ -533,6 +551,12 @@ export class MooringController {
       if (abort.signal.aborted || this.disposed) return;
       this.state.set({ recommend: { state: 'error', progress: 0, candidates: [], error: message(e) } });
     }
+  }
+
+  /** Identity and geometry that make a generated plan applicable. */
+  contextKey(): string {
+    const s = this.s;
+    return JSON.stringify([s.berthId, s.shipClassId, s.loading, s.side, s.shipXFt, s.standoffOverrideFt]);
   }
 
   applyCandidate(candidate: Candidate): void {
@@ -548,7 +572,14 @@ export class MooringController {
 
   async saveScenario(name: string): Promise<string | null> {
     const { ship, berth, side, shipXFt, lines, loading, standoffOverrideFt } = this.s;
-    if (!ship || !berth) return null;
+    if (!ship || !berth || !this.s.env) return null;
+    const env = this.s.env;
+    const snapshot = unwrap(await modeling.POST('/api/v1/env/scenarios', { body: {
+      name: `${name} environment snapshot`, kind: 'steady', replay_source: 'synthetic',
+      wind_speed_kt: env.wind_speed_kt, wind_gust_kt: env.wind_gust_kt,
+      wind_from_true_deg: env.wind_from_true_deg, current_speed_kt: env.current_speed_kt,
+      current_set_true_deg: env.current_set_true_deg, water_level_mllw_ft: env.water_level_mllw_ft,
+    } }));
     const saved = unwrap(
       await modeling.POST('/api/v1/scenarios', {
         body: {
@@ -557,7 +588,8 @@ export class MooringController {
           loading,
           berth_id: berth.berth_id,
           side_to: side,
-          env_source: { mode: 'mock', replay_speed: 1 },
+          env_source: { mode: 'scenario', env_scenario_id: snapshot.env_scenario_id, replay_speed: 1 },
+          tugs: this.s.tugAssignments,
           config: {
             side_to: side,
             ship_x_ft: shipXFt,
@@ -575,6 +607,8 @@ export class MooringController {
   async loadScenario(id: string): Promise<void> {
     await this.guarded(async () => {
       const sc = unwrap(await modeling.GET('/api/v1/scenarios/{scenario_id}', { params: { path: { scenario_id: id } } }));
+      await this.setEnvMode('manual');
+      const env = unwrap(await modeling.GET('/api/v1/env/now', { params: { query: { berth_id: sc.berth_id, env_scenario_id: sc.env_source.env_scenario_id ?? undefined } } }));
       this.state.set({
         berthId: sc.berth_id,
         shipClassId: sc.ship_class_id,
@@ -582,10 +616,11 @@ export class MooringController {
         side: sc.side_to,
         shipXFt: sc.config?.ship_x_ft ?? 0,
         standoffOverrideFt: sc.config?.standoff_ft ?? null,
-        env: null,
+        env,
+        tugAssignments: sc.tugs ?? [],
       });
       await this.loadSelection({ recommend: false });
-      this.state.set({ lines: sc.config?.lines ?? [], scenarioId: sc.scenario_id });
+      this.state.set({ lines: sc.config?.lines ?? [], tugAssignments: sc.tugs ?? [], scenarioId: sc.scenario_id });
       this.pushScene('update');
       this.scheduleAnalyze();
     });
@@ -622,6 +657,7 @@ export class MooringController {
             body: {
               name: 'Storm ramp (from UI)',
               kind: 'ramp',
+              replay_source: 'synthetic',
               wind_speed_kt: wind,
               wind_gust_kt: base?.wind_gust_kt ?? wind * 1.4,
               wind_from_true_deg: base?.wind_from_true_deg ?? 200,
@@ -713,27 +749,32 @@ export class MooringController {
       this.state.set({ risk: { ...this.s.risk, error: 'Add at least one line first.' } });
       return;
     }
+    const seq = ++this.riskSeq;
     this.state.set({ risk: { ...this.s.risk, running: kind, error: null } });
     try {
       if (kind === 'timeline') {
         const out = await this.callMaybeJob<Enveloped<TimelineResult>>(
-          modeling.POST('/api/v1/risk/timeline', { body: { ...base, forecast_hours: 24, step_min: 60 } }),
+          modeling.POST('/api/v1/risk/timeline', { body: { ...base, forecast_hours: 24, step_min: 60, n_samples_per_step: 50 } }),
         );
+        if (seq !== this.riskSeq || this.disposed) return;
         this.state.set({ risk: { ...this.s.risk, running: null, timeline: out } });
       } else if (kind === 'envelope') {
         const out = await this.callMaybeJob<Enveloped<EnvelopeResult>>(
-          modeling.POST('/api/v1/mooring/envelope', { body: { ...base, step_deg: 15 } }),
+          modeling.POST('/api/v1/mooring/envelope', { body: { ...base, step_deg: 15, max_search_kt: 100, sampling_step_kt: 5, tolerance_kt: 0.25 } }),
         );
+        if (seq !== this.riskSeq || this.disposed) return;
         this.state.set({ risk: { ...this.s.risk, running: null, envelope: out } });
       } else {
         const out = await this.callMaybeJob<Enveloped<ExceedanceResult>>(
           modeling.POST('/api/v1/risk/exceedance', {
-            body: { ...base, horizon_hours: 6, n_samples: 200, seed: 42, gust_dynamic_factor: 1.3 },
+            body: { ...base, horizon_hours: 6, n_samples: 200, seed: 42, gust_dynamic_factor: 1.3, include_horizon: false, n_trajectories: 200, horizon_step_min: 30 },
           }),
         );
+        if (seq !== this.riskSeq || this.disposed) return;
         this.state.set({ risk: { ...this.s.risk, running: null, exceedance: out } });
       }
     } catch (e) {
+      if (seq !== this.riskSeq || this.disposed) return;
       this.state.set({ risk: { ...this.s.risk, running: null, error: message(e) } });
     }
   }

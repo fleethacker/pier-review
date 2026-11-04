@@ -162,7 +162,7 @@ def test_alerts_ws():
 def test_analyze_example_is_plausible():
     r = AnalyzeResponse.model_validate(client.post(f"{P}/mooring/analyze", json=EXAMPLES["mooring_analyze"]).json())
     roles = {ln.role for ln in r.result.lines}
-    assert {"bow", "stern", "spring_fwd", "spring_aft"} <= roles
+    assert {"bow", "breast", "stern", "spring_fwd", "spring_aft"} <= roles
     assert all(ln.length_ft >= 50 for ln in r.result.lines)
     # Real equilibrium: the single-part template is overloaded at a 30 kt off-pier gust (a physical finding, not an error).
     assert r.backend == "real" and r.validity.state == "limited" and r.validity.diagnostics.converged

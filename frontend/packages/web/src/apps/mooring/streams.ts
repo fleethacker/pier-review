@@ -22,20 +22,22 @@ export function openJsonStream<T>(
     onStatus('connecting');
     socket = new WebSocket(url);
     socket.onopen = () => {
+      if (closedByUs) return;
       attempt = 0;
       onStatus('open');
     };
     socket.onmessage = (ev) => {
+      if (closedByUs) return;
       try {
         onMessage(JSON.parse(String(ev.data)) as T);
       } catch {
         // A malformed frame should not kill the stream.
       }
     };
-    socket.onerror = () => onStatus('error');
+    socket.onerror = () => { if (!closedByUs) onStatus('error'); };
     socket.onclose = (ev) => {
       if (closedByUs) return;
-      if (ev.code === 1000) {
+      if ([1000, 1008, 4401, 4404].includes(ev.code)) {
         onStatus('closed');
         return;
       }

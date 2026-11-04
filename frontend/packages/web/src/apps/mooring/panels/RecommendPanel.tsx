@@ -23,7 +23,7 @@ export function RecommendPanel() {
               </Button>
             </div>
             <div className="mt-1 text-mil-text">
-              Peak use {Math.round(cand.min_margin_pct_wll)}% WLL · limit wind {cand.limit_wind_kt_worst.toFixed(0)} kt
+              Peak use {Math.round(cand.min_margin_pct_wll)}% WLL · limit wind {cand.limit_wind_kt_worst?.toFixed(0) ?? 'unavailable'} kt
             </div>
             <ul className="mt-1 list-disc pl-4 text-[10px] text-mil-dim">
               {cand.why.map((w) => (

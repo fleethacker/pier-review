@@ -4,7 +4,8 @@ The only path from any agent to physics. It computes nothing itself: lateral win
 geometry and bollard strain come from the modeling service (`modeling/`), which is plain Python. This folder
 makes those calculations safe for agents to call and auditable afterwards.
 
-**Status:** real gateway and ledger; the physics behind it is still mock in `modeling/` (M3 is being built now).
+**Status:** validated gateway, tool schemas, budgets, summaries and optional persistent ledger are implemented.
+The physics behind it is still mock in `modeling/` (M3 is being built now).
 
 ## What it provides
 
@@ -14,28 +15,69 @@ makes those calculations safe for agents to call and auditable afterwards.
 - `toolkit.py`: `PhysicsToolkit(client, caller, plan_id)`.
     - Typed helpers: `analyze`, `envelope`, `recommend`, `berthing_tugs`, `sequence`, `exceedance`, `windows`,
       `env_now`, `forecast`, `scenario`, `ship`, `berth`.
-    - Generic `call(name, input)` for LLM tool use; it fills path params, polls jobs and passes the body through.
-    - Every call is appended to the **ledger** with caller, plan id, request hash, `result_id`, status and duration.
+    - Generic `call(name, input)` validates input, enforces limits, fills path params and polls jobs.
+    - Every attempt is recorded with caller, plan id, request hash, `result_id`, status, duration and any error.
+- `ledger.py`: in-memory or SQLite audit storage, accessed through `calls_for(plan_id=None)`.
+- `summary.py`: `summarize(tool_name, output)` for deterministic LLM context.
 
 ## Endpoints
 
 | Method | Path | Returns |
 | --- | --- | --- |
 | GET | `/api/v1/tools` | `ToolSpec[]` |
-| POST | `/api/v1/physics/tools/{tool_name}` | `ToolCallResult`: the ledger entry plus the modeling response, unchanged |
+| POST | `/api/v1/physics/tools/{tool_name}` | `ToolCallResult`: the ledger entry plus unchanged modeling output or a local error |
 | GET | `/api/v1/physics/calls?plan_id=` | `ToolCall[]` |
 
-## Work remaining
+## Agent integration
 
-1. **LLM tool schemas:** generate JSON Schema tool definitions from `contract/modeling.openapi.yaml` for each
-   `ToolSpec` (`request_schema`, plus path and query params for GET tools). Expose them as `tool_definitions()`
-   for the Planner, Intake and Safety agents.
-2. **Input validation before the call:** validate LLM-produced inputs against the schema and return a structured
-   error the LLM can correct. Count it in the ledger as `error`.
-3. **Persistence:** the ledger is in memory. Add an optional SQLite store and keep `calls_for()` as the API.
-4. **Limits:** per-plan call budget and timeout (configurable), so a looping LLM can't flood modeling.
-5. **Result summaries:** a compact, deterministic text summary of each tool result for the LLM context (governing
-   element, max % of working load, status), so the LLM doesn't need the full JSON. Pure code, no LLM.
+```python
+from mooring_agents.physics import PhysicsToolkit, calls_for, summarize, tool_definitions
+
+definitions = tool_definitions()
+physics = PhysicsToolkit(client, caller="planner", plan_id=plan_id)
+output = await physics.call("analyze_mooring", request)
+context = summarize("analyze_mooring", output)
+audit = calls_for(plan_id)
+```
+
+`tool_definitions()` returns one `{name, description, input_schema}` dictionary per `ToolSpec`. Schemas come
+from `contract/modeling.openapi.yaml`, with references resolved: POST tools use their `request_schema`
+component, and GET tools use path and query parameters. Provider-specific wrapping belongs in `shared/llm.py`.
+Source and wheel distributions bundle the same contract so schema generation also works outside the checkout.
+
+Invalid input never reaches modeling. Generic `call()` returns a correctable error, for example:
+
+```json
+{"error": {"code": "invalid_input", "message": "Invalid input for 'get_ship'; correct the listed fields.", "fields": [{"path": "$.class_id", "message": "'class_id' is a required property"}]}}
+```
+
+Local limit errors use the same `error.code` and `error.message` shape with codes `budget_exceeded` or
+`timeout`. These errors are stored as JSON in the ledger entry's `error` string. Typed helpers enforce the
+same checks and raise `ModelingError` with status 422, 429 or 504 respectively; modeling HTTP errors retain
+their existing `ModelingError` behavior.
+
+`summarize()` accepts JSON output or a typed response. It copies modeling's result ID, status and relevant
+values, including the supplied governing element and utilization. It does no arithmetic, ranking or finding
+counts; probabilities and numeric precision are preserved. Lists without a designated best item are
+summarized using their explicitly labeled first item.
+
+## Configuration and persistence
+
+| Environment variable | Default | Meaning |
+| --- | --- | --- |
+| `AGENTS_MAX_TOOL_CALLS` | `40` | Nonnegative maximum attempts per plan. Zero rejects every attempt. |
+| `AGENTS_TOOL_TIMEOUT_S` | `30` | Finite positive seconds for the HTTP operation, including job polling. |
+| `AGENTS_LEDGER_DB` | unset | Optional SQLite file path; its parent directory must exist. `:memory:` is not supported. |
+
+Budgets are shared by all toolkit instances and callers using the same `plan_id`. Invalid inputs and failed
+calls consume the budget, and over-budget attempts are also logged. A call reserves its ledger entry before
+HTTP, so concurrent calls cannot bypass the limit. With `plan_id=None`, the budget belongs to that toolkit
+instance. A local timeout stops requests and polling; it does not cancel a job already running in modeling.
+Limits are read at toolkit construction. Keep the ledger path fixed while the service is running.
+
+Without `AGENTS_LEDGER_DB`, the ledger is held in memory for the process. With SQLite enabled, audit entries
+and per-plan budget usage survive new toolkit instances and process restarts, and are shared across processes
+using the same file. `calls_for(plan_id)` filters the active store; `calls_for()` returns all entries.
 
 ## Guardrails
 
@@ -50,4 +92,6 @@ makes those calculations safe for agents to call and auditable afterwards.
 - Generated tool schemas validate the example requests in `contract/examples/modeling/`.
 - An invalid LLM input returns a structured error and is logged.
 - The budget stops a plan after N calls.
+- Timeouts cover the full call, including job polling.
+- Summaries contain only numbers present in the tool output.
 - Ledger entries survive a restart when persistence is on.

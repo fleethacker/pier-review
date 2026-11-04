@@ -1,32 +1,47 @@
 # frontend
 
-UI team's workspace: the 2D pier canvas, live dashboard and safety sheet views for the mooring assistant. The
-framework and tooling are the UI team's call; nothing outside this folder depends on them.
+UI team's workspace: the pier canvas, live dashboard and safety sheet views for the mooring assistant. The framework
+and tooling are the UI team's call; nothing outside this folder depends on them.
 
 ## Goal
 
-Build the mooring assistant's interface on top of the **drone-simulator** app that is already in this folder, instead
-of starting from a blank project. The simulator gives us a working Cesium 3D globe, a React UI layer, a builder mode
-for placing objects on the map, a wind system and ship models. We repurpose those for mooring operations:
+An interactive web app where a bridge team places a ship at a pier, picks ship class, pier and line types, and sees
+the agent's recommended tug assist, line sequence, gust warnings and safety margins. The output is an approved
+**Mooring Evolution Safety Sheet** and a graphical layout with the agent's rationale. This is the "Physics-Informed
+Mooring & Tug Allocation Planning Agent" use case (Pier Review, Open Innovation, FLEETHACKER Norfolk 2026).
 
-> An interactive web app where a bridge team drags a ship onto a pier, picks ship class, pier and line types, and
-> sees the agent's recommended tug assist, line sequence, gust warnings and safety margins. The output is an
-> approved **Mooring Evolution Safety Sheet** and a graphical layout with the agent's rationale.
+The UI is a reusable visualization shell, not a one-off mooring screen. Mooring is the first application it talks
+to; the same shell should later drive other applications (for example an exercise simulator) through the same kind of
+API boundary. See [Multiple applications](#multiple-applications).
 
-The UI is meant to be a reusable visualization shell, not a one-off mooring screen. Mooring is the first
-application it talks to; the same UI should later drive other applications, for example one that simulates exercises,
-through the same kind of API boundary. See [Multiple applications](#multiple-applications).
+It started from the drone-simulator (Cesium, React, TypeScript, Vite, Tailwind) and kept its rendering engine and
+look. The drone-specific code, models and backends were removed. The demo script is in [DEMO.md](DEMO.md); the build
+plan, decisions and status are in [PLAN.md](PLAN.md).
 
-This is the "Physics-Informed Mooring & Tug Allocation Planning Agent" use case (Pier Review, Open Innovation track,
-FLEETHACKER Norfolk 2026). Requirements that land on the UI:
+## Run it
 
-- Drag-and-drop 2D pier canvas to select ship class, pier number and line types.
-- Show the agent evaluating line geometry and bollard strain against NSTM 582 limits, with wind and ebb/flood current.
-- Show recommended tug horsepower, line sequence, and warnings when gusts threaten line breaking thresholds.
-- Review and approve the Mooring Evolution Safety Sheet, with rationale and safety margins.
+Prerequisites: Node 20+ and [uv](https://docs.astral.sh/uv/) for the mock services.
 
-The plan and module list are in [`../docs/PLAN.md`](../docs/PLAN.md). Where it differs from the contract, the contract
-wins ([`../contract/README.md`](../contract/README.md)).
+```bash
+# repo root: mock modeling (:8000) and agents (:8001)
+make install && make mock
+
+# another terminal
+cd frontend/packages/web
+npm install
+npm run dev          # http://localhost:4000
+```
+
+The browser only talks to its own origin. Vite forwards `api/modeling/*` to the modeling service and `api/agents/*`
+to the agents service (set `MODELING_API_URL` and `AGENTS_API_URL` in `frontend/.env` to override
+`http://localhost:8000` and `:8001`). REST is under `/api/v1`, WebSockets under `/ws`. Set `VITE_MODELING_URL` or
+`VITE_AGENTS_URL` to an absolute URL to bypass the proxy.
+
+No tokens are needed. The 2D and 3D views are drawn from the berth data itself, with no imagery.
+
+Other scripts in `packages/web`: `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`, and
+`npm run types` (regenerates `src/api/*.d.ts` from `../../contract/`; commit the result when `contract/` changes).
+`app.sh` builds and serves the production bundle on `:8888` (for Domino hosting).
 
 ## Where this fits in the repo
 
@@ -36,32 +51,32 @@ wins ([`../contract/README.md`](../contract/README.md)).
 ```
 
 `frontend/` integrates with the other pieces only through `contract/`. Never import or read the Python code to learn
-an API; read the OpenAPI specs. The contract is generated from the Pydantic schemas, so never edit it by hand. If the
-UI needs a contract change, it goes through the owning team's schemas and needs review from both sides.
+an API; read the OpenAPI specs. `contract/` holds the specs for both mooring services (`modeling.openapi.yaml` and
+`agents.openapi.yaml`). It is generated from the Pydantic schemas, so never edit it by hand. If the UI needs a
+contract change, it goes through the owning team's schemas and needs review from both sides. Where the contract and
+[`../docs/PLAN.md`](../docs/PLAN.md) differ, the contract wins.
 
-## What is in this folder
+## Layout
 
-The simulator, flattened into `frontend/`. Its original README is kept as
-[`SIMULATOR_README.md`](SIMULATOR_README.md) for reference only; it describes the Domino drone demo, not this project.
+```text
+packages/web/src/
+  shell/        Cesium renderer, 2D/3D camera, picking and dragging, layout, shared UI (status, badges,
+                citations). Knows nothing about mooring.
+  scene/        The neutral model (entities, links, arrows), its store, geometry helpers, the app registry.
+  apps/
+    mooring/    The mooring adapter: API clients, mapping to the scene, controller, panels, agent session.
+    demo/       A tiny non-mooring app that exercises the shell (dev builds only; open /?app=demo).
+  api/          Types generated from the contract. Do not edit.
+  lib/, styles/ Small helpers and the Tailwind theme.
+```
 
-| Path | What it is | Plan |
-| --- | --- | --- |
-| `packages/web/` | Vite + React 18 + TypeScript + Tailwind app. `src/cesium/` is the 3D engine (scene, game loop, cameras, managers, builder, wind). `src/react/` is the UI layer, connected to the engine by a typed event bridge (`cesium/bridge/`, `react/hooks/useGame*`). | **Becomes the mooring UI.** |
-| `packages/web/src/cesium/builder/` | Builder mode: place and manipulate objects on the map. | Basis for the drag-and-drop pier canvas (ship, lines, fittings, tugs). |
-| `packages/web/src/cesium/physics/WindSystem.ts` | Client-side wind used for the flight sim. | Replaced by wind, current and tide from the modeling API (`/ws/env`). Display only; physics stays in `modeling/`. |
-| `packages/web/src/baseLocation.ts` | Location picker list (landmarks). | Replace with the contract's berths (`GET /berths`), starting at NAVSTA Norfolk Pier 12. |
-| `packages/web/public/*.glb`, root `*.glb` | Aircraft, SAM and carrier models. | Keep ship models (carrier); drop the rest once nothing references them. |
-| `packages/ml/`, `packages/python-yolo/` | Wind-correction ML and YOLO ISR backends for the drone demo. | **Not part of the mooring system.** Remove from the build and `app.sh` once the UI no longer proxies to them. |
-| `app.sh`, `scripts/` | Domino app launcher and model-generation/deploy scripts. | Keep `app.sh` working for Domino hosting; point it only at the web package when the drone backends go. |
-
-Drone-only features (Maverick mission, missiles, SAM sites, threat manager, touch flight controls) are not needed
-for mooring and can be removed as we replace them. Prefer removing them in their own commits so history stays easy to
-review.
+Leftovers from the simulator that nothing uses yet: `packages/web/public/carrier*.glb`, the root `*.glb`,
+`scripts/generate-carrier.mjs` and `SIMULATOR_README.md`. They are kept for possible ship models and can be removed.
 
 ## Multiple applications
 
-The visualization layer must not know about mooring. Application knowledge lives in an **adapter**, one per backend
-application, and the shell only deals with a neutral scene model.
+The shell must not know about mooring. Application knowledge lives in an **adapter**, one per backend application,
+and the shell only deals with the scene model.
 
 ```text
   mooring API (contract/)  ──▶  mooring adapter   ─┐
@@ -69,103 +84,62 @@ application, and the shell only deals with a neutral scene model.
   exercise-sim API (its own) ─▶  exercise adapter  ─┘
 ```
 
-Proposed split inside `packages/web/src/`:
+- `shell/` never imports from `apps/`. Apps register themselves in `main.tsx`; the user picks one.
+- An app implements `AppDefinition` ([`scene/app.ts`](packages/web/src/scene/app.ts)): `start(host)` returns an
+  instance with optional `Sidebar`, `Bottom`, `Banner` and `Overlay` components and an `onEdit` handler. The shell
+  forwards canvas edits (such as dragging a ship) to `onEdit`; the app decides what they mean and updates the scene
+  through the store.
+- Status colors (GREEN, AMBER, RED), the backend badge and the citation chip are shell components.
+- Each app owns the OpenAPI specs for its API. Where other apps' specs live is still open.
+- The scene model was designed from what the shell needs to draw. It has been exercised by the mooring adapter and
+  the demo app; check it against the exercise application before freezing it.
 
-| Layer | Responsibility | Knows about mooring? |
-| --- | --- | --- |
-| `shell/` (Cesium engine, 2D and 3D views, camera, builder, timeline, status/badge components) | Renders the scene model, handles placement, selection and playback. | No |
-| `scene/` | The neutral model: entities (position, orientation, model, status), links between entities (e.g. a line), overlays and annotations, a time axis, and user-editable properties. | No |
-| `apps/<name>/` | An adapter: generated API client for that app, mapping from its responses to the scene model, and from user edits back to its requests. Also its app-specific panels (safety sheet, agent plan, exercise controls). | Yes, only here |
+## Contract conventions the UI follows
 
-Rules:
-
-- The shell never imports from `apps/`; apps register themselves with the shell (an app registry), and the user
-  picks the active app.
-- Every adapter implements the same small interface: load context, subscribe to live updates (WebSocket or SSE),
-  push edits, and expose its panels. The exact interface is designed with the first adapter (mooring) and then
-  checked against the exercise app before it is frozen.
-- Status colors (GREEN, AMBER, RED), the backend/provenance badge and the reference/citation display are shell
-  components, so every app gets them. Other apps may need other status vocabularies; the scene model maps them.
-- Each app owns the OpenAPI specs for its API. For mooring, `contract/` holds the specs for both mooring services
-  (`modeling.openapi.yaml` and `agents.openapi.yaml`). Where other apps' specs live and who reviews them is an open
-  decision (below).
-
-## Build against the contract, not the Python code
-
-- Specs: [`../contract/modeling.openapi.yaml`](../contract/modeling.openapi.yaml) and
-  [`../contract/agents.openapi.yaml`](../contract/agents.openapi.yaml). Conventions and the typical call flow are in
-  [`../contract/README.md`](../contract/README.md).
-- Example request bodies: [`../contract/examples/modeling/`](../contract/examples/modeling/).
-- Mock servers: from the repo root, `make install` once, then `make mock`. Modeling runs at
-  `http://localhost:8000/api/v1` (docs at `/docs`) and agents at `http://localhost:8001/api/v1`. CORS is open for
-  local development.
-
-Generate TypeScript types from the specs, for example with
-[openapi-typescript](https://github.com/openapi-ts/openapi-typescript):
-
-```bash
-npx openapi-typescript ../contract/modeling.openapi.yaml -o packages/web/src/api/modeling.d.ts
-npx openapi-typescript ../contract/agents.openapi.yaml -o packages/web/src/api/agents.d.ts
-```
-
-Regenerate them whenever `contract/` changes on `dev`.
-
-## Contract conventions the UI must respect
-
-- Units are in field names (`_kt`, `_ft`, `_lbf`, `_deg`, ...). Show Navy units.
-- Wind direction is where it blows **from**; current is where it flows **toward**. Both degrees true.
-- Berth frame: standing on the pier facing the water, +y points into the water and +x runs to your right.
-  Ship frame: origin at midships, +x forward, +y to port. The canvas and the Cesium scene both have to convert to
-  and from these frames in one place.
+- Units are in field names (`_kt`, `_ft`, `_lbf`, `_deg`, ...). The UI shows Navy units and converts at the edge
+  (`apps/mooring/units.ts`); the scene model is in meters.
+- Wind direction is where it blows **from**; current is where it flows **toward**. Both degrees true. Arrows on the
+  canvas show the direction of motion.
+- Berth frame: standing on the pier facing the water, +y points into the water and +x runs to your right. Ship frame:
+  midships origin, +x forward, +y to port. Starboard side to the pier puts the bow toward +x. All frame conversion
+  lives in `scene/geometry.ts` and `apps/mooring/mapping.ts`, with tests.
 - A plan that is unsafe is a `200` with `status: RED` and findings, not an error. Only `404` and `422` are errors.
-- Slow endpoints return `202` with a `job_id`; follow `events_url` (SSE) or poll `status_url`.
+- Slow endpoints may return `202` with a `job_id`; the client polls `status_url`. Agent plans stream over SSE.
 
-## Things to show from the responses
+## What the UI shows from the responses
 
-- `status` (GREEN, AMBER, RED) on every envelope, line, fitting and finding.
-- `backend: "mock"` and `provenance.confidence` (`mock`, `estimated`, `vision`): show a banner or badge so nobody
-  mistakes placeholder numbers for real ones.
+- `status` (GREEN, AMBER, RED) on lines, fittings, findings and plans.
+- `backend: "mock"` as a banner and badge, and `provenance.confidence` for berth data, so nobody mistakes
+  placeholder numbers for real ones.
 - `findings[].reference` (the NSTM 582 paragraph) next to each warning.
-- `result_id`s cited in agent rationale, linked to `GET /results/{result_id}` on the modeling service.
+- `result_id`s cited in agent rationale open the stored result (`GET /results/{id}`).
 
-## Planned screens
+## Screens
 
-Mapped to the typical call flow in the contract README.
+1. **Pier canvas** (centre): berth, ship, fittings, lines colored by `pct_wll`, tugs and wind/current arrows. Toggle
+   2D (top-down, +x right, water up) and 3D. Drag the ship along the pier, click a ship bitt then a pier fitting to
+   add a line, click anything to inspect it.
+2. **Scenario panel** (left): pier, ship class, loading, side to, position, standoff, environment values, line list,
+   analysis findings, recommended layouts, saved scenarios.
+3. **Planning agent** (left): runs the agent, shows its steps and rationale with cited results, applies its lines and
+   tugs to the canvas (with undo), shows the line sequence, takes follow-up questions.
+4. **Dashboard** (bottom): live, replay and storm-ramp environment streams, the alert feed, a 24 h forecast, a
+   limiting-wind chart and gust risk.
+5. **Safety sheet** (overlay): the service's rendered sheet, margins, rationale, a layout image, approvals by pilot,
+   first lieutenant and CO, and print.
 
-1. **Pier canvas** (`GET /ships`, `/berths`, `POST /scenarios`, `POST /mooring/analyze`): pick ship class and pier,
-   drag the ship and lines onto the fittings, color lines and fittings by `status` and `pct_wll` on every change.
-2. **Live dashboard** (`WS /ws/env`, `WS /ws/alerts`, risk endpoints): wind, current, tide, gust warnings and the
-   risk timeline.
-3. **Agent plan** (`POST /agent/plans`, stream `events_url`): show steps, proposals and rationale as they arrive,
-   including recommended tug horsepower and line sequence.
-4. **Safety sheet** (`POST /safety-sheets`, `GET .../render?format=html`, `POST .../approvals`): review, approve,
-   print.
+## Known limits (mock backends)
 
-## 2D and 3D views
-
-Decided: the UI toggles between a **2D** top-down view and the **3D** Cesium view of the same scene. The 2D view is
-the primary pier canvas for planning (drag and drop, line geometry, fitting loads); the 3D view is for situational
-awareness and demos. Both render the same scene model, so edits and status colors stay in sync across the toggle.
-The likely implementation is a top-down orthographic camera over the Cesium scene (or Cesium's 2D scene mode)
-rather than a second renderer; spike this first, since it decides whether the 2D canvas can reuse the builder.
+- Only the DDG-51 class has fitting data, so other classes show a hull only and line editing is disabled.
+- The mock alert stream does not escalate during a storm ramp. The UI therefore also raises warnings from the plan
+  analysis and labels them as coming from the analysis, not the service.
+- The mock's reported line lengths do not match the contract's geometry; the canvas draws from the contract's frames
+  and the inspector shows the service's numbers.
+- The meaning of `wind_rel_deg` in the wind-limit chart is not defined in the contract; the chart shows it as
+  reported.
 
 ## Open decisions
 
-- **Where other apps' API specs live.** The repo says `contract/` is the only thing shared, and it currently holds
-  only the mooring specs (modeling and agents). Options: sibling folders (`contract/<app>/`), or each app's repo publishes its own spec that the
-  frontend consumes. Needs agreement with whoever owns the exercise application.
-- **Adapter interface.** Finalize after the mooring adapter exists and the exercise app's needs are known.
+- **Where other apps' API specs live.** `contract/` currently holds only the mooring specs. Options: sibling folders
+  (`contract/<app>/`), or each app publishes its own spec that the frontend consumes.
 - **Units toggle.** Navy units only (as proposed in the plan) or a metric toggle.
-- **Mapbox.** `packages/web/MAPBOX_SETUP.md` describes a token the simulator needs; decide whether the mooring UI
-  still wants it.
-
-## Running the simulator today
-
-```bash
-cd packages/web
-npm install
-npm run dev     # http://localhost:4000
-```
-
-The dev server still proxies `/api/detect`, `/api/analyze`, `/api/wind-correct` and `/api/wind-tunnel` to the drone
-backends on `:5050` and `:5051`. Those go away as the UI moves to the mooring APIs.

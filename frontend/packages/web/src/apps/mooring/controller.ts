@@ -210,6 +210,7 @@ export class MooringController {
   // ---- startup -------------------------------------------------------------------------------------------
 
   async init(): Promise<void> {
+    this.state.set({ phase: 'loading', error: null });
     try {
       const [health, ships, berths, lineSpecs, tugs] = await Promise.all([
         modeling.GET('/api/v1/health').then(unwrap),

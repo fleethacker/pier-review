@@ -41,7 +41,8 @@ export function SetupPanel() {
             options={(s.ship?.loading_conditions ?? []).map((l) => ({ value: l.name, label: l.name.replace('_', ' ') }))}
           />
         </Field>
-        <Field label="Side to pier">
+        <div role="group" aria-label="Side to pier">
+          <span className="mil-label mb-1 block">Side to pier</span>
           <div className="flex">
             {(['port', 'starboard'] as const).map((side) => (
               <button
@@ -59,7 +60,7 @@ export function SetupPanel() {
               </button>
             ))}
           </div>
-        </Field>
+        </div>
       </div>
       <Field label={`Midships position along the pier (${fmt.ft(s.shipXFt)})`}>
         <input

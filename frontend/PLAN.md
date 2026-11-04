@@ -5,9 +5,26 @@ applications can plug into. Goals, structure and conventions are in [README.md](
 [`../docs/PLAN.md`](../docs/PLAN.md); the frontend's first milestone is its gate **G0** ("the UI can render a scenario
 from mocks"), and the frontend demo contribution is part of **G2** (approved safety sheet for DDG 51 at a mock pier).
 
-## What the simulator gives us, and what it does not
+## Status
 
-Checked against the code, not the file names.
+| Phase | State | Notes |
+| --- | --- | --- |
+| 0 Foundations | Done | Tokens are optional; 2D/3D works in one Cesium scene; lint, tests, generated types. |
+| 1 Strip and rebase | Done | Drone code, models and backends removed; `app.sh` and the dev/preview proxies rewritten. |
+| 2 Scene model and shell | Done | Rotating entities was left out (nothing needs it yet). |
+| 3 Mooring adapter (G0) | Done | DDG 51 at Pier 12 North renders from the mocks with analyzed, colored lines. |
+| 4 Canvas editing, 2D/3D | Done | Ship drag, click-to-add lines, recommend, saved scenarios. Ship models are generated hulls. |
+| 5 Live dashboard | Done | Env streams (live, replay, storm ramp), alerts, forecast, wind limits, gust risk. |
+| 6 Agent plan | Done | SSE steps, proposal preview, apply with undo, tugs on canvas, line sequence, follow-ups. |
+| 7 Safety sheet | Done | Service-rendered sheet, margins, rationale links, layout image, approvals, print. |
+| 8 Demo hardening | Done for the mock stack | Error and retry states, accessibility fixes, production build checked, [DEMO.md](DEMO.md). |
+
+Verified in headless Chromium (software WebGL) against the running mock servers, plus 32 unit tests, type checking and
+lint. Not done: testing on a real GPU, a real backend (mock responses only), and any browser other than Chromium.
+
+## What the simulator gave us, and what it did not (at the start)
+
+Checked against the code, not the file names. Kept for the record; the work below has since been done.
 
 | Area | Today | Consequence for the plan |
 | --- | --- | --- |
@@ -67,7 +84,7 @@ Results (spikes were run in headless Chromium with software WebGL, then thrown a
 4. **Dev loop.** `make mock` at the repo root, then `npm run dev` in `packages/web`. Calls go straight to
    `:8000` and `:8001` (CORS is open); a proxy can be added for hosting if needed.
 
-### Phase 1: Strip and rebase the shell
+### Phase 1: Strip and rebase the shell - done
 
 1. Delete drone-only features (separate commits per area; build must pass after each).
 2. Replace the boot with: load, choose app, choose berth, frame the scene. Remove the cinematic, location picker,
@@ -76,7 +93,7 @@ Results (spikes were run in headless Chromium with software WebGL, then thrown a
    Cesium plumbing that survives.
 4. Remove the drone backends and the `/api/*` proxies; update `app.sh` to build and serve only the web package.
 
-### Phase 2: Scene model and shell
+### Phase 2: Scene model and shell - done
 
 1. Define `scene/` types and the store (entities, links, overlays, selection, time).
 2. Layers that render the model in 3D: entity models/placeholders, lines as colored polylines, labels, overlays.
@@ -84,7 +101,7 @@ Results (spikes were run in headless Chromium with software WebGL, then thrown a
 4. Shared UI components: status chips (GREEN/AMBER/RED), backend/provenance badge, citation chip, property panel.
 5. App registry and app switcher (with a trivial test app to prove the shell does not depend on mooring).
 
-### Phase 3: Mooring adapter, read-only (gate G0)
+### Phase 3: Mooring adapter, read-only (gate G0) - done
 
 1. Generate API types and clients for modeling and agents.
 2. Load `GET /ships`, `/berths`, `/lines`, `/tugs`; map a berth to scene entities: pier outline, fittings (by `kind`
@@ -98,7 +115,7 @@ Results (spikes were run in headless Chromium with software WebGL, then thrown a
 **Done when:** DDG 51 at NAVSTA Norfolk Pier 12 North renders in 3D from the running mock servers with analyzed,
 colored lines and a findings list.
 
-### Phase 4: Pier canvas editing and the 2D/3D toggle
+### Phase 4: Pier canvas editing and the 2D/3D toggle - done
 
 1. 2D top-down view and the toggle, per the Phase 0 spike. Selection and status colors identical in both.
 2. Select ship class and berth, side-to, loading condition. Drag the ship along the pier (`ship_x_ft`).
@@ -109,7 +126,7 @@ colored lines and a findings list.
 6. Ship visuals for DDG 51, CG 47, CVN 68, LHD 1: real models if available, otherwise generated hull shapes sized
    from `loa_ft` and `beam_ft` (the generator scripts are a starting point).
 
-### Phase 5: Live dashboard
+### Phase 5: Live dashboard - done
 
 1. `WS /ws/env` (live, replay, scenario modes): wind, gust, current, tide stage; wind and current arrows on the
    canvas (wind from, current toward).
@@ -118,7 +135,7 @@ colored lines and a findings list.
    for chart styling.
 4. Replay control for the storm replay needed at G2.
 
-### Phase 6: Agent plan
+### Phase 6: Agent plan - done
 
 1. `POST /agent/plans`, then stream `events_url`: steps, proposals, messages; reconnect on drop.
 2. A proposal can be previewed on the canvas and applied or rejected; applying updates the scene and re-analyzes.
@@ -126,13 +143,13 @@ colored lines and a findings list.
 4. Follow-up chat via `/agent/plans/{id}/messages`.
 5. Recommended tug horsepower and line sequence shown on the canvas (tug icons at push points, numbered lines).
 
-### Phase 7: Safety sheet
+### Phase 7: Safety sheet - done
 
 1. `POST /safety-sheets`, then `GET .../render?format=html` in a viewer with print support.
 2. Review with citations and safety margins; approval flow (`POST .../approvals`) with clear signed/unsigned state.
 3. Export the canvas as an image for the sheet and the fielding brief.
 
-### Phase 8: Demo hardening
+### Phase 8: Demo hardening - done for the mock stack
 
 1. Scripted demo path and seed scenarios (the G2 walkthrough: GREEN plan, tug horsepower, gust warning in replay,
    approved sheet).
@@ -159,15 +176,17 @@ colored lines and a findings list.
 - Tests: Vitest for pure logic (frame conversion, scene mapping, edit-to-request mapping), plus a smoke test that
   renders a scenario from recorded example responses so the UI is testable without the mock servers.
 
-## Risks and open questions
+## Risks and open questions (current)
 
 | Risk or question | Why it matters | Resolve in |
 | --- | --- | --- |
 | ~~Cesium Ion and Mapbox tokens required to boot~~ | Resolved in Phase 0: tokens are optional | Done |
 | ~~2D top-down view reuse~~ | Resolved in Phase 0: ortho camera over the same scene works with picking and dragging | Done |
-| Drag-and-drop, selection and gizmos do not exist | Largest feature gap versus the simulator; the plan's central UI requirement | Phase 2 and 4 |
-| Only a carrier model exists for four ship classes | Visual credibility of the canvas | Phase 4 |
-| Scene model designed from one app | Could encode mooring assumptions | Check against the exercise app before freezing |
-| Where other apps' API specs live | Needs the owner of the exercise application | Open (README) |
-| Navy units only versus a metric toggle | Affects every display component | Before Phase 3 |
+| ~~Drag-and-drop, selection and picking did not exist~~ | Resolved: drag along the pier, click selection, click-to-add lines. Rotation is not built. | Done |
+| Ship visuals are generated hulls, not models | Visual credibility; only a carrier model exists for four ship classes | Open |
+| Scene model designed from one real app plus a demo | Could encode mooring assumptions | Check against the exercise app before freezing |
+| Where other apps' API specs live | Needs the owner of the exercise application | Open |
+| Navy units only versus a metric toggle | Affects every display component | Open (Navy units only today) |
+| Everything verified against mock backends and software WebGL | Real services and GPUs may differ (frame times, response shapes, job latency) | Before the demo |
+| Production bundle is large (4.5 MB JS, 15 MB total with Cesium assets) | Slow first load on poor links | Open (no code splitting yet) |
 | Contract changes while we build | Generated types break at compile time; that is the intended signal | Ongoing |

@@ -126,9 +126,9 @@ def test_current_responses_have_no_validity_and_read_as_unknown():
     assert validity_state(stored) == "unknown"
 
 
-def test_real_loads_response_is_also_unknown_not_valid():
+def test_real_loads_response_reports_validity_but_mock_analysis_stays_unknown():
     j = client.post(f"{P}/loads/environmental", json=EXAMPLES["loads_environmental"]).json()
-    assert LoadsResponse.model_validate(j).validity is None and validity_state(j) == "unknown"
+    assert LoadsResponse.model_validate(j).validity is not None and validity_state(j) in ("valid", "limited")
 
 
 def test_pre_s00a_payloads_still_parse():

@@ -1,18 +1,20 @@
 """M3 HTTP services; the numerical implementation stays independent of envelopes."""
 
 from mooring import refdata
-from mooring.core.envelopes import RESULTS, inputs_hash, new_id, utcnow
+from mooring.core.envelopes import RESULTS, inputs_hash, new_id, status_with_validity, utcnow
 from mooring.core.schemas import (
     EnvironmentSnapshot, LoadsRequest, LoadsResponse, PolarPoint, PolarRequest,
     PolarResponse, PolarResult,
 )
+from mooring.core.schemas import Validity, ValidityReason
 from . import coefficients as c
 from .helpers import off_pier
+from .validity import classify_findings, merge_reasons, wind_basis
 from .ufc import compute_loads, ship_inputs
 from .warnings import range_findings
 
 
-def _metadata(ship, loading, depth, water_density, use_gust, current_speed, results):
+def _metadata(ship, loading, depth, water_density, use_gust, current_speed, results, env=None, require_basis=False):
     draft, *_ = ship_inputs(ship, loading, water_density)
     assumptions = [
         "UFC 4-159-03 (2020), Chapter 4; Eq. 4-3 harmonic and symmetric angle folding restored from the earlier UFC edition.",
@@ -37,13 +39,32 @@ def _metadata(ship, loading, depth, water_density, use_gust, current_speed, resu
     warnings, notes = range_findings(depth, draft, current_speed,
                                      [r.current.coefficients["reynolds"] for r in results])
     assumptions.extend(notes)
-    return assumptions, warnings
+    reasons, invalid = [], False
+    if env is not None:
+        basis = wind_basis(env, use_gust)
+        assumptions.extend(basis.notes)
+        reasons += basis.reasons
+        if require_basis and not basis.verified and not basis.reasons:
+            reasons.append(ValidityReason(code="WIND_BASIS_UNVERIFIED", affected_components=["wind"],
+                                          message="Wind averaging/gust duration/height are not documented; the legacy assumption was used."))
+    for state, reason in classify_findings(warnings):
+        reasons.append(reason)
+        invalid = invalid or state == "invalid"
+    if ship.provenance.confidence not in ("published", "synthetic"):
+        reasons.append(ValidityReason(code="REFERENCE_DATA_NOT_QUALIFIED", affected_components=[ship.class_id],
+                                      message=f"Ship '{ship.class_id}' geometry is {ship.provenance.confidence} data, not published."))
+    reasons = merge_reasons(reasons)
+    state = "invalid" if invalid else "limited" if reasons else "valid"
+    if invalid:  # an invalid result is RED with explanatory findings
+        warnings = [f.model_copy(update={"severity": "RED"}) if f.rule_id == "UFC-DEPTH-RANGE" else f for f in warnings]
+    return assumptions, warnings, Validity(state=state, reasons=reasons)
 
 
-def _response(cls, req, result, assumptions, warnings):
+def _response(cls, req, result, assumptions, warnings, validity):
+    base = "RED" if any(w.severity == "RED" for w in warnings) else "AMBER" if warnings else "GREEN"
     response = cls(result_id=new_id("res"), model="mooring.loads.ufc", model_version="1.0.0", backend="real",
-                   inputs_hash=inputs_hash(req), computed_at_utc=utcnow(), status="AMBER" if warnings else "GREEN",
-                   assumptions=assumptions, warnings=warnings, result=result)
+                   inputs_hash=inputs_hash(req), computed_at_utc=utcnow(), status=status_with_validity(base, validity),
+                   assumptions=assumptions, warnings=warnings, validity=validity, result=result)
     RESULTS[response.result_id] = response.model_dump(mode="json")
     return response
 
@@ -54,9 +75,10 @@ def environmental(req: LoadsRequest) -> LoadsResponse:
                            req.use_gust, req.shielding_factor)
     if req.side_to:
         result.off_pier_component_lbf = off_pier(result.total.fy_lbf, req.side_to)
-    assumptions, warnings = _metadata(ship, req.loading, req.water_depth_ft, req.environment.water_density_kgm3,
-                                      req.use_gust, req.environment.current_speed_kt, [result])
-    return _response(LoadsResponse, req, result, assumptions, warnings)
+    assumptions, warnings, validity = _metadata(ship, req.loading, req.water_depth_ft, req.environment.water_density_kgm3,
+                                                req.use_gust, req.environment.current_speed_kt, [result],
+                                                req.environment, req.require_verified_wind_basis)
+    return _response(LoadsResponse, req, result, assumptions, warnings, validity)
 
 
 def polar(req: PolarRequest) -> PolarResponse:
@@ -71,7 +93,7 @@ def polar(req: PolarRequest) -> PolarResponse:
         result = compute_loads(ship, req.loading, 0, env, req.water_depth_ft, use_gust=False)
         results.append(result)
         points.append(PolarPoint(rel_deg=rel, **result.total.model_dump()))
-    assumptions, warnings = _metadata(ship, req.loading, req.water_depth_ft, env.water_density_kgm3, False,
-                                      env.current_speed_kt, results)
+    assumptions, warnings, validity = _metadata(ship, req.loading, req.water_depth_ft, env.water_density_kgm3, False,
+                                                env.current_speed_kt, results)
     assumptions.append("rel_deg is the direction the wind comes from; current flows the same way as the wind.")
-    return _response(PolarResponse, req, PolarResult(points=points), assumptions, warnings)
+    return _response(PolarResponse, req, PolarResult(points=points), assumptions, warnings, validity)

@@ -12,6 +12,7 @@ from mooring.core.schemas import ForceComponent, ForceSet, LoadsResult
 from mooring.core.units import G_FPS2, KGM3_TO_SLUG_FT3, KT_TO_FPS, LT_TO_LB
 from mooring import refdata
 from . import coefficients as c
+from .validity import wind_basis
 
 
 def fold_angle(angle):
@@ -157,7 +158,7 @@ def compute_loads(ship, loading, heading_true_deg, env, water_depth_ft, use_gust
     if not 0 <= shielding_factor <= 1:
         raise ValueError("Shielding factor must be between zero and one.")
     rho_a, rho_w = env.air_density_kgm3 * KGM3_TO_SLUG_FT3, env.water_density_kgm3 * KGM3_TO_SLUG_FT3
-    vw = (env.wind_gust_kt if use_gust else env.wind_speed_kt * c.SUSTAINED_TO_30S) * KT_TO_FPS
+    vw = wind_basis(env, use_gust).speed_kt * KT_TO_FPS  # the single wind-basis conversion boundary
     vc = env.current_speed_kt * KT_TO_FPS
     rel_w, rel_c = (env.wind_from_true_deg - heading_true_deg) % 360, (env.current_set_true_deg - heading_true_deg) % 360
     tw, tc = (180 - rel_w) % 360, (-rel_c) % 360

@@ -17,6 +17,11 @@ class LoadsRequest(Model):
     use_gust: bool = True
     shielding_factor: float = Field(default=1.0, ge=0, le=1, description="Reduction for pier buildings or ships upwind.")
     side_to: SideTo | None = Field(default=None, description="When given, off_pier_component_lbf is returned.")
+    require_verified_wind_basis: bool = Field(
+        default=False,
+        description="When true, a snapshot without documented wind averaging/gust duration and height makes the "
+        "result 'limited' (WIND_BASIS_UNVERIFIED) instead of silently using the legacy assumption.",
+    )
 
 
 class ForceSet(Model):

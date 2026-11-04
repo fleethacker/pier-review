@@ -3,7 +3,7 @@
     {
       "source": "ship_nmea",
       "t_utc": "2026-11-04T15:48:00Z",
-      "sentence": "$WIMWV,045.0,R,18.5,N,A*1C"
+      "sentence": "$WIMWV,045.0,R,18.5,N,A*1E"
     },
     {
       "source": "load_cell",

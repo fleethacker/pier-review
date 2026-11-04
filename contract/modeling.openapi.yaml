@@ -1688,8 +1688,19 @@ paths:
       tags:
       - M13 Telemetry
       summary: Ingest sensor records
+      description: When MOORING_TELEMETRY_KEY is set the key is required (constant-time compare). Unset means local demo only.
       operationId: batch_api_v1_telemetry_batch_post
+      parameters:
+      - name: x-telemetry-key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Telemetry-Key
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1701,12 +1712,11 @@ paths:
                   records:
                   - source: ship_nmea
                     t_utc: '2026-11-04T15:48:00Z'
-                    sentence: $WIMWV,045.0,R,18.5,N,A*1C
+                    sentence: $WIMWV,045.0,R,18.5,N,A*1E
                   - source: load_cell
                     t_utc: '2026-11-04T15:48:00Z'
                     line_number: 2
                     tension_lbf: 31000
-        required: true
       responses:
         '202':
           description: Successful Response
@@ -6071,6 +6081,12 @@ components:
             type: string
           type: array
           title: Errors
+        rejections:
+          items:
+            $ref: '#/components/schemas/TelemetryRejection'
+          type: array
+          title: Rejections
+          description: Machine-readable reasons; rejected records never influence any result.
       additionalProperties: false
       type: object
       required:
@@ -6135,12 +6151,69 @@ components:
           - type: number
           - type: 'null'
           title: Lon
+        sensor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sensor Id
+          description: 'load_cell: registered sensor/channel id (required in the validating ingest).'
+        vessel_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Vessel Id
+          description: Vessel the sensor is installed on; must match the sensor registry.
+        calibration_rev:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Calibration Rev
+          description: Calibration revision the reading was taken under.
+        seq:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Seq
+          description: Sender sequence number, used to detect replays and duplicates.
+        units:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Units
+          description: 'load_cell: must be ''lbf''. Any other value is rejected, not converted.'
+        received_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Received Utc
+          description: When the service received it (set by the service; ignored on input).
       additionalProperties: false
       type: object
       required:
       - source
       - t_utc
       title: TelemetryRecord
+    TelemetryRejection:
+      properties:
+        index:
+          type: integer
+          title: Index
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+        message:
+          type: string
+          title: Message
+      additionalProperties: false
+      type: object
+      required:
+      - index
+      - code
+      - message
+      title: TelemetryRejection
     TendingAction:
       properties:
         at_utc:

@@ -9,7 +9,7 @@ implementations directly.
 from mooring import scenarios  # noqa: F401
 from mooring import environment as env  # noqa: F401
 from mooring.loads import service as loads  # noqa: F401
-from mooring.telemetry import mock as telemetry  # noqa: F401
+from mooring.telemetry import ingest as telemetry  # noqa: F401
 
 # Phase 3: approach
 from mooring.approach.mock import planner as approach_planner  # noqa: F401
@@ -37,7 +37,7 @@ BACKENDS: dict[str, str] = {
     "M7 sequence (berthing)": "real (draft, unreviewed, static check)",
     "M11 berthing simulator": "mock",
     "M12 approach planner": "mock",
-    "M13 telemetry ingest": "mock",
+    "M13 telemetry ingest": "real (NMEA MWV/HDT, registered load cells)",
 }
 
 

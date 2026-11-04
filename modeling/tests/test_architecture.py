@@ -7,8 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MODELING = ROOT / "modeling"
 # The only non-mock files allowed to import a mock implementation: the swap points.
-SWAP_POINTS = {"modeling/modeling_api/backend.py", "modeling/mooring/environment/__init__.py",
-               "modeling/mooring/tugs/__init__.py"}
+SWAP_POINTS = {"modeling/modeling_api/backend.py", "modeling/mooring/environment/__init__.py"}
 
 
 def imports_mock(source: str, is_package_init: bool = False) -> list[str]:
@@ -58,10 +57,8 @@ def test_agents_never_import_modeling_mocks():
 
 def test_template_config_output_is_unchanged_after_move():
     from mooring import refdata
-    from mooring.moored.mock.optimizer import template_config as old_path
     from mooring.templates import template_config
 
-    assert old_path is template_config
     cfg = template_config(refdata.ship("DDG-51-FIIA"), refdata.berth("NAVSTA-NORFOLK-P12-N"), "starboard", 650.0, "NYLON-DB-7IN")
     assert [(ln.line_number, ln.role, ln.ship_fitting_id, ln.pier_fitting_id) for ln in cfg.lines] == [
         (1, "bow", "BITT-1S", cfg.lines[0].pier_fitting_id), (2, "spring_aft", "BITT-2S", cfg.lines[1].pier_fitting_id),
@@ -75,3 +72,38 @@ def test_environment_interface_exposes_the_swap_surface():
     for name in ("now", "forecast", "history", "create_scenario", "get_scenario", "scenario_snapshot", "gust_model",
                  "synthetic", "with_relative"):
         assert callable(getattr(environment, name)), name
+
+
+PHASES = ("moored", "berthing", "approach")
+
+
+def _imports(path: Path) -> list[str]:
+    out = []
+    for node in ast.walk(ast.parse(path.read_text())):
+        if isinstance(node, ast.ImportFrom):
+            out.append(("." * node.level) + (node.module or ""))
+            out += [f"{'.' * node.level}{node.module or ''}.{a.name}" for a in node.names]
+        elif isinstance(node, ast.Import):
+            out += [a.name for a in node.names]
+    return out
+
+
+def test_shared_capabilities_never_import_phases_and_phases_never_import_each_other():
+    offenders = []
+    base = MODELING / "mooring"
+    for path in sorted(base.rglob("*.py")):
+        rel = path.relative_to(base).parts
+        for imp in _imports(path):
+            parts = imp.lstrip(".").split(".")
+            if parts[0] == "mooring" and len(parts) > 1:
+                target = parts[1]
+            else:
+                continue
+            if target in PHASES and (rel[0] not in PHASES or rel[0] != target):
+                offenders.append(f"{'/'.join(rel)} imports mooring.{target}")
+    assert not offenders, "\n".join(offenders)
+
+
+def test_old_mock_modules_for_replaced_capabilities_are_gone():
+    gone = ["moored/mock", "berthing/mock/tugs.py", "berthing/mock/sequence.py"]
+    assert not [g for g in gone if (MODELING / "mooring" / g).exists()]

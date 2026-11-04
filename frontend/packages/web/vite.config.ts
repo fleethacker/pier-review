@@ -11,8 +11,8 @@ const envDir = path.resolve(__dirname, '../..');
 // That keeps CORS and hosting-prefix problems out of the app. REST lives under /api/v1, WebSockets under /ws.
 function proxy(mode: string) {
   const env = loadEnv(mode, envDir, '');
-  const modeling = env.MODELING_API_URL || 'http://localhost:8000';
-  const agents = env.AGENTS_API_URL || 'http://localhost:8001';
+  const modeling = env.MODELING_PROXY_TARGET || 'http://localhost:8000';
+  const agents = env.AGENTS_PROXY_TARGET || 'http://localhost:8001';
   const rule = (target: string, prefix: string) => ({
     target,
     changeOrigin: true,

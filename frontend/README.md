@@ -33,7 +33,7 @@ npm run dev          # http://localhost:4000
 ```
 
 The browser only talks to its own origin. Vite forwards `api/modeling/*` to the modeling service and `api/agents/*`
-to the agents service (set `MODELING_API_URL` and `AGENTS_API_URL` in `frontend/.env` to override
+to the agents service (set `MODELING_PROXY_TARGET` and `AGENTS_PROXY_TARGET` in `frontend/.env` to override
 `http://localhost:8000` and `:8001`). REST is under `/api/v1`, WebSockets under `/ws`. Set `VITE_MODELING_URL` or
 `VITE_AGENTS_URL` to an absolute URL to bypass the proxy.
 
@@ -41,7 +41,8 @@ No tokens are needed. The 2D and 3D views are drawn from the berth data itself, 
 
 Other scripts in `packages/web`: `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`, and
 `npm run types` (regenerates `src/api/*.d.ts` from `../../contract/`; commit the result when `contract/` changes).
-`app.sh` builds and serves the production bundle on `:8888` (for Domino hosting).
+The repo-root `app.sh` starts both services and serves the built UI on `:8888`; it is the Domino app entry point
+(see [Deploying as a Domino app](#deploying-as-a-domino-app)).
 
 ## Where this fits in the repo
 
@@ -145,3 +146,12 @@ and the shell only deals with the scene model.
 
 - **Where other apps' API specs live.** `contract/` currently holds only the mooring specs. Options: sibling folders
   (`contract/<app>/`), or each app publishes its own spec that the frontend consumes.
+
+## Deploying as a Domino app
+
+The repo-root [`app.sh`](../app.sh) is the Domino app entry point. It starts the modeling and agents services on
+`127.0.0.1:8000` and `:8001`, builds the UI, and serves it on `0.0.0.0:8888`. Only the UI port is exposed; the UI's
+server proxies `api/modeling/*` and `api/agents/*` to the two services (`MODELING_PROXY_TARGET` and
+`AGENTS_PROXY_TARGET`). Requirements: Python 3.12 with `uv`, and Node 20 with npm (the script downloads Node 20 if the
+environment lacks it). Entry script: `app.sh`; branch: `ui/frontend`. A hardware tier with at least 4 GiB of memory
+is enough for the build. This script has not been run on Domino yet; check the first start's logs.

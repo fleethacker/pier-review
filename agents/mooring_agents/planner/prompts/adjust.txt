@@ -4,4 +4,3 @@ Target maximum utilization: {target:.0f}% WLL.
 {analysis}
 
 {config}
-

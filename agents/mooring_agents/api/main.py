@@ -51,7 +51,7 @@ async def backend_header(request: Request, call_next):
 
 @app.exception_handler(ModelingError)
 async def modeling_error(_: Request, exc: ModelingError):
-    code = exc.status if exc.status in (404, 409, 422) else 502
+    code = exc.status if exc.status in (404, 409, 422, 429, 504) else 502
     return JSONResponse(status_code=code, content={"detail": exc.detail})
 
 

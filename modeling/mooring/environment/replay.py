@@ -160,3 +160,17 @@ class ReplaySource:
             out.append((t, self.at(t, now=now)))
             t += step
         return out
+
+
+_FIXTURE_SOURCE = None
+
+
+def recorded_fixture_source() -> "ReplaySource":
+    """The bundled recorded-format sample (synthetic values in the recorded format), used by replay scenarios."""
+    global _FIXTURE_SOURCE
+    if _FIXTURE_SOURCE is None:
+        import json
+        from pathlib import Path
+        raw = json.loads((Path(__file__).parent / "fixtures" / "replay_sample.json").read_text())
+        _FIXTURE_SOURCE = ReplaySource(raw, max_gap_s=900, stale_after_s=10**9, station="recorded_fixture", source_kind="replay")
+    return _FIXTURE_SOURCE

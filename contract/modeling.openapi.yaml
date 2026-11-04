@@ -2721,6 +2721,16 @@ components:
             format: date-time
           - type: 'null'
           title: Replay End Utc
+        replay_source:
+          type: string
+          enum:
+          - synthetic
+          - recorded_fixture
+          title: Replay Source
+          description: 'kind=''replay'': ''synthetic'' generates the deterministic mock for the window (legacy); ''recorded_fixture''
+            replays the bundled recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never
+            looped or synthesized.'
+          default: synthetic
         env_scenario_id:
           type: string
           title: Env Scenario Id
@@ -2808,6 +2818,16 @@ components:
             format: date-time
           - type: 'null'
           title: Replay End Utc
+        replay_source:
+          type: string
+          enum:
+          - synthetic
+          - recorded_fixture
+          title: Replay Source
+          description: 'kind=''replay'': ''synthetic'' generates the deterministic mock for the window (legacy); ''recorded_fixture''
+            replays the bundled recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never
+            looped or synthesized.'
+          default: synthetic
       additionalProperties: false
       type: object
       required:

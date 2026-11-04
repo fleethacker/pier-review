@@ -103,3 +103,47 @@ def test_snapshots_feed_the_loads_model_without_conversion_surprises():
     snap = s.at(T0 + timedelta(minutes=5))
     r = compute_loads(refdata.ship("DDG-51-FIIA"), "full_load", 90, snap, 46.8)
     assert r.total.fy_lbf == r.total.fy_lbf   # finite
+
+
+# ---------- replay scenarios from the recorded fixture ----------
+
+def test_replay_scenario_from_the_recorded_fixture_is_deterministic_and_never_loops():
+    from fastapi.testclient import TestClient
+    from modeling_api.main import app
+    from mooring import environment
+    from mooring.core.schemas import EnvScenarioCreate
+    c = TestClient(app)
+    body = {"name": "fixture replay", "kind": "replay", "replay_start_utc": "2026-03-01T12:00:00Z", "replay_end_utc": "2026-03-01T12:30:00Z", "replay_source": "recorded_fixture"}
+    sc = c.post("/api/v1/env/scenarios", json=body)
+    assert sc.status_code == 201 and sc.json()["replay_source"] == "recorded_fixture"
+    created = datetime.fromisoformat(sc.json()["created_at_utc"].replace("Z", "+00:00"))
+    sid = sc.json()["env_scenario_id"]
+    a = environment.scenario_snapshot(sid, created + timedelta(minutes=12))
+    b = environment.scenario_snapshot(sid, created + timedelta(minutes=12))
+    assert a == b and a.source == "replay" and a.valid_at_utc == datetime(2026, 3, 1, 12, 12, tzinfo=UTC)
+    direct = ReplaySource(json.loads((Path(__file__).parents[1] / "mooring" / "environment" / "fixtures" / "replay_sample.json").read_text()))
+    assert a.wind_speed_kt == pytest.approx(direct.at(datetime(2026, 3, 1, 12, 12, tzinfo=UTC), now=datetime(2026, 3, 1, 12, 12, tzinfo=UTC)).wind_speed_kt)
+    from mooring.environment.coops import ProviderError
+    with pytest.raises(ProviderError, match="exhausted"):
+        environment.scenario_snapshot(sid, created + timedelta(minutes=45))
+
+
+def test_replay_scenario_outside_the_fixture_or_misused_is_422_and_default_is_unchanged():
+    from fastapi.testclient import TestClient
+    from modeling_api.main import app
+    c = TestClient(app)
+    base = {"name": "x", "kind": "replay", "replay_start_utc": "2026-03-01T12:00:00Z", "replay_end_utc": "2026-03-01T12:30:00Z"}
+    assert c.post("/api/v1/env/scenarios", json={**base, "replay_start_utc": "2025-01-01T00:00:00Z", "replay_end_utc": "2025-01-01T01:00:00Z", "replay_source": "recorded_fixture"}).status_code == 422
+    assert c.post("/api/v1/env/scenarios", json={"name": "steady", "kind": "steady", "replay_source": "recorded_fixture"}).status_code == 422
+    legacy = c.post("/api/v1/env/scenarios", json=base)
+    assert legacy.status_code == 201 and "replay_source" not in legacy.json()   # inactive addition omitted on the wire
+
+
+def test_replay_scenario_through_env_now_serves_the_fixture_from_the_scenario_start():
+    from fastapi.testclient import TestClient
+    from modeling_api.main import app
+    c = TestClient(app)
+    body = {"name": "r", "kind": "replay", "replay_start_utc": "2026-03-01T12:00:00Z", "replay_end_utc": "2026-03-01T12:10:00Z", "replay_source": "recorded_fixture"}
+    sid = c.post("/api/v1/env/scenarios", json=body).json()["env_scenario_id"]
+    r = c.get(f"/api/v1/env/now?berth_id=NAVSTA-NORFOLK-P12-N&env_scenario_id={sid}")   # replay time = start + time since creation
+    assert r.status_code == 200 and r.json()["source"] == "replay" and r.json()["valid_at_utc"].startswith("2026-03-01T12:00")

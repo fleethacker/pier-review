@@ -118,9 +118,17 @@ class EnvScenarioCreate(Model):
     ramp_minutes: float | None = Field(default=None, gt=0)
     replay_start_utc: AwareDatetime | None = Field(default=None, description="kind='replay': historical window start.")
     replay_end_utc: AwareDatetime | None = None
+    replay_source: Literal["synthetic", "recorded_fixture"] = Field(
+        default="synthetic",
+        description="kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled "
+        "recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never looped or synthesized.")
+
+    wire_omitted_defaults = {"replay_source": "synthetic"}
 
     @model_validator(mode="after")
     def _kind_fields(self):
+        if self.replay_source != "synthetic" and (self.kind != "replay" or self.replay_end_utc is None):
+            raise ValueError("replay_source other than 'synthetic' needs kind 'replay' with replay_start_utc and replay_end_utc")
         ramp = (self.ramp_to_wind_kt, self.ramp_minutes)
         replay = (self.replay_start_utc, self.replay_end_utc)
         if self.kind == "ramp" and any(v is None for v in ramp):

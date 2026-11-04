@@ -1,7 +1,8 @@
-"""Mock planning agent (M9): a deterministic plan -> evaluate -> adjust loop over modeling tools.
+"""Mock Planner agent (M9): a deterministic plan -> evaluate -> adjust loop over physics tools. No LLM.
 
-No LLM yet. It calls the same modeling endpoints the real agent will (see tools.py), emits the same SSE events and
-cites every number by result_id. Workstream D replaces the loop body with an LLM tool-use loop.
+It calls the same physics tools the real agent will (physics/tools.py, through the logged toolkit), emits the same
+SSE events and cites every number by result_id. The real agent replaces the loop body with an LLM tool-use loop;
+see planner/README.md.
 """
 
 import re
@@ -10,8 +11,8 @@ from dataclasses import dataclass, field
 from mooring.core.envelopes import new_id
 from mooring.core.schemas import AnalyzeResponse, EnvironmentSnapshot, MooringConfig, Scenario
 
-from ..clients import ModelingClient
-from ..schemas import (
+from ..physics.toolkit import PhysicsToolkit
+from .schemas import (
     AgentDoneEvent,
     AgentMessageEvent,
     AgentPlan,
@@ -45,9 +46,11 @@ def _analyze_body(sc: Scenario, cfg: MooringConfig, env: EnvironmentSnapshot, ms
             "environment": env.model_dump(mode="json"), "mst": mst}
 
 
-async def run(req: AgentPlanRequest, client: ModelingClient) -> PlanRecord:
-    sc = await client.scenario(req.scenario_id)
-    ship = await client.ship(sc.ship_class_id)
+async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
+    plan_id = new_id("plan")
+    tk.plan_id = plan_id
+    sc = await tk.scenario(req.scenario_id)
+    ship = await tk.ship(sc.ship_class_id)
     mst = ship.mst_class
     events: list[tuple[str, dict]] = []
     rationale: list[RationaleItem] = []
@@ -59,23 +62,35 @@ async def run(req: AgentPlanRequest, client: ModelingClient) -> PlanRecord:
         events.append(("step", AgentStepEvent(iteration=it, thought_summary=summary, tool=tool,
                                               result_id=result_id).model_dump(mode="json")))
 
-    env = await client.env_now(sc.berth_id)
+    if req.intake_report_id:
+        from ..intake.mock import REPORTS
+
+        report = REPORTS.get(req.intake_report_id)
+        if report is None:
+            from ..physics.client import ModelingError
+
+            raise ModelingError(404, f"Intake report '{req.intake_report_id}' not found")
+        cond = report.planning_conditions[0]
+        env = cond.environment
+        step(f"Designing for intake condition '{cond.label}': {cond.why}", "intake_report", None)
+    else:
+        env = await tk.env_now(sc.berth_id)
     step(f"Wind {env.wind_speed_kt:.0f} kt gusting {env.wind_gust_kt:.0f} kt from {env.wind_from_true_deg:03.0f}, "
          f"current {env.current_speed_kt:.1f} kt.", "get_environment", None)
 
-    rec = await client.recommend({"ship_class_id": sc.ship_class_id, "loading": sc.loading, "berth_id": sc.berth_id,
+    rec = await tk.recommend({"ship_class_id": sc.ship_class_id, "loading": sc.loading, "berth_id": sc.berth_id,
                                   "side_to": sc.side_to, "ship_x_ft": sc.config.ship_x_ft if sc.config else None,
                                   "design_mst": mst, "max_candidates": 3})
     cands = rec.result.candidates
     step(f"{len(cands)} candidate plans; best holds MST {mst} design load at "
          f"{cands[0].min_margin_pct_wll:.0f}% of WLL.", "recommend_config", rec.result_id)
     rationale.append(RationaleItem(text=f"Started from the optimizer's best candidate ({cands[0].why[0]}).",
-                                   cites=[rec.result_id, cands[0].analysis_result_id]))
+                                   cites=[rec.result_id]))
 
     cfg = cands[0].config
     analysis = None
     for _ in range(req.max_iterations):
-        analysis = await client.analyze(_analyze_body(sc, cfg, env, mst))
+        analysis = await tk.analyze(_analyze_body(sc, cfg, env, mst))
         top = analysis.result.min_margin
         events.append(("proposal", AgentProposalEvent(config=cfg, status=analysis.status).model_dump(mode="json")))
         if top.pct_wll <= req.target_margin_pct_wll and analysis.status != "RED":
@@ -98,7 +113,7 @@ async def run(req: AgentPlanRequest, client: ModelingClient) -> PlanRecord:
         cfg = cfg.model_copy(update={"lines": [ln.model_copy(update={"parts": 3}) if ln.line_number == n else ln
                                                for ln in cfg.lines]})
 
-    tugs = await client.berthing_tugs({"ship_class_id": sc.ship_class_id, "loading": sc.loading,
+    tugs = await tk.berthing_tugs({"ship_class_id": sc.ship_class_id, "loading": sc.loading,
                                        "berth_id": sc.berth_id, "side_to": sc.side_to,
                                        "environment": env.model_dump(mode="json")})
     step(f"Berthing needs {tugs.result.required_lateral_lbf:,.0f} lbf: {tugs.result.recommended_tug_count} tugs, "
@@ -107,13 +122,13 @@ async def run(req: AgentPlanRequest, client: ModelingClient) -> PlanRecord:
                                         f"{tugs.result.total_power_hp:,.0f} hp ({tugs.result.rationale[0]})",
                                    cites=[tugs.result_id]))
 
-    seq = await client.sequence({"ship_class_id": sc.ship_class_id, "berth_id": sc.berth_id,
+    seq = await tk.sequence({"ship_class_id": sc.ship_class_id, "berth_id": sc.berth_id,
                                  "config": cfg.model_dump(mode="json", exclude_none=True),
                                  "environment": env.model_dump(mode="json"), "tug_plan_result_id": tugs.result_id})
     step(f"Line sequence: {len(seq.result.steps)} steps, {seq.result.crews_required} crews.", "generate_sequence",
          seq.result_id)
 
-    risk = await client.exceedance({**_analyze_body(sc, cfg, env, mst), "n_samples": 200, "seed": 1})
+    risk = await tk.exceedance({**_analyze_body(sc, cfg, env, mst), "n_samples": 200, "seed": 1})
     step(f"Gust risk: {risk.result.p_any_exceeds_wll:.0%} chance any line passes WLL "
          f"(governing {risk.result.governing_element}).", "risk_exceedance", risk.result_id)
     rationale.append(RationaleItem(text=f"Gust exceedance probability {risk.result.p_any_exceeds_wll:.0%}; "
@@ -123,13 +138,13 @@ async def run(req: AgentPlanRequest, client: ModelingClient) -> PlanRecord:
     status = analysis.status if analysis else "RED"
     if status == "GREEN" and risk.result.p_any_exceeds_wll > 0.10:
         status = "AMBER"
-    plan_id = new_id("plan")
     open_q = []
     if ship.mst_class == "IIA":
         open_q.append(f"{ship.class_id} is MST IIA: confirm local storm limits with the harbormaster.")
     if any(f.rule_id == "FITTING-CONDITION" for f in (analysis.result.findings if analysis else [])):
         open_q.append("A pier fitting is marked suspect; confirm it was inspected.")
-    plan = AgentPlan(plan_id=plan_id, scenario_id=sc.scenario_id, state="succeeded", status=status, config=cfg,
+    plan = AgentPlan(plan_id=plan_id, scenario_id=sc.scenario_id, intake_report_id=req.intake_report_id,
+                     state="succeeded", status=status, config=cfg,
                      tug_plan=tugs.result, sequence=seq.result,
                      analysis_result_id=analysis.result_id if analysis else None, risk_result_id=risk.result_id,
                      rationale=rationale,
@@ -142,7 +157,7 @@ async def run(req: AgentPlanRequest, client: ModelingClient) -> PlanRecord:
     return rec_
 
 
-async def answer(rec: PlanRecord, text: str, client: ModelingClient) -> AgentMessageEvent:
+async def answer(rec: PlanRecord, text: str, tk: PhysicsToolkit) -> AgentMessageEvent:
     """Mock follow-up: understands '<N> kt' and a compass direction, re-runs the analysis, reports the change."""
     env = rec.env
     m = re.search(r"(\d+(?:\.\d+)?)\s*(?:kt|knots?)", text, re.I)
@@ -154,7 +169,7 @@ async def answer(rec: PlanRecord, text: str, client: ModelingClient) -> AgentMes
         speed = float(m.group(1)) if m else env.wind_speed_kt
         new_env = env.model_copy(update={"wind_speed_kt": speed, "wind_gust_kt": speed * 1.3,
                                          "wind_from_true_deg": COMPASS[d.group(1)] if d else env.wind_from_true_deg})
-        res = await client.analyze(_analyze_body(rec.scenario, rec.plan.config, new_env, rec.mst))
+        res = await tk.analyze(_analyze_body(rec.scenario, rec.plan.config, new_env, rec.mst))
         top = res.result.min_margin
         msg = AgentMessageEvent(
             message_id=new_id("msg"), cites=[res.result_id],

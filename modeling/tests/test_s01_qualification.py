@@ -109,6 +109,6 @@ def test_qualification_and_capability_endpoints():
     assert j["ok"] and {a["asset_kind"] for a in j["assets"]} == {"ship", "line_spec", "berth", "tug"}
     caps = {c["capability"]: c for c in client.get(f"{P}/capabilities").json()}
     assert caps["Approach planner"]["qualification"] == "mock" and caps["Approach planner"]["blockers"]
-    assert caps["Berthing simulator"]["qualification"] == "unqualified"
+    assert caps["Berthing dynamics integrator"]["qualification"] == "unqualified" and caps["Gust risk (exceedance, timeline, alerts)"]["qualification"] == "unqualified"
     rules = client.get(f"{P}/rules").json()
     assert all("coverage" in r and r["source_verified"] is False for r in rules)

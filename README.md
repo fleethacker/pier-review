@@ -5,10 +5,11 @@ current and tide, and produces a Mooring Evolution Safety Sheet. The plan, phase
 [docs/PLAN.md](docs/PLAN.md). Remaining modeling work follows the reviewed
 [execution plan](docs/MODELING_EXECUTION_PLAN.md), starting with S00.
 
-> **Mostly mock today.** Real: environmental loads (UFC 4-159-03), line geometry, NSTM 582 rule checks and the
-> Physics agent's logged tool gateway. Everything else (mooring load sharing, risk, tugs, optimizer, simulations,
-> agent decisions) is placeholder logic with the right shape. Every envelope carries `"backend": "mock"` or
-> `"real"`; `GET /version` on each service lists module status.
+> **Mixed real and mock.** Real: environmental loads (UFC 4-159-03), line geometry, NSTM 582 rule checks, the
+> Physics agent's logged tool gateway, and the Intake, Planner and Safety/Brief agents (deterministic decisions
+> with optional guarded LLM narration). Still placeholder logic with the right shape: mooring load sharing, risk,
+> tug sizing, optimizer, simulations and the Berth Map agent, so plan results are only as good as those mocks.
+> Every envelope carries `"backend": "mock"` or `"real"`; `GET /version` on each service lists module status.
 
 ## Layout
 

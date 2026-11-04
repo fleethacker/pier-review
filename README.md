@@ -2,7 +2,8 @@
 
 Mooring assistant for FLEETHACKER Norfolk 2026. It plans safe moorings, tug assists and line sequences from wind,
 current and tide, and produces a Mooring Evolution Safety Sheet. The plan, phases and module list are in
-[docs/PLAN.md](docs/PLAN.md).
+[docs/PLAN.md](docs/PLAN.md). Remaining modeling work follows the reviewed
+[execution plan](docs/MODELING_EXECUTION_PLAN.md), starting with S00.
 
 > **Mostly mock today.** Real: environmental loads (UFC 4-159-03), line geometry, NSTM 582 rule checks and the
 > Physics agent's logged tool gateway. Everything else (mooring load sharing, risk, tugs, optimizer, simulations,

@@ -46,7 +46,10 @@ class FakeToolkit:
         return SimpleNamespace(berth_id="NAVSTA-NORFOLK-P12-N", ship_class_id="DDG-51-FIIA", side_to="starboard")
 
     async def berth(self, bid):
-        return refdata.berth(bid)
+        # Freeze the geometry/name used to record the pre-extraction golden reports.
+        return refdata.berth(bid).model_copy(update={
+            "name": "Mock Pier 12 North face (NAVSTA Norfolk)", "face_bearing_true_deg": 105.0,
+        })
 
     async def ship(self, sid):
         return refdata.ship(sid)

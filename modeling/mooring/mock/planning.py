@@ -1,7 +1,8 @@
 """Mock configuration optimizer and line sequence (M7).
 
-Recommend: a fixed six-line template per ship (bow, after bow spring, two breasts, forward quarter spring, stern)
-snapped to the nearest free pier fittings, offered in three variants and scored with the mock solver.
+Recommend: a fixed six-line template per ship snapped to the nearest free pier bollards on the pier edge (never the
+set-back row), offered in three variants and scored with the mock solver. Forward: a head line and two crossing
+lines. Aft: two crossing lines and a stern (storm) line that leads straight astern behind them.
 Sequence: a rule table based on NSTM 582-2.4.6. Workstream D replaces both with search and an SME-reviewed table.
 """
 
@@ -31,15 +32,20 @@ from mooring.rules.nstm582 import MST_LIMITS
 from ._common import envelope
 from .mooring import solve
 
-# (line number, bitt number, role, target lead along the ship in ft: + forward)
+# (line number, role). Line n leaves from the ship's bitt n: 1 bow, 2-3 forward crossing pair, 4-5 aft crossing pair,
+# 6 stern (the storm line). In a crossing pair the more-forward bitt leads aft and the more-aft bitt leads forward.
 TEMPLATE = [
-    (1, 1, "bow", 100.0),
-    (2, 2, "spring_aft", -140.0),
-    (3, 3, "breast", 0.0),
-    (4, 4, "breast", 0.0),
-    (5, 5, "spring_fwd", 140.0),
-    (6, 6, "stern", -100.0),
+    (1, "bow"),
+    (2, "spring_aft"),
+    (3, "spring_fwd"),
+    (4, "spring_aft"),
+    (5, "spring_fwd"),
+    (6, "stern"),
 ]
+END_LINES_DOUBLED = {1: 3, 6: 3}  # the head and storm lines take the most load when the springs cross
+END_LEAD_FT = 60.0  # head and storm lines reach this far past their chock along the ship
+CROSS_MARGIN_FT = 15.0  # a crossing pair's bollards sit at least this far either side of the pair's midpoint
+NEAR_ROW_Y_FT = -20.0  # pier fittings set back farther than this are not used
 
 
 def design_environment(berth: Berth, side_to: str, mst: str, water_level_ft: float = 0.0) -> EnvironmentSnapshot:
@@ -61,21 +67,53 @@ def template_config(ship: ShipClass, berth: Berth, side_to: str, ship_x_ft: floa
     bow_dir = 1 if side_to == "starboard" else -1
     usable = [f for f in berth.fittings if f.condition == "good" and not f.occupied_by
               and f.kind.startswith("bollard") and f.fitting_id not in (excluded or set())]
-    back_row = [f for f in usable if f.y_ft < -20]  # set-back bollards give breast lines useful length
+    near = [f for f in usable if f.y_ft >= NEAR_ROW_Y_FT] or usable
+    if not near:
+        raise refdata.InvalidReference(f"{berth.berth_id} has no usable bollards.")
+
+    def u(f) -> float:  # pier fitting position along the ship, + forward of midships
+        return bow_dir * (f.x_ft - ship_x_ft)
+
+    bitt = {n: fittings[f"BITT-{n}{s}"] for n, _ in TEMPLATE}
+    lead_x = {n: fittings.get(b.paired_chock_id or "", b).x_ft for n, b in bitt.items()}
+    by_id = {f.fitting_id: f for f in berth.fittings}
     used: set[str] = set()
-    chosen: dict[int, MooringLine] = {}
-    # Breasts first (they need fittings abeam), then bow and stern, then springs.
-    priority = {"breast": 0, "bow": 1, "stern": 1, "spring_aft": 2, "spring_fwd": 2}
-    for n, bitt_no, role, lead in sorted(TEMPLATE, key=lambda t: priority[t[2]]):
-        bitt = fittings[f"BITT-{bitt_no}{s}"]
-        chock = fittings.get(bitt.paired_chock_id or "", bitt)
-        target_x = ship_x_ft + bow_dir * (chock.x_ft + lead)
-        pool = [f for f in (back_row if role == "breast" and back_row else usable) if f.fitting_id not in used]
-        choice = min(pool, key=lambda f: abs(f.x_ft - target_x))
+    pier: dict[int, str] = {}
+
+    def free(pool):
+        return [f for f in pool if f.fitting_id not in used]
+
+    def cross(fwd_n: int, aft_n: int) -> None:
+        """The bollards either side of the pair's midpoint; the forward bitt takes the aft one, so the lines cross."""
+        mid = (lead_x[fwd_n] + lead_x[aft_n]) / 2
+        pool = free(near) or free(usable)
+        behind = [f for f in pool if u(f) < mid - CROSS_MARGIN_FT]
+        ahead = [f for f in pool if u(f) > mid + CROSS_MARGIN_FT]
+        if behind and ahead:
+            lo, hi = max(behind, key=u), min(ahead, key=u)
+        else:  # near the end of the face: the two nearest will do
+            lo, hi = sorted(sorted(pool, key=lambda f: abs(u(f) - mid))[:2], key=u)
+        pier[fwd_n], pier[aft_n] = lo.fitting_id, hi.fitting_id
+        used.update((lo.fitting_id, hi.fitting_id))
+
+    def end(n: int, forward: bool, pair: tuple[int, int]) -> None:
+        """Head or storm line: the bollard nearest its target that lies beyond its group's crossing lines."""
+        pts = [u(by_id[pier[k]]) for k in pair]
+        pool = free(near) or free(usable)
+        beyond = [f for f in pool if (u(f) > max(pts) if forward else u(f) < min(pts))]
+        target = lead_x[n] + (END_LEAD_FT if forward else -END_LEAD_FT)
+        choice = min(beyond or pool, key=lambda f: abs(u(f) - target))
+        pier[n] = choice.fitting_id
         used.add(choice.fitting_id)
-        chosen[n] = MooringLine(line_number=n, role=role, spec_id=spec_id, parts=(parts or {}).get(n, 1),
-                                ship_fitting_id=bitt.fitting_id, pier_fitting_id=choice.fitting_id)
-    return MooringConfig(side_to=side_to, ship_x_ft=ship_x_ft, lines=[chosen[n] for n in sorted(chosen)])
+
+    cross(2, 3)
+    cross(4, 5)
+    end(1, forward=True, pair=(2, 3))
+    end(6, forward=False, pair=(4, 5))
+
+    lines = [MooringLine(line_number=n, role=role, spec_id=spec_id, parts=(parts or {}).get(n, 1),
+                         ship_fitting_id=bitt[n].fitting_id, pier_fitting_id=pier[n]) for n, role in TEMPLATE]
+    return MooringConfig(side_to=side_to, ship_x_ft=ship_x_ft, lines=lines)
 
 
 def recommend(req: RecommendRequest) -> RecommendResponse:
@@ -87,7 +125,7 @@ def recommend(req: RecommendRequest) -> RecommendResponse:
     design_env = design_environment(berth, req.side_to, req.design_mst)
     excluded = set(req.excluded_fitting_ids)
     variants = [("single part " + nylon, nylon, None),
-                ("springs and breasts doubled up (3 parts) " + nylon, nylon, {2: 3, 3: 3, 4: 3, 5: 3}),
+                ("head and storm lines doubled up (3 parts) " + nylon, nylon, END_LINES_DOUBLED),
                 ("all lines doubled up (3 parts) " + nylon, nylon, {n: 3 for n in range(1, 7)})]
     if aramid:
         variants.insert(1, ("single part " + aramid, aramid, None))

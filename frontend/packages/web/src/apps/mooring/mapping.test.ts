@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { entityToFrame } from '../../scene/geometry';
 import * as mapping from './mapping';
-import { buildScene, envVectors, hullPoints, shipEntities, shipPose } from './mapping';
+import { buildScene, envReadouts, envVectors, hullPoints, shipEntities, shipPose } from './mapping';
 import { ft } from './units';
 import type { Berth, ShipClass } from './types';
 
@@ -201,5 +201,24 @@ describe('superstructure', () => {
     const island = cvn[1];
     if (island.geometry.type !== 'polygon') throw new Error('expected polygon');
     expect(island.geometry.points.every((p) => p[1] < 0)).toBe(true);
+  });
+
+  it('labels each arrow with the variable name and speed only, in its own color', () => {
+    const frame = { lonDeg: 0, latDeg: 0, xBearingTrueDeg: 90 };
+    const env = {
+      wind_from_true_deg: 270, wind_speed_kt: 22, wind_gust_kt: 30, current_speed_kt: 0.6, current_set_true_deg: 0,
+    } as never;
+    const [wind, current] = envVectors(frame, env, { x: 0, y: 0 });
+    expect(wind.label).toBe('WIND 22 kt');
+    expect(current.label).toBe('CURRENT 0.6 kt');
+    expect(wind.color).not.toBe(current.color);
+  });
+
+  it('shows the water level as a readout with no arrow', () => {
+    const [up] = envReadouts({ water_level_mllw_ft: 1.8 } as never, { x: 0, y: 0 });
+    expect(up.label).toBe('WATER LEVEL +1.8 ft');
+    expect(up.selectable).toBe(false);
+    expect(envReadouts({ water_level_mllw_ft: -0.5 } as never, { x: 0, y: 0 })[0].label).toBe('WATER LEVEL -0.5 ft');
+    expect(envReadouts(null, { x: 0, y: 0 })).toEqual([]);
   });
 });

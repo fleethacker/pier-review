@@ -32,6 +32,7 @@ function registerTestApp() {
     description: '',
     start: () => ({
       Sidebar: () => <div>sidebar content</div>,
+      Side: () => <div>side content</div>,
       Overlay: () => null,
       Banner: () => <span>banner content</span>,
       dispose() {},
@@ -45,6 +46,7 @@ describe('Shell layout', () => {
     render(<Shell store={new SceneStore()} />);
     await waitFor(() => expect(screen.getByText('sidebar content')).toBeTruthy());
     expect(screen.getByText('banner content')).toBeTruthy();
+    expect(screen.getByText('side content')).toBeTruthy();
   });
 
   it('keeps an empty overlay from covering the canvas, so clicks and drags reach it', async () => {

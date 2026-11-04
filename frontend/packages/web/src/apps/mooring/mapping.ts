@@ -31,7 +31,11 @@ export const IDS = {
   line: (n: number) => `line-${n}`,
   wind: 'wind',
   current: 'current',
+  water: 'water-level',
 };
+
+/** One color per environment variable, shared by the canvas arrows and the data key so the two read as a pair. */
+export const ENV_COLORS = { wind: '#7fd1ff', current: '#7dffb2', water: '#9bb8d9' };
 
 export function berthFrame(berth: Berth): LocalFrame {
   return { lonDeg: berth.origin_lon, latDeg: berth.origin_lat, xBearingTrueDeg: berth.face_bearing_true_deg };
@@ -345,7 +349,7 @@ export function lineLinks(
       status: r ? statusOf(r.status) : undefined,
       color: '#c9d6e6',
       widthPx: 2 + line.parts,
-      label: r ? `${line.line_number} · ${fmt.pct(r.pct_wll)}` : String(line.line_number),
+      label: r ? `L${line.line_number} ${fmt.pct(r.pct_wll)}` : `L${line.line_number}`,
       selectable: true,
       props: [
         { label: 'Line', value: `#${line.line_number}${line.role ? ` ${line.role}` : ''}` },
@@ -368,7 +372,10 @@ export function lineLinks(
   return links;
 }
 
-/** Wind blows FROM its bearing; current flows TOWARD its set. Arrows show the direction of motion. */
+/**
+ * Wind blows FROM its bearing; current flows TOWARD its set. Arrows show the direction of motion. Each label is the
+ * variable's name and speed only; bearings, gusts and the rest are in the data key beside the canvas.
+ */
 export function envVectors(frame: LocalFrame, env: Environment | null, center: { x: number; y: number }): SceneVector[] {
   if (!env) return [];
   const windTo = (env.wind_from_true_deg + 180) % 360;
@@ -387,8 +394,8 @@ export function envVectors(frame: LocalFrame, env: Environment | null, center: {
       origin: place(wAngle, windLen, -60),
       angleDeg: wAngle,
       lengthM: windLen,
-      color: '#7fd1ff',
-      label: `Wind ${fmt.kt(env.wind_speed_kt)} G${fmt.kt(env.wind_gust_kt)} from ${fmt.deg(env.wind_from_true_deg)}`,
+      color: ENV_COLORS.wind,
+      label: `WIND ${fmt.kt(env.wind_speed_kt)}`,
     },
     {
       id: IDS.current,
@@ -396,8 +403,26 @@ export function envVectors(frame: LocalFrame, env: Environment | null, center: {
       origin: place(cAngle, curLen, 80),
       angleDeg: cAngle,
       lengthM: curLen,
-      color: '#7dffb2',
-      label: `Current ${env.current_speed_kt.toFixed(1)} kt toward ${fmt.deg(env.current_set_true_deg)}`,
+      color: ENV_COLORS.current,
+      label: `CURRENT ${env.current_speed_kt.toFixed(1)} kt`,
+    },
+  ];
+}
+
+/** Variables with no direction get a plain readout beside the arrows instead. */
+export function envReadouts(env: Environment | null, center: { x: number; y: number }): SceneEntity[] {
+  if (!env) return [];
+  const level = env.water_level_mllw_ft;
+  return [
+    {
+      id: IDS.water,
+      kind: 'readout',
+      label: `WATER LEVEL ${level >= 0 ? '+' : ''}${fmt.ft(level, 1)}`,
+      pose: { x: center.x + 10, y: center.y + 80, z: 0.3, headingDeg: 0 },
+      geometry: { type: 'point', sizePx: 6 },
+      color: ENV_COLORS.water,
+      labelAlways: true,
+      selectable: false,
     },
   ];
 }
@@ -463,7 +488,7 @@ export function tugScene(
       angleDeg: angle,
       lengthM: len,
       color: '#e8a33d',
-      label: `${a.tug_id} ${fmt.lbf(a.force_lbf)}`,
+      label: fmt.lbf(a.force_lbf),
     });
   }
   return { entities, vectors };
@@ -485,5 +510,6 @@ export function buildScene(input: SceneInput): SceneContent {
   }
   const tugs = ship && input.tugs?.length ? tugScene(ship, input.side, input.shipXFt, input.standoffFt, input.tugs, frame) : null;
   if (tugs) entities.push(...tugs.entities);
+  entities.push(...envReadouts(input.env, center));
   return { frame, entities, links, vectors: [...envVectors(frame, input.env, center), ...(tugs?.vectors ?? [])] };
 }

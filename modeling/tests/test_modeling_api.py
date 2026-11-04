@@ -133,7 +133,7 @@ def test_alerts_ws():
 def test_analyze_example_is_plausible():
     r = AnalyzeResponse.model_validate(client.post(f"{P}/mooring/analyze", json=EXAMPLES["mooring_analyze"]).json())
     roles = {ln.role for ln in r.result.lines}
-    assert {"bow", "breast", "stern", "spring_fwd", "spring_aft"} <= roles
+    assert {"bow", "stern", "spring_fwd", "spring_aft"} <= roles
     assert all(ln.length_ft >= 50 for ln in r.result.lines)
     assert r.status in ("GREEN", "AMBER")
 

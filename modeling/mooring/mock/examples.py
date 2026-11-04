@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from mooring import refdata
 from mooring.core.schemas import EnvironmentSnapshot
 
-from .planning import template_config
+from .planning import END_LINES_DOUBLED, template_config
 
 T0 = datetime(2026, 11, 4, 15, 48, tzinfo=UTC)
 SHIP = "DDG-51-FIIA"
@@ -23,7 +23,7 @@ def _env() -> dict:
 
 
 def _config() -> dict:
-    cfg = template_config(refdata.ship(SHIP), refdata.berth(BERTH), "starboard", 650.0, "NYLON-DB-7IN")
+    cfg = template_config(refdata.ship(SHIP), refdata.berth(BERTH), "starboard", 650.0, "NYLON-DB-7IN", END_LINES_DOUBLED)
     return cfg.model_dump(mode="json", exclude_none=True)
 
 

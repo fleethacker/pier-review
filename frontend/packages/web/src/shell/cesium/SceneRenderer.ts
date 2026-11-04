@@ -288,7 +288,7 @@ export class SceneRenderer {
       };
     }
 
-    const showLabel = e.label && (e.geometry.type === 'polygon' || selected || hovered);
+    const showLabel = e.label && (e.geometry.type === 'polygon' || e.labelAlways || selected || hovered);
     if (showLabel) {
       let [lx, ly] = [cx, cy];
       if (e.geometry.type === 'polygon' && e.geometry.points.length > 0) {
@@ -301,7 +301,7 @@ export class SceneRenderer {
       options.label = {
         text: e.label,
         font: FONT,
-        fillColor: css(COLORS.text),
+        fillColor: e.labelAlways ? css(base) : css(COLORS.text),
         outlineColor: css(COLORS.background),
         outlineWidth: 3,
         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
@@ -359,7 +359,7 @@ export class SceneRenderer {
       },
     };
     if (v.label) {
-      options.position = tf.toWorld(v.origin.x, v.origin.y, v.origin.z);
+      options.position = tf.toWorld((v.origin.x + end[0]) / 2, (v.origin.y + end[1]) / 2, v.origin.z);
       options.label = {
         text: v.label,
         font: FONT,
@@ -367,7 +367,8 @@ export class SceneRenderer {
         outlineColor: css(COLORS.background),
         outlineWidth: 3,
         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-        pixelOffset: new Cesium.Cartesian2(0, -18),
+        horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+        pixelOffset: new Cesium.Cartesian2(14, 0),
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       };
     }

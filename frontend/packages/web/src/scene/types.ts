@@ -48,6 +48,8 @@ export interface SceneEntity {
   /** Application-defined category, e.g. "ship" or "fitting". The shell only uses it for grouping and layers. */
   kind: string;
   label?: string;
+  /** Draw the label all the time, not only on hover or selection (point entities). */
+  labelAlways?: boolean;
   pose: Pose;
   geometry: Geometry;
   /** CSS color. When `status` is set it overrides the fill. */

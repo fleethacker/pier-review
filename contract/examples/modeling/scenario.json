@@ -15,9 +15,9 @@
         "line_number": 1,
         "role": "bow",
         "spec_id": "NYLON-DB-7IN",
-        "parts": 1,
+        "parts": 3,
         "ship_fitting_id": "BITT-1S",
-        "pier_fitting_id": "P12N-B17"
+        "pier_fitting_id": "P12N-B16"
       },
       {
         "line_number": 2,
@@ -29,19 +29,19 @@
       },
       {
         "line_number": 3,
-        "role": "breast",
+        "role": "spring_fwd",
         "spec_id": "NYLON-DB-7IN",
         "parts": 1,
         "ship_fitting_id": "BITT-3S",
-        "pier_fitting_id": "P12N-M06"
+        "pier_fitting_id": "P12N-B14"
       },
       {
         "line_number": 4,
-        "role": "breast",
+        "role": "spring_aft",
         "spec_id": "NYLON-DB-7IN",
         "parts": 1,
         "ship_fitting_id": "BITT-4S",
-        "pier_fitting_id": "P12N-M05"
+        "pier_fitting_id": "P12N-B08"
       },
       {
         "line_number": 5,
@@ -55,7 +55,7 @@
         "line_number": 6,
         "role": "stern",
         "spec_id": "NYLON-DB-7IN",
-        "parts": 1,
+        "parts": 3,
         "ship_fitting_id": "BITT-6S",
         "pier_fitting_id": "P12N-B06"
       }

@@ -7,6 +7,7 @@ import { openJsonStream } from './streams';
 import type { StreamHandle, StreamStatus } from './streams';
 import {
   buildScene,
+  envReadouts,
   envVectors,
   tugScene,
   IDS,
@@ -772,10 +773,11 @@ export class MooringController {
     // Keep the drag in progress: the shell already owns the hull pose while the pointer is down.
     store.upsertEntities(mode === 'ship' ? ship : [...pierEntities(s.berth, analysis), ...ship]);
     const tugs = tugScene(s.ship, s.side, s.shipXFt, standoff, s.tugAssignments, frame);
-    store.replaceEntitiesOfKind(['tug'], tugs.entities);
+    const center = { x: ft(s.shipXFt), y: ft(s.ship.beam_ft + standoff + 120) };
+    store.replaceEntitiesOfKind(['tug', 'readout'], [...tugs.entities, ...envReadouts(s.env, center)]);
     store.setLinks(lineLinks(s.berth, s.ship, s.lines, analysis));
     store.setVectors([
-      ...envVectors(frame, s.env, { x: ft(s.shipXFt), y: ft(s.ship.beam_ft + standoff + 120) }),
+      ...envVectors(frame, s.env, center),
       ...tugs.vectors,
     ]);
   }

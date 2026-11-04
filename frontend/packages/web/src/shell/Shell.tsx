@@ -45,7 +45,7 @@ export function Shell({ store }: { store: SceneStore }) {
 
   const onEdit = useCallback((edit: SceneEdit) => instanceRef.current?.onEdit?.(edit), []);
   const apps = listApps();
-  const { Sidebar, Bottom, Banner, Overlay } = instance ?? {};
+  const { Sidebar, Side, Bottom, Banner, Overlay } = instance ?? {};
 
   return (
     <div className="flex h-full w-full flex-col bg-mil-bg font-mono text-mil-text">
@@ -95,6 +95,11 @@ export function Shell({ store }: { store: SceneStore }) {
             </div>
           )}
         </main>
+        {Side && (
+          <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-mil-border bg-mil-panel/60 p-3">
+            <Side />
+          </aside>
+        )}
       </div>
       {Bottom && (
         <footer className="h-64 shrink-0 overflow-hidden border-t border-mil-border bg-mil-panel/60">

@@ -11,6 +11,8 @@ export interface AppHost {
 export interface AppInstance {
   /** Left column: pickers, forms, results. */
   Sidebar?: ComponentType;
+  /** Right column: a key or description box for what the canvas shows. */
+  Side?: ComponentType;
   /** Bottom strip: timelines, feeds. */
   Bottom?: ComponentType;
   /** Always-visible notices, e.g. the mock-backend banner. */

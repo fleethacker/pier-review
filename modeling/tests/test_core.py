@@ -5,11 +5,14 @@ import importlib.util
 import math
 from pathlib import Path
 
+import pytest
+
 from mooring import refdata
 from mooring.core.geometry import line_geometry, ship_heading_true, ship_to_berth
 from mooring.core.schemas import AnalyzeRequest, MooringConfig
 from mooring.mock.examples import EXAMPLES
 from mooring.mock.mooring import solve
+from mooring.mock.planning import template_config
 
 ROOT = Path(__file__).resolve().parents[2]
 DDG = refdata.ship("DDG-51-FIIA")
@@ -60,7 +63,7 @@ def test_seed_wind_areas_match_nstm_table_at_50kt():
 
 def test_min_lines_rule_fires_without_springs():
     body = copy.deepcopy(EXAMPLES["mooring_analyze"])
-    body["config"]["lines"] = [ln for ln in body["config"]["lines"] if ln["role"] in ("breast",)]
+    body["config"]["lines"] = [ln for ln in body["config"]["lines"] if ln["role"] in ("bow", "stern")]
     s = solve(AnalyzeRequest(**body))
     assert any(f.rule_id == "MIN-LINES" and f.severity == "RED" for f in s.result.findings)
 
@@ -68,7 +71,10 @@ def test_min_lines_rule_fires_without_springs():
 def test_one_per_fitting_allows_opposing_springs_only():
     body = copy.deepcopy(EXAMPLES["mooring_analyze"])
     lines = body["config"]["lines"]
-    lines[2]["pier_fitting_id"] = lines[3]["pier_fitting_id"]  # two breasts on one bollard
+    lines[2]["pier_fitting_id"] = lines[1]["pier_fitting_id"]  # opposing springs share a bollard: allowed
+    s = solve(AnalyzeRequest(**body))
+    assert not any(f.rule_id == "ONE-PER-FITTING" for f in s.result.findings)
+    lines[3]["pier_fitting_id"] = lines[1]["pier_fitting_id"]  # a third line on it: not allowed
     s = solve(AnalyzeRequest(**body))
     assert any(f.rule_id == "ONE-PER-FITTING" for f in s.result.findings)
 
@@ -79,3 +85,24 @@ def test_contract_is_up_to_date():
     spec.loader.exec_module(mod)
     stale = [str(p.relative_to(ROOT)) for p, text in mod.render().items() if not p.exists() or p.read_text() != text]
     assert not stale, f"Run `make contract`; stale: {stale}"
+
+
+@pytest.mark.parametrize("berth_id, side", [("NAVSTA-NORFOLK-P12-S", "starboard"), ("NAVSTA-NORFOLK-P12-N", "port")])
+def test_template_layout_crossing_pairs_edge_bollards_and_end_lines(berth_id, side):
+    ship, berth = refdata.ship("DDG-51-FIIA"), refdata.berth(berth_id)
+    ship_x, bow = 650.0, (1 if side == "starboard" else -1)
+    cfg = template_config(ship, berth, side, ship_x, "NYLON-DB-7IN")
+    sf = {f.fitting_id: f for f in ship.fittings}
+    pf = {f.fitting_id: f for f in berth.fittings}
+    ends = {}
+    for ln in cfg.lines:
+        lead = sf[sf[ln.ship_fitting_id].paired_chock_id]
+        p = pf[ln.pier_fitting_id]
+        assert p.y_ft >= -20 and p.kind.startswith("bollard")  # pier edge row, never the set-back row
+        ends[ln.line_number] = (lead.x_ft, bow * (p.x_ft - ship_x))
+    assert [ln.role for ln in cfg.lines] == ["bow", "spring_aft", "spring_fwd", "spring_aft", "spring_fwd", "stern"]
+    assert len({ln.pier_fitting_id for ln in cfg.lines}) == 6
+    for fwd, aft in ((2, 3), (4, 5)):  # ends swap order along the ship, so the pair crosses
+        assert ends[fwd][0] > ends[aft][0] and ends[fwd][1] < ends[aft][1]
+    assert ends[1][1] > max(ends[2][1], ends[3][1])  # head line reaches beyond the forward pair
+    assert ends[6][1] < min(ends[4][1], ends[5][1])  # storm line stays astern of the aft pair

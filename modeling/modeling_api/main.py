@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic.json_schema import models_json_schema
 
 from mooring import refdata
+from mooring.core.jobs import JobQueueFull
 from mooring.core.schemas import (
     Alert,
     EnvironmentSnapshot,
@@ -24,8 +25,9 @@ from mooring.core.schemas import (
     TelemetryRecord,
 )
 
-from .routers import approach, berthing, env, loads, moored, refdata as refdata_router, system, telemetry
+from .routers import approach, berthing, env, loads, moored, qualification, refdata as refdata_router, system, telemetry
 from .backend import overall_backend
+from .security import Controls
 from .state import API_PREFIX
 from .ws import router as ws_router
 
@@ -59,7 +61,7 @@ WEBSOCKETS = {
     "/ws/alerts": {"query": "berth_id, scenario_id, interval_s, limit", "server_messages": "Alert"},
     "/ws/sim/{session_id}": {"query": "limit",
                              "client_messages": "SimTugCommandMessage | SimLineEventMessage | SimControlMessage",
-                             "server_messages": "SimFrame (10 Hz)"},
+                             "server_messages": "SimFrame (latest state; nominal 10 Hz at default dt)"},
     "/ws/telemetry": {"client_messages": "TelemetryRecord", "server_messages": "TelemetryAccepted"},
 }
 STREAM_MODELS = [EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, SimLineEventMessage, SimControlMessage,
@@ -67,6 +69,7 @@ STREAM_MODELS = [EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, Sim
 
 app = FastAPI(title="Mooring Assistant: Modeling API", version="1.0.0", description=DESCRIPTION,
               openapi_tags=TAGS, separate_input_output_schemas=False)
+app.add_middleware(Controls)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
@@ -93,6 +96,11 @@ async def invalid_body(_: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": _finite(jsonable_encoder(exc.errors()))})
 
 
+@app.exception_handler(JobQueueFull)
+async def queue_full(_: Request, exc: JobQueueFull):
+    return JSONResponse(status_code=429, content={"detail": str(exc)}, headers={"Retry-After": str(exc.retry_after_s)})
+
+
 @app.exception_handler(refdata.NotFound)
 async def not_found(_: Request, exc: refdata.NotFound):
     return JSONResponse(status_code=404, content={"detail": str(exc)})
@@ -103,7 +111,7 @@ async def invalid_reference(_: Request, exc: refdata.InvalidReference):
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
-for r in (env, refdata_router, loads, moored, berthing, approach, telemetry, system):
+for r in (env, refdata_router, qualification, loads, moored, berthing, approach, telemetry, system):
     app.include_router(r.router, prefix=API_PREFIX)
 app.include_router(ws_router)
 

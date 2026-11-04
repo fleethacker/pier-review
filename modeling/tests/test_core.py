@@ -9,7 +9,7 @@ from mooring import refdata
 from mooring.core.geometry import line_geometry, ship_heading_true, ship_to_berth
 from mooring.core.schemas import AnalyzeRequest, MooringConfig
 from mooring.examples import EXAMPLES
-from mooring.moored.mock.solver import solve
+from mooring.moored.solver import analyze_full
 
 ROOT = Path(__file__).resolve().parents[2]
 DDG = refdata.ship("DDG-51-FIIA")
@@ -61,16 +61,16 @@ def test_seed_wind_areas_match_nstm_table_at_50kt():
 def test_min_lines_rule_fires_without_springs():
     body = copy.deepcopy(EXAMPLES["mooring_analyze"])
     body["config"]["lines"] = [ln for ln in body["config"]["lines"] if ln["role"] in ("breast",)]
-    s = solve(AnalyzeRequest(**body))
-    assert any(f.rule_id == "MIN-LINES" and f.severity == "RED" for f in s.result.findings)
+    findings = analyze_full(AnalyzeRequest(**body))[0].findings
+    assert any(f.rule_id == "MIN-LINES" and f.severity == "RED" for f in findings)
 
 
 def test_one_per_fitting_allows_opposing_springs_only():
     body = copy.deepcopy(EXAMPLES["mooring_analyze"])
     lines = body["config"]["lines"]
     lines[2]["pier_fitting_id"] = lines[3]["pier_fitting_id"]  # two breasts on one bollard
-    s = solve(AnalyzeRequest(**body))
-    assert any(f.rule_id == "ONE-PER-FITTING" for f in s.result.findings)
+    findings = analyze_full(AnalyzeRequest(**body))[0].findings
+    assert any(f.rule_id == "ONE-PER-FITTING" for f in findings)
 
 
 def test_contract_is_up_to_date():

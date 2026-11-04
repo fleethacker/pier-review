@@ -19,11 +19,31 @@ def toolkit() -> PhysicsToolkit:
                           caller="test")
 
 
+def _legacy_client():
+    class Stub:
+        """Gateway client returning an analysis recorded before S00a (no validity, no manifest)."""
+
+        async def request(self, method, path, **kw):
+            j = TestClient(modeling_app).post(f"{P}{path}", json=kw["json"]).json()
+            j.pop("validity"), j.pop("manifest")
+            return AnalyzeResponse.model_validate(j).model_dump(mode="json")
+
+    return Stub()
+
+
 def test_legacy_modeling_response_is_recorded_as_unknown():
     tk = toolkit()
+
+    tk.client = _legacy_client()
     out = asyncio.run(tk.analyze(EXAMPLES["mooring_analyze"]))
     assert out.validity is None
     assert tk.last_call.validity_state == "unknown" and tk.last_call.status in ("GREEN", "AMBER", "RED")
+
+
+def test_new_modeling_response_validity_is_recorded():
+    tk = toolkit()
+    out = asyncio.run(tk.analyze(EXAMPLES["mooring_analyze"]))
+    assert out.validity.state == "limited" and tk.last_call.validity_state == "limited"
 
 
 def test_reported_invalid_validity_reaches_the_ledger():
@@ -55,6 +75,15 @@ def test_modeling_422_on_conflicting_inputs_surfaces_as_error():
     assert tk.last_call.error and tk.last_call.validity_state == "unknown"
 
 
+def test_sequence_review_status_reaches_the_safety_sheet():
+    from mooring_agents.safety.sheet import render_html
+    from mooring.core.schemas import SequenceResult
+    from mooring_agents.safety import schemas as S
+    seq = SequenceResult(steps=[], crews_required=4, review_status="draft_unreviewed", limitations=["Static check only."])
+    assert seq.review_status == "draft_unreviewed"
+    assert "sequence_review_status" in S.SafetySheet.model_fields and "sequence_limitations" in S.SafetySheet.model_fields
+
+
 def test_unknown_ledger_validity_is_omitted_for_legacy_clients():
     from pydantic import ConfigDict, create_model
     from mooring_agents.physics.schemas import ToolCall
@@ -63,6 +92,7 @@ def test_unknown_ledger_validity_is_omitted_for_legacy_clients():
                               **{name: (field.annotation, field) for name, field in ToolCall.model_fields.items()
                                  if name != "validity_state"})
     tk = toolkit()
+    tk.client = _legacy_client()
     asyncio.run(tk.analyze(EXAMPLES["mooring_analyze"]))
     wire = tk.last_call.model_dump(mode="json")
     assert "validity_state" not in wire

@@ -1,6 +1,7 @@
 """Contract tests for the modeling mock server: every endpoint answers with its declared schema."""
 
 import copy
+import time
 from datetime import UTC, datetime
 
 import pytest
@@ -35,8 +36,12 @@ def scenario_id() -> str:
     return r.json()["scenario_id"]
 
 
-def finish(accepted: dict) -> dict:
+def finish(accepted: dict, timeout_s: float = 20.0) -> dict:
+    deadline = time.monotonic() + timeout_s
     st = client.get(accepted["status_url"]).json()
+    while st["state"] in ("queued", "running") and time.monotonic() < deadline:
+        time.sleep(0.01)
+        st = client.get(accepted["status_url"]).json()
     assert st["state"] == "succeeded", st
     JOB_RESULT_MODELS[accepted["kind"]].model_validate(st["result"])
     return st["result"]
@@ -78,7 +83,13 @@ def test_sync_posts(name, path):
     assert r.status_code in (200, 201, 202), r.text
     body = r.json()
     if "result_id" in body:
-        assert body["backend"] == ("real" if path.startswith("/loads/") else "mock")
+        real = path.startswith("/loads/") or path in ("/mooring/analyze", "/mooring/envelope", "/mooring/tide-sweep", "/tugs/berthing-plan", "/tugs/hold-plan", "/windows/berthing", "/mooring/sequence")
+        assert body["backend"] == ("real" if real else "mock")
+        if real:
+            assert body["validity"] is not None
+            if not path.startswith(("/loads/", "/mooring/", "/tugs/hold")):
+                return
+            assert body["manifest"]["resolved_inputs_hash"].startswith("sha256:")
         assert client.get(f"{P}/results/{body['result_id']}").status_code == 200
 
 
@@ -153,7 +164,9 @@ def test_analyze_example_is_plausible():
     roles = {ln.role for ln in r.result.lines}
     assert {"bow", "breast", "stern", "spring_fwd", "spring_aft"} <= roles
     assert all(ln.length_ft >= 50 for ln in r.result.lines)
-    assert r.status in ("GREEN", "AMBER")
+    # Real equilibrium: the single-part template is overloaded at a 30 kt off-pier gust (a physical finding, not an error).
+    assert r.backend == "real" and r.validity.state == "limited" and r.validity.diagnostics.converged
+    assert r.status == "RED" and any(f.rule_id == "LINE-WLL" and f.severity == "RED" for f in r.result.findings)
 
 
 def test_unknown_ship_is_404():

@@ -3,9 +3,9 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
-from .common import Envelope, Model, Status
+from .common import Envelope, Model, Status, Validity
 from .mooring import FenderResult, LineTension
 
 # ---------- M11 Berthing ----------
@@ -38,13 +38,24 @@ class LineEvent(Model):
 
 
 class BerthingSimRequest(Model):
+    wire_omitted_defaults = {"sample_interval_s": None}
+
     scenario_id: str
     initial_state: ShipState
-    tug_commands: list[TugCommand] = Field(default_factory=list)
-    line_events: list[LineEvent] = Field(default_factory=list)
+    tug_commands: list[TugCommand] = Field(default_factory=list, max_length=1000)
+    line_events: list[LineEvent] = Field(default_factory=list, max_length=1000)
     duration_s: float = Field(default=900, gt=0, le=7200)
-    dt_s: float = Field(default=0.1, gt=0, le=1)
+    dt_s: float = Field(default=0.1, ge=0.0001, le=1)
+    sample_interval_s: float | None = Field(default=None, ge=0.1, description="Output sampling only; defaults to 1 s.")
     env_mode: Literal["steady", "gusting"] = "steady"
+
+    @model_validator(mode="after")
+    def bounded_run(self):
+        if self.duration_s / (self.sample_interval_s or 1.0) > 9998:
+            raise ValueError("at most 10000 output frames per simulation")
+        if any(c.t_s > self.duration_s for c in [*self.tug_commands, *self.line_events]):
+            raise ValueError("command is after the simulation end")
+        return self
 
 
 class SimEvent(Model):
@@ -61,7 +72,31 @@ class ContactSummary(Model):
     status: Status
 
 
+class SimulationTransition(Model):
+    t_s: float
+    kind: Literal["contact_start", "contact_end", "line_taut", "line_slack", "secured", "tensioned", "released"]
+    element_id: str
+
+
+class SimulationDiagnostics(Model):
+    parameter_set: str
+    qualification: Literal["unqualified"] = "unqualified"
+    integration_steps: int
+    simulated_time_s: float
+    initial_energy_ftlbf: float
+    final_energy_ftlbf: float
+    applied_work_ftlbf: float
+    dissipated_energy_ftlbf: float
+    line_event_energy_ftlbf: float
+    energy_residual_ftlbf: float
+    integration_dt_s: float
+
+
 class BerthingSimResult(Model):
+    wire_omitted_defaults = {"transitions": None, "diagnostics": None}
+    transitions: list[SimulationTransition] | None = None
+    diagnostics: SimulationDiagnostics | None = None
+
     series_url: str
     events: list[SimEvent]
     contact: ContactSummary | None
@@ -81,6 +116,10 @@ class TugState(Model):
 class SimFrame(Model):
     """One frame: a WS /ws/sim/{session_id} message, or one entry of a batch run's series."""
 
+    wire_omitted_defaults = {"validity": None, "diagnostics": None}
+    validity: Validity | None = None
+    diagnostics: SimulationDiagnostics | None = None
+
     t_s: float
     pose: ShipState
     tugs: list[TugState]
@@ -95,17 +134,25 @@ class SimSeries(Model):
 
 
 class SimSessionCreate(Model):
+    wire_omitted_defaults = {"dt_s": None, "duration_s": None}
+    dt_s: float | None = Field(default=None, ge=0.0001, le=1)
+    duration_s: float | None = Field(default=None, gt=0, le=7200)
     scenario_id: str
     initial_state: ShipState
 
 
 class SimSessionCreated(Model):
+    wire_omitted_defaults = {"validity": None}
+    validity: Validity | None = None
     session_id: str
     ws_url: str
 
 
 class SimTugCommandMessage(Model):
     """Client message on WS /ws/sim/{session_id}."""
+
+    wire_omitted_defaults = {"t_s": None}
+    t_s: float | None = Field(default=None, ge=0, description="Simulation time; absent schedules at the next integration boundary.")
 
     type: Literal["tug_command"]
     tug_id: str
@@ -114,6 +161,9 @@ class SimTugCommandMessage(Model):
 
 
 class SimLineEventMessage(Model):
+    wire_omitted_defaults = {"t_s": None}
+    t_s: float | None = Field(default=None, ge=0, description="Simulation time; absent schedules at the next integration boundary.")
+
     type: Literal["line_event"]
     line_number: int
     event: Literal["secured", "tensioned", "released"]

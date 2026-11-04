@@ -22,13 +22,14 @@ from mooring.core.schemas import (
     StationQuality,
 )
 
+from mooring.core.store import DocStore
 from mooring.core.envelopes import new_id, utcnow
 
 TIDE_PERIOD_H = 12.42
 FLOOD_SET_DEG = 190.0  # cb0402 mean flood direction
 EBB_SET_DEG = 10.0
 
-_scenarios: dict[str, EnvScenario] = {}
+_scenarios = DocStore("env_scenario", EnvScenario)
 
 
 def _hours(t: datetime) -> float:

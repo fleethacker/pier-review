@@ -7,6 +7,7 @@ from .loads import *  # noqa: F403
 from .mooring import *  # noqa: F403
 from .planning import *  # noqa: F403
 from .plans import *  # noqa: F403
+from .qualification import *  # noqa: F403
 from .refdata import *  # noqa: F403
 from .risk import *  # noqa: F403
 from .telemetry import *  # noqa: F403

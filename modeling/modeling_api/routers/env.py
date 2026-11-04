@@ -1,12 +1,24 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 
 from mooring.core.schemas import EnvironmentSnapshot, EnvScenario, EnvScenarioCreate, ForecastSeries, GustModel, HistorySeries
 from mooring.examples import ex
 
+from mooring.environment.coops import ProviderError
+
 from ..backend import env as impl
+
+STATUS = {"invalid_request": 422, "bad_request": 502, "malformed": 502, "no_data": 503, "unavailable": 503, "stale": 503}
+
+
+def guarded(fn, *a, **kw):
+    """Provider failures are documented service errors (503/502/422), never synthetic data."""
+    try:
+        return fn(*a, **kw)
+    except ProviderError as e:
+        raise HTTPException(status_code=STATUS.get(e.kind, 502), detail=f"environment provider ({e.kind}): {e}") from None
 
 router = APIRouter(tags=["M1 Environment"])
 
@@ -17,7 +29,7 @@ def env_now(
     heading_true_deg: Annotated[float | None, Query(ge=0, lt=360, description="Adds relative bearings.")] = None,
     env_scenario_id: Annotated[str | None, Query(description="Serve a synthetic scenario instead.")] = None,
 ):
-    return impl.now(berth_id, heading_true_deg, env_scenario_id)
+    return guarded(impl.now, berth_id, heading_true_deg, env_scenario_id)
 
 
 @router.get("/env/forecast", response_model=ForecastSeries, summary="Forecast series at a berth")
@@ -26,12 +38,12 @@ def env_forecast(berth_id: str, hours: Annotated[int, Query(ge=1, le=120)] = 48,
     from mooring import refdata
 
     refdata.berth(berth_id)
-    return impl.forecast(berth_id, hours, step_min)
+    return guarded(impl.forecast, berth_id, hours, step_min)
 
 
 @router.get("/env/history", response_model=HistorySeries, summary="Historical observations for replay")
 def env_history(station: str, start_utc: datetime, end_utc: datetime):
-    return impl.history(station, start_utc, end_utc)
+    return guarded(impl.history, station, start_utc, end_utc)
 
 
 @router.post("/env/scenarios", response_model=EnvScenario, status_code=201, summary="Create a synthetic environment")

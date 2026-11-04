@@ -678,6 +678,7 @@ components:
           - running
           - succeeded
           - failed
+          - cancelled
           title: State
         status:
           anyOf:
@@ -959,10 +960,12 @@ components:
           type: string
           format: date-time
           title: Start Utc
+          description: First feasible minute (inclusive).
         end_utc:
           type: string
           format: date-time
           title: End Utc
+          description: Last feasible minute (inclusive).
         max_current_kt:
           type: number
           title: Max Current Kt
@@ -1716,6 +1719,7 @@ components:
           - running
           - succeeded
           - failed
+          - cancelled
           title: State
         progress:
           type: number
@@ -1858,8 +1862,8 @@ components:
             exclusiveMinimum: 0.0
           - type: 'null'
           title: Paid Out Unstretched Length Ft
-          description: Unstretched length paid out between fittings. Accepted for forward compatibility; the mock solver ignores
-            it and says so in the response assumptions. Cannot be combined with slack_ft.
+          description: Unstretched length paid out between fittings. Used directly as the installed rest length by the M4
+            equilibrium solver. Cannot be combined with slack_ft or pretension_lbf.
         condition:
           anyOf:
           - type: string
@@ -1868,7 +1872,8 @@ components:
             - dry
           - type: 'null'
           title: Condition
-          description: Strength curve for this line. When omitted the request's lines_wet applies (legacy).
+          description: Strength condition for this line (wet applies the spec's wet-strength factor). When omitted the request's
+            lines_wet applies (legacy).
       additionalProperties: false
       type: object
       required:
@@ -2061,6 +2066,7 @@ components:
           - estimated
           - mock
           - vision
+          - synthetic
           title: Confidence
         notes:
           anyOf:
@@ -2262,6 +2268,18 @@ components:
             $ref: '#/components/schemas/SequenceStep'
           type: array
           title: Sequence
+        sequence_review_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sequence Review Status
+          description: Review state of the line-handling sequence from the modeling service; 'draft_unreviewed' until a deck
+            officer or pilot reviews it.
+        sequence_limitations:
+          items:
+            type: string
+          type: array
+          title: Sequence Limitations
         go_no_go:
           items:
             $ref: '#/components/schemas/GoNoGo'
@@ -2363,6 +2381,38 @@ components:
       - sheet_id
       - version
       title: SafetySheetCreated
+    SequenceIssue:
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+        severity:
+          type: string
+          enum:
+          - AMBER
+          - RED
+          title: Severity
+        step:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Step
+        line_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Line Number
+        message:
+          type: string
+          title: Message
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - severity
+      - message
+      title: SequenceIssue
     SequenceResult:
       properties:
         steps:
@@ -2373,6 +2423,35 @@ components:
         crews_required:
           type: integer
           title: Crews Required
+        issues:
+          items:
+            $ref: '#/components/schemas/SequenceIssue'
+          type: array
+          title: Issues
+        review_status:
+          type: string
+          enum:
+          - draft_unreviewed
+          - reviewed
+          title: Review Status
+          description: Generated sequences are drafts until a deck officer or pilot reviews them.
+          default: draft_unreviewed
+        timing_assumptions:
+          items:
+            type: string
+          type: array
+          title: Timing Assumptions
+        limitations:
+          items:
+            type: string
+          type: array
+          title: Limitations
+        total_duration_min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Total Duration Min
+          description: Critical-path estimate from the unreviewed durations.
       additionalProperties: false
       type: object
       required:
@@ -2422,6 +2501,42 @@ components:
         reference:
           type: string
           title: Reference
+        depends_on:
+          items:
+            type: integer
+          type: array
+          title: Depends On
+          description: Step numbers that must complete first.
+        duration_min:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Duration Min
+          description: Planning estimate, unreviewed.
+        tug_ids:
+          items:
+            type: string
+          type: array
+          title: Tug Ids
+          description: Tugs this step relies on.
+        state_ok:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: State Ok
+          description: Static equilibrium with the lines fast after this step (null when not evaluated).
+        state_max_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: State Max Pct
+          description: Highest utilization of that intermediate state.
+        state_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State Note
       additionalProperties: false
       type: object
       required:
@@ -2821,6 +2936,44 @@ components:
             type: string
           type: array
           title: Rationale
+        required_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+          description: Wrench the tugs must supply (after margin).
+        delivered_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+        residual_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+          description: required - delivered. Feasible only when every component is within tolerance.
+        binding_constraints:
+          items:
+            type: string
+          type: array
+          title: Binding Constraints
+          description: Rating, direction or hull-point limits that are active.
+        ratings_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ratings Basis
+          description: Where the pull ratings come from (catalog estimate, not certified).
+        assisted_max_pct_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Assisted Max Pct Wll
+          description: 'Holding plans: highest line/fitting utilization from a fresh equilibrium solve with the tugs applied.'
+        assisted_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Assisted Result Id
+          description: 'Holding plans: the analysis envelope of that fresh solve.'
       additionalProperties: false
       type: object
       required:
@@ -2885,6 +3038,25 @@ components:
       required:
       - berth
       title: VisionConfirm
+    WrenchLbf:
+      properties:
+        fx_lbf:
+          type: number
+          title: Fx Lbf
+        fy_lbf:
+          type: number
+          title: Fy Lbf
+        mz_ftlbf:
+          type: number
+          title: Mz Ftlbf
+      additionalProperties: false
+      type: object
+      required:
+      - fx_lbf
+      - fy_lbf
+      - mz_ftlbf
+      title: WrenchLbf
+      description: Force and yaw moment in the ship frame (+x forward, +y to port, yaw CCW) about midships.
     AgentDoneEvent:
       additionalProperties: false
       description: '`event: done`'

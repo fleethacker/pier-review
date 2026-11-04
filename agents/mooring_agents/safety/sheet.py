@@ -69,7 +69,9 @@ def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
         environment=SheetEnvironment(observed=rec.env, forecast_summary="See risk timeline (mock forecast).",
                                      mst=rec.mst),
         line_plan=rows, fitting_utilization=a.result.pier_fittings, tug_plan=plan.tug_plan,
-        sequence=plan.sequence.steps if plan.sequence else [], go_no_go=go_no_go,
+        sequence=plan.sequence.steps if plan.sequence else [],
+        sequence_review_status=plan.sequence.review_status if plan.sequence else None,
+        sequence_limitations=plan.sequence.limitations if plan.sequence else [], go_no_go=go_no_go,
         brief=review.brief if review else None,
         directional_thresholds=review.thresholds.directions if review else [],
         warnings=[f for f in a.result.findings if f.severity != "INFO"], rationale=plan.rationale,
@@ -96,6 +98,10 @@ def render_html(s: SafetySheet) -> str:
                     f"<td>{r.pct_wll:.0f}%</td><td>{r.status}</td></tr>" for r in s.line_plan)
     steps = "".join(f"<li>{e(st.action.replace('_', ' '))} line {st.line_number or '-'} ({e(st.station)}): "
                     f"{e(st.trigger)}{(' <em>' + e(st.caution) + '</em>') if st.caution else ''}</li>" for st in s.sequence)
+    seq_banner = ""
+    if s.sequence_review_status and s.sequence_review_status != "reviewed":
+        seq_banner = (f"<p><b>DRAFT, not reviewed by a deck officer or pilot ({e(s.sequence_review_status)}).</b> "
+                      + " ".join(e(x) for x in s.sequence_limitations) + "</p>")
     gng = "".join(f"<li><b>{e(g.condition)}</b>: {e(g.action)}</li>" for g in s.go_no_go)
     warn = "".join(f"<li>[{w.severity}] {e(w.message)} <small>({e(w.reference)})</small></li>" for w in s.warnings)
     why = "".join(f"<li>{e(r.text)} <small>[{', '.join(r.cites)}]</small></li>" for r in s.rationale)
@@ -128,7 +134,7 @@ MST {s.environment.mst}</p>
 <th>Pier fitting</th><th>Tension (lbf)</th><th>% WLL</th><th>Status</th></tr>{lines}</table>
 <h2>Tugs</h2><p>{tug_line}</p>
 <h2>Go / no-go</h2><ul>{gng}</ul>
-<h2>Sequence</h2><ol>{steps}</ol>
+<h2>Sequence</h2>{seq_banner}<ol>{steps}</ol>
 <h2>Warnings</h2><ul>{warn or '<li>None</li>'}</ul>
 <h2>Agent rationale</h2><ul>{why}</ul>
 <h2>Approvals</h2><ul>{appr or '<li>Pending</li>'}</ul>

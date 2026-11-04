@@ -176,8 +176,9 @@ def test_e_clamps_and_off_pier():
     b = environmental(req.model_copy(update={"side_to": "port"}))
     assert a.result.off_pier_component_lbf == -b.result.off_pier_component_lbf
     assert a.result.current.coefficients["depth_draft_ratio"] == 1
-    assert a.status == "AMBER"
-    assert any(w.rule_id == "UFC-DEPTH-RANGE" for w in a.warnings)
+    assert a.status == "RED" and a.validity.state == "invalid"  # S03: depth at/below draft is not a valid floating result
+    assert any(w.rule_id == "UFC-DEPTH-RANGE" and w.severity == "RED" for w in a.warnings)
+    assert "DEPTH_NOT_ABOVE_DRAFT" in {r.code for r in a.validity.reasons}
     assert any("clamped" in text for text in a.assumptions)
     p = polar(PolarRequest(ship_class_id=req.ship_class_id, water_depth_ft=1, wind_speed_kt=50))
     assert any(w.rule_id == "UFC-DEPTH-RANGE" for w in p.warnings)

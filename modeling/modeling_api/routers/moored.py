@@ -62,14 +62,15 @@ def rules():
              summary="Monte Carlo probability of exceeding line limits (job; result is an ExceedanceResponse)")
 def exceedance(req: Annotated[ExceedanceRequest, Body(openapi_examples=ex("risk_exceedance"))]):
     check_analyze(req)
-    return JOBS.submit("risk.exceedance", risk.exceedance(req))
+    risk.get_model(req.uncertainty_model_id)  # reject an unknown model now (422), not inside the job
+    return JOBS.submit_task("risk.exceedance", lambda ctx: risk.exceedance(req, ctx))
 
 
 @router.post("/risk/timeline", response_model=JobAccepted, status_code=202, tags=["M5 Risk"],
              summary="Plan status through the forecast (job; result is a TimelineResponse)")
 def timeline(req: Annotated[TimelineRequest, Body(openapi_examples=ex("risk_timeline"))]):
     check_analyze(req)
-    return JOBS.submit("risk.timeline", risk.timeline(req))
+    return JOBS.submit_task("risk.timeline", lambda ctx: risk.timeline(req, ctx))
 
 
 # ---- M6 Holding tugs ----
@@ -86,4 +87,4 @@ def hold_plan(req: Annotated[HoldTugRequest, Body(openapi_examples=ex("tugs_hold
 @router.post("/mooring/recommend", response_model=JobAccepted, status_code=202, tags=["M7 Planning"],
              summary="Recommend line configurations (job; result is a RecommendResponse)")
 def recommend(req: Annotated[RecommendRequest, Body(openapi_examples=ex("mooring_recommend"))]):
-    return JOBS.submit("mooring.recommend", optimizer.recommend(req))
+    return JOBS.submit_task("mooring.recommend", lambda ctx: optimizer.recommend(req, ctx))

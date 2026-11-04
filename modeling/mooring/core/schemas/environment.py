@@ -118,9 +118,17 @@ class EnvScenarioCreate(Model):
     ramp_minutes: float | None = Field(default=None, gt=0)
     replay_start_utc: AwareDatetime | None = Field(default=None, description="kind='replay': historical window start.")
     replay_end_utc: AwareDatetime | None = None
+    replay_source: Literal["synthetic", "recorded_fixture"] = Field(
+        default="synthetic",
+        description="kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled "
+        "recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never looped or synthesized.")
+
+    wire_omitted_defaults = {"replay_source": "synthetic"}
 
     @model_validator(mode="after")
     def _kind_fields(self):
+        if self.replay_source != "synthetic" and (self.kind != "replay" or self.replay_end_utc is None):
+            raise ValueError("replay_source other than 'synthetic' needs kind 'replay' with replay_start_utc and replay_end_utc")
         ramp = (self.ramp_to_wind_kt, self.ramp_minutes)
         replay = (self.replay_start_utc, self.replay_end_utc)
         if self.kind == "ramp" and any(v is None for v in ramp):
@@ -167,3 +175,42 @@ class GustModel(Model):
     current_residual_sigma_kt: float = Field(description="Std. dev. of observed minus predicted current.")
     fitted_on: FitWindow
     provenance: Provenance
+
+
+# ---------- Stochastic environment model metadata (S10) ----------
+
+
+class HeldOutValidation(Model):
+    """Calibration check on data not used for fitting."""
+
+    n_heldout: int = Field(ge=0)
+    nominal_coverage: float = Field(gt=0, lt=1)
+    observed_coverage: float | None = Field(default=None, ge=0, le=1)
+
+
+class UncertaintyModel(Model):
+    """A versioned description of what is random in the environment and how it was obtained.
+
+    `qualification` is 'qualified' only when the minimum-data policy and held-out calibration pass. A synthetic or
+    underfit model validates algorithms only: probabilities computed from it are scenario outputs, not risk estimates.
+    """
+
+    model_id: str
+    revision: str
+    kind: Literal["synthetic", "fitted"]
+    station_ids: list[str] = Field(default_factory=list)
+    fit_start_utc: datetime | None = None
+    fit_end_utc: datetime | None = None
+    filters: list[str] = Field(default_factory=list, description="Quality filters applied to the fitting data.")
+    gust_factor_mu: float = Field(description="Log-mean of gust / sustained wind.")
+    gust_factor_sigma: float = Field(ge=0)
+    direction_sigma_deg: float = Field(ge=0, description="Circular standard deviation of wind direction scatter.")
+    current_sigma_kt: float = Field(ge=0, description="Std. dev. of observed minus predicted current speed.")
+    correlation_time_min: float = Field(gt=0, description="e-folding time of the AR(1) wind and current deviations.")
+    n_events: int = Field(ge=0)
+    n_days: float = Field(ge=0)
+    validation: HeldOutValidation | None = None
+    applicability: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+    qualification: Literal["qualified", "unqualified"]
+    qualification_reasons: list[str] = Field(default_factory=list)

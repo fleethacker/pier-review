@@ -35,12 +35,13 @@ class MooringLine(Model):
     )
     paid_out_unstretched_length_ft: float | None = Field(
         default=None, gt=0,
-        description="Unstretched length paid out between fittings. Accepted for forward compatibility; the mock "
-        "solver ignores it and says so in the response assumptions. Cannot be combined with slack_ft.",
+        description="Unstretched length paid out between fittings. Used directly as the installed rest length by the M4 "
+        "equilibrium solver. Cannot be combined with slack_ft or pretension_lbf.",
     )
     condition: Literal["wet", "dry"] | None = Field(
         default=None,
-        description="Strength curve for this line. When omitted the request's lines_wet applies (legacy).",
+        description="Strength condition for this line (wet applies the spec's wet-strength factor). When omitted the "
+        "request's lines_wet applies (legacy).",
     )
 
     @model_validator(mode="after")

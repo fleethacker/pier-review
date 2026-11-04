@@ -115,20 +115,19 @@ def test_nan_and_infinity_are_rejected_everywhere(bad):
 
 # ---------- Legacy compatibility: absence means unknown ----------
 
-def test_current_responses_have_no_validity_and_read_as_unknown():
-    r = client.post(f"{P}/mooring/analyze", json=body())
+def test_mock_responses_have_no_validity_and_read_as_unknown():
+    r = client.post(f"{P}/approach/route", json=EXAMPLES["approach_route"])  # still a mock module
     assert r.status_code == 200
     j = r.json()
     assert "validity" not in j and "manifest" not in j
     assert validity_state(j) == "unknown"
-    assert validity_state(AnalyzeResponse.model_validate(j)) == "unknown"
     stored = client.get(f"{P}/results/{j['result_id']}").json()
     assert validity_state(stored) == "unknown"
 
 
-def test_real_loads_response_is_also_unknown_not_valid():
+def test_real_loads_response_reports_validity_but_mock_analysis_stays_unknown():
     j = client.post(f"{P}/loads/environmental", json=EXAMPLES["loads_environmental"]).json()
-    assert LoadsResponse.model_validate(j).validity is None and validity_state(j) == "unknown"
+    assert LoadsResponse.model_validate(j).validity is not None and validity_state(j) in ("valid", "limited")
 
 
 def test_pre_s00a_payloads_still_parse():
@@ -238,13 +237,17 @@ def test_legacy_line_defaults_unchanged():
                     paid_out_unstretched_length_ft=100, slack_ft=2)
 
 
-def test_unmodelled_line_fields_are_labeled_not_silently_ignored():
+def test_line_length_and_condition_fields_are_honored_by_the_equilibrium_solver():
+    base = post("mooring/analyze", body()).json()
     b = body()
-    b["config"]["lines"][0].update(paid_out_unstretched_length_ft=120.0, condition="dry")
-    j = post("mooring/analyze", b).json()
-    text = " ".join(j["assumptions"])
-    assert "paid_out_unstretched_length_ft is ignored" in text and "condition 'dry' is ignored" in text
-    assert j["result"] == client.post(f"{P}/mooring/analyze", json=body()).json()["result"]
+    b["config"]["lines"][2].update(condition="dry")
+    dry = post("mooring/analyze", b).json()
+    pct = lambda j: {r["line_number"]: r["pct_mbs"] for r in j["result"]["lines"]}
+    assert pct(dry)[3] < pct(base)[3]  # dry strength is higher than wet, so a smaller share of MBS
+    c = body()
+    c["config"]["lines"][2].update(paid_out_unstretched_length_ft=1.0)  # absurdly short: rest length is explicit
+    short = post("mooring/analyze", c)
+    assert short.status_code in (200, 422)
 
 
 def test_unknown_scenario_id_is_422_not_404():
@@ -370,9 +373,14 @@ def test_inactive_additions_omitted_without_dropping_legacy_nulls():
         LegacyLine.model_validate(line)
         assert "slack_ft" in line and line["slack_ft"] is None
     assert "scenario_id" in wire and wire["scenario_id"] is None
+    # /mooring/analyze is now a real, validity-bearing path; a still-mock endpoint keeps the pre-S00a response shape.
+    from mooring.core.schemas import RouteResponse
+    LegacyRoute = legacy_type(RouteResponse, {"validity", "manifest"})
+    legacy = post("approach/route", EXAMPLES["approach_route"]).json()
+    LegacyRoute.model_validate(legacy)
+    LegacyRoute.model_validate(client.get(f"{P}/results/{legacy['result_id']}").json())
     response = post("mooring/analyze", wire).json()
-    LegacyAnalysis.model_validate(response)
-    LegacyAnalysis.model_validate(client.get(f"{P}/results/{response['result_id']}").json())
+    assert response["validity"] is not None and response["manifest"] is not None
     explicit_nulls = AnalyzeResponse.model_validate(response | {"validity": None, "manifest": None})
     assert "validity" not in explicit_nulls.model_dump(mode="json")
     assert validity_state(explicit_nulls) == "unknown"
@@ -432,18 +440,21 @@ def test_different_explicit_offsets_compare_by_instant():
 
 @pytest.mark.parametrize("example", ["mooring_analyze", "mooring_envelope", "mooring_tide_sweep",
                                      "tugs_hold_plan", "risk_exceedance", "risk_timeline"])
-def test_all_analysis_consumers_disclose_ignored_line_inputs(example):
+def test_all_analysis_consumers_accept_and_honor_line_length_and_condition_inputs(example):
+    """The equilibrium solver models paid-out length and wet/dry condition, so every consumer accepts them (no 'ignored' note)."""
     b = copy.deepcopy(EXAMPLES[example])
-    b["config"]["lines"][0].update(paid_out_unstretched_length_ft=120, condition="dry")
+    b["config"]["lines"][0].update(paid_out_unstretched_length_ft=20.0, condition="dry")
     response = post(_PATH[example], b)
     assert response.status_code in (200, 202), response.text
     payload = response.json()
     if response.status_code == 202:
+        import time
+        end = time.monotonic() + 60
         job = client.get(payload["status_url"]).json()
-        assert job["state"] == "succeeded"
+        while job["state"] in ("queued", "running") and time.monotonic() < end:
+            time.sleep(0.02)
+            job = client.get(payload["status_url"]).json()
+        assert job["state"] == "succeeded", job
         payload = job["result"]
-    text = " ".join(payload["assumptions"])
-    assert "line 1: paid_out_unstretched_length_ft is ignored" in text
-    assert "line 1: condition 'dry' is ignored" in text
-    assert client.get(f"{P}/results/{payload['result_id']}").json()["assumptions"] == payload["assumptions"]
-    assert "validity" not in payload and "manifest" not in payload
+    assert "ignored" not in " ".join(payload["assumptions"])
+    assert payload["validity"] is not None and client.get(f"{P}/results/{payload['result_id']}").json()["assumptions"] == payload["assumptions"]

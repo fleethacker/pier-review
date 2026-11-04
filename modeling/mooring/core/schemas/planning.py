@@ -24,20 +24,38 @@ class RecommendRequest(Model):
     locked_lines: list[MooringLine] = Field(default_factory=list)
     excluded_fitting_ids: list[str] = Field(default_factory=list)
     max_candidates: int = Field(default=3, ge=1, le=10)
+    max_evaluations: int = Field(default=1500, ge=1, le=20000, description="Search budget in candidate evaluations. Exceeding the space is exhaustive; otherwise the search is bounded and says so.")
+    neighbors_per_line: int = Field(default=3, ge=1, le=6, description="Pier fittings considered per line, nearest first.")
+    tide_levels_ft: list[float] = Field(default_factory=lambda: [0.0], min_length=1, max_length=5, description="Water levels (MLLW) every case is evaluated at; lines are installed at the first.")
 
 
 class Candidate(Model):
     config: MooringConfig
-    min_margin_pct_wll: float = Field(description="Highest utilization under the design condition (lower is better).")
+    min_margin_pct_wll: float = Field(description="Highest utilization over every evaluated case (lower is better).")
     limit_wind_kt_worst: float | None
     line_count: int
     analysis_result_id: str
     why: list[str]
+    feasible: bool | None = Field(default=None, description="True when every case solved and stayed within every line, fitting and fender limit.")
+    worst_case: str | None = None
+    cases_evaluated: int | None = None
+
+
+class SearchDiagnostics(Model):
+    strategy: Literal["exhaustive", "bounded_descent", "none"]
+    complete: bool = Field(description="True only when the whole candidate space was evaluated.")
+    space_size: int
+    evaluated: int
+    budget: int
+    feasible_found: int
+    notes: list[str] = Field(default_factory=list)
 
 
 class RecommendResult(Model):
     candidates: list[Candidate]
     design_environment: EnvironmentSnapshot
+    cases: list[str] | None = Field(default=None, description="Every environment case each candidate was evaluated against.")
+    search: SearchDiagnostics | None = None
 
 
 class RecommendResponse(Envelope[RecommendResult]):

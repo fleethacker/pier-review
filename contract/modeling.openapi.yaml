@@ -4889,6 +4889,29 @@ components:
           minimum: 1.0
           title: Max Candidates
           default: 3
+        max_evaluations:
+          type: integer
+          maximum: 20000.0
+          minimum: 1.0
+          title: Max Evaluations
+          description: Search budget in candidate evaluations. Exceeding the space is exhaustive; otherwise the search is
+            bounded and says so.
+          default: 1500
+        neighbors_per_line:
+          type: integer
+          maximum: 6.0
+          minimum: 1.0
+          title: Neighbors Per Line
+          description: Pier fittings considered per line, nearest first.
+          default: 3
+        tide_levels_ft:
+          items:
+            type: number
+          type: array
+          maxItems: 5
+          minItems: 1
+          title: Tide Levels Ft
+          description: Water levels (MLLW) every case is evaluated at; lines are installed at the first.
       additionalProperties: false
       type: object
       required:

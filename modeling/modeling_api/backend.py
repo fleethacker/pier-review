@@ -23,7 +23,7 @@ from mooring.berthing import service as berthing_tugs  # noqa: F401
 # Phase 1: moored
 from mooring.moored import solver  # noqa: F401
 from mooring.moored import risk  # noqa: F401
-from mooring.moored.mock import optimizer  # noqa: F401
+from mooring.moored import search as optimizer  # noqa: F401
 from mooring.moored import holding as moored_tugs  # noqa: F401
 
 BACKENDS: dict[str, str] = {
@@ -33,7 +33,8 @@ BACKENDS: dict[str, str] = {
     "M4 static solver (moored)": "real (equilibrium; limited by seed data)",
     "M5 risk engine (moored)": "real (synthetic uncertainty model, unqualified)",
     "M6 tug planner (moored, berthing)": "mock",
-    "M7 optimizer (moored) and sequence (berthing)": "mock",
+    "M7 optimizer (moored)": "real (bounded search; seed data)",
+    "M7 sequence (berthing)": "mock",
     "M11 berthing simulator": "mock",
     "M12 approach planner": "mock",
     "M13 telemetry ingest": "mock",

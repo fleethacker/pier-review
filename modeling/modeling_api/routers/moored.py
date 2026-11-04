@@ -87,4 +87,4 @@ def hold_plan(req: Annotated[HoldTugRequest, Body(openapi_examples=ex("tugs_hold
 @router.post("/mooring/recommend", response_model=JobAccepted, status_code=202, tags=["M7 Planning"],
              summary="Recommend line configurations (job; result is a RecommendResponse)")
 def recommend(req: Annotated[RecommendRequest, Body(openapi_examples=ex("mooring_recommend"))]):
-    return JOBS.submit_task("mooring.recommend", lambda ctx: optimizer.recommend(req))
+    return JOBS.submit_task("mooring.recommend", lambda ctx: optimizer.recommend(req, ctx))

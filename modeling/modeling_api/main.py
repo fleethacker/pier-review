@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic.json_schema import models_json_schema
 
 from mooring import refdata
+from mooring.core.jobs import JobQueueFull
 from mooring.core.schemas import (
     Alert,
     EnvironmentSnapshot,
@@ -91,6 +92,11 @@ def _finite(value):
 @app.exception_handler(RequestValidationError)
 async def invalid_body(_: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": _finite(jsonable_encoder(exc.errors()))})
+
+
+@app.exception_handler(JobQueueFull)
+async def queue_full(_: Request, exc: JobQueueFull):
+    return JSONResponse(status_code=429, content={"detail": str(exc)}, headers={"Retry-After": str(exc.retry_after_s)})
 
 
 @app.exception_handler(refdata.NotFound)

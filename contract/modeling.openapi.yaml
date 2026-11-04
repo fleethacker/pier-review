@@ -1721,6 +1721,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - System
+      summary: Cancel a queued or running job
+      operationId: job_cancel_api_v1_jobs__job_id__delete
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/jobs/{job_id}/events:
     get:
       tags:
@@ -1734,6 +1759,14 @@ paths:
         schema:
           type: string
           title: Job Id
+      - name: last-event-id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last-Event-Id
       responses:
         '200':
           description: Successful Response
@@ -3447,6 +3480,7 @@ components:
           - running
           - succeeded
           - failed
+          - cancelled
           title: State
         progress:
           type: number
@@ -6603,6 +6637,7 @@ components:
           - running
           - succeeded
           - failed
+          - cancelled
           title: State
           type: string
       required:

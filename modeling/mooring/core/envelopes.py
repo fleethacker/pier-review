@@ -7,13 +7,15 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel
 
+from mooring.core.store import ResultStore
 from mooring.core.schemas import Finding, ResultManifest, Validity, ValidityState
 
 MOCK_NOTE = "MOCK BACKEND: placeholder values for UI development, not validated physics."
 MOCK_VERSION = "0.0.0-mock"
 
 # result_id -> envelope (JSON-ready dict). Lets the agent and safety sheet cite results by id.
-RESULTS: dict[str, dict] = {}
+# Persistent (SQLite, see core/store.py) and write-once.
+RESULTS = ResultStore()
 
 
 def new_id(prefix: str) -> str:

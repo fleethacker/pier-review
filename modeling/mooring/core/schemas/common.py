@@ -172,7 +172,7 @@ class Envelope(Model, Generic[T]):
 
 # ---------- Async jobs ----------
 
-JobState = Literal["queued", "running", "succeeded", "failed"]
+JobState = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 
 
 class JobAccepted(Model):

@@ -1,6 +1,7 @@
 """Contract tests for the modeling mock server: every endpoint answers with its declared schema."""
 
 import copy
+import time
 from datetime import UTC, datetime
 
 import pytest
@@ -35,8 +36,12 @@ def scenario_id() -> str:
     return r.json()["scenario_id"]
 
 
-def finish(accepted: dict) -> dict:
+def finish(accepted: dict, timeout_s: float = 20.0) -> dict:
+    deadline = time.monotonic() + timeout_s
     st = client.get(accepted["status_url"]).json()
+    while st["state"] in ("queued", "running") and time.monotonic() < deadline:
+        time.sleep(0.01)
+        st = client.get(accepted["status_url"]).json()
     assert st["state"] == "succeeded", st
     JOB_RESULT_MODELS[accepted["kind"]].model_validate(st["result"])
     return st["result"]

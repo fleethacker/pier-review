@@ -672,6 +672,7 @@ components:
           - running
           - succeeded
           - failed
+          - cancelled
           title: State
         status:
           anyOf:
@@ -1681,6 +1682,7 @@ components:
           - running
           - succeeded
           - failed
+          - cancelled
           title: State
         progress:
           type: number

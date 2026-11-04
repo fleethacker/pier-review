@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 from fastapi.responses import StreamingResponse
 
 from mooring import refdata
@@ -23,10 +23,18 @@ def job_status(job_id: str):
 
 @router.get("/jobs/{job_id}/events", summary="Server-Sent Events: `progress` and `done` (JobProgressEvent, JobDoneEvent)",
             response_class=StreamingResponse, responses={200: {"content": {"text/event-stream": {}}}})
-def job_events(job_id: str):
+def job_events(job_id: str, last_event_id: Annotated[str | None, Header()] = None):
     if JOBS.get(job_id) is None:
         raise refdata.NotFound(f"Job '{job_id}' not found")
-    return StreamingResponse(JOBS.stream(job_id), media_type="text/event-stream")
+    resume = int(last_event_id) if last_event_id and last_event_id.isdigit() else None
+    return StreamingResponse(JOBS.stream(job_id, resume), media_type="text/event-stream")
+
+
+@router.delete("/jobs/{job_id}", response_model=JobStatus, summary="Cancel a queued or running job")
+def job_cancel(job_id: str):
+    if JOBS.cancel(job_id) is None:
+        raise refdata.NotFound(f"Job '{job_id}' not found")
+    return JOBS.status(job_id)
 
 
 @router.get("/results/{result_id}", response_model=dict[str, Any],

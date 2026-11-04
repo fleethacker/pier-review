@@ -55,7 +55,7 @@ def sequence(req: Annotated[SequenceRequest, Body(openapi_examples=ex("mooring_s
              summary="Batch berthing simulation (job; result is a BerthingSimResponse)")
 def simulate(req: Annotated[BerthingSimRequest, Body(openapi_examples=ex("berthing_simulate"))]):
     jid = new_id("job")
-    return JOBS.submit("berthing.simulate", berthing_sim.simulate_berthing(req, jid, API_PREFIX), job_id=jid)
+    return JOBS.submit_task("berthing.simulate", lambda ctx: berthing_sim.simulate_berthing(req, jid, API_PREFIX), job_id=jid)
 
 
 @router.get("/berthing/simulations/{job_id}/series", response_model=SimSeries, tags=["M11 Berthing simulator"],

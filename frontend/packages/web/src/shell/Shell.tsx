@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { cn } from '../lib/cn';
 import { getApp, listApps } from '../scene/app';
 import type { AppInstance } from '../scene/app';
 import type { SceneStore } from '../scene/store';
@@ -45,26 +46,34 @@ export function Shell({ store }: { store: SceneStore }) {
 
   const onEdit = useCallback((edit: SceneEdit) => instanceRef.current?.onEdit?.(edit), []);
   const apps = listApps();
-  const { Sidebar, Side, Bottom, Banner, Overlay } = instance ?? {};
+  const { Sidebar, Side, Bottom, Banner, Overlay, Canvas } = instance ?? {};
+  const customCanvas = getApp(appId)?.canvas === 'custom';
 
   return (
     <div className="flex h-full w-full flex-col bg-mil-bg font-mono text-mil-text">
       <header className="flex h-10 shrink-0 items-center justify-between border-b border-mil-border bg-mil-panel px-4">
         <div className="flex items-center gap-3">
-          <span className="mil-label text-mil-amber">Mooring Assistant</span>
+          {apps.length < 2 && <span className="mil-label text-mil-amber">Mooring Assistant</span>}
           {apps.length > 1 && (
-            <select
-              className="rounded-sm border border-mil-border bg-mil-bg px-2 py-1 text-xs text-white"
-              value={appId}
-              onChange={(e) => setAppId(e.target.value)}
-              aria-label="Application"
-            >
+            <nav role="tablist" aria-label="Application" className="flex h-10 items-stretch">
               {apps.map((a) => (
-                <option key={a.id} value={a.id}>
+                <button
+                  key={a.id}
+                  role="tab"
+                  aria-selected={a.id === appId}
+                  title={a.description}
+                  onClick={() => setAppId(a.id)}
+                  className={cn(
+                    'border-b-2 px-3 font-mono text-[11px] uppercase tracking-wider transition-colors',
+                    a.id === appId
+                      ? 'border-mil-cyan text-mil-cyan'
+                      : 'border-transparent text-mil-text hover:text-white',
+                  )}
+                >
                   {a.title}
-                </option>
+                </button>
               ))}
-            </select>
+            </nav>
           )}
         </div>
         {Banner && <Banner />}
@@ -77,18 +86,24 @@ export function Shell({ store }: { store: SceneStore }) {
           </aside>
         )}
         <main className="relative min-w-0 flex-1">
-          <CesiumCanvas store={store} onEdit={onEdit} onScreenUpBearing={setUpBearing} />
-          <div className="pointer-events-none absolute inset-0">
-            <ViewControls store={store} upBearingDeg={upBearing} />
-            <div className="pointer-events-auto absolute right-3 top-20">
-              <Inspector store={store} />
-            </div>
-            {error && (
-              <div className="pointer-events-auto absolute left-1/2 top-16 -translate-x-1/2 rounded-sm border border-mil-red/60 bg-mil-panel px-4 py-2 text-xs text-mil-red">
-                Could not start application: {error}
+          {Canvas ? (
+            <Canvas />
+          ) : customCanvas ? null : (
+            <>
+              <CesiumCanvas store={store} onEdit={onEdit} onScreenUpBearing={setUpBearing} />
+              <div className="pointer-events-none absolute inset-0">
+                <ViewControls store={store} upBearingDeg={upBearing} />
+                <div className="pointer-events-auto absolute right-3 top-20">
+                  <Inspector store={store} />
+                </div>
               </div>
-            )}
-          </div>
+            </>
+          )}
+          {error && (
+            <div className="pointer-events-auto absolute left-1/2 top-16 z-30 -translate-x-1/2 rounded-sm border border-mil-red/60 bg-mil-panel px-4 py-2 text-xs text-mil-red">
+              Could not start application: {error}
+            </div>
+          )}
           {Overlay && (
             <div className="pointer-events-none absolute inset-0 z-20">
               <Overlay />

@@ -18,6 +18,7 @@ from mocks"), and the frontend demo contribution is part of **G2** (approved saf
 | 6 Agent plan | Done | SSE steps, proposal preview, apply with undo, tugs on canvas, line sequence, follow-ups. |
 | 7 Safety sheet | Done | Service-rendered sheet, margins, rationale links, layout image, approvals, print. |
 | 8 Demo hardening | Done for the mock stack | Error and retry states, accessibility fixes, production build checked, [DEMO.md](DEMO.md). |
+| 9 Exercise simulator | Done (client-side) | Second app on the shell: Mapbox 3D map, deterministic ship simulation, scenario editor, presets. Added the shell's `Canvas` slot and app tabs. See the README. |
 
 Verified in headless Chromium (software WebGL) against the running mock servers, plus 41 unit tests, type checking and
 lint. Since the first pass: Cesium is lazy-loaded and split from the app (app code 251 kB, Cesium its own chunk), a

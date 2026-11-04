@@ -1,0 +1,156 @@
+import { useEffect, useRef, useState } from 'react';
+import { cn } from '../../lib/cn';
+import { Button, inputClass } from '../../shell/ui';
+import { useController, useExercise } from './context';
+import { getMapboxToken, saveMapboxToken } from './mapStyles';
+import type { ExerciseMapView, MapProblem } from './mapView';
+
+function TokenPrompt({ onSave, message }: { onSave: (token: string) => void; message?: string | null }) {
+  const [value, setValue] = useState('');
+  const valid = /^pk\.[\w-]+\.[\w-]+$/.test(value.trim());
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-mil-bg">
+      <form
+        className="glass-panel mil-brackets w-[420px] space-y-3 p-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (valid) onSave(value.trim());
+        }}
+      >
+        <h3 className="mil-label text-[11px]">Mapbox access token</h3>
+        {message && <p className="text-xs text-mil-red">{message}</p>}
+        <p className="text-xs text-mil-text">
+          The exercise map is drawn by Mapbox, which needs a public access token (starts with <code>pk.</code>). Create one
+          at account.mapbox.com. It stays in this browser. To set it for everyone, build the app with{' '}
+          <code>VITE_MAPBOX_TOKEN</code>.
+        </p>
+        <input
+          className={inputClass}
+          placeholder="pk.eyJ1…"
+          aria-label="Mapbox access token"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <Button type="submit" size="sm" disabled={!valid}>
+          Use this token
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+function ToolButton({ pressed, onClick, children, title }: { pressed?: boolean; onClick: () => void; children: string; title: string }) {
+  return (
+    <button
+      title={title}
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={cn(
+        'border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider backdrop-blur',
+        pressed ? 'border-mil-cyan/70 bg-mil-cyan/25 text-mil-cyan' : 'border-mil-border bg-mil-panel/85 text-mil-text hover:text-white',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Toolbar() {
+  const c = useController();
+  const follow = useExercise((s) => s.follow);
+  const placing = useExercise((s) => s.placing);
+  const selectedId = useExercise((s) => s.selectedId);
+  const name = useExercise((s) => s.scenario.units.find((u) => u.id === s.selectedId)?.name ?? null);
+
+  useEffect(() => {
+    if (!placing) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && c.setPlacing(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [placing, c]);
+
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 p-3">
+      <div className="pointer-events-auto flex gap-1.5 self-start" role="toolbar" aria-label="Camera">
+        <ToolButton title="Frame every ship" onClick={() => c.fitAll()}>
+          Fit all
+        </ToolButton>
+        <ToolButton title="Keep the selected ship centered" pressed={follow === 'follow'} onClick={() => c.setFollow(follow === 'follow' ? 'off' : 'follow')}>
+          Follow
+        </ToolButton>
+        <ToolButton title="Follow the selected ship and look the way it points" pressed={follow === 'chase'} onClick={() => c.setFollow(follow === 'chase' ? 'off' : 'chase')}>
+          Chase
+        </ToolButton>
+        <ToolButton title="Click the map to add waypoints to the selected ship" pressed={placing} onClick={() => c.setPlacing(!placing)}>
+          Add waypoints
+        </ToolButton>
+      </div>
+      {placing && selectedId && (
+        <div role="status" className="pointer-events-auto border border-mil-cyan/50 bg-mil-panel/90 px-3 py-1.5 text-xs text-mil-cyan">
+          Click the map to add waypoints to {name}. Press Esc or the button to stop.
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function MapCanvas() {
+  const c = useController();
+  const host = useRef<HTMLDivElement>(null);
+  const [token, setToken] = useState(getMapboxToken);
+  const [problem, setProblem] = useState<MapProblem | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!token || !host.current) return;
+    const container = host.current;
+    let view: ExerciseMapView | null = null;
+    let cancelled = false;
+    setLoading(true);
+    // Mapbox GL is large; load it only when this tab opens.
+    Promise.all([import('mapbox-gl'), import('./mapView'), import('mapbox-gl/dist/mapbox-gl.css')])
+      .then(([mapbox, { ExerciseMapView: View }]) => {
+        if (cancelled) return;
+        view = new View(container, mapbox.default, token, c, (p) => {
+          setProblem(p);
+          if (p.kind === 'token') setToken('');
+        });
+        setLoading(false);
+        if (import.meta.env.DEV) (window as unknown as { __exerciseMap: unknown }).__exerciseMap = view.map;
+      })
+      .catch((e: unknown) => !cancelled && setLoadError(e instanceof Error ? e.message : String(e)));
+    return () => {
+      cancelled = true;
+      view?.dispose();
+    };
+  }, [token, c]);
+
+  if (!token) {
+    return (
+      <TokenPrompt
+        message={problem?.kind === 'token' ? problem.message : null}
+        onSave={(t) => {
+          saveMapboxToken(t);
+          setProblem(null);
+          setToken(t);
+        }}
+      />
+    );
+  }
+  return (
+    <div className="absolute inset-0 bg-mil-bg">
+      {/* Inline size: Mapbox's stylesheet sets position: relative on its container and would otherwise win over a class. */}
+      <div ref={host} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} data-testid="exercise-map" />
+      {loading && !loadError && <p className="absolute left-1/2 top-1/2 -translate-x-1/2 text-xs text-mil-cyan">Loading map…</p>}
+      {(loadError || problem) && (
+        <p role="alert" className="absolute left-1/2 top-16 z-20 max-w-[34rem] -translate-x-1/2 border border-mil-amber/60 bg-mil-panel px-4 py-2 text-xs text-mil-amber">
+          {loadError ?? problem?.message}
+        </p>
+      )}
+      <Toolbar />
+    </div>
+  );
+}

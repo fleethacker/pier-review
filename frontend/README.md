@@ -37,7 +37,8 @@ to the agents service (set `MODELING_PROXY_TARGET` and `AGENTS_PROXY_TARGET` in 
 `http://localhost:8000` and `:8001`). REST is under `/api/v1`, WebSockets under `/ws`. Set `VITE_MODELING_URL` or
 `VITE_AGENTS_URL` to an absolute URL to bypass the proxy.
 
-No tokens are needed. The 2D and 3D views are drawn from the berth data itself, with no imagery.
+The mooring app needs no tokens: its 2D and 3D views are drawn from the berth data itself, with no imagery. The
+[exercise simulator](#exercise-simulator) tab draws on Mapbox and needs a public access token.
 
 Other scripts in `packages/web`: `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`, and
 `npm run types` (regenerates `src/api/*.d.ts` from `../../contract/`; commit the result when `contract/` changes).
@@ -66,6 +67,7 @@ packages/web/src/
   scene/        The neutral model (entities, links, arrows), its store, geometry helpers, the app registry.
   apps/
     mooring/    The mooring adapter: API clients, mapping to the scene, controller, panels, agent session.
+    exercise/   The exercise simulator: a Mapbox 3D map, a ship simulation and scenario editor (open /?app=exercise).
     demo/       A tiny non-mooring app that exercises the shell (dev builds only; open /?app=demo).
   api/          Types generated from the contract. Do not edit.
   lib/, styles/ Small helpers and the Tailwind theme.
@@ -91,10 +93,50 @@ and the shell only deals with the scene model.
   instance with optional `Sidebar`, `Bottom`, `Banner` and `Overlay` components and an `onEdit` handler. The shell
   forwards canvas edits (such as dragging a ship) to `onEdit`; the app decides what they mean and updates the scene
   through the store.
+- Apps appear as tabs in the header. An app that brings its own renderer sets `canvas: 'custom'` on its definition and
+  returns a `Canvas` component; the shell then skips the Cesium canvas (and never loads Cesium for that tab). The
+  exercise simulator does this because it draws on Mapbox.
 - Status colors (GREEN, AMBER, RED), the backend badge and the citation chip are shell components.
 - Each app owns the OpenAPI specs for its API. Where other apps' specs live is still open.
 - The scene model was designed from what the shell needs to draw. It has been exercised by the mooring adapter and
   the demo app; check it against the exercise application before freezing it.
+
+## Exercise simulator
+
+A second tab: replay a naval exercise in 3D on a Mapbox map. Ships move across open ocean with wakes, routes,
+formations and conditions you configure. There is no backend; the simulation runs in the browser.
+
+**Mapbox token.** Mapbox GL needs a public access token (`pk.…`). Either put `VITE_MAPBOX_TOKEN=pk.…` in `frontend/.env`
+(or the environment of whatever builds the app; Vite inlines it, which is fine for a public token) or paste it into the
+prompt the tab shows when it has none (kept in this browser's local storage). The default **Standard** map style works
+with any valid token. The **Satellite** styles also need raster-tile access, which some tokens and plans do not have;
+the tab says so if Mapbox refuses.
+
+**What you can configure** (all of it is plain JSON, so scenarios can be saved, shared and edited by hand):
+
+- Scenario: name, length, light (dawn, day, dusk, night; on the Standard styles), and the starting view.
+- Environment: wind (speed, direction it blows from) and current (speed, direction it flows toward). Current sets every
+  ship over the ground; wind pushes ships downwind a little, small craft more.
+- Ships: class (CVN, LHD, CG, DDG, fast attack craft, merchant), side (blue, red, neutral), start position, heading,
+  speed and an optional turn-rate limit. Every ship has one behavior: follow a **route** (waypoints with optional
+  per-leg speed, optional loop; click the map to add waypoints), keep **station** on another ship (ahead and abeam
+  offsets), **pursue** a ship and shadow it, or **hold** and drift.
+- Playback: play, pause, restart, scrub, 1x to 600x. Camera: fit all, follow, chase. View: ship size exaggeration (so
+  ships read when zoomed out), wake length, names, routes, sensor ring.
+
+Three presets ship with it: a carrier group transit, a surface contact intercept at dusk, and a formation drill. Use
+**Edit as JSON** or **Download** in the Scenario panel to save or load your own.
+
+**How it works.** `apps/exercise/sim.ts` runs the whole scenario up front at a fixed step (deterministic, so scrubbing
+and rewinding are free) and the map interpolates between samples. Ships are generated hull outlines with
+class-specific deckhouses, drawn as Mapbox fill-extrusions at true size times the size slider, with wakes as gradient
+lines. Ship dimensions and handling are rounded, illustrative figures, not for operational use. Handling is simple on
+purpose: speed and turn rate are limited per class, and escorts hold station with a proportional controller. Formation
+turns need a slow guide turn rate (see `maxTurnRateDegPerS` in the presets), because an escort 1.5 km abeam cannot keep
+up with a guide that turns on a 300 m radius.
+
+Tests cover the simulation, the scenario JSON, the map view (against a fake Mapbox) and the panels. The map itself
+was checked in headless Chromium with software WebGL; check it on a real GPU before demoing.
 
 ## Contract conventions the UI follows
 

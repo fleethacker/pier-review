@@ -57,8 +57,13 @@ Berths are chosen by docking the ship at a port on the world map in the Scenario
 marker (or select the marker), and pick a face if the port has more than one. Only berths that already exist in the
 modeling service's reference data can be chosen; the UI has no way to add one. Each marker is a berth's `origin_lat` and
 `origin_lon`, so a berth added to the reference data appears on the map with no UI change. The map backdrop uses the
-Mapbox token when there is one. The San Diego, Pearl Harbor, Yokosuka and Rota berths are notional copies of the mock
-Pier 12 layout, there so the picker has somewhere to go; they are not the real piers.
+Mapbox token when there is one.
+
+Every berth face sits on a real pier: Pier 12 at Naval Station Norfolk, Pier 7 at Naval Base San Diego, Hotel Pier at
+Pearl Harbor, and one pier each at Yokosuka and Rota. Their position, direction and length come from OpenStreetMap and
+were checked against satellite imagery (`scripts/build_berths.py` holds the surveyed values and regenerates the YAML).
+The fittings, fenders and depths on each are still the notional Pier 12 layout, and the weather is synthetic, so the
+data is labelled mock.
 
 ## Where this fits in the repo
 

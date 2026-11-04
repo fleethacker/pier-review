@@ -1,0 +1,12 @@
+# uv workspace root. Two Python services share one lockfile and virtualenv:
+#   modeling/  physics and ML modeling service (port 8000)
+#   agents/    LLM agent service (port 8001), calls modeling over HTTP
+[tool.uv.workspace]
+members = ["modeling", "agents"]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[tool.pytest.ini_options]
+testpaths = ["modeling/tests", "agents/tests"]
+filterwarnings = ["ignore::DeprecationWarning", "ignore:Using `httpx` with `starlette.testclient`"]

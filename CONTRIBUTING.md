@@ -1,6 +1,6 @@
 # Contributing
 
-This repo holds the mooring assistant's modeling service. The plan, module list and API contracts are in [docs/PLAN.md](docs/PLAN.md). Read it before picking up work.
+This repo holds the mooring assistant: `frontend/` (UI), `modeling/` (physics and ML service), `agents/` (LLM agent service) and `contract/` (the generated API specs they share). The [README](README.md) explains the layout. The plan and module list are in [docs/PLAN.md](docs/PLAN.md). Read both before picking up work.
 
 ## Branches
 
@@ -25,9 +25,9 @@ This repo holds the mooring assistant's modeling service. The plan, module list 
 | `ws-a` | Data and platform (M1, M2, M13, API skeleton) | `ws-a/noaa-replay-feed` |
 | `ws-b` | Physics core (M3, M4, rules) | `ws-b/ufc-wind-loads` |
 | `ws-c` | Risk and tugs (M5, M6) | `ws-c/gust-monte-carlo` |
-| `ws-d` | Planning and agents (M7–M10) | `ws-d/safety-sheet-render` |
+| `ws-d` | Planning (M7, in `modeling/`) and agents (M8–M10, in `agents/`) | `ws-d/safety-sheet-render` |
 | `ws-e` | Dynamics (M11, M12) | `ws-e/berthing-3dof` |
-| `ui` | UI work living in this repo | `ui/pier-canvas` |
+| `ui` | UI work in `frontend/` | `ui/pier-canvas` |
 | `docs` | Documentation only | `docs/update-plan` |
 | `fix` | Bug fixes outside a workstream | `fix/env-timezone` |
 
@@ -55,18 +55,19 @@ If `dev` moves while your PR is open, update your branch with `git pull origin d
 - Get at least **one approval** from another team member before merging.
 - Keep PRs small: one module or one feature. Name the module in the title, for example `M3: transverse wind force (UFC 4-159-03)`.
 - Describe what changed, how you tested it, and anything the UI team needs to know.
-- Run the tests locally before asking for review (`pytest`, once the test suite lands), and add tests for new physics or rules.
+- Run `make test` before asking for review, and add tests for new physics, rules or agent behavior.
 - Resolve all review comments before merging.
 - Delete your branch after it merges.
 
 ### API contract changes
 
-`openapi.yaml` is what the UI team builds against, so contract changes need extra care:
+`contract/` is what the UI team builds against, and what the agents service relies on, so contract changes need extra care:
 
-- Any change to a request or response shape must update `openapi.yaml` and the mock examples in the same PR.
-- Tag a UI team member as a reviewer on contract changes.
+- `contract/` is generated. After changing a schema or endpoint, run `make contract` and commit the result in the same PR. `make test` fails if it's stale.
+- Tag a reviewer from each team that consumes the changed spec (UI for either spec; agents for `modeling.openapi.yaml`).
 - Adding fields is fine. Renaming or removing fields is a breaking change: discuss it with the team first.
-- Follow the units, direction and frame conventions in the plan's "API conventions" section (for example `_kt`, `_ft`, `_lbf`; wind direction *from*, current direction *toward*).
+- Follow the conventions in [contract/README.md](contract/README.md) (units in field names, wind *from* / current *toward*, berth and ship frames).
+- `agents/` must reach physics only through the modeling API, never by importing `mooring` physics or mock code.
 
 ## Releasing `dev` into `main`
 

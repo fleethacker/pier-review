@@ -1,0 +1,32 @@
+{
+  "ship_class_id": "DDG-51-FIIA",
+  "loading": "full_load",
+  "waypoints": [
+    {
+      "lat": 36.959,
+      "lon": -76.045,
+      "leg_name": "Thimble Shoal Channel entrance",
+      "channel_depth_mllw_ft": 55,
+      "width_ft": 1000
+    },
+    {
+      "lat": 36.966,
+      "lon": -76.16,
+      "leg_name": "Thimble Shoal Channel",
+      "channel_depth_mllw_ft": 55,
+      "width_ft": 1000
+    },
+    {
+      "lat": 36.964,
+      "lon": -76.27,
+      "leg_name": "Hampton Roads",
+      "channel_depth_mllw_ft": 50,
+      "width_ft": 1500
+    }
+  ],
+  "eta_utc": "2026-11-04T18:00:00Z",
+  "speed_profile_kt": [
+    12,
+    10
+  ]
+}

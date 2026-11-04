@@ -1,0 +1,9 @@
+{
+  "ship_class_id": "DDG-51-FIIA",
+  "loading": "full_load",
+  "water_depth_ft": 46.8,
+  "wind_speed_kt": 50,
+  "current_speed_kt": 1.0,
+  "apply_to": "both",
+  "step_deg": 15
+}

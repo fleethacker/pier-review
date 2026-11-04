@@ -22,7 +22,7 @@ export class SceneRenderer {
   readonly view: ViewController;
   private viewer: Cesium.Viewer;
   private tf: FrameTransform | null = null;
-  private cache = new Map<string, { src: unknown; entity: Cesium.Entity }>();
+  private cache = new Map<string, { src: unknown; entity: Cesium.Entity; geomSig: string }>();
   private unsubscribe: () => void;
   private lastState: SceneState | null = null;
   private lastContentRevision = -1;
@@ -32,6 +32,8 @@ export class SceneRenderer {
   private pan: { lastX: number; lastY: number; button: number } | null = null;
   private pointerDown: { x: number; y: number; id: string | null } | null = null;
   private disposed = false;
+  private kicking = false;
+  private kickUntil = 0;
 
   constructor(
     container: HTMLElement,
@@ -65,6 +67,39 @@ export class SceneRenderer {
     };
     this.unsubscribe = this.store.subscribe(() => this.sync());
     this.sync();
+  }
+
+  /**
+   * Request-render mode only draws on demand, but entity geometry is built asynchronously in workers. Keep asking
+   * for frames for a moment after every change so late-finishing geometry appears without needing a mouse move.
+   */
+  private kick(): void {
+    this.kickUntil = performance.now() + 1500;
+    if (this.kicking) return;
+    this.kicking = true;
+    const tick = () => {
+      if (this.disposed) return;
+      this.viewer.scene.requestRender();
+      if (performance.now() < this.kickUntil) requestAnimationFrame(tick);
+      else this.kicking = false;
+    };
+    requestAnimationFrame(tick);
+  }
+
+  /** Window coordinates (CSS px, relative to the page) of an entity's anchor point; for tests and tooling. */
+  screenPositionOf(entityId: string): { x: number; y: number } | null {
+    const e = this.store.getState().entities[entityId];
+    if (!e || !this.tf) return null;
+    const world = this.tf.toWorld(e.pose.x, e.pose.y, e.pose.z);
+    const pt = Cesium.SceneTransforms.worldToWindowCoordinates(this.viewer.scene, world);
+    if (!pt) return null;
+    const rect = this.viewer.scene.canvas.getBoundingClientRect();
+    return { x: rect.left + pt.x, y: rect.top + pt.y };
+  }
+
+  /** Id of the scene item under a page coordinate; for tests and tooling. */
+  pickAtPage(x: number, y: number): string | null {
+    return this.pickId(this.canvasPoint({ clientX: x, clientY: y }));
   }
 
   private onViewChange(): void {
@@ -112,7 +147,7 @@ export class SceneRenderer {
     }
     if (!state.frame || !this.tf) {
       this.clearEntities();
-      this.viewer.scene.requestRender();
+      this.kick();
       return;
     }
 
@@ -155,7 +190,7 @@ export class SceneRenderer {
       this.view.setMode(state.viewMode);
       this.onViewChange();
     }
-    this.viewer.scene.requestRender();
+    this.kick();
   }
 
   private fit(state: SceneState): void {
@@ -175,11 +210,40 @@ export class SceneRenderer {
     this.cache.clear();
   }
 
+  /**
+   * Create the Cesium entity, or patch it in place. Removing and re-adding on every change would leave picking
+   * briefly blind (the pick buffer is only rebuilt on the next frame), so only changed fields are assigned and
+   * geometry is rebuilt only when its coordinates changed.
+   */
   private upsert(key: string, src: unknown, built: Cesium.Entity.ConstructorOptions): void {
+    const geomSig = geometrySignature(built);
     const cached = this.cache.get(key);
-    if (cached) this.viewer.entities.remove(cached.entity);
-    const entity = this.viewer.entities.add({ ...built, id: key });
-    this.cache.set(key, { src, entity });
+    if (!cached) {
+      const entity = this.viewer.entities.add({ ...built, id: key });
+      this.cache.set(key, { src, entity, geomSig });
+      return;
+    }
+    const entity = cached.entity as unknown as Record<string, Record<string, unknown> | undefined>;
+    for (const gfx of ['polygon', 'point', 'polyline', 'label'] as const) {
+      const next = (built as Record<string, Record<string, unknown> | undefined>)[gfx];
+      if (!next) {
+        if (entity[gfx]) (cached.entity as unknown as Record<string, unknown>)[gfx] = undefined;
+        continue;
+      }
+      const target = entity[gfx];
+      if (!target) {
+        (cached.entity as unknown as Record<string, unknown>)[gfx] = next;
+        continue;
+      }
+      for (const [field, value] of Object.entries(next)) {
+        if (geomSig === cached.geomSig && GEOMETRY_FIELDS.has(field)) continue;
+        target[field] = value;
+      }
+    }
+    if (built.position && cached.geomSig !== geomSig) cached.entity.position = built.position as never;
+    else if (built.position && !cached.entity.position) cached.entity.position = built.position as never;
+    cached.src = src;
+    cached.geomSig = geomSig;
   }
 
   private renderEntity(e: SceneEntity, selected: boolean, hovered: boolean): Cesium.Entity.ConstructorOptions {
@@ -217,7 +281,14 @@ export class SceneRenderer {
 
     const showLabel = e.label && (e.geometry.type === 'polygon' || selected || hovered);
     if (showLabel) {
-      options.position = tf.toWorld(cx, cy, cz + (e.geometry.type === 'polygon' ? e.geometry.heightM : 0));
+      let [lx, ly] = [cx, cy];
+      if (e.geometry.type === 'polygon' && e.geometry.points.length > 0) {
+        const pts = e.geometry.points;
+        const mx = pts.reduce((a, p) => a + p[0], 0) / pts.length;
+        const my = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+        [lx, ly] = entityToFrame(e.pose, mx, my);
+      }
+      options.position = tf.toWorld(lx, ly, cz + (e.geometry.type === 'polygon' ? e.geometry.heightM : 0));
       options.label = {
         text: e.label,
         font: FONT,
@@ -373,7 +444,7 @@ export class SceneRenderer {
         const after = this.ground(pos);
         if (before && after) this.view.panBy(before[0] - after[0], before[1] - after[1]);
       }
-      this.viewer.scene.requestRender();
+      this.kick();
       this.onViewChange();
       return;
     }
@@ -424,7 +495,7 @@ export class SceneRenderer {
     this.view.zoomBy(Math.exp(ev.deltaY * 0.0012));
     const after = this.ground(pos);
     if (before && after && this.view.mode === '2d') this.view.panBy(before[0] - after[0], before[1] - after[1]);
-    this.viewer.scene.requestRender();
+    this.kick();
     this.onViewChange();
   };
 
@@ -441,6 +512,20 @@ export class SceneRenderer {
     if (!e) return;
     const sel = this.lastState.selection;
     this.upsert(key, e, this.renderEntity(e, sel?.type === 'entity' && sel.id === e.id, key === this.hoverId));
-    this.viewer.scene.requestRender();
+    this.kick();
   }
+}
+
+const GEOMETRY_FIELDS = new Set(['hierarchy', 'positions', 'height', 'extrudedHeight']);
+
+/** Cheap fingerprint of everything that decides a shape's coordinates, so unchanged shapes are not rebuilt. */
+function geometrySignature(o: Cesium.Entity.ConstructorOptions): string {
+  const parts: string[] = [];
+  const pos = (v: unknown) => (v instanceof Cesium.Cartesian3 ? `${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}` : '');
+  const polygon = o.polygon as { hierarchy?: unknown; height?: number; extrudedHeight?: number } | undefined;
+  const polyline = o.polyline as { positions?: unknown } | undefined;
+  if (polygon && Array.isArray(polygon.hierarchy)) parts.push(polygon.hierarchy.map(pos).join(';'), String(polygon.height), String(polygon.extrudedHeight));
+  if (polyline && Array.isArray(polyline.positions)) parts.push(polyline.positions.map(pos).join(';'));
+  if (o.position) parts.push(pos(o.position));
+  return parts.join('|');
 }

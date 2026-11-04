@@ -17,7 +17,7 @@ export class ViewController {
   private target: [number, number] = [0, 0];
   private widthM = 400;
   private heading3dDeg = 0;
-  private pitch3dDeg = -35;
+  private pitch3dDeg = -40;
   private range3dM = 500;
 
   constructor(private readonly camera: Cesium.Camera) {}
@@ -33,7 +33,7 @@ export class ViewController {
     const h = Math.max(b.maxY - b.minY, 20);
     this.target = [(b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2];
     this.widthM = Math.min(Math.max(w, h * aspect) * 1.2, MAX_WIDTH_M);
-    this.range3dM = Math.max(w, h) * 1.2;
+    this.range3dM = Math.max(w, h) * 0.9;
     this.apply();
   }
 

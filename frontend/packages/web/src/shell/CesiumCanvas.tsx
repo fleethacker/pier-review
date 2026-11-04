@@ -30,6 +30,14 @@ export function CesiumCanvas({ store, onEdit, onScreenUpBearing }: Props) {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
+    if (import.meta.env.DEV && renderer) {
+      const r = renderer;
+      (window as unknown as { __scene: unknown }).__scene = {
+        store,
+        screenPositionOf: (id: string) => r.screenPositionOf(id),
+        pickAtPage: (x: number, y: number) => r.pickAtPage(x, y),
+      };
+    }
     return () => renderer?.dispose();
   }, [store]);
 

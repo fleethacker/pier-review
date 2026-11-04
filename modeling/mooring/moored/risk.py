@@ -50,9 +50,10 @@ def wilson(k: int, n: int, z: float = Z95) -> tuple[float, float]:
 
 
 def get_model(model_id: str | None):
-    if model_id in (None, unc.SYNTHETIC_DEMO.model_id):
-        return unc.SYNTHETIC_DEMO
-    raise refdata.InvalidReference(f"Unknown uncertainty model '{model_id}'; only 'synthetic-demo' is available (no fitted model is qualified).")
+    try:
+        return unc.load_model(model_id or unc.SYNTHETIC_DEMO.model_id)
+    except KeyError:
+        raise refdata.InvalidReference(f"Unknown uncertainty model '{model_id}'; available: {', '.join(unc.available_models())}") from None
 
 
 @dataclasses.dataclass

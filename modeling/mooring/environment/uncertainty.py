@@ -149,3 +149,22 @@ class Sampler:
             zd = phi * zd + inn * self.rng.gauss(0, 1)
             zc = phi * zc + inn * self.rng.gauss(0, 1)
         return out
+
+
+# ---------- committed model artifacts ----------
+
+MODELS_DIR = __import__("pathlib").Path(__file__).parent / "models"
+
+
+def available_models() -> list[str]:
+    return [SYNTHETIC_DEMO.model_id] + sorted(p.stem for p in MODELS_DIR.glob("*.json"))
+
+
+def load_model(model_id: str) -> UncertaintyModel:
+    """The synthetic demo or a committed fitted artifact (parameters and provenance only; the artifact's qualification is re-derived)."""
+    if model_id == SYNTHETIC_DEMO.model_id:
+        return SYNTHETIC_DEMO
+    path = MODELS_DIR / f"{model_id}.json"
+    if "/" in model_id or ".." in model_id or not path.is_file():
+        raise KeyError(model_id)
+    return qualify(UncertaintyModel.model_validate_json(path.read_text()))

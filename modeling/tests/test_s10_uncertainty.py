@@ -107,3 +107,33 @@ def test_trajectories_are_correlated_with_the_stated_time_and_stationary():
     d = [x - statistics.fmean(z) for x in z]
     r1 = sum(d[i] * d[i + 1] for i in range(len(d) - 1)) / sum(x * x for x in d)
     assert r1 == pytest.approx(math.exp(-6.0 / 60.0), abs=0.05)
+
+
+def test_committed_fitted_artifact_is_valid_calibrated_and_honestly_unqualified():
+    """coops-8638614-2025: fitted by scripts/fit_uncertainty.py from CO-OPS observations (not stored here)."""
+    m = u.load_model("coops-8638614-2025")
+    assert m.kind == "fitted" and m.station_ids == ["8638614", "cb0402"] and 0.80 <= m.validation.observed_coverage <= 0.97
+    assert m.n_days < u.MIN_DAYS and m.qualification == "unqualified"                       # 364 days: one short of the stated policy
+    assert any("Only 364" in r for r in m.qualification_reasons) and any("Hurricane" in r for r in m.qualification_reasons)
+    assert 1.0 < math.exp(m.gust_factor_mu) < 1.5 and 0 < m.direction_sigma_deg < 30 and 0 < m.current_sigma_kt < 1 and m.correlation_time_min > 0
+    assert u.qualify(m).qualification_reasons == m.qualification_reasons                     # re-qualification is idempotent
+    assert any("forecast error" in l.lower() for l in m.limitations)
+    for bad in ("../etc/passwd", "nope", "a/b"):
+        with pytest.raises(KeyError):
+            u.load_model(bad)
+    assert u.available_models()[:2] == ["synthetic-demo", "coops-8638614-2025"]
+
+
+def test_risk_accepts_the_fitted_model_and_stays_limited_with_its_reasons():
+    from fastapi.testclient import TestClient
+    from modeling_api.main import app
+    from mooring.examples import EXAMPLES
+    c = TestClient(app)
+    import time
+    job = c.post("/api/v1/risk/exceedance", json={**EXAMPLES["risk_exceedance"], "n_samples": 100, "seed": 3, "uncertainty_model_id": "coops-8638614-2025"}).json()
+    st = c.get(job["status_url"]).json()
+    while st["state"] in ("queued", "running"):
+        time.sleep(0.02); st = c.get(job["status_url"]).json()
+    r = st["result"]
+    assert r["result"]["uncertainty_model"]["model_id"] == "coops-8638614-2025" and r["validity"]["state"] == "limited"
+    assert r["manifest"]["rng_model_revision"] == "coops-8638614-2025@1"

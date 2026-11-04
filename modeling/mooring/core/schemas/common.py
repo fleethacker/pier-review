@@ -122,7 +122,7 @@ class Provenance(Model):
 
     source: str = Field(description="Human-readable source, e.g. 'NSTM 582 Table 582-5-6' or 'mock seed data'.")
     url: str | None = None
-    confidence: Literal["published", "estimated", "mock", "vision"]
+    confidence: Literal["published", "estimated", "mock", "vision", "synthetic"]
     notes: str | None = None
 
 

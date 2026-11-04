@@ -2026,6 +2026,7 @@ components:
           - estimated
           - mock
           - vision
+          - synthetic
           title: Confidence
         notes:
           anyOf:

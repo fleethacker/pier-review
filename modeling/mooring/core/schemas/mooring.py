@@ -145,3 +145,10 @@ class Rule(Model):
     reference: str
     applies_to: Literal["line", "pier_fitting", "ship_fitting", "plan", "environment", "sequence", "berthing"]
     implemented: bool = Field(description="False while the check exists only as registry metadata.")
+    coverage: Literal["implemented", "partial", "unsupported"] | None = Field(
+        default=None, description="Audit of how much of the cited requirement the code checks (S01)."
+    )
+    applicability: str | None = Field(default=None, description="Where the rule is meant to apply; limits of the check.")
+    source_verified: bool = Field(
+        default=False, description="True only after the paragraph/table was checked against the edition in hand."
+    )

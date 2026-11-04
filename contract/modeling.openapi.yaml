@@ -524,6 +524,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/qualification:
+    get:
+      tags:
+      - M2 Reference data
+      summary: Catalog integrity and per-asset qualification level
+      operationId: catalog_audit_api_v1_qualification_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogAudit'
+  /api/v1/capabilities:
+    get:
+      tags:
+      - M2 Reference data
+      summary: What each capability is qualified for today, with limitations and blockers
+      operationId: capabilities_api_v1_capabilities_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/CapabilityRow'
+                type: array
+                title: Response Capabilities Api V1 Capabilities Get
   /api/v1/loads/environmental:
     post:
       tags:
@@ -1992,6 +2021,60 @@ components:
       - job_id
       - points
       title: ApproachTrack
+    AssetQualification:
+      properties:
+        asset_kind:
+          type: string
+          enum:
+          - ship
+          - berth
+          - line_spec
+          - tug
+          title: Asset Kind
+        asset_id:
+          type: string
+          title: Asset Id
+        level:
+          type: string
+          enum:
+          - qualified
+          - demonstration
+          - unqualified
+          title: Level
+        provenance_confidence:
+          type: string
+          title: Provenance Confidence
+        issues:
+          items:
+            $ref: '#/components/schemas/QualificationIssue'
+          type: array
+          title: Issues
+        capabilities:
+          additionalProperties:
+            type: string
+            enum:
+            - supported
+            - limited
+            - unsupported
+          type: object
+          title: Capabilities
+          description: Per capability (e.g. 'static_mooring', 'tug_allocation').
+      additionalProperties: false
+      type: object
+      required:
+      - asset_kind
+      - asset_id
+      - level
+      - provenance_confidence
+      title: AssetQualification
+      description: 'How far one catalog record can be trusted.
+
+
+        `qualified`: published provenance and every required field. `demonstration`: complete but mock, estimated,
+
+        vision or unverified data; usable for demos, results are limited. `unqualified`: required data missing or
+
+        inconsistent; a real analysis must not proceed.'
     Berth:
       properties:
         berth_id:
@@ -2350,6 +2433,68 @@ components:
       required:
       - windows
       title: BerthingWindowsResult
+    CapabilityRow:
+      properties:
+        capability:
+          type: string
+          title: Capability
+        module:
+          type: string
+          title: Module
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+        qualification:
+          type: string
+          enum:
+          - qualified
+          - demonstration
+          - unqualified
+          - mock
+          title: Qualification
+        limitations:
+          items:
+            type: string
+          type: array
+          title: Limitations
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+      additionalProperties: false
+      type: object
+      required:
+      - capability
+      - module
+      - backend
+      - qualification
+      title: CapabilityRow
+    CatalogAudit:
+      properties:
+        ok:
+          type: boolean
+          title: Ok
+        problems:
+          items:
+            $ref: '#/components/schemas/QualificationIssue'
+          type: array
+          title: Problems
+        assets:
+          items:
+            $ref: '#/components/schemas/AssetQualification'
+          type: array
+          title: Assets
+      additionalProperties: false
+      type: object
+      required:
+      - ok
+      - assets
+      title: CatalogAudit
+      description: Whole-catalog integrity (duplicate ids, dangling references) and per-asset qualification.
     DepthPoint:
       properties:
         x_ft:
@@ -4347,6 +4492,7 @@ components:
           - estimated
           - mock
           - vision
+          - synthetic
           title: Confidence
         notes:
           anyOf:
@@ -4410,6 +4556,33 @@ components:
       - force_lbf
       - mode
       title: PushPointForce
+    QualificationIssue:
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+          examples:
+          - MISSING_SWL
+        message:
+          type: string
+          title: Message
+        element_ids:
+          items:
+            type: string
+          type: array
+          title: Element Ids
+        blocking:
+          type: boolean
+          title: Blocking
+          description: True when a real analysis cannot proceed (level 'unqualified').
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - message
+      - blocking
+      title: QualificationIssue
     RecommendRequest:
       properties:
         ship_class_id:
@@ -4682,6 +4855,27 @@ components:
           type: boolean
           title: Implemented
           description: False while the check exists only as registry metadata.
+        coverage:
+          anyOf:
+          - type: string
+            enum:
+            - implemented
+            - partial
+            - unsupported
+          - type: 'null'
+          title: Coverage
+          description: Audit of how much of the cited requirement the code checks (S01).
+        applicability:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Applicability
+          description: Where the rule is meant to apply; limits of the check.
+        source_verified:
+          type: boolean
+          title: Source Verified
+          description: True only after the paragraph/table was checked against the edition in hand.
+          default: false
       additionalProperties: false
       type: object
       required:

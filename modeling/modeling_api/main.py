@@ -24,7 +24,7 @@ from mooring.core.schemas import (
     TelemetryRecord,
 )
 
-from .routers import approach, berthing, env, loads, moored, refdata as refdata_router, system, telemetry
+from .routers import approach, berthing, env, loads, moored, qualification, refdata as refdata_router, system, telemetry
 from .backend import overall_backend
 from .state import API_PREFIX
 from .ws import router as ws_router
@@ -103,7 +103,7 @@ async def invalid_reference(_: Request, exc: refdata.InvalidReference):
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
-for r in (env, refdata_router, loads, moored, berthing, approach, telemetry, system):
+for r in (env, refdata_router, qualification, loads, moored, berthing, approach, telemetry, system):
     app.include_router(r.router, prefix=API_PREFIX)
 app.include_router(ws_router)
 

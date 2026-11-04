@@ -18,7 +18,7 @@ mooring/
 
   # Capabilities every phase uses
   environment/     M1 wind, current, water level            mock.py
-  loads/           M3 wind and current forces               mock.py, helpers.py; entry point compute_loads
+  loads/           M3 wind and current forces               ufc.py, coefficients.py, service.py; entry point compute_loads
   tugs/            M6 tug sizing (shared by moored/berthing) mock.py; entry point size_tugs
   telemetry/       M13 ship sensor ingest                   mock.py
 
@@ -56,7 +56,43 @@ never import a phase; phases don't import each other.
 
 - Line geometry: lengths, lead angles, vertical angles, breast/spring/bow/stern classification.
 - The NSTM 582 rule checks (`GET /rules` shows which are implemented).
-- Seed ship wind areas, back-calculated so the mock drag model matches NSTM Table 582-3-1 at 50 kt.
+- M3 environmental loads: UFC Chapter 4 wind/current forces and yaw, with source-checked examples and bounded seed calibration.
 
-Everything else (loads, load sharing, risk, tug sizing, optimizer, simulations) is placeholder logic with the
+Everything else (load sharing, risk, tug sizing, optimizer, simulations) is placeholder logic with the
 right shape. Line strengths, berths and tugs are mock data.
+
+## M3 implementation notes
+
+`loads/ufc.py` implements UFC 4-159-03 (12 March 2020), Chapter 4. Constants and
+engineering estimates live in `loads/coefficients.py`. The transverse wind fifth
+harmonic and angle folding use the earlier UFC edition to resolve 2020 printing
+errors; Figure 4-4 confirms the harmonic. UFC flow-toward angles are converted
+explicitly from the API's clockwise wind-from and current-toward bearings.
+
+Sustained winds are converted from 60 to 30 seconds using approximate synoptic
+curve readings from Figure 3-5 (1.31/1.25). Gust duration is absent from the API;
+supplied gusts are assumed to be 30-second winds at 10 m. This assumption must be
+checked for real data feeds. Shielding scales wind forces and moments equally.
+
+Missing ship geometry uses documented estimates in response assumptions. Current
+uses salt-water viscosity at 15 C with the requested density. Depth below draft
+is clamped to T/d=1 with an AMBER finding; ground contact is not modeled. Reynolds
+numbers below 10,000 use a numerical floor in the skin-friction expression to
+avoid its singularity; this is an engineering regularization, not a UFC rule.
+Speeds above 1.5 m/s generate a current-model applicability warning. Yaw assumes
+CG at midships and a level keel; LHD uses carrier coefficients by analogy.
+
+The load envelopes and stored results report `backend="real"`. The global HTTP
+header and API introduction still say mock: their implementation in
+`modeling_api/main.py` is outside this chunk's allowed file scope. Other modules
+remain mock even though they now consume UFC loads.
+
+Calibration changes only lateral wind area; hull and frontal areas retain their
+original values. DDG uses the extensive-superstructure drag class (C=1.02) specified
+for destroyers by UFC Table 4-2; its lateral area is approximately 6.25% above the
+original 14,900 ft² seed. Superstructure height remains frozen from the original areas. All 16 peak force magnitudes pass the NSTM ±10% check and all
+areas remain within ±25%. Peak bearings are 76°/284° (DDG, CG, CVN) and 77°/283°
+(LHD). NSTM bearings use UFC flow-toward, counterclockwise angles: converting them
+to API wind-from with (180 - b) % 360 gives targets 75°/285° (DDG/CG) and
+80°/280° (LHD/CVN). All 16 bearing tests pass, with errors of 1–4°. The DDG shallow-water current/wind ratio is approximately 3.84.
+No UFC coefficient was tuned to match the bearings.

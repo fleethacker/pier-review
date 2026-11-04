@@ -46,19 +46,26 @@ packages/web/src/
 
 Each phase ends with something runnable. Phase 3 is gate G0.
 
-### Phase 0: Foundations (spikes and tooling)
+### Phase 0: Foundations (spikes and tooling) - done
 
-Do these first; the results change later phases.
+Results (spikes were run in headless Chromium with software WebGL, then thrown away):
 
-1. **Imagery and tokens spike.** Decide how the scene gets ground in 2D and 3D. Options: keep Cesium Ion + Google 3D
-   tiles for 3D and add a plain chart/satellite or flat background for 2D; or drop external tokens entirely in 2D.
-   Pick one that also works when hosted on Domino and when the network is restricted. Document where `.env` goes
-   (`envDir` is `frontend/`, not `packages/web/` as `MAPBOX_SETUP.md` says).
-2. **2D/3D spike.** Try a top-down orthographic camera over the existing scene, and Cesium's 2D scene mode. Measure
-   whether picking and dragging work the same in both. Result decides the shape of Phase 4.
-3. **Tooling.** Add ESLint, Prettier and Vitest. Add `npm run types` (openapi-typescript against `../contract/`).
-   Decide direct calls to `:8000`/`:8001` (CORS is open) versus a Vite proxy, which Domino hosting may need.
-4. **Dev loop.** Document `make mock` plus `npm run dev` so a new person can see the mocks driving the UI.
+1. **Imagery and tokens.** Cesium boots and renders with **no tokens**: `baseLayer: false`, globe shown with a flat
+   water color, and the pier, ship and lines drawn as vector entities in the berth frame. Decision: tokens are
+   optional. The app never gates on them. If `VITE_CESIUM_TOKEN` is set, 3D adds Google Photorealistic 3D Tiles as
+   real-world context; the 2D canvas is always the schematic. Mapbox is dropped (it only served the drone minimap and
+   detection images). `.env` lives in `frontend/` (Vite's `envDir`).
+2. **2D/3D.** Works in Cesium with no second renderer: `camera.switchToOrthographicFrustum()` plus a top-down
+   `setView` gives the 2D canvas (set `frustum.width` to zoom); `switchToPerspectiveFrustum()` gives 3D. Picking
+   (`scene.pick`) works in both. Dragging uses `camera.getPickRay` intersected with the berth's horizontal plane
+   (`IntersectionTests.rayPlane`), with camera inputs disabled during the drag; a 150 px drag moved the ship
+   as expected. For the 2D view, set the camera heading to `face_bearing_true_deg - 90` degrees with pitch -90: screen
+   up is then the berth's +y (into the water) and screen right is +x.
+3. **Tooling.** Added ESLint (flat config), Prettier, Vitest, `@testing-library/react`, openapi-typescript. Scripts in
+   `packages/web/package.json`: `npm run lint | format | test | typecheck | types`. Generated types are committed in
+   `packages/web/src/api/` (regenerate with `npm run types`). `package-lock.json` is now tracked.
+4. **Dev loop.** `make mock` at the repo root, then `npm run dev` in `packages/web`. Calls go straight to
+   `:8000` and `:8001` (CORS is open); a proxy can be added for hosting if needed.
 
 ### Phase 1: Strip and rebase the shell
 
@@ -156,8 +163,8 @@ colored lines and a findings list.
 
 | Risk or question | Why it matters | Resolve in |
 | --- | --- | --- |
-| Cesium Ion and Mapbox tokens are required to boot; Google 3D Tiles need network access | Blocks running in restricted environments, and the 2D view needs ground that does not depend on them | Phase 0 |
-| The 2D top-down view may not reuse the builder or picking cleanly | Phase 4 estimate depends on it | Phase 0 spike |
+| ~~Cesium Ion and Mapbox tokens required to boot~~ | Resolved in Phase 0: tokens are optional | Done |
+| ~~2D top-down view reuse~~ | Resolved in Phase 0: ortho camera over the same scene works with picking and dragging | Done |
 | Drag-and-drop, selection and gizmos do not exist | Largest feature gap versus the simulator; the plan's central UI requirement | Phase 2 and 4 |
 | Only a carrier model exists for four ship classes | Visual credibility of the canvas | Phase 4 |
 | Scene model designed from one app | Could encode mooring assumptions | Check against the exercise app before freezing |

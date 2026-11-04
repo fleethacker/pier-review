@@ -6,7 +6,7 @@ from mooring.core.geometry import ship_heading_true
 from mooring.core.schemas import AnalyzeRequest, HoldTugRequest, TugPlanResponse
 from mooring.tugs import size_tugs
 
-from .solver import solve
+from .solver import ignored_line_fields, solve
 
 
 def hold_plan(req: HoldTugRequest) -> TugPlanResponse:
@@ -20,4 +20,5 @@ def hold_plan(req: HoldTugRequest) -> TugPlanResponse:
                   f"{deficit:,.0f} lbf."] if over else ["All lines within WLL; no holding tugs needed."])
     result = size_tugs(ship, required, False, req.config.side_to, heading, req.available_tug_ids, rationale)
     return envelope(TugPlanResponse, model="mooring.tugs.hold", request=req, result=result,
-                    status="GREEN" if result.feasible else "RED", assumptions=["Deficit from the mock solver."])
+                    status="GREEN" if result.feasible else "RED", assumptions=["Deficit from the mock solver."]
+                    + ignored_line_fields(req))

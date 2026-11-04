@@ -8,7 +8,7 @@ import time
 from collections.abc import Awaitable
 from typing import Any
 
-from mooring.core.envelopes import inputs_hash, new_id, utcnow
+from mooring.core.envelopes import inputs_hash, new_id, utcnow, validity_state
 from mooring.core.schemas import (
     AnalyzeResponse,
     Berth,
@@ -58,6 +58,7 @@ class PhysicsToolkit:
         rid = getattr(out, "result_id", None) or (out.get("result_id") if isinstance(out, dict) else None)
         status = getattr(out, "status", None) or (out.get("status") if isinstance(out, dict) else None)
         self.last_call = ToolCall(**call, result_id=rid, status=status if status in ("GREEN", "AMBER", "RED") else None,
+                                  validity_state=validity_state(out),
                                   duration_ms=round((time.perf_counter() - start) * 1000, 1))
         LEDGER.append(self.last_call)
         return out

@@ -21,7 +21,7 @@ from mooring.core.schemas import (
 
 from mooring.environment import mock as environment
 from mooring.core.envelopes import envelope, new_id, utcnow
-from .solver import solve
+from .solver import ignored_line_fields, solve
 
 MAX_MOCK_SAMPLES = 300
 
@@ -71,7 +71,7 @@ def exceedance(req: ExceedanceRequest) -> ExceedanceResponse:
                               elements=elements, governing_element=governing)
     return envelope(ExceedanceResponse, model="mooring.risk.monte_carlo", request=req, result=result, status=status,
                     assumptions=[f"Mock: {n} samples (capped at {MAX_MOCK_SAMPLES}); lognormal gust factor ~1.3, "
-                                 "direction scatter 15 deg, current scatter 0.15 kt."])
+                                 "direction scatter 15 deg, current scatter 0.15 kt."] + ignored_line_fields(req))
 
 
 def timeline(req: TimelineRequest) -> TimelineResponse:
@@ -100,7 +100,7 @@ def timeline(req: TimelineRequest) -> TimelineResponse:
     return envelope(TimelineResponse, model="mooring.risk.timeline", request=req,
                     result=TimelineResult(steps=steps, first_amber_utc=first_amber, first_red_utc=first_red,
                                           recommended_actions=actions),
-                    status=overall, assumptions=["Mock forecast (synthetic tide and wind)."])
+                    status=overall, assumptions=["Mock forecast (synthetic tide and wind)."] + ignored_line_fields(req))
 
 
 def alert_for(env: EnvironmentSnapshot, analyze_req: AnalyzeRequest | None) -> Alert:

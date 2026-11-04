@@ -1188,6 +1188,125 @@ components:
       - water_level
       title: EnvStations
       description: NOAA CO-OPS station ids that feed this berth's environment.
+    EnvironmentMetadata:
+      properties:
+        basis:
+          type: string
+          enum:
+          - observation
+          - prediction
+          - scenario
+          title: Basis
+          description: Measured, forecast/model output, or synthetic what-if input.
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+          description: Provider or station, e.g. 'NOAA CO-OPS 8638610'.
+          examples:
+          - NOAA CO-OPS 8638610
+        issued_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Issued At Utc
+          description: When the observation or forecast was produced.
+        valid_from_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid From Utc
+        valid_to_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid To Utc
+        wind_averaging_s:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Wind Averaging S
+          description: Averaging time of wind_speed_kt.
+        gust_duration_s:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Gust Duration S
+          description: Duration of wind_gust_kt.
+        wind_reference_height_m:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Wind Reference Height M
+          description: Anemometer or model height.
+        current_depth_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Current Depth Ft
+          description: Depth of the current measurement below the surface.
+        current_bin:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Bin
+          description: Instrument bin or model layer id.
+        vertical_datum:
+          anyOf:
+          - type: string
+            enum:
+            - MLLW
+            - MSL
+            - NAVD88
+            - other
+          - type: 'null'
+          title: Vertical Datum
+          description: Datum of water_level_mllw_ft. Its name says MLLW; any other value is a conflict.
+        quality:
+          type: string
+          enum:
+          - good
+          - suspect
+          - poor
+          - unknown
+          title: Quality
+          default: unknown
+        age_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Age S
+          description: Age of the newest observation when the snapshot was built.
+        original:
+          anyOf:
+          - additionalProperties:
+              anyOf:
+              - type: number
+              - type: string
+            type: object
+          - type: 'null'
+          title: Original
+          description: Provider values exactly as received, with their units in the key names, before normalization.
+      additionalProperties: false
+      type: object
+      required:
+      - basis
+      title: EnvironmentMetadata
+      description: 'Where an environment snapshot came from and how to read its numbers (S00a).
+
+
+        Optional: absent means the basis is undocumented, and the legacy meaning applies (wind is a 10 m, 1-minute
+
+        sustained speed; the gust is assumed to be 30 s). Supplying metadata never changes the numerical values.'
     EnvironmentSnapshot:
       properties:
         valid_at_utc:
@@ -1270,6 +1389,11 @@ components:
             $ref: '#/components/schemas/StationQuality'
           type: array
           title: Quality
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/EnvironmentMetadata'
+          - type: 'null'
+          description: Basis, timing, averaging and datum. Absent means undocumented (legacy).
       additionalProperties: false
       type: object
       required:
@@ -1719,12 +1843,32 @@ components:
             minimum: 0.0
           - type: 'null'
           title: Pretension Lbf
+          description: 'Initial tension. Legacy default when omitted: 2% of effective MBS (0 if slack_ft > 0). Mutually exclusive
+            with a positive slack_ft: a slack line carries no tension.'
         slack_ft:
           anyOf:
           - type: number
             minimum: 0.0
           - type: 'null'
           title: Slack Ft
+          description: Extra line length beyond the straight-line distance, in feet of stretched length.
+        paid_out_unstretched_length_ft:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Paid Out Unstretched Length Ft
+          description: Unstretched length paid out between fittings. Accepted for forward compatibility; the mock solver ignores
+            it and says so in the response assumptions. Cannot be combined with slack_ft.
+        condition:
+          anyOf:
+          - type: string
+            enum:
+            - wet
+            - dry
+          - type: 'null'
+          title: Condition
+          description: Strength curve for this line. When omitted the request's lines_wet applies (legacy).
       additionalProperties: false
       type: object
       required:
@@ -2506,6 +2650,17 @@ components:
             - RED
           - type: 'null'
           title: Status
+        validity_state:
+          type: string
+          enum:
+          - valid
+          - limited
+          - invalid
+          - unknown
+          title: Validity State
+          description: 'Validity the modeling service reported. Defaults to ''unknown'' (omitted on the wire): never read
+            as valid.'
+          default: unknown
         duration_ms:
           type: number
           title: Duration Ms
@@ -2953,6 +3108,229 @@ components:
       - message
       title: GustWarning
       type: object
+    ManifestRecord:
+      additionalProperties: false
+      description: A resolved reference record that went into a result.
+      properties:
+        kind:
+          examples:
+          - ship
+          - berth
+          - line_spec
+          - tug
+          title: Kind
+          type: string
+        id:
+          title: Id
+          type: string
+        revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: Content hash or version of the record; null if unversioned.
+          title: Revision
+      required:
+      - kind
+      - id
+      title: ManifestRecord
+      type: object
+    ResultManifest:
+      additionalProperties: false
+      description: 'What a result depended on, so it can be reproduced. `inputs_hash` still hashes the request as sent;
+
+        `resolved_inputs_hash` hashes the request after defaults and references are resolved.'
+      properties:
+        resolved_inputs_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: sha256 of the canonical resolved inputs.
+          title: Resolved Inputs Hash
+        code_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Code Version
+        records:
+          items:
+            $ref: '#/components/schemas/ManifestRecord'
+          title: Records
+          type: array
+        environment_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: sha256 of the environment snapshot used.
+          title: Environment Hash
+        numerical_settings:
+          additionalProperties:
+            anyOf:
+            - type: number
+            - type: integer
+            - type: string
+            - type: boolean
+          title: Numerical Settings
+          type: object
+        rng_seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Rng Seed
+        rng_model_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Rng Model Revision
+      title: ResultManifest
+      type: object
+    SolverDiagnostics:
+      additionalProperties: false
+      description: Numerical evidence behind a result. Absent values are `null` (not measured), never 0 or NaN.
+      properties:
+        converged:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          description: Null when no iterative solve was performed.
+          title: Converged
+        iterations:
+          anyOf:
+          - minimum: 0
+            type: integer
+          - type: 'null'
+          default: null
+          title: Iterations
+        residuals:
+          description: Independent force and moment balances, each in its own unit.
+          items:
+            $ref: '#/components/schemas/SolverResidual'
+          title: Residuals
+          type: array
+        active_constraints:
+          description: Contacts, slack lines and limits that were active at the solution.
+          items:
+            type: string
+          title: Active Constraints
+          type: array
+        rank:
+          anyOf:
+          - minimum: 0
+            type: integer
+          - type: 'null'
+          default: null
+          description: Numerical rank of the support (stiffness) matrix.
+          title: Rank
+        degrees_of_freedom:
+          anyOf:
+          - minimum: 0
+            type: integer
+          - type: 'null'
+          default: null
+          description: Rank is full when rank equals this.
+          title: Degrees Of Freedom
+        notes:
+          items:
+            type: string
+          title: Notes
+          type: array
+      title: SolverDiagnostics
+      type: object
+    SolverResidual:
+      additionalProperties: false
+      description: One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
+      properties:
+        name:
+          examples:
+          - surge_force
+          title: Name
+          type: string
+        value:
+          title: Value
+          type: number
+        unit:
+          examples:
+          - lbf
+          - ftlbf
+          title: Unit
+          type: string
+        tolerance:
+          description: Same unit as value.
+          exclusiveMinimum: 0
+          title: Tolerance
+          type: number
+      required:
+      - name
+      - value
+      - unit
+      - tolerance
+      title: SolverResidual
+      type: object
+    Validity:
+      additionalProperties: false
+      description: 'Whether the numbers can be relied on, independent of the GREEN/AMBER/RED status.
+
+
+        `valid`: inside the model''s qualified domain. `limited`: usable with the stated caveats, so never an
+
+        unconditional GREEN. `invalid`: do not use the numbers; status is RED. `unknown`: not assessed.
+
+        A numerical failure is not proof that no physical solution exists: report it as `invalid` with a reason.'
+      properties:
+        state:
+          enum:
+          - valid
+          - limited
+          - invalid
+          - unknown
+          title: State
+          type: string
+        reasons:
+          items:
+            $ref: '#/components/schemas/ValidityReason'
+          title: Reasons
+          type: array
+        diagnostics:
+          anyOf:
+          - $ref: '#/components/schemas/SolverDiagnostics'
+          - type: 'null'
+          default: null
+      required:
+      - state
+      title: Validity
+      type: object
+    ValidityReason:
+      additionalProperties: false
+      description: Why a result is limited or invalid. Codes are stable UPPER_SNAKE identifiers that clients may switch on.
+      properties:
+        code:
+          examples:
+          - MISSING_FITTING_RATING
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+          type: string
+        message:
+          title: Message
+          type: string
+        affected_components:
+          description: Element ids the reason applies to, e.g. 'line-2', 'P12N-B16'.
+          examples:
+          - - line-2
+          items:
+            type: string
+          title: Affected Components
+          type: array
+      required:
+      - code
+      - message
+      title: ValidityReason
+      type: object
     VisionMetadata:
       additionalProperties: false
       description: Sent as the `metadata` form field (a JSON string) next to the `image` file.
@@ -3041,6 +3419,19 @@ components:
             $ref: '#/components/schemas/Finding'
           title: Warnings
           type: array
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          default: null
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/VisionResult'
       required:

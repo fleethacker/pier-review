@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import Field
 
-from mooring.core.schemas import Model, Status
+from mooring.core.schemas import Model, Status, ValidityState
 
 
 class ToolInvocation(Model):
@@ -17,6 +17,8 @@ class ToolInvocation(Model):
 class ToolCall(Model):
     """One ledger entry. Safety uses the ledger to prove every cited number came from a recorded tool call."""
 
+    wire_omitted_defaults = {"validity_state": "unknown"}
+
     call_id: str
     at_utc: datetime
     caller: str
@@ -25,6 +27,10 @@ class ToolCall(Model):
     request_hash: str
     result_id: str | None = Field(description="Envelope result_id when the tool returns one.")
     status: Status | None
+    validity_state: ValidityState = Field(
+        default="unknown",
+        description="Validity the modeling service reported. Defaults to 'unknown' (omitted on the wire): never read as valid.",
+    )
     duration_ms: float
     error: str | None = None
 

@@ -1871,6 +1871,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/AnalyzeResult'
       additionalProperties: false
@@ -2302,6 +2313,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/BerthingWindowsResult'
       additionalProperties: false
@@ -2584,6 +2606,125 @@ components:
       - water_level
       title: EnvStations
       description: NOAA CO-OPS station ids that feed this berth's environment.
+    EnvironmentMetadata:
+      properties:
+        basis:
+          type: string
+          enum:
+          - observation
+          - prediction
+          - scenario
+          title: Basis
+          description: Measured, forecast/model output, or synthetic what-if input.
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+          description: Provider or station, e.g. 'NOAA CO-OPS 8638610'.
+          examples:
+          - NOAA CO-OPS 8638610
+        issued_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Issued At Utc
+          description: When the observation or forecast was produced.
+        valid_from_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid From Utc
+        valid_to_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid To Utc
+        wind_averaging_s:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Wind Averaging S
+          description: Averaging time of wind_speed_kt.
+        gust_duration_s:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Gust Duration S
+          description: Duration of wind_gust_kt.
+        wind_reference_height_m:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Wind Reference Height M
+          description: Anemometer or model height.
+        current_depth_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Current Depth Ft
+          description: Depth of the current measurement below the surface.
+        current_bin:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Bin
+          description: Instrument bin or model layer id.
+        vertical_datum:
+          anyOf:
+          - type: string
+            enum:
+            - MLLW
+            - MSL
+            - NAVD88
+            - other
+          - type: 'null'
+          title: Vertical Datum
+          description: Datum of water_level_mllw_ft. Its name says MLLW; any other value is a conflict.
+        quality:
+          type: string
+          enum:
+          - good
+          - suspect
+          - poor
+          - unknown
+          title: Quality
+          default: unknown
+        age_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Age S
+          description: Age of the newest observation when the snapshot was built.
+        original:
+          anyOf:
+          - additionalProperties:
+              anyOf:
+              - type: number
+              - type: string
+            type: object
+          - type: 'null'
+          title: Original
+          description: Provider values exactly as received, with their units in the key names, before normalization.
+      additionalProperties: false
+      type: object
+      required:
+      - basis
+      title: EnvironmentMetadata
+      description: 'Where an environment snapshot came from and how to read its numbers (S00a).
+
+
+        Optional: absent means the basis is undocumented, and the legacy meaning applies (wind is a 10 m, 1-minute
+
+        sustained speed; the gust is assumed to be 30 s). Supplying metadata never changes the numerical values.'
     EnvironmentSnapshot:
       properties:
         valid_at_utc:
@@ -2666,6 +2807,11 @@ components:
             $ref: '#/components/schemas/StationQuality'
           type: array
           title: Quality
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/EnvironmentMetadata'
+          - type: 'null'
+          description: Basis, timing, averaging and datum. Absent means undocumented (legacy).
       additionalProperties: false
       type: object
       required:
@@ -3344,6 +3490,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/LimitEnvelopeResult'
       additionalProperties: false
@@ -3685,6 +3842,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/LoadsResult'
       additionalProperties: false
@@ -3728,6 +3896,32 @@ components:
       - wind_rel_ship_deg
       - current_rel_ship_deg
       title: LoadsResult
+    ManifestRecord:
+      properties:
+        kind:
+          type: string
+          title: Kind
+          examples:
+          - ship
+          - berth
+          - line_spec
+          - tug
+        id:
+          type: string
+          title: Id
+        revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Revision
+          description: Content hash or version of the record; null if unversioned.
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - id
+      title: ManifestRecord
+      description: A resolved reference record that went into a result.
     MinMargin:
       properties:
         element_id:
@@ -3835,12 +4029,32 @@ components:
             minimum: 0.0
           - type: 'null'
           title: Pretension Lbf
+          description: 'Initial tension. Legacy default when omitted: 2% of effective MBS (0 if slack_ft > 0). Mutually exclusive
+            with a positive slack_ft: a slack line carries no tension.'
         slack_ft:
           anyOf:
           - type: number
             minimum: 0.0
           - type: 'null'
           title: Slack Ft
+          description: Extra line length beyond the straight-line distance, in feet of stretched length.
+        paid_out_unstretched_length_ft:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Paid Out Unstretched Length Ft
+          description: Unstretched length paid out between fittings. Accepted for forward compatibility; the mock solver ignores
+            it and says so in the response assumptions. Cannot be combined with slack_ft.
+        condition:
+          anyOf:
+          - type: string
+            enum:
+            - wet
+            - dry
+          - type: 'null'
+          title: Condition
+          description: Strength curve for this line. When omitted the request's lines_wet applies (legacy).
       additionalProperties: false
       type: object
       required:
@@ -4078,6 +4292,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/PolarResult'
       additionalProperties: false
@@ -4255,6 +4480,55 @@ components:
       - berth_id
       - side_to
       title: RecommendRequest
+    ResultManifest:
+      properties:
+        resolved_inputs_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolved Inputs Hash
+          description: sha256 of the canonical resolved inputs.
+        code_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Code Version
+        records:
+          items:
+            $ref: '#/components/schemas/ManifestRecord'
+          type: array
+          title: Records
+        environment_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Environment Hash
+          description: sha256 of the environment snapshot used.
+        numerical_settings:
+          additionalProperties:
+            anyOf:
+            - type: number
+            - type: integer
+            - type: string
+            - type: boolean
+          type: object
+          title: Numerical Settings
+        rng_seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Rng Seed
+        rng_model_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rng Model Revision
+      additionalProperties: false
+      type: object
+      title: ResultManifest
+      description: 'What a result depended on, so it can be reproduced. `inputs_hash` still hashes the request as sent;
+
+        `resolved_inputs_hash` hashes the request after defaults and references are resolved.'
     RouteRequest:
       properties:
         origin:
@@ -4328,6 +4602,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/RouteResult'
       additionalProperties: false
@@ -4574,6 +4859,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/SequenceResult'
       additionalProperties: false
@@ -5042,6 +5338,85 @@ components:
       - session_id
       - ws_url
       title: SimSessionCreated
+    SolverDiagnostics:
+      properties:
+        converged:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Converged
+          description: Null when no iterative solve was performed.
+        iterations:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Iterations
+        residuals:
+          items:
+            $ref: '#/components/schemas/SolverResidual'
+          type: array
+          title: Residuals
+          description: Independent force and moment balances, each in its own unit.
+        active_constraints:
+          items:
+            type: string
+          type: array
+          title: Active Constraints
+          description: Contacts, slack lines and limits that were active at the solution.
+        rank:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Rank
+          description: Numerical rank of the support (stiffness) matrix.
+        degrees_of_freedom:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Degrees Of Freedom
+          description: Rank is full when rank equals this.
+        notes:
+          items:
+            type: string
+          type: array
+          title: Notes
+      additionalProperties: false
+      type: object
+      title: SolverDiagnostics
+      description: Numerical evidence behind a result. Absent values are `null` (not measured), never 0 or NaN.
+    SolverResidual:
+      properties:
+        name:
+          type: string
+          title: Name
+          examples:
+          - surge_force
+        value:
+          type: number
+          title: Value
+        unit:
+          type: string
+          title: Unit
+          examples:
+          - lbf
+          - ftlbf
+        tolerance:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Tolerance
+          description: Same unit as value.
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - value
+      - unit
+      - tolerance
+      title: SolverResidual
+      description: One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
     StationQuality:
       properties:
         station_id:
@@ -5308,6 +5683,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/TideSweepResult'
       additionalProperties: false
@@ -5562,6 +5948,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/TugPlanResult'
       additionalProperties: false
@@ -5789,6 +6186,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/UkcResult'
       additionalProperties: false
@@ -5844,6 +6252,64 @@ components:
       - msg
       - type
       title: ValidationError
+    Validity:
+      properties:
+        state:
+          type: string
+          enum:
+          - valid
+          - limited
+          - invalid
+          - unknown
+          title: State
+        reasons:
+          items:
+            $ref: '#/components/schemas/ValidityReason'
+          type: array
+          title: Reasons
+        diagnostics:
+          anyOf:
+          - $ref: '#/components/schemas/SolverDiagnostics'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - state
+      title: Validity
+      description: 'Whether the numbers can be relied on, independent of the GREEN/AMBER/RED status.
+
+
+        `valid`: inside the model''s qualified domain. `limited`: usable with the stated caveats, so never an
+
+        unconditional GREEN. `invalid`: do not use the numbers; status is RED. `unknown`: not assessed.
+
+        A numerical failure is not proof that no physical solution exists: report it as `invalid` with a reason.'
+    ValidityReason:
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+          examples:
+          - MISSING_FITTING_RATING
+        message:
+          type: string
+          title: Message
+        affected_components:
+          items:
+            type: string
+          type: array
+          title: Affected Components
+          description: Element ids the reason applies to, e.g. 'line-2', 'P12N-B16'.
+          examples:
+          - - line-2
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - message
+      title: ValidityReason
+      description: Why a result is limited or invalid. Codes are stable UPPER_SNAKE identifiers that clients may switch on.
     VersionInfo:
       properties:
         api_version:

@@ -1,6 +1,10 @@
 """Modeling service: physics and ML endpoints (modules M1-M7, M11-M13). Run with `make mock` from the repo root."""
 
+import math
+
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
@@ -71,6 +75,22 @@ async def backend_header(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Mooring-Backend"] = overall_backend()
     return response
+
+
+def _finite(value):
+    """Echoed invalid input can be NaN/Infinity, which JSON cannot carry; show it as text instead of crashing."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return repr(value)
+    if isinstance(value, dict):
+        return {k: _finite(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_finite(v) for v in value]
+    return value
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_body(_: Request, exc: RequestValidationError):
+    return JSONResponse(status_code=422, content={"detail": _finite(jsonable_encoder(exc.errors()))})
 
 
 @app.exception_handler(refdata.NotFound)

@@ -1,7 +1,10 @@
 # DC4 Stage 1: wave and swell source investigation
 
-**Decision gate:** investigation only. No wave adapter or schema change should be
-implemented until a human approves a source and RM2 defines the wave fields.
+**Decision gate:** the human approved the public-source order on 4 November 2026:
+NDBC 44099 for observations, GFS-Wave for forecasts/fallback, and 44014 as an
+independent check. Adapter implementation still waits for DC0 and the merged RM2
+ingestion schema coordinated through RM0. Approval does not qualify an offshore
+source as representative of Pier 12.
 
 This note was checked on 4 November 2026 for the repository's mock NAVSTA Norfolk
 Pier 12 location (`36.9585, -76.3305`). Distances below are approximate great-circle
@@ -30,6 +33,60 @@ The former CBIBS Norfolk station 44059 was still closer (about 13 km), but NOAA 
 it operated only from 2008 to 2016. Its history may help a later retrospective
 transfer study, not a live adapter.
 
+## Separate berth-exposure components
+
+The approved buoy/model pair describes offshore wave conditions. It must not collapse
+three physically different berth exposures into one number.
+
+### Ocean swell and offshore sea state
+
+NDBC 44099 is the primary observation and GFS-Wave the forecast/fallback. NDBC's
+detailed wave summary provides wind-sea and swell partitions derived from its measured
+spectrum; the full significant height is a total sea state, not pure swell. Stage 2
+must preserve whether a record is a total, a provider partition or a spectrum. It must
+not apply a total spectrum and then add its swell or wind-sea partition again.
+
+This component is worth building first after its dependencies merge because the
+approved sources and public archives exist. It remains an offshore boundary condition
+until the transfer described below is validated.
+
+### Wind-driven local chop
+
+The [USACE Coastal Engineering Manual, EM 1110-2-1100 Part II (2002)](https://www.publications.usace.army.mil/Portals/76/Publications/EngineerManuals/EM_1110-2-1100_Part-02.pdf)
+provides fetch- and duration-limited wind-wave growth methods. A later implementation
+must record the exact equations and domain, convert the DC1/DC2 wind to the manual's
+required averaging/reference-height basis once, and use water depth, wind duration and
+directional effective fetch. Reporting cadence is not wind duration.
+
+No qualified directional fetch geometry exists in this repository. DC6 chart and
+shoreline work can provide a starting boundary, but pier structures and other local
+obstructions still need review. Therefore local chop is currently **unavailable**, not
+zero. Its future primary inputs should be verified berth wind plus reviewed directional
+fetch geometry; there is no defensible independent fallback today. A berth wave gauge
+would both supersede the estimate for observations and provide validation data.
+
+### Ship and tug wake
+
+The [USACE Vessel Wake Prediction Tool technical note CHETN-IV-121 (2020)](https://erdc-library.erdc.dren.mil/bitstreams/2d81c6ff-5889-441f-a08f-39bfa32c193b/download)
+documents several low-order empirical wake-height/decay models. Their domains vary
+substantially: restricted canals, inland vessels/tows, recreational craft and limited
+Froude-number ranges. USACE describes the tool as a screening method and notes limited
+validation. None is established here for Navy ships, Hampton Roads propagation or a
+moored-ship forcing calculation.
+
+Wake is an event with an arrival time and finite duration, not automatically a
+stationary significant-height/period sea state. Modeling it would require at least a
+real traffic feed, vessel identity/hull dimensions/draft, speed through water, sailing
+line and closest approach, water depth, a domain-appropriate generation/propagation
+model, and berth-side validation. DC7 can decode AIS but does not supply traffic. USCG
+real-time NAIS access requires an approved request and data-sharing agreement and
+restricts redistribution; public historical AIS does not provide a live fallback.
+
+Ship/tug wake is therefore **unavailable with no supported fallback**. Do not infer it
+from generic traffic, silently set it to zero, or treat surface wake as propeller wash.
+It should be built only after an approved feed/model and local validation are supplied;
+it must not block the independently approved offshore component.
+
 ## Harbor penetration and required transfer assumption
 
 Neither 44099, 44014 nor the GFS-Wave grid measures the Pier 12 wave climate. Long
@@ -53,7 +110,7 @@ with an explicit `NO_BERTH_WAVE_TRANSFER` reason. A single scalar attenuation fa
 is not recommended because shelter depends strongly on frequency, direction and
 water level.
 
-## Recommendation and approval requested
+## Approved recommendation and build order
 
 Use **NDBC 44099 as the primary public offshore observation** and **GFS-Wave as the
 forecast/fallback source**. Use 44014 as an independent offshore sanity check, not
@@ -61,11 +118,16 @@ the normal fallback, because it is much farther from the bay entrance. If a qual
 berth-local feed can be supplied, promote it to the primary berth source and use
 44099 plus GFS-Wave as boundary/forecast inputs after calibrating the transfer.
 
-Human decision required before Stage 2: approve that source order and choose whether
-the first implementation should (a) expose offshore conditions while declaring berth
-waves unavailable, or (b) wait for a berth-local feed and a validated transfer. The
-latter is required before wave forcing can support a valid ship-motion conclusion at
-Pier 12.
+Implement the offshore observation/forecast component first once DC0 and the merged
+RM2 schema exist. Expose it as an offshore boundary condition while declaring berth
+wave exposure unavailable with `NO_BERTH_WAVE_TRANSFER`. Follow with local chop only
+after reviewed fetch geometry exists. Leave wake unavailable until its feed, model and
+validation blockers are resolved. A validated berth-local feed may later become the
+primary observation for all components it actually measures.
+
+This order permits honest ingestion and replay work without claiming that offshore
+conditions drive qualified ship motion at Pier 12. A validated berth transfer or local
+measurement remains mandatory before that claim.
 
 ## Licensing and attribution
 
@@ -90,3 +152,6 @@ terms before fixtures are committed.
 - [CBOFS advertised variables](https://tidesandcurrents.noaa.gov/ofs/cbofs/cbofs.html)
 - [NCEP GFS-Wave NOMADS filter](https://nomads.ncep.noaa.gov/gribfilter.php?ds=gfswave)
 - [NWS data-use disclaimer](https://www.weather.gov/disclaimer)
+- [USACE Coastal Engineering Manual listing](https://www.publications.usace.army.mil/USACE-Publications/Engineer-Manuals/)
+- [USACE Vessel Wake Prediction Tool, CHETN-IV-121](https://erdc-library.erdc.dren.mil/bitstreams/2d81c6ff-5889-441f-a08f-39bfa32c193b/download)
+- [USCG AIS data-sharing requirements](https://navcen.uscg.gov/ais-data-sharing-categories-requirements)

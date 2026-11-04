@@ -1,0 +1,45 @@
+# Ship class seed data. Estimated values; see provenance. Ship frame: +x forward, +y port, +z up from waterline.
+class_id: CVN-68
+name: Nimitz class aircraft carrier
+hull_type: CVN
+loa_ft: 1092.0
+lwl_ft: 1040.0
+beam_ft: 134.0
+block_coefficient: 0.62
+loading_conditions:
+- name: full_load
+  displacement_lt: 100000
+  draft_fwd_ft: 37.0
+  draft_aft_ft: 37.0
+  freeboard_ft: 60
+wind_area_lateral_ft2: 66150
+wind_area_frontal_ft2: 14000
+hull_wind_area_lateral_ft2: 45000
+wind_drag_class: hull_dominated
+fittings: []
+push_points:
+- push_point_id: PP-FWD-P
+  x_ft: 328
+  side: port
+  max_force_lbf: 300000
+- push_point_id: PP-FWD-S
+  x_ft: 328
+  side: starboard
+  max_force_lbf: 300000
+- push_point_id: PP-AFT-P
+  x_ft: -328
+  side: port
+  max_force_lbf: 300000
+- push_point_id: PP-AFT-S
+  x_ft: -328
+  side: starboard
+  max_force_lbf: 300000
+standard_line_outfit:
+- spec_id: NYLON-DB-9IN
+  count: 12
+mst_class: IIA
+provenance:
+  source: Public fact sheets + NSTM Table 582-3-1 back-calculation
+  confidence: estimated
+  notes: Lateral wind area back-calculated from the NSTM Table 582-3-1 50-kt load with the UFC 4-159-03 Table 4-2
+    drag class. Dimensions approximate from public fact sheets. Fittings are notional. No fittings yet.

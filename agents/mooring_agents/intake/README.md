@@ -3,7 +3,7 @@
 Turns raw and forecast environment data into what the Planner and Safety agents need: windows of concern,
 a Mooring Service Type (MST) assessment and the conditions to design for.
 
-**Status:** real (`agent.py`), with the original deterministic assessment in `core.py` and optional guarded LLM narration. Endpoints and schemas are unchanged.
+**Status:** real (`agent.py`), with the original deterministic assessment in `core.py` and optional guarded LLM narration. Endpoints are unchanged; reports add optional narration provenance fields.
 
 ## Inputs and outputs
 
@@ -74,17 +74,36 @@ Narration uses `shared.llm.get_llm()` and `intake/prompts/summary.txt`. Configur
 [OpenAI Responses API](https://developers.openai.com/api/docs/guides/text), with
 storage disabled. It does not execute model tool calls. No model is selected
 implicitly and no new dependency is required. Missing configuration returns the
-core report without calling a provider. Incomplete replies, provider errors,
+core assessment without calling a provider, with the code-owned risk headline prepended. Incomplete replies, provider errors,
 invalid proposals and a 30-second narration deadline also fall back to the core;
 failures are logged without response payloads or credentials.
 
-The model returns a private JSON proposal, not an IntakeReport. It supplies three
-to five sentence templates, window impact scores, quality explanations, and at
-most one forecast index with a reason. Numbers and times in generated narrative
-must use references to typed report fields; code substitutes the values. Numeric
-literals, common spelled-out quantities, identifiers, narrative fields and unknown
-references are rejected. This prevents invented numerical values; it does not
-prove the semantic accuracy of every model-written statement.
+The first summary sentence is always written by code: highest window severity (or
+no windows of concern), required MST, and whether that exceeds the ship's MST.
+Unknown ship MST is stated explicitly. The model returns a private JSON proposal,
+not an IntakeReport, with two to four further sentence templates, window impact
+scores, quality explanations, and at most one forecast index with a reason.
+
+Only weather wind/gust/current speeds, directions and water level; window start,
+end, peak, severity and kind; typed MST fields (not reason prose); and planning
+condition times may be referenced. Densities, observation age, data-quality
+internals, IDs, tool calls and other metadata are excluded. The same environmental
+allowlist applies to an extra planning snapshot. Code adds units (kt, °, ft, or
+the window's own peak unit) and formats UTC times as HH:MMZ DD Mon. The model may
+not write unit tokens, literal numbers, or common spelled-out quantities. It may
+not write severity/reassurance terms (RED, AMBER, GREEN, safe, calm, low risk,
+benign) or MST followed by Roman numerals outside fact references. These checks
+apply to summary sentences, quality explanations and extra-condition reasons.
+They constrain numerical provenance and risk language; they do not prove all
+possible semantic claims in generated prose.
+
+Every returned report sets `summary_source` to `llm` or `deterministic`.
+`narration_note` is null on success, or a sanitized fallback reason such as
+`provider timeout`, `guardrail: unit token` or `guardrail: fact reference`.
+Both fields are optional for backward compatibility with older report payloads.
+The successful LLM source refers to the additional sentences; the first sentence
+is still owned by code. Fallback retains the deterministic summary after the
+same headline.
 
 Ranking sorts the original window objects stably by impact score; missing entries
 get zero impact and are never dropped. Quality explanations are appended to the
@@ -97,4 +116,5 @@ duplicates are ignored. The whole proposal is validated before applying any part
 currently import its report store. Core, agent and compatibility imports share
 that store. Agent responses report `backend="real"` even when narration falls back;
 that describes the intake implementation, not whether modeling data is live.
-Underlying mock/stale quality findings remain visible. No endpoint shapes change.
+Underlying mock/stale quality findings remain visible. The generated contract includes
+the two optional provenance fields; all existing fields and endpoints remain.

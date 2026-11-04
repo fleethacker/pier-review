@@ -1,0 +1,45 @@
+# Ship class seed data. Estimated values; see provenance. Ship frame: +x forward, +y port, +z up from waterline.
+class_id: LHD-1
+name: Wasp class amphibious assault ship
+hull_type: LHD
+loa_ft: 844.0
+lwl_ft: 778.0
+beam_ft: 106.0
+block_coefficient: 0.58
+loading_conditions:
+- name: full_load
+  displacement_lt: 40500
+  draft_fwd_ft: 27.0
+  draft_aft_ft: 27.0
+  freeboard_ft: 55
+wind_area_lateral_ft2: 60650
+wind_area_frontal_ft2: 9500
+hull_wind_area_lateral_ft2: 42000
+wind_drag_class: hull_dominated
+fittings: []
+push_points:
+- push_point_id: PP-FWD-P
+  x_ft: 253
+  side: port
+  max_force_lbf: 250000
+- push_point_id: PP-FWD-S
+  x_ft: 253
+  side: starboard
+  max_force_lbf: 250000
+- push_point_id: PP-AFT-P
+  x_ft: -253
+  side: port
+  max_force_lbf: 250000
+- push_point_id: PP-AFT-S
+  x_ft: -253
+  side: starboard
+  max_force_lbf: 250000
+standard_line_outfit:
+- spec_id: NYLON-DB-9IN
+  count: 10
+mst_class: IIA
+provenance:
+  source: Public fact sheets + NSTM Table 582-3-1 back-calculation
+  confidence: estimated
+  notes: Lateral wind area back-calculated from the NSTM Table 582-3-1 50-kt load with the UFC 4-159-03 Table 4-2
+    drag class. Dimensions approximate from public fact sheets. Fittings are notional. No fittings yet.

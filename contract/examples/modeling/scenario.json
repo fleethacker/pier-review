@@ -1,0 +1,64 @@
+{
+  "name": "DDG at Pier 12 North",
+  "ship_class_id": "DDG-51-FIIA",
+  "loading": "full_load",
+  "berth_id": "NAVSTA-NORFOLK-P12-N",
+  "side_to": "starboard",
+  "env_source": {
+    "mode": "mock"
+  },
+  "config": {
+    "side_to": "starboard",
+    "ship_x_ft": 650.0,
+    "lines": [
+      {
+        "line_number": 1,
+        "role": "bow",
+        "spec_id": "NYLON-DB-7IN",
+        "parts": 1,
+        "ship_fitting_id": "BITT-1S",
+        "pier_fitting_id": "P12N-B17"
+      },
+      {
+        "line_number": 2,
+        "role": "spring_aft",
+        "spec_id": "NYLON-DB-7IN",
+        "parts": 1,
+        "ship_fitting_id": "BITT-2S",
+        "pier_fitting_id": "P12N-B12"
+      },
+      {
+        "line_number": 3,
+        "role": "breast",
+        "spec_id": "NYLON-DB-7IN",
+        "parts": 1,
+        "ship_fitting_id": "BITT-3S",
+        "pier_fitting_id": "P12N-M06"
+      },
+      {
+        "line_number": 4,
+        "role": "breast",
+        "spec_id": "NYLON-DB-7IN",
+        "parts": 1,
+        "ship_fitting_id": "BITT-4S",
+        "pier_fitting_id": "P12N-M05"
+      },
+      {
+        "line_number": 5,
+        "role": "spring_fwd",
+        "spec_id": "NYLON-DB-7IN",
+        "parts": 1,
+        "ship_fitting_id": "BITT-5S",
+        "pier_fitting_id": "P12N-B10"
+      },
+      {
+        "line_number": 6,
+        "role": "stern",
+        "spec_id": "NYLON-DB-7IN",
+        "parts": 1,
+        "ship_fitting_id": "BITT-6S",
+        "pier_fitting_id": "P12N-B06"
+      }
+    ]
+  }
+}

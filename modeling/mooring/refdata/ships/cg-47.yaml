@@ -1,0 +1,45 @@
+# Ship class seed data. Estimated values; see provenance. Ship frame: +x forward, +y port, +z up from waterline.
+class_id: CG-47
+name: Ticonderoga class cruiser
+hull_type: CG
+loa_ft: 567.0
+lwl_ft: 529.0
+beam_ft: 55.0
+block_coefficient: 0.47
+loading_conditions:
+- name: full_load
+  displacement_lt: 9800
+  draft_fwd_ft: 33.0
+  draft_aft_ft: 33.0
+  freeboard_ft: 18
+wind_area_lateral_ft2: 25950
+wind_area_frontal_ft2: 3800
+hull_wind_area_lateral_ft2: 9500
+wind_drag_class: extensive_superstructure
+fittings: []
+push_points:
+- push_point_id: PP-FWD-P
+  x_ft: 170
+  side: port
+  max_force_lbf: 150000
+- push_point_id: PP-FWD-S
+  x_ft: 170
+  side: starboard
+  max_force_lbf: 150000
+- push_point_id: PP-AFT-P
+  x_ft: -170
+  side: port
+  max_force_lbf: 150000
+- push_point_id: PP-AFT-S
+  x_ft: -170
+  side: starboard
+  max_force_lbf: 150000
+standard_line_outfit:
+- spec_id: NYLON-DB-7IN
+  count: 8
+mst_class: II
+provenance:
+  source: Public fact sheets + NSTM Table 582-3-1 back-calculation
+  confidence: estimated
+  notes: Lateral wind area back-calculated from the NSTM Table 582-3-1 50-kt load with the UFC 4-159-03 Table 4-2
+    drag class. Dimensions approximate from public fact sheets. Fittings are notional. No fittings yet.

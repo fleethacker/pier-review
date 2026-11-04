@@ -1,0 +1,8 @@
+{
+  "scenario_id": "<scenario_id from POST /scenarios>",
+  "initial_state": {
+    "x_ft": 650,
+    "y_ft": 160,
+    "heading_true_deg": 105.0
+  }
+}

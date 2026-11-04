@@ -1,3 +1,5 @@
+"""Phase 1, moored: static analysis, limiting wind, tide sweep, rules, gust risk, holding tugs, optimizer."""
+
 from typing import Annotated
 
 from fastapi import APIRouter, Body
@@ -5,23 +7,27 @@ from fastapi import APIRouter, Body
 from mooring.core.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
+    ExceedanceRequest,
+    HoldTugRequest,
     JobAccepted,
     LimitEnvelopeRequest,
     LimitEnvelopeResponse,
     RecommendRequest,
     Rule,
-    SequenceRequest,
-    SequenceResponse,
     TideSweepRequest,
     TideSweepResponse,
+    TimelineRequest,
+    TugPlanResponse,
 )
-from mooring.mock.examples import ex
+from mooring.examples import ex
 
-from ..backend import planning, solver
+from ..backend import moored_tugs, optimizer, risk, solver
 from ..state import JOBS
 
 router = APIRouter()
 
+
+# ---- M4 Static mooring ----
 
 @router.post("/mooring/analyze", response_model=AnalyzeResponse, tags=["M4 Static mooring"],
              summary="Line, fitting and fender loads plus NSTM 582 findings for one environment")
@@ -46,13 +52,31 @@ def rules():
     return solver.rules()
 
 
+# ---- M5 Risk ----
+
+@router.post("/risk/exceedance", response_model=JobAccepted, status_code=202, tags=["M5 Risk"],
+             summary="Monte Carlo probability of exceeding line limits (job; result is an ExceedanceResponse)")
+def exceedance(req: Annotated[ExceedanceRequest, Body(openapi_examples=ex("risk_exceedance"))]):
+    return JOBS.submit("risk.exceedance", risk.exceedance(req))
+
+
+@router.post("/risk/timeline", response_model=JobAccepted, status_code=202, tags=["M5 Risk"],
+             summary="Plan status through the forecast (job; result is a TimelineResponse)")
+def timeline(req: Annotated[TimelineRequest, Body(openapi_examples=ex("risk_timeline"))]):
+    return JOBS.submit("risk.timeline", risk.timeline(req))
+
+
+# ---- M6 Holding tugs ----
+
+@router.post("/tugs/hold-plan", response_model=TugPlanResponse, tags=["M6 Tugs"],
+             summary="Tugs needed to relieve overloaded lines on a moored ship")
+def hold_plan(req: Annotated[HoldTugRequest, Body(openapi_examples=ex("tugs_hold_plan"))]):
+    return moored_tugs.hold_plan(req)
+
+
+# ---- M7 Optimizer ----
+
 @router.post("/mooring/recommend", response_model=JobAccepted, status_code=202, tags=["M7 Planning"],
              summary="Recommend line configurations (job; result is a RecommendResponse)")
 def recommend(req: Annotated[RecommendRequest, Body(openapi_examples=ex("mooring_recommend"))]):
-    return JOBS.submit("mooring.recommend", planning.recommend(req))
-
-
-@router.post("/mooring/sequence", response_model=SequenceResponse, tags=["M7 Planning"],
-             summary="Ordered line-handling steps for a configuration")
-def sequence(req: Annotated[SequenceRequest, Body(openapi_examples=ex("mooring_sequence"))]):
-    return planning.sequence(req)
+    return JOBS.submit("mooring.recommend", optimizer.recommend(req))

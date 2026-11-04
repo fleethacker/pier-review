@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Body
 
 from mooring.core.schemas import LoadsRequest, LoadsResponse, PolarRequest, PolarResponse
-from mooring.mock.examples import ex
+from mooring.examples import ex
 
 from ..backend import loads as impl
 

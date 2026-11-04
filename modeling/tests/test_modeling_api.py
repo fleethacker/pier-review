@@ -14,7 +14,7 @@ from mooring.core.schemas import (
     RecommendResponse,
     TimelineResponse,
 )
-from mooring.mock.examples import EXAMPLES
+from mooring.examples import EXAMPLES
 
 P = "/api/v1"
 client = TestClient(app)

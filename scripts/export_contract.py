@@ -18,7 +18,7 @@ CONTRACT = ROOT / "contract"
 def render() -> dict[Path, str]:
     os.environ.setdefault("MOCK_JOB_DELAY_S", "0")
     from modeling_api.main import openapi_schema as modeling_schema
-    from mooring.mock.examples import EXAMPLES
+    from mooring.examples import EXAMPLES
     from mooring_agents.api.main import openapi_schema as agents_schema
 
     def dump(schema: dict) -> str:

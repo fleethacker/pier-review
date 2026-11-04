@@ -11,7 +11,9 @@ info:
 
     (`/tools`, `/physics/*`), which logs every call; every number in a plan cites a logged `result_id`.
 
-    **All agents currently run as mocks** (deterministic, no LLM).
+    **Mixed implementation:** Intake and Planner have guarded optional LLM layers; other agent and modeling
+
+    capabilities still include mocks. See `/version` for module status.
 
     '
   version: 1.1.0
@@ -728,6 +730,18 @@ components:
           - type: string
           - type: 'null'
           title: Safety Sheet Id
+        holding_tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          title: Holding Tugs
+          description: Assistance included in final analyses.
+        condition_analysis_result_ids:
+          items:
+            type: string
+          type: array
+          title: Condition Analysis Result Ids
+          description: Final analysis for each required condition.
       additionalProperties: false
       type: object
       required:
@@ -763,7 +777,7 @@ components:
           - type: string
           - type: 'null'
           title: Intake Report Id
-          description: Design for this report's worst condition.
+          description: Evaluate every planning condition in this report.
         objective:
           type: string
           enum:

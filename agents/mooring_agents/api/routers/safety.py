@@ -90,7 +90,11 @@ def render_sheet(sheet_id: str, format: str = "html"):
     if format == "html":
         return HTMLResponse(sheet.render_html(s))
     if format == "pdf":
-        return Response(sheet.render_pdf(s), media_type="application/pdf",
+        try:
+            pdf = sheet.render_pdf(s)
+        except sheet.PdfUnavailable as exc:
+            return JSONResponse(status_code=501, content={"detail": str(exc)})
+        return Response(pdf, media_type="application/pdf",
                         headers={"Content-Disposition": f'inline; filename="{sheet_id}.pdf"'})
     return JSONResponse(status_code=422, content={"detail": f"unsupported format '{format}'"})
 

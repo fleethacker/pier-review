@@ -116,3 +116,52 @@ def test_watch_emits_forecast_ahead_crossing_with_time(monkeypatch):
     warning = collect(agent.watch("plan_test", FakeClient([env(0)]), interval_s=1, limit=1))[0]
     assert warning.at_utc == forecast.valid_at_utc and warning.pct_of_wll_limit == 90
     assert "Forecast ahead at 14:00Z 04 Nov" in warning.message
+
+
+# ---- Review fixes: holding tugs and every intake condition in the re-analysis; unique sheet versions ----
+
+def test_review_reanalyzes_every_condition_with_holding_tugs(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from mooring_agents.safety import agent as safety_agent
+
+    seen = []
+
+    class TK:
+        plan_id = None
+        client = SimpleNamespace(result=lambda rid: asyncio.sleep(0))
+
+        async def analyze(self, body):
+            seen.append(body)
+            gust = body["environment"]["wind_gust_kt"]
+            status, pct = ("RED", 130) if gust == 99 else ("GREEN", 40)
+            return SimpleNamespace(result_id=f"re-{gust:g}", status=status,
+                                   result=SimpleNamespace(min_margin=SimpleNamespace(element_id="line-2", pct_wll=pct),
+                                                          findings=[]))
+
+        async def envelope(self, body):
+            point = SimpleNamespace(wind_rel_deg=90, limit_wind_kt=60, first_failure_element="line-2")
+            return SimpleNamespace(result_id="env", result=SimpleNamespace(worst=point, points=[point]))
+
+    env = SimpleNamespace(wind_gust_kt=20, model_dump=lambda mode=None: {"wind_gust_kt": 20})
+    storm = SimpleNamespace(wind_gust_kt=99, model_dump=lambda mode=None: {"wind_gust_kt": 99})
+    tugs = [{"tug_id": "T1", "push_point_id": "PP-FWD-P", "mode": "push", "force_lbf": 1000}]
+    plan = SimpleNamespace(rationale=[], config=SimpleNamespace(model_dump=lambda **k: {}), tug_plan=None)
+    rec = SimpleNamespace(plan=plan, scenario=SimpleNamespace(scenario_id="s", ship_class_id="DDG-51-FIIA",
+                          loading="full_load", berth_id="b"), env=env, mst="II", holding_tugs=tugs)
+    report = SimpleNamespace(planning_conditions=[SimpleNamespace(environment=env), SimpleNamespace(environment=storm)],
+                             mst=SimpleNamespace(exceeds_ship_mst=False, reason="ok"))
+    monkeypatch.setitem(safety_agent.PLANS, "plan-x", rec)
+    monkeypatch.setitem(safety_agent.REPORTS, "intake-x", report)
+    monkeypatch.setattr(safety_agent, "_analyze_body",
+                        lambda sc, cfg, e, mst, t=None: {"environment": e.model_dump(), "tugs": t or []})
+    monkeypatch.setenv("AGENTS_LLM_PROVIDER", "none")
+    review = asyncio.run(safety_agent.review(
+        safety_agent.SafetyReviewRequest(plan_id="plan-x", intake_report_id="intake-x"), TK()))
+    analyzed = [b for b in seen]
+    assert len(analyzed) == 2 and all(b["tugs"] == tugs for b in analyzed)  # every condition, with tugs
+    by_id = {c.check_id: c for c in review.checks}
+    assert not by_id["REANALYSIS-NOT-RED"].passed  # the storm condition is RED even though the first is GREEN
+    assert set(by_id["REANALYSIS-NOT-RED"].cites) == {"re-20", "re-99"}
+    assert review.verdict == "revise"

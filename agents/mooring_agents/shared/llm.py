@@ -4,6 +4,7 @@ Provider and model come from the environment (AGENTS_LLM_PROVIDER, AGENTS_LLM_MO
 Tests and mock mode don't call an LLM.
 """
 
+import json
 import os
 from typing import Any, Literal, Protocol
 
@@ -46,9 +47,9 @@ class LLMError(RuntimeError):
 
 
 class OpenAIResponsesLLM:
-    """Text-only adapter using the Responses API; tool execution is not supported.
+    """Responses adapter for guarded narration and function-call proposals.
 
-    https://developers.openai.com/api/docs/guides/text
+    https://developers.openai.com/api/docs/guides/function-calling
     Keys/model are configuration only; no default model or implicit live calls.
     """
 
@@ -56,12 +57,22 @@ class OpenAIResponsesLLM:
         self.model, self._api_key, self._transport = model, api_key, transport
 
     async def chat(self, messages: list[Message], tools=None, *, max_tokens=2048, temperature=0.0) -> Reply:
-        if tools or any(m.tool_uses or m.role == "tool" for m in messages):
-            raise LLMError("This provider adapter supports text narration only")
-        # Temperature is deliberately omitted: not all reasoning models accept it.
-        # Determinism and validity come from application guardrails, not sampling controls.
-        body = {"model": self.model, "input": [{"role": m.role, "content": m.content} for m in messages],
+        inputs = []
+        for message in messages:
+            if message.role == "tool":
+                inputs.append({"type": "function_call_output", "call_id": message.tool_use_id,
+                               "output": message.content})
+            else:
+                if message.content:
+                    inputs.append({"role": message.role, "content": message.content})
+                for call in message.tool_uses:
+                    inputs.append({"type": "function_call", "call_id": call.id, "name": call.name,
+                                   "arguments": json.dumps(call.arguments)})
+        # Omit temperature: application guardrails, not sampling, enforce validity.
+        body = {"model": self.model, "input": inputs,
                 "max_output_tokens": max_tokens, "store": False}
+        if tools:
+            body.update(tools=tools, parallel_tool_calls=False)
         try:
             async with httpx.AsyncClient(transport=self._transport, timeout=25.0) as client:
                 response = await client.post("https://api.openai.com/v1/responses", json=body,
@@ -70,13 +81,17 @@ class OpenAIResponsesLLM:
                 data = response.json()
             if data.get("status") != "completed":
                 raise LLMError("Provider did not complete the response")
-            if any(item.get("type") not in ("message", "reasoning") for item in data["output"]):
-                raise LLMError("Provider returned unsupported non-text output")
+            if any(item.get("type") not in ("message", "reasoning", "function_call") for item in data["output"]):
+                raise LLMError("Provider returned unsupported output")
             text = "\n".join(part["text"] for item in data["output"] if item.get("type") == "message"
                              for part in item.get("content", []) if part.get("type") == "output_text")
-            if not text:
+            calls = [ToolUse(id=item["call_id"], name=item["name"], arguments=json.loads(item["arguments"]))
+                     for item in data["output"] if item.get("type") == "function_call"]
+            if calls and not tools:
+                raise LLMError("Provider returned unrequested tool calls")
+            if not text and not calls:
                 raise LLMError("Provider returned no text")
-            return Reply(text=text, stop_reason="completed",
+            return Reply(text=text, tool_uses=calls, stop_reason="completed",
                          usage={k: v for k, v in (data.get("usage") or {}).items() if type(v) is int})
         except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError) as exc:
             raise LLMError("LLM request or response failed") from exc

@@ -1,0 +1,6 @@
+The current analysis and configuration follow. Choose one allowed move that addresses the governing finding.
+Target maximum utilization: {target:.0f}% WLL.
+
+{analysis}
+
+{config}

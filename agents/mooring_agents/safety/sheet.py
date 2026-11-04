@@ -59,8 +59,8 @@ def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
     if review:
         cited += review.thresholds.cites
     status = review.status if review else (plan.status or "RED")
-    prior_locked = [sheet for sheet in SHEETS.values() if sheet.plan_id == plan.plan_id and sheet.locked]
-    version = max((sheet.version for sheet in prior_locked), default=0) + 1
+    # Every sheet built for the same plan gets the next version, locked or not, so versions never repeat.
+    version = max((sheet.version for sheet in SHEETS.values() if sheet.plan_id == plan.plan_id), default=0) + 1
     sheet = SafetySheet(
         sheet_id=new_id("sheet"), version=version, plan_id=plan.plan_id, review_id=review.review_id if review else None,
         locked=False, status=status,
@@ -135,8 +135,26 @@ MST {s.environment.mst}</p>
 <p><small>{e(s.disclaimer)}</small></p></body></html>"""
 
 
+class PdfUnavailable(RuntimeError):
+    """WeasyPrint is installed but its system libraries (Pango/GObject) are missing."""
+
+
+PDF_SETUP = ("PDF rendering needs the Pango/GObject system libraries used by WeasyPrint: "
+             "`brew install pango` (macOS) or `apt-get install libpango-1.0-0 libpangoft2-1.0-0` (Debian/Ubuntu).")
+
+
+def pdf_available() -> bool:
+    try:
+        import weasyprint  # noqa: F401
+    except (ImportError, OSError):
+        return False
+    return True
+
+
 def render_pdf(s: SafetySheet) -> bytes:
     """Render the canonical HTML sheet to PDF with WeasyPrint."""
-    from weasyprint import HTML
-
+    try:
+        from weasyprint import HTML
+    except (ImportError, OSError) as exc:
+        raise PdfUnavailable(PDF_SETUP) from exc
     return HTML(string=render_html(s)).write_pdf()

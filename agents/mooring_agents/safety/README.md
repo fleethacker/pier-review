@@ -28,7 +28,7 @@ assembly with HTML and PDF rendering (`sheet.py`).
 | GET | `/api/v1/safety/reviews/{review_id}` | `SafetyReview` |
 | GET | `/api/v1/safety/watch/{plan_id}?interval_s=&limit=` | SSE `warning` events |
 | POST | `/api/v1/safety-sheets` | `201`; runs a review if `review_id` is omitted |
-| GET | `/api/v1/safety-sheets/{id}` · `/render?format=html|pdf` | sheet · printable HTML or PDF |
+| GET | `/api/v1/safety-sheets/{id}` · `/render?format=html|pdf` | sheet · printable HTML or PDF (PDF returns 501 with setup instructions if Pango is missing) |
 | POST | `/api/v1/safety-sheets/{id}/approvals` | sheet |
 
 ## Checks (deterministic, never decided by an LLM)
@@ -70,3 +70,10 @@ that result rather than reproduce line physics.
 - A forecast beyond the ship's MST makes the verdict `reject`.
 - The watch stream emits AMBER at ≥ 80% and RED at ≥ 100% of the limit for the current wind direction.
 - The sheet contains go/no-go lines for 80% of limit, the limit, and the breaking threshold.
+
+## PDF rendering setup
+
+PDFs are rendered from the HTML sheet with WeasyPrint, which needs the Pango/GObject system libraries:
+`brew install pango` on macOS, or `apt-get install libpango-1.0-0 libpangoft2-1.0-0` on Debian/Ubuntu
+(including container images). Without them, `format=pdf` returns `501` with these instructions and HTML still
+works; the tests accept either outcome.

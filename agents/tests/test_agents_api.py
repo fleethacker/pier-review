@@ -56,8 +56,13 @@ def test_safety_sheet_lifecycle(plan_id):
     html = client.get(f"{P}/safety-sheets/{sid}/render?format=html")
     assert html.status_code == 200 and "Mooring Evolution Safety Sheet" in html.text
     pdf = client.get(f"{P}/safety-sheets/{sid}/render?format=pdf")
-    assert pdf.status_code == 200 and pdf.headers["content-type"] == "application/pdf"
-    assert pdf.content.startswith(b"%PDF")
+    from mooring_agents.safety.sheet import pdf_available
+
+    if pdf_available():
+        assert pdf.status_code == 200 and pdf.headers["content-type"] == "application/pdf"
+        assert pdf.content.startswith(b"%PDF")
+    else:  # system libraries missing: a clear 501, never a crash
+        assert pdf.status_code == 501 and "pango" in pdf.json()["detail"].lower()
     approved = client.post(f"{P}/safety-sheets/{sid}/approvals",
                            json={"role": "co", "name": "Commanding Officer", "decision": "approve"}).json()
     assert approved["locked"] and approved["approvals"][0]["role"] == "co"

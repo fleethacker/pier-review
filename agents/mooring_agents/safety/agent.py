@@ -130,13 +130,24 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
     results = [await checks.cites_resolve(tk, cites), checks.cites_in_ledger(req.plan_id, cites)]
 
     report = REPORTS.get(req.intake_report_id) if req.intake_report_id else None
-    env = report.planning_conditions[0].environment if report else rec.env
     if plan.config is None:
         raise ModelingError(422, "Plan has no configuration to review")
-    body = _analyze_body(rec.scenario, plan.config, env, rec.mst)
-    reanalysis = await tk.analyze(body)
-    results.extend([checks.reanalysis_not_red(reanalysis, env), checks.margin(reanalysis, req.target_margin_pct_wll),
-                    checks.no_red_findings(reanalysis)])
+    # Independent re-analysis at every intake planning condition (at least as thorough as the Planner),
+    # with the same holding-tug assistance the plan relies on. The worst condition governs the checks.
+    environments = [condition.environment for condition in report.planning_conditions] if report else [rec.env]
+    holding = getattr(rec, "holding_tugs", None) or []
+    reanalyses = [await tk.analyze(_analyze_body(rec.scenario, plan.config, condition, rec.mst, holding))
+                  for condition in environments]
+    rank = {"GREEN": 0, "INFO": 0, "AMBER": 1, "RED": 2}
+    worst_index = max(range(len(reanalyses)),
+                      key=lambda i: (rank[reanalyses[i].status], reanalyses[i].result.min_margin.pct_wll))
+    reanalysis, env = reanalyses[worst_index], environments[worst_index]
+    body = _analyze_body(rec.scenario, plan.config, env, rec.mst, holding)
+    reanalysis_checks = [checks.reanalysis_not_red(reanalysis, env),
+                         checks.margin(reanalysis, req.target_margin_pct_wll), checks.no_red_findings(reanalysis)]
+    for check in reanalysis_checks:
+        check.cites = [r.result_id for r in reanalyses]
+    results.extend(reanalysis_checks)
 
     envelope = await tk.envelope({**body, "step_deg": 15})
     worst = envelope.result.worst

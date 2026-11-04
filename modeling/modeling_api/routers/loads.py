@@ -3,15 +3,17 @@ from typing import Annotated
 from fastapi import APIRouter, Body
 
 from mooring.core.schemas import LoadsRequest, LoadsResponse, PolarRequest, PolarResponse
-from mooring.mock.examples import ex
+from mooring.examples import ex
 
 from ..backend import loads as impl
+from ..inputs import check_loads
 
 router = APIRouter(tags=["M3 Environmental loads"])
 
 
 @router.post("/loads/environmental", response_model=LoadsResponse, summary="Wind and current forces on the ship")
 def environmental(req: Annotated[LoadsRequest, Body(openapi_examples=ex("loads_environmental"))]):
+    check_loads(req)
     return impl.environmental(req)
 
 

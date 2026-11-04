@@ -1,0 +1,31 @@
+{
+  "type": "session_lifecycle",
+  "schema_version": "rm0-v1",
+  "session_id": "sim_rm0_fixture",
+  "run_id": "run_rm0_fixture_reset",
+  "sequence": 65,
+  "t_s": 0.0,
+  "state": "ended",
+  "scene_id": "scene_rm0_fixture",
+  "scene_revision": "1",
+  "message": "Authored ended lifecycle example; no live session was run.",
+  "validity": {
+    "state": "limited",
+    "reasons": [
+      {
+        "code": "AUTHORED_DISPLAY_FIXTURE",
+        "message": "Authored display value; no physical solution.",
+        "affected_components": [
+          "session"
+        ]
+      }
+    ],
+    "diagnostics": null
+  },
+  "provenance": {
+    "kind": "mock",
+    "source": "RM0 display fixture",
+    "references": [],
+    "notes": []
+  }
+}

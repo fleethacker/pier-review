@@ -34,8 +34,12 @@ Pydantic schemas or endpoints, run `make contract` from the repo root, and commi
 2. `POST /scenarios`: save ship, berth, side and line configuration from the canvas.
 3. `POST /mooring/analyze` on every canvas change: color lines and fittings by `status` and `pct_wll`.
 4. `WS /ws/env` and `WS /ws/alerts`: live wind, current, tide and gust warnings.
-5. Agents: `POST /agent/plans` → stream `events_url` → `GET /agent/plans/{id}`.
-6. Agents: `POST /safety-sheets` → `GET /safety-sheets/{id}/render?format=html` → `POST .../approvals`.
+5. Agents: `POST /intake/reports` → `POST /agent/plans` (with `intake_report_id`) → stream `events_url` →
+   `GET /agent/plans/{id}`.
+6. Agents: `POST /safety/reviews` → `POST /safety-sheets` (with `review_id`) →
+   `GET /safety-sheets/{id}/render?format=html` → `POST .../approvals`. Live gust warnings:
+   `GET /safety/watch/{plan_id}` (SSE `warning` events).
+7. Agents: `GET /physics/calls?plan_id=` shows every physics call behind a plan (audit trail).
 
 ## Where the contract differs from docs/PLAN.md
 
@@ -45,4 +49,5 @@ The plan's examples were a first draft; this folder is authoritative. Changes ma
 - Pier fittings carry `capacity_nominal_lbf` (NSTM Table 582-5-6 "Nom.") plus optional horizontal and 45° ratings.
 - Envelopes include `backend` (`mock` or `real`).
 - Approach requests use `origin` instead of `from`.
-- Agents (M8–M10) are a separate service on `:8001` with their own spec.
+- Agents are a separate service on `:8001` with their own spec: Intake, Physics (tool gateway), Planner,
+  Safety/Brief and Berth Map agents.

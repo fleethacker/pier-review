@@ -3,9 +3,11 @@ info:
   title: 'Mooring Assistant: Modeling API'
   description: '
 
-    Physics and ML modeling service for the mooring assistant. **All modules currently run on mock backends**
+    Physics and ML modeling service for the mooring assistant. **Most modules still run on mock backends.**
 
-    (check `backend` in every response envelope and the `X-Mooring-Backend` header).
+    Environmental loads (M3, UFC 4-159-03) and reference data are real; `GET /version` lists each module''s status.
+
+    Check `backend` in every response envelope; the `X-Mooring-Backend` header is `mixed` while some modules are mock.
 
 
     Conventions: unit-suffixed field names (`_kt`, `_ft`, `_lbf`, `_deg`, `_utc`); wind direction is where it blows
@@ -449,9 +451,9 @@ paths:
                     - line_number: 1
                       role: bow
                       spec_id: NYLON-DB-7IN
-                      parts: 3
+                      parts: 1
                       ship_fitting_id: BITT-1S
-                      pier_fitting_id: P12N-B16
+                      pier_fitting_id: P12N-B17
                     - line_number: 2
                       role: spring_aft
                       spec_id: NYLON-DB-7IN
@@ -459,17 +461,17 @@ paths:
                       ship_fitting_id: BITT-2S
                       pier_fitting_id: P12N-B12
                     - line_number: 3
-                      role: spring_fwd
+                      role: breast
                       spec_id: NYLON-DB-7IN
                       parts: 1
                       ship_fitting_id: BITT-3S
-                      pier_fitting_id: P12N-B14
+                      pier_fitting_id: P12N-M06
                     - line_number: 4
-                      role: spring_aft
+                      role: breast
                       spec_id: NYLON-DB-7IN
                       parts: 1
                       ship_fitting_id: BITT-4S
-                      pier_fitting_id: P12N-B08
+                      pier_fitting_id: P12N-M05
                     - line_number: 5
                       role: spring_fwd
                       spec_id: NYLON-DB-7IN
@@ -479,7 +481,7 @@ paths:
                     - line_number: 6
                       role: stern
                       spec_id: NYLON-DB-7IN
-                      parts: 3
+                      parts: 1
                       ship_fitting_id: BITT-6S
                       pier_fitting_id: P12N-B06
         required: true
@@ -522,6 +524,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/qualification:
+    get:
+      tags:
+      - M2 Reference data
+      summary: Catalog integrity and per-asset qualification level
+      operationId: catalog_audit_api_v1_qualification_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogAudit'
+  /api/v1/capabilities:
+    get:
+      tags:
+      - M2 Reference data
+      summary: What each capability is qualified for today, with limitations and blockers
+      operationId: capabilities_api_v1_capabilities_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/CapabilityRow'
+                type: array
+                title: Response Capabilities Api V1 Capabilities Get
   /api/v1/loads/environmental:
     post:
       tags:
@@ -631,9 +662,9 @@ paths:
                     - line_number: 1
                       role: bow
                       spec_id: NYLON-DB-7IN
-                      parts: 3
+                      parts: 1
                       ship_fitting_id: BITT-1S
-                      pier_fitting_id: P12N-B16
+                      pier_fitting_id: P12N-B17
                     - line_number: 2
                       role: spring_aft
                       spec_id: NYLON-DB-7IN
@@ -641,17 +672,17 @@ paths:
                       ship_fitting_id: BITT-2S
                       pier_fitting_id: P12N-B12
                     - line_number: 3
-                      role: spring_fwd
+                      role: breast
                       spec_id: NYLON-DB-7IN
                       parts: 1
                       ship_fitting_id: BITT-3S
-                      pier_fitting_id: P12N-B14
+                      pier_fitting_id: P12N-M06
                     - line_number: 4
-                      role: spring_aft
+                      role: breast
                       spec_id: NYLON-DB-7IN
                       parts: 1
                       ship_fitting_id: BITT-4S
-                      pier_fitting_id: P12N-B08
+                      pier_fitting_id: P12N-M05
                     - line_number: 5
                       role: spring_fwd
                       spec_id: NYLON-DB-7IN
@@ -661,7 +692,7 @@ paths:
                     - line_number: 6
                       role: stern
                       spec_id: NYLON-DB-7IN
-                      parts: 3
+                      parts: 1
                       ship_fitting_id: BITT-6S
                       pier_fitting_id: P12N-B06
                   environment:
@@ -718,9 +749,9 @@ paths:
                     - line_number: 1
                       role: bow
                       spec_id: NYLON-DB-7IN
-                      parts: 3
+                      parts: 1
                       ship_fitting_id: BITT-1S
-                      pier_fitting_id: P12N-B16
+                      pier_fitting_id: P12N-B17
                     - line_number: 2
                       role: spring_aft
                       spec_id: NYLON-DB-7IN
@@ -728,17 +759,17 @@ paths:
                       ship_fitting_id: BITT-2S
                       pier_fitting_id: P12N-B12
                     - line_number: 3
-                      role: spring_fwd
+                      role: breast
                       spec_id: NYLON-DB-7IN
                       parts: 1
                       ship_fitting_id: BITT-3S
-                      pier_fitting_id: P12N-B14
+                      pier_fitting_id: P12N-M06
                     - line_number: 4
-                      role: spring_aft
+                      role: breast
                       spec_id: NYLON-DB-7IN
                       parts: 1
                       ship_fitting_id: BITT-4S
-                      pier_fitting_id: P12N-B08
+                      pier_fitting_id: P12N-M05
                     - line_number: 5
                       role: spring_fwd
                       spec_id: NYLON-DB-7IN
@@ -748,7 +779,7 @@ paths:
                     - line_number: 6
                       role: stern
                       spec_id: NYLON-DB-7IN
-                      parts: 3
+                      parts: 1
                       ship_fitting_id: BITT-6S
                       pier_fitting_id: P12N-B06
                   environment:
@@ -806,9 +837,9 @@ paths:
                     - line_number: 1
                       role: bow
                       spec_id: NYLON-DB-7IN
-                      parts: 3
+                      parts: 1
                       ship_fitting_id: BITT-1S
-                      pier_fitting_id: P12N-B16
+                      pier_fitting_id: P12N-B17
                     - line_number: 2
                       role: spring_aft
                       spec_id: NYLON-DB-7IN
@@ -816,17 +847,17 @@ paths:
                       ship_fitting_id: BITT-2S
                       pier_fitting_id: P12N-B12
                     - line_number: 3
-                      role: spring_fwd
+                      role: breast
                       spec_id: NYLON-DB-7IN
                       parts: 1
                       ship_fitting_id: BITT-3S
-                      pier_fitting_id: P12N-B14
+                      pier_fitting_id: P12N-M06
                     - line_number: 4
-                      role: spring_aft
+                      role: breast
                       spec_id: NYLON-DB-7IN
                       parts: 1
                       ship_fitting_id: BITT-4S
-                      pier_fitting_id: P12N-B08
+                      pier_fitting_id: P12N-M05
                     - line_number: 5
                       role: spring_fwd
                       spec_id: NYLON-DB-7IN
@@ -836,7 +867,7 @@ paths:
                     - line_number: 6
                       role: stern
                       spec_id: NYLON-DB-7IN
-                      parts: 3
+                      parts: 1
                       ship_fitting_id: BITT-6S
                       pier_fitting_id: P12N-B06
                   environment:
@@ -887,127 +918,6 @@ paths:
                   $ref: '#/components/schemas/Rule'
                 type: array
                 title: Response Rules Api V1 Rules Get
-  /api/v1/mooring/recommend:
-    post:
-      tags:
-      - M7 Planning
-      summary: Recommend line configurations (job; result is a RecommendResponse)
-      operationId: recommend_api_v1_mooring_recommend_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RecommendRequest'
-            examples:
-              default:
-                summary: DDG 51 at mock Pier 12 North
-                value:
-                  ship_class_id: DDG-51-FIIA
-                  loading: full_load
-                  berth_id: NAVSTA-NORFOLK-P12-N
-                  side_to: starboard
-                  ship_x_ft: 650
-                  design_mst: II
-                  max_candidates: 3
-        required: true
-      responses:
-        '202':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobAccepted'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/mooring/sequence:
-    post:
-      tags:
-      - M7 Planning
-      summary: Ordered line-handling steps for a configuration
-      operationId: sequence_api_v1_mooring_sequence_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SequenceRequest'
-            examples:
-              default:
-                summary: DDG 51 at mock Pier 12 North
-                value:
-                  ship_class_id: DDG-51-FIIA
-                  berth_id: NAVSTA-NORFOLK-P12-N
-                  config:
-                    side_to: starboard
-                    ship_x_ft: 650.0
-                    lines:
-                    - line_number: 1
-                      role: bow
-                      spec_id: NYLON-DB-7IN
-                      parts: 3
-                      ship_fitting_id: BITT-1S
-                      pier_fitting_id: P12N-B16
-                    - line_number: 2
-                      role: spring_aft
-                      spec_id: NYLON-DB-7IN
-                      parts: 1
-                      ship_fitting_id: BITT-2S
-                      pier_fitting_id: P12N-B12
-                    - line_number: 3
-                      role: spring_fwd
-                      spec_id: NYLON-DB-7IN
-                      parts: 1
-                      ship_fitting_id: BITT-3S
-                      pier_fitting_id: P12N-B14
-                    - line_number: 4
-                      role: spring_aft
-                      spec_id: NYLON-DB-7IN
-                      parts: 1
-                      ship_fitting_id: BITT-4S
-                      pier_fitting_id: P12N-B08
-                    - line_number: 5
-                      role: spring_fwd
-                      spec_id: NYLON-DB-7IN
-                      parts: 1
-                      ship_fitting_id: BITT-5S
-                      pier_fitting_id: P12N-B10
-                    - line_number: 6
-                      role: stern
-                      spec_id: NYLON-DB-7IN
-                      parts: 3
-                      ship_fitting_id: BITT-6S
-                      pier_fitting_id: P12N-B06
-                  environment:
-                    valid_at_utc: '2026-11-04T15:48:00Z'
-                    source: scenario
-                    wind_speed_kt: 22.0
-                    wind_gust_kt: 30.0
-                    wind_from_true_deg: 200.0
-                    current_speed_kt: 0.6
-                    current_set_true_deg: 10.0
-                    water_level_mllw_ft: 1.8
-                    tide_stage: ebb
-                    air_density_kgm3: 1.225
-                    water_density_kgm3: 1020.0
-                    quality: []
-                  line_handling_crews: 6
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SequenceResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/risk/exceedance:
     post:
       tags:
@@ -1033,9 +943,9 @@ paths:
                     - line_number: 1
                       role: bow
                       spec_id: NYLON-DB-7IN
-                      parts: 3
+                      parts: 1
                       ship_fitting_id: BITT-1S
-                      pier_fitting_id: P12N-B16
+                      pier_fitting_id: P12N-B17
                     - line_number: 2
                       role: spring_aft
                       spec_id: NYLON-DB-7IN
@@ -1043,17 +953,17 @@ paths:
                       ship_fitting_id: BITT-2S
                       pier_fitting_id: P12N-B12
                     - line_number: 3
-                      role: spring_fwd
+                      role: breast
                       spec_id: NYLON-DB-7IN
                       parts: 1
                       ship_fitting_id: BITT-3S
-                      pier_fitting_id: P12N-B14
+                      pier_fitting_id: P12N-M06
                     - line_number: 4
-                      role: spring_aft
+                      role: breast
                       spec_id: NYLON-DB-7IN
                       parts: 1
                       ship_fitting_id: BITT-4S
-                      pier_fitting_id: P12N-B08
+                      pier_fitting_id: P12N-M05
                     - line_number: 5
                       role: spring_fwd
                       spec_id: NYLON-DB-7IN
@@ -1063,7 +973,7 @@ paths:
                     - line_number: 6
                       role: stern
                       spec_id: NYLON-DB-7IN
-                      parts: 3
+                      parts: 1
                       ship_fitting_id: BITT-6S
                       pier_fitting_id: P12N-B06
                   environment:
@@ -1123,9 +1033,9 @@ paths:
                     - line_number: 1
                       role: bow
                       spec_id: NYLON-DB-7IN
-                      parts: 3
+                      parts: 1
                       ship_fitting_id: BITT-1S
-                      pier_fitting_id: P12N-B16
+                      pier_fitting_id: P12N-B17
                     - line_number: 2
                       role: spring_aft
                       spec_id: NYLON-DB-7IN
@@ -1133,17 +1043,17 @@ paths:
                       ship_fitting_id: BITT-2S
                       pier_fitting_id: P12N-B12
                     - line_number: 3
-                      role: spring_fwd
+                      role: breast
                       spec_id: NYLON-DB-7IN
                       parts: 1
                       ship_fitting_id: BITT-3S
-                      pier_fitting_id: P12N-B14
+                      pier_fitting_id: P12N-M06
                     - line_number: 4
-                      role: spring_aft
+                      role: breast
                       spec_id: NYLON-DB-7IN
                       parts: 1
                       ship_fitting_id: BITT-4S
-                      pier_fitting_id: P12N-B08
+                      pier_fitting_id: P12N-M05
                     - line_number: 5
                       role: spring_fwd
                       spec_id: NYLON-DB-7IN
@@ -1153,7 +1063,7 @@ paths:
                     - line_number: 6
                       role: stern
                       spec_id: NYLON-DB-7IN
-                      parts: 3
+                      parts: 1
                       ship_fitting_id: BITT-6S
                       pier_fitting_id: P12N-B06
                   environment:
@@ -1173,6 +1083,130 @@ paths:
                   lines_wet: true
                   forecast_hours: 24
                   step_min: 60
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tugs/hold-plan:
+    post:
+      tags:
+      - M6 Tugs
+      summary: Tugs needed to relieve overloaded lines on a moored ship
+      operationId: hold_plan_api_v1_tugs_hold_plan_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HoldTugRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  config:
+                    side_to: starboard
+                    ship_x_ft: 650.0
+                    lines:
+                    - line_number: 1
+                      role: bow
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-1S
+                      pier_fitting_id: P12N-B17
+                    - line_number: 2
+                      role: spring_aft
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-2S
+                      pier_fitting_id: P12N-B12
+                    - line_number: 3
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-3S
+                      pier_fitting_id: P12N-M06
+                    - line_number: 4
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-4S
+                      pier_fitting_id: P12N-M05
+                    - line_number: 5
+                      role: spring_fwd
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-5S
+                      pier_fitting_id: P12N-B10
+                    - line_number: 6
+                      role: stern
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-6S
+                      pier_fitting_id: P12N-B06
+                  environment:
+                    valid_at_utc: '2026-11-04T15:48:00Z'
+                    source: scenario
+                    wind_speed_kt: 22.0
+                    wind_gust_kt: 30.0
+                    wind_from_true_deg: 200.0
+                    current_speed_kt: 0.6
+                    current_set_true_deg: 10.0
+                    water_level_mllw_ft: 1.8
+                    tide_stage: ebb
+                    air_density_kgm3: 1.225
+                    water_density_kgm3: 1020.0
+                    quality: []
+                  mst: II
+                  lines_wet: true
+                  margin: 0.25
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TugPlanResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mooring/recommend:
+    post:
+      tags:
+      - M7 Planning
+      summary: Recommend line configurations (job; result is a RecommendResponse)
+      operationId: recommend_api_v1_mooring_recommend_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  loading: full_load
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  side_to: starboard
+                  ship_x_ft: 650
+                  design_mst: II
+                  max_candidates: 3
         required: true
       responses:
         '202':
@@ -1234,94 +1268,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/tugs/hold-plan:
-    post:
-      tags:
-      - M6 Tugs
-      summary: Tugs needed to relieve overloaded lines on a moored ship
-      operationId: hold_plan_api_v1_tugs_hold_plan_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/HoldTugRequest'
-            examples:
-              default:
-                summary: DDG 51 at mock Pier 12 North
-                value:
-                  ship_class_id: DDG-51-FIIA
-                  loading: full_load
-                  berth_id: NAVSTA-NORFOLK-P12-N
-                  config:
-                    side_to: starboard
-                    ship_x_ft: 650.0
-                    lines:
-                    - line_number: 1
-                      role: bow
-                      spec_id: NYLON-DB-7IN
-                      parts: 3
-                      ship_fitting_id: BITT-1S
-                      pier_fitting_id: P12N-B16
-                    - line_number: 2
-                      role: spring_aft
-                      spec_id: NYLON-DB-7IN
-                      parts: 1
-                      ship_fitting_id: BITT-2S
-                      pier_fitting_id: P12N-B12
-                    - line_number: 3
-                      role: spring_fwd
-                      spec_id: NYLON-DB-7IN
-                      parts: 1
-                      ship_fitting_id: BITT-3S
-                      pier_fitting_id: P12N-B14
-                    - line_number: 4
-                      role: spring_aft
-                      spec_id: NYLON-DB-7IN
-                      parts: 1
-                      ship_fitting_id: BITT-4S
-                      pier_fitting_id: P12N-B08
-                    - line_number: 5
-                      role: spring_fwd
-                      spec_id: NYLON-DB-7IN
-                      parts: 1
-                      ship_fitting_id: BITT-5S
-                      pier_fitting_id: P12N-B10
-                    - line_number: 6
-                      role: stern
-                      spec_id: NYLON-DB-7IN
-                      parts: 3
-                      ship_fitting_id: BITT-6S
-                      pier_fitting_id: P12N-B06
-                  environment:
-                    valid_at_utc: '2026-11-04T15:48:00Z'
-                    source: scenario
-                    wind_speed_kt: 22.0
-                    wind_gust_kt: 30.0
-                    wind_from_true_deg: 200.0
-                    current_speed_kt: 0.6
-                    current_set_true_deg: 10.0
-                    water_level_mllw_ft: 1.8
-                    tide_stage: ebb
-                    air_density_kgm3: 1.225
-                    water_density_kgm3: 1020.0
-                    quality: []
-                  mst: II
-                  lines_wet: true
-                  margin: 0.25
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TugPlanResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/windows/berthing:
     post:
       tags:
@@ -1352,6 +1298,116 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BerthingWindowsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mooring/sequence:
+    post:
+      tags:
+      - M7 Planning
+      summary: Ordered line-handling steps for a configuration
+      operationId: sequence_api_v1_mooring_sequence_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceRequest'
+            examples:
+              default:
+                summary: DDG 51 at mock Pier 12 North
+                value:
+                  ship_class_id: DDG-51-FIIA
+                  berth_id: NAVSTA-NORFOLK-P12-N
+                  config:
+                    side_to: starboard
+                    ship_x_ft: 650.0
+                    lines:
+                    - line_number: 1
+                      role: bow
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-1S
+                      pier_fitting_id: P12N-B17
+                    - line_number: 2
+                      role: spring_aft
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-2S
+                      pier_fitting_id: P12N-B12
+                    - line_number: 3
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-3S
+                      pier_fitting_id: P12N-M06
+                    - line_number: 4
+                      role: breast
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-4S
+                      pier_fitting_id: P12N-M05
+                    - line_number: 5
+                      role: spring_fwd
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-5S
+                      pier_fitting_id: P12N-B10
+                    - line_number: 6
+                      role: stern
+                      spec_id: NYLON-DB-7IN
+                      parts: 1
+                      ship_fitting_id: BITT-6S
+                      pier_fitting_id: P12N-B06
+                  environment:
+                    valid_at_utc: '2026-11-04T15:48:00Z'
+                    source: scenario
+                    wind_speed_kt: 22.0
+                    wind_gust_kt: 30.0
+                    wind_from_true_deg: 200.0
+                    current_speed_kt: 0.6
+                    current_set_true_deg: 10.0
+                    water_level_mllw_ft: 1.8
+                    tide_stage: ebb
+                    air_density_kgm3: 1.225
+                    water_density_kgm3: 1020.0
+                    quality: []
+                  line_handling_crews: 6
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mooring/sequence/validate:
+    post:
+      tags:
+      - M7 Planning
+      summary: 'Check a proposed line-handling sequence: dependencies, crews, tug provenance and intermediate states'
+      operationId: sequence_validate_api_v1_mooring_sequence_validate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceValidateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceResponse'
         '422':
           description: Validation Error
           content:
@@ -1417,7 +1473,7 @@ paths:
     get:
       tags:
       - M11 Berthing simulator
-      summary: Frames from a batch run (1 Hz)
+      summary: Persisted frames and validity from a completed batch run
       operationId: series_api_v1_berthing_simulations__job_id__series_get
       parameters:
       - name: job_id
@@ -1632,8 +1688,19 @@ paths:
       tags:
       - M13 Telemetry
       summary: Ingest sensor records
+      description: When MOORING_TELEMETRY_KEY is set the key is required (constant-time compare). Unset means local demo only.
       operationId: batch_api_v1_telemetry_batch_post
+      parameters:
+      - name: x-telemetry-key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Telemetry-Key
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1645,12 +1712,11 @@ paths:
                   records:
                   - source: ship_nmea
                     t_utc: '2026-11-04T15:48:00Z'
-                    sentence: $WIMWV,045.0,R,18.5,N,A*1C
+                    sentence: $WIMWV,045.0,R,18.5,N,A*1E
                   - source: load_cell
                     t_utc: '2026-11-04T15:48:00Z'
                     line_number: 2
                     tension_lbf: 31000
-        required: true
       responses:
         '202':
           description: Successful Response
@@ -1690,6 +1756,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - System
+      summary: Cancel a queued or running job
+      operationId: job_cancel_api_v1_jobs__job_id__delete
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/jobs/{job_id}/events:
     get:
       tags:
@@ -1703,6 +1794,14 @@ paths:
         schema:
           type: string
           title: Job Id
+      - name: last-event-id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last-Event-Id
       responses:
         '200':
           description: Successful Response
@@ -1768,6 +1867,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VersionInfo'
+  /api/v1/metrics:
+    get:
+      tags:
+      - System
+      summary: Single-process operational counters (authenticated when enabled)
+      operationId: metrics_snapshot_api_v1_metrics_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: number
+                type: object
+                title: Response Metrics Snapshot Api V1 Metrics Get
 components:
   schemas:
     AnalyzeRequest:
@@ -1816,6 +1931,13 @@ components:
           title: Lines Wet
           description: Apply the wet-strength factor (nylon loses 15%).
           default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
       additionalProperties: false
       type: object
       required:
@@ -1869,6 +1991,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/AnalyzeResult'
       additionalProperties: false
@@ -1979,6 +2112,60 @@ components:
       - job_id
       - points
       title: ApproachTrack
+    AssetQualification:
+      properties:
+        asset_kind:
+          type: string
+          enum:
+          - ship
+          - berth
+          - line_spec
+          - tug
+          title: Asset Kind
+        asset_id:
+          type: string
+          title: Asset Id
+        level:
+          type: string
+          enum:
+          - qualified
+          - demonstration
+          - unqualified
+          title: Level
+        provenance_confidence:
+          type: string
+          title: Provenance Confidence
+        issues:
+          items:
+            $ref: '#/components/schemas/QualificationIssue'
+          type: array
+          title: Issues
+        capabilities:
+          additionalProperties:
+            type: string
+            enum:
+            - supported
+            - limited
+            - unsupported
+          type: object
+          title: Capabilities
+          description: Per capability (e.g. 'static_mooring', 'tug_allocation').
+      additionalProperties: false
+      type: object
+      required:
+      - asset_kind
+      - asset_id
+      - level
+      - provenance_confidence
+      title: AssetQualification
+      description: 'How far one catalog record can be trusted.
+
+
+        `qualified`: published provenance and every required field. `demonstration`: complete but mock, estimated,
+
+        vision or unverified data; usable for demos, results are limited. `unqualified`: required data missing or
+
+        inconsistent; a real analysis must not proceed.'
     Berth:
       properties:
         berth_id:
@@ -2049,6 +2236,26 @@ components:
       - env_station_ids
       - provenance
       title: Berth
+    BerthAcceleration:
+      properties:
+        x_fps2:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: X Fps2
+        y_fps2:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Y Fps2
+        z_fps2:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Z Fps2
+      additionalProperties: false
+      type: object
+      title: BerthAcceleration
     BerthCreated:
       properties:
         berth_id:
@@ -2059,6 +2266,48 @@ components:
       required:
       - berth_id
       title: BerthCreated
+    BerthForce:
+      properties:
+        x_lbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: X Lbf
+        y_lbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Y Lbf
+        z_lbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Z Lbf
+      additionalProperties: false
+      type: object
+      title: BerthForce
+    BerthPosition:
+      properties:
+        x_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: X Ft
+        y_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Y Ft
+          description: Positive off-pier.
+        z_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Z Mllw Ft
+          description: Elevation above MLLW; positive upward.
+      additionalProperties: false
+      type: object
+      title: BerthPosition
     BerthSummary:
       properties:
         berth_id:
@@ -2094,6 +2343,26 @@ components:
       - fitting_count
       - confidence
       title: BerthSummary
+    BerthVelocity:
+      properties:
+        x_fps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: X Fps
+        y_fps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Y Fps
+        z_fps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Z Fps
+      additionalProperties: false
+      type: object
+      title: BerthVelocity
     BerthingSimRequest:
       properties:
         scenario_id:
@@ -2105,11 +2374,13 @@ components:
           items:
             $ref: '#/components/schemas/TugCommand'
           type: array
+          maxItems: 1000
           title: Tug Commands
         line_events:
           items:
             $ref: '#/components/schemas/LineEvent'
           type: array
+          maxItems: 1000
           title: Line Events
         duration_s:
           type: number
@@ -2120,9 +2391,16 @@ components:
         dt_s:
           type: number
           maximum: 1.0
-          exclusiveMinimum: 0.0
+          minimum: 0.0001
           title: Dt S
           default: 0.1
+        sample_interval_s:
+          anyOf:
+          - type: number
+            minimum: 0.1
+          - type: 'null'
+          title: Sample Interval S
+          description: Output sampling only; defaults to 1 s.
         env_mode:
           type: string
           enum:
@@ -2187,10 +2465,12 @@ components:
           type: string
           format: date-time
           title: Start Utc
+          description: First feasible minute (inclusive).
         end_utc:
           type: string
           format: date-time
           title: End Utc
+          description: Last feasible minute (inclusive).
         max_current_kt:
           type: number
           title: Max Current Kt
@@ -2247,6 +2527,33 @@ components:
             minimum: 0.0
           - type: 'null'
           title: Max Gust Kt
+        available_tug_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Available Tug Ids
+          description: Fleet requested for the berthing; defaults to the whole catalog fleet.
+        margin:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Margin
+          default: 0.25
+        step_min:
+          type: integer
+          maximum: 60.0
+          minimum: 1.0
+          title: Step Min
+          description: Coarse sampling interval; threshold crossings between samples are refined to 1 min.
+          default: 6
+        min_duration_min:
+          type: number
+          minimum: 0.0
+          title: Min Duration Min
+          description: Windows shorter than this are dropped.
+          default: 0.0
       additionalProperties: false
       type: object
       required:
@@ -2300,6 +2607,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/BerthingWindowsResult'
       additionalProperties: false
@@ -2321,11 +2639,90 @@ components:
             $ref: '#/components/schemas/BerthingWindow'
           type: array
           title: Windows
+        forecast_coverage_end_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Forecast Coverage End Utc
+          description: Last time with forecast data; later times are gaps, never windows.
+        gaps:
+          items:
+            type: string
+          type: array
+          title: Gaps
+        resolution_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolution Note
       additionalProperties: false
       type: object
       required:
       - windows
       title: BerthingWindowsResult
+    CapabilityRow:
+      properties:
+        capability:
+          type: string
+          title: Capability
+        module:
+          type: string
+          title: Module
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+        qualification:
+          type: string
+          enum:
+          - qualified
+          - demonstration
+          - unqualified
+          - mock
+          title: Qualification
+        limitations:
+          items:
+            type: string
+          type: array
+          title: Limitations
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+      additionalProperties: false
+      type: object
+      required:
+      - capability
+      - module
+      - backend
+      - qualification
+      title: CapabilityRow
+    CatalogAudit:
+      properties:
+        ok:
+          type: boolean
+          title: Ok
+        problems:
+          items:
+            $ref: '#/components/schemas/QualificationIssue'
+          type: array
+          title: Problems
+        assets:
+          items:
+            $ref: '#/components/schemas/AssetQualification'
+          type: array
+          title: Assets
+      additionalProperties: false
+      type: object
+      required:
+      - ok
+      - assets
+      title: CatalogAudit
+      description: Whole-catalog integrity (duplicate ids, dangling references) and per-asset qualification.
     DepthPoint:
       properties:
         x_ft:
@@ -2431,6 +2828,16 @@ components:
             format: date-time
           - type: 'null'
           title: Replay End Utc
+        replay_source:
+          type: string
+          enum:
+          - synthetic
+          - recorded_fixture
+          title: Replay Source
+          description: 'kind=''replay'': ''synthetic'' generates the deterministic mock for the window (legacy); ''recorded_fixture''
+            replays the bundled recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never
+            looped or synthesized.'
+          default: synthetic
         env_scenario_id:
           type: string
           title: Env Scenario Id
@@ -2518,6 +2925,16 @@ components:
             format: date-time
           - type: 'null'
           title: Replay End Utc
+        replay_source:
+          type: string
+          enum:
+          - synthetic
+          - recorded_fixture
+          title: Replay Source
+          description: 'kind=''replay'': ''synthetic'' generates the deterministic mock for the window (legacy); ''recorded_fixture''
+            replays the bundled recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never
+            looped or synthesized.'
+          default: synthetic
       additionalProperties: false
       type: object
       required:
@@ -2582,6 +2999,125 @@ components:
       - water_level
       title: EnvStations
       description: NOAA CO-OPS station ids that feed this berth's environment.
+    EnvironmentMetadata:
+      properties:
+        basis:
+          type: string
+          enum:
+          - observation
+          - prediction
+          - scenario
+          title: Basis
+          description: Measured, forecast/model output, or synthetic what-if input.
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+          description: Provider or station, e.g. 'NOAA CO-OPS 8638610'.
+          examples:
+          - NOAA CO-OPS 8638610
+        issued_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Issued At Utc
+          description: When the observation or forecast was produced.
+        valid_from_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid From Utc
+        valid_to_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid To Utc
+        wind_averaging_s:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Wind Averaging S
+          description: Averaging time of wind_speed_kt.
+        gust_duration_s:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Gust Duration S
+          description: Duration of wind_gust_kt.
+        wind_reference_height_m:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Wind Reference Height M
+          description: Anemometer or model height.
+        current_depth_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Current Depth Ft
+          description: Depth of the current measurement below the surface.
+        current_bin:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Bin
+          description: Instrument bin or model layer id.
+        vertical_datum:
+          anyOf:
+          - type: string
+            enum:
+            - MLLW
+            - MSL
+            - NAVD88
+            - other
+          - type: 'null'
+          title: Vertical Datum
+          description: Datum of water_level_mllw_ft. Its name says MLLW; any other value is a conflict.
+        quality:
+          type: string
+          enum:
+          - good
+          - suspect
+          - poor
+          - unknown
+          title: Quality
+          default: unknown
+        age_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Age S
+          description: Age of the newest observation when the snapshot was built.
+        original:
+          anyOf:
+          - additionalProperties:
+              anyOf:
+              - type: number
+              - type: string
+            type: object
+          - type: 'null'
+          title: Original
+          description: Provider values exactly as received, with their units in the key names, before normalization.
+      additionalProperties: false
+      type: object
+      required:
+      - basis
+      title: EnvironmentMetadata
+      description: 'Where an environment snapshot came from and how to read its numbers (S00a).
+
+
+        Optional: absent means the basis is undocumented, and the legacy meaning applies (wind is a 10 m, 1-minute
+
+        sustained speed; the gust is assumed to be 30 s). Supplying metadata never changes the numerical values.'
     EnvironmentSnapshot:
       properties:
         valid_at_utc:
@@ -2664,6 +3200,11 @@ components:
             $ref: '#/components/schemas/StationQuality'
           type: array
           title: Quality
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/EnvironmentMetadata'
+          - type: 'null'
+          description: Basis, timing, averaging and datum. Absent means undocumented (legacy).
       additionalProperties: false
       type: object
       required:
@@ -2721,6 +3262,13 @@ components:
           title: Lines Wet
           description: Apply the wet-strength factor (nylon loses 15%).
           default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
         horizon_hours:
           type: number
           maximum: 72.0
@@ -2743,8 +3291,32 @@ components:
           maximum: 2.0
           minimum: 1.0
           title: Gust Dynamic Factor
-          description: Phase 1 stand-in for gust dynamics.
+          description: Force multiplier on the wind force, applied exactly once (the wind speed is scaled by its square root).
+            It does not touch current, and it is not a validated dynamic model.
           default: 1.0
+        uncertainty_model_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Uncertainty Model Id
+          description: Defaults to the synthetic demonstration model (unqualified).
+        include_horizon:
+          type: boolean
+          title: Include Horizon
+          description: Also simulate time-correlated trajectories over horizon_hours.
+          default: false
+        n_trajectories:
+          type: integer
+          maximum: 2000.0
+          minimum: 10.0
+          title: N Trajectories
+          default: 200
+        horizon_step_min:
+          type: integer
+          maximum: 180.0
+          minimum: 6.0
+          title: Horizon Step Min
+          default: 30
       additionalProperties: false
       type: object
       required:
@@ -2816,6 +3388,18 @@ components:
           - AMBER
           - RED
           title: Status
+        energy_ftlbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Energy Ftlbf
+          description: Energy absorbed, integral of force over deflection.
+        pct_rated_energy:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pct Rated Energy
+          description: Absorbed / rated energy x 100, when a rating exists.
       additionalProperties: false
       type: object
       required:
@@ -3093,6 +3677,13 @@ components:
           title: Lines Wet
           description: Apply the wet-strength factor (nylon loses 15%).
           default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
         margin:
           type: number
           maximum: 1.0
@@ -3154,6 +3745,7 @@ components:
           - running
           - succeeded
           - failed
+          - cancelled
           title: State
         progress:
           type: number
@@ -3215,7 +3807,8 @@ components:
           - type: number
           - type: 'null'
           title: Limit Wind Kt
-          description: None when wind from this direction loads only the fenders.
+          description: Highest wind speed verified within limits (conservative end of the bracket). None unless outcome is
+            'limit_found' or 'fails_at_zero_wind' (then 0).
         first_failure_element:
           anyOf:
           - type: string
@@ -3227,8 +3820,46 @@ components:
           - WLL
           - MBS
           - fitting
+          - fender
           - none
           title: Failure Mode
+        outcome:
+          anyOf:
+          - type: string
+            enum:
+            - limit_found
+            - fails_at_zero_wind
+            - no_failure_in_range
+            - undetermined
+            - invalid_inputs
+          - type: 'null'
+          title: Outcome
+          description: Absent on legacy responses.
+        bracket_kt:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          title: Bracket Kt
+          description: '[highest OK speed, lowest failing speed] after refinement.'
+        search_max_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Search Max Kt
+        undetermined_at_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Undetermined At Kt
+          description: Speed where the solve failed before any capacity failure was found.
+        nonmonotone_in_bracket:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Nonmonotone In Bracket
+          description: True if samples inside the bracket were not monotone.
       additionalProperties: false
       type: object
       required:
@@ -3283,12 +3914,40 @@ components:
           title: Lines Wet
           description: Apply the wet-strength factor (nylon loses 15%).
           default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
         step_deg:
           type: integer
           maximum: 90.0
           minimum: 5.0
           title: Step Deg
           default: 15
+        max_search_kt:
+          type: number
+          maximum: 200.0
+          minimum: 10.0
+          title: Max Search Kt
+          description: Highest wind speed searched. No failure up to here is reported as such, not as unlimited.
+          default: 100.0
+        sampling_step_kt:
+          type: number
+          maximum: 20.0
+          exclusiveMinimum: 0.0
+          title: Sampling Step Kt
+          description: Coarse scan interval; failures narrower than this can be missed.
+          default: 5.0
+        tolerance_kt:
+          type: number
+          maximum: 5.0
+          exclusiveMinimum: 0.0
+          title: Tolerance Kt
+          description: Bisection tolerance once a crossing is bracketed.
+          default: 0.25
       additionalProperties: false
       type: object
       required:
@@ -3342,6 +4001,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/LimitEnvelopeResult'
       additionalProperties: false
@@ -3394,6 +4064,38 @@ components:
       - line_number
       - event
       title: LineEvent
+    LineExtreme:
+      properties:
+        line_number:
+          type: integer
+          title: Line Number
+        max_tension_lbf:
+          type: number
+          title: Max Tension Lbf
+        max_at_utc:
+          type: string
+          format: date-time
+          title: Max At Utc
+        max_pct_wll:
+          type: number
+          title: Max Pct Wll
+        min_tension_lbf:
+          type: number
+          title: Min Tension Lbf
+        min_at_utc:
+          type: string
+          format: date-time
+          title: Min At Utc
+      additionalProperties: false
+      type: object
+      required:
+      - line_number
+      - max_tension_lbf
+      - max_at_utc
+      - max_pct_wll
+      - min_tension_lbf
+      - min_at_utc
+      title: LineExtreme
     LineInventoryItem:
       properties:
         spec_id:
@@ -3630,6 +4332,12 @@ components:
           - type: 'null'
           title: Side To
           description: When given, off_pier_component_lbf is returned.
+        require_verified_wind_basis:
+          type: boolean
+          title: Require Verified Wind Basis
+          description: When true, a snapshot without documented wind averaging/gust duration and height makes the result 'limited'
+            (WIND_BASIS_UNVERIFIED) instead of silently using the legacy assumption.
+          default: false
       additionalProperties: false
       type: object
       required:
@@ -3683,6 +4391,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/LoadsResult'
       additionalProperties: false
@@ -3726,6 +4445,32 @@ components:
       - wind_rel_ship_deg
       - current_rel_ship_deg
       title: LoadsResult
+    ManifestRecord:
+      properties:
+        kind:
+          type: string
+          title: Kind
+          examples:
+          - ship
+          - berth
+          - line_spec
+          - tug
+        id:
+          type: string
+          title: Id
+        revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Revision
+          description: Content hash or version of the record; null if unversioned.
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - id
+      title: ManifestRecord
+      description: A resolved reference record that went into a result.
     MinMargin:
       properties:
         element_id:
@@ -3833,12 +4578,33 @@ components:
             minimum: 0.0
           - type: 'null'
           title: Pretension Lbf
+          description: 'Initial tension. Legacy default when omitted: 2% of effective MBS (0 if slack_ft > 0). Mutually exclusive
+            with a positive slack_ft: a slack line carries no tension.'
         slack_ft:
           anyOf:
           - type: number
             minimum: 0.0
           - type: 'null'
           title: Slack Ft
+          description: Extra line length beyond the straight-line distance, in feet of stretched length.
+        paid_out_unstretched_length_ft:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Paid Out Unstretched Length Ft
+          description: Unstretched length paid out between fittings. Used directly as the installed rest length by the M4
+            equilibrium solver. Cannot be combined with slack_ft or pretension_lbf.
+        condition:
+          anyOf:
+          - type: string
+            enum:
+            - wet
+            - dry
+          - type: 'null'
+          title: Condition
+          description: Strength condition for this line (wet applies the spec's wet-strength factor). When omitted the request's
+            lines_wet applies (legacy).
       additionalProperties: false
       type: object
       required:
@@ -3848,6 +4614,853 @@ components:
       - pier_fitting_id
       title: MooringLine
       description: One mooring line. Lines are numbered forward to aft (NSTM 582-4.2.1).
+    MotionAcceleration:
+      properties:
+        surge_fps2:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Surge Fps2
+        sway_fps2:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sway Fps2
+        heave_fps2:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Heave Fps2
+        roll_degps2:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Roll Degps2
+        pitch_degps2:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pitch Degps2
+        yaw_degps2:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Yaw Degps2
+      additionalProperties: false
+      type: object
+      title: MotionAcceleration
+    MotionAlert:
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+        severity:
+          type: string
+          enum:
+          - INFO
+          - AMBER
+          - RED
+          title: Severity
+        message:
+          type: string
+          minLength: 1
+          title: Message
+        element_ids:
+          items:
+            type: string
+          type: array
+          maxItems: 128
+          title: Element Ids
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - severity
+      - message
+      title: MotionAlert
+    MotionCurrent:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/EnvironmentMetadata'
+          - type: 'null'
+        speed_kt:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Speed Kt
+        set_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: Set True Deg
+      additionalProperties: false
+      type: object
+      title: MotionCurrent
+    MotionDofs:
+      properties:
+        surge:
+          type: string
+          enum:
+          - simulated
+          - prescribed
+          - not_simulated
+          - unknown
+          title: Surge
+          default: unknown
+        sway:
+          type: string
+          enum:
+          - simulated
+          - prescribed
+          - not_simulated
+          - unknown
+          title: Sway
+          default: unknown
+        heave:
+          type: string
+          enum:
+          - simulated
+          - prescribed
+          - not_simulated
+          - unknown
+          title: Heave
+          default: unknown
+        roll:
+          type: string
+          enum:
+          - simulated
+          - prescribed
+          - not_simulated
+          - unknown
+          title: Roll
+          default: unknown
+        pitch:
+          type: string
+          enum:
+          - simulated
+          - prescribed
+          - not_simulated
+          - unknown
+          title: Pitch
+          default: unknown
+        yaw:
+          type: string
+          enum:
+          - simulated
+          - prescribed
+          - not_simulated
+          - unknown
+          title: Yaw
+          default: unknown
+      additionalProperties: false
+      type: object
+      title: MotionDofs
+    MotionEnvironment:
+      properties:
+        t_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: T S
+          description: Simulation time at which these forcing values apply.
+        valid_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid At Utc
+          description: Absolute valid time if the run has a UTC epoch.
+        wind:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWind'
+          - type: 'null'
+        current:
+          anyOf:
+          - $ref: '#/components/schemas/MotionCurrent'
+          - type: 'null'
+        water:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWaterLevel'
+          - type: 'null'
+        waves:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWaves'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      title: MotionEnvironment
+    MotionFenderState:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        fender_id:
+          type: string
+          minLength: 1
+          title: Fender Id
+        compression_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Compression Ft
+        reaction_lbf:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Reaction Lbf
+        force:
+          anyOf:
+          - $ref: '#/components/schemas/BerthForce'
+          - type: 'null'
+        status:
+          anyOf:
+          - type: string
+            enum:
+            - GREEN
+            - AMBER
+            - RED
+          - type: 'null'
+          title: Status
+      additionalProperties: false
+      type: object
+      required:
+      - fender_id
+      title: MotionFenderState
+    MotionFittingLoad:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        fitting_id:
+          type: string
+          minLength: 1
+          title: Fitting Id
+        owner:
+          type: string
+          enum:
+          - ship
+          - pier
+          title: Owner
+        load_lbf:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Load Lbf
+        capacity_lbf:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Capacity Lbf
+        utilization_pct:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Utilization Pct
+        force:
+          anyOf:
+          - $ref: '#/components/schemas/BerthForce'
+          - type: 'null'
+        status:
+          anyOf:
+          - type: string
+            enum:
+            - GREEN
+            - AMBER
+            - RED
+          - type: 'null'
+          title: Status
+      additionalProperties: false
+      type: object
+      required:
+      - fitting_id
+      - owner
+      title: MotionFittingLoad
+    MotionForces:
+      properties:
+        wind:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWrench'
+          - type: 'null'
+        current:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWrench'
+          - type: 'null'
+        waves:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWaveForces'
+          - type: 'null'
+        tugs:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWrench'
+          - type: 'null'
+        lines:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWrench'
+          - type: 'null'
+        fenders:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWrench'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      title: MotionForces
+      description: Forces on the ship in berth axes; all moments use the same instantaneous ship origin.
+    MotionLineState:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        line_number:
+          type: integer
+          minimum: 1.0
+          title: Line Number
+        tension_lbf:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Tension Lbf
+        status:
+          type: string
+          enum:
+          - slack
+          - taut
+          - overloaded
+          - unknown
+          title: Status
+          default: unknown
+        ship_fitting_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ship Fitting Id
+        pier_fitting_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pier Fitting Id
+        ship_end:
+          anyOf:
+          - $ref: '#/components/schemas/BerthPosition'
+          - type: 'null'
+        pier_end:
+          anyOf:
+          - $ref: '#/components/schemas/BerthPosition'
+          - type: 'null'
+        polyline:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/BerthPosition'
+            type: array
+            maxItems: 0
+          - items:
+              $ref: '#/components/schemas/BerthPosition'
+            type: array
+            maxItems: 32
+            minItems: 2
+          - type: 'null'
+          title: Polyline
+          description: Ship-to-pier straight segments through any chocks; no inferred catenary or sag. Empty means no geometry
+            supplied.
+      additionalProperties: false
+      type: object
+      required:
+      - line_number
+      title: MotionLineState
+    MotionPose:
+      properties:
+        x_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: X Ft
+          description: Ship origin in berth axes.
+        y_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Y Ft
+          description: Ship origin, positive off-pier.
+        heave_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Heave Mllw Ft
+          description: Absolute ship-origin elevation above MLLW, not a displacement from initial tide.
+        roll_deg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Roll Deg
+          description: Right-hand rotation about ship +x.
+        pitch_deg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pitch Deg
+          description: Right-hand rotation about ship +y.
+        yaw_deg:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Yaw Deg
+          description: Counterclockwise from berth +x, not a compass bearing; may be unwrapped.
+      additionalProperties: false
+      type: object
+      title: MotionPose
+    MotionProvenance:
+      properties:
+        kind:
+          type: string
+          enum:
+          - mock
+          - estimated
+          - qualified
+          - unknown
+          title: Kind
+        source:
+          type: string
+          minLength: 1
+          title: Source
+          description: Producer, source or named synthetic fixture.
+        references:
+          items:
+            type: string
+          type: array
+          maxItems: 32
+          title: References
+        notes:
+          items:
+            type: string
+          type: array
+          maxItems: 32
+          title: Notes
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - source
+      title: MotionProvenance
+    MotionTugState:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        tug_id:
+          type: string
+          minLength: 1
+          title: Tug Id
+        position:
+          anyOf:
+          - $ref: '#/components/schemas/BerthPosition'
+          - type: 'null'
+        heading_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: Heading True Deg
+        velocity:
+          anyOf:
+          - $ref: '#/components/schemas/BerthVelocity'
+          - type: 'null'
+        acceleration:
+          anyOf:
+          - $ref: '#/components/schemas/BerthAcceleration'
+          - type: 'null'
+        commanded_force:
+          anyOf:
+          - $ref: '#/components/schemas/BerthForce'
+          - type: 'null'
+          description: Commanded force on the ship, berth axes.
+        actual_force:
+          anyOf:
+          - $ref: '#/components/schemas/BerthForce'
+          - type: 'null'
+          description: Actual force on the ship, berth axes.
+        push_point_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Push Point Id
+        contact_position:
+          anyOf:
+          - $ref: '#/components/schemas/BerthPosition'
+          - type: 'null'
+        mode:
+          type: string
+          enum:
+          - push
+          - pull
+          - standby
+          - unknown
+          title: Mode
+          default: unknown
+        contact_state:
+          type: string
+          enum:
+          - contact
+          - no_contact
+          - line_made_up
+          - unknown
+          title: Contact State
+          default: unknown
+        capacity_utilization_pct:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Capacity Utilization Pct
+          description: Supplied value; may exceed 100.
+      additionalProperties: false
+      type: object
+      required:
+      - tug_id
+      title: MotionTugState
+    MotionVelocity:
+      properties:
+        surge_fps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Surge Fps
+        sway_fps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sway Fps
+          description: Positive toward port; unlike legacy ShipState.v_kt.
+        heave_fps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Heave Fps
+        roll_degps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Roll Degps
+        pitch_degps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Pitch Degps
+        yaw_degps:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Yaw Degps
+      additionalProperties: false
+      type: object
+      title: MotionVelocity
+    MotionWaterLevel:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/EnvironmentMetadata'
+          - type: 'null'
+        level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Level Mllw Ft
+      additionalProperties: false
+      type: object
+      title: MotionWaterLevel
+    MotionWaveComponent:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/EnvironmentMetadata'
+          - type: 'null'
+        height_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Height Ft
+        height_basis:
+          type: string
+          enum:
+          - significant
+          - crest_to_trough
+          - amplitude
+          - unknown
+          title: Height Basis
+          default: unknown
+        period_s:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Period S
+        period_basis:
+          type: string
+          enum:
+          - peak
+          - mean
+          - regular
+          - unknown
+          title: Period Basis
+          default: unknown
+        from_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: From True Deg
+      additionalProperties: false
+      type: object
+      title: MotionWaveComponent
+      description: One wave/wake source; never an aggregate of unlike mechanisms.
+    MotionWaveForces:
+      properties:
+        ocean_swell:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWrench'
+          - type: 'null'
+        local_chop:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWrench'
+          - type: 'null'
+        ship_wake:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWrench'
+          - type: 'null'
+        tug_wake:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWrench'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      title: MotionWaveForces
+    MotionWaves:
+      properties:
+        ocean_swell:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWaveComponent'
+          - type: 'null'
+        local_chop:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWaveComponent'
+          - type: 'null'
+        ship_wake:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWaveComponent'
+          - type: 'null'
+        tug_wake:
+          anyOf:
+          - $ref: '#/components/schemas/MotionWaveComponent'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      title: MotionWaves
+    MotionWind:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/EnvironmentMetadata'
+          - type: 'null'
+        speed_kt:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Speed Kt
+        gust_kt:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Gust Kt
+        from_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: From True Deg
+      additionalProperties: false
+      type: object
+      title: MotionWind
+    MotionWrench:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        force:
+          anyOf:
+          - $ref: '#/components/schemas/BerthForce'
+          - type: 'null'
+        yaw_moment_ftlbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Yaw Moment Ftlbf
+          description: Moment about the instantaneous ship origin; positive counterclockwise viewed from above.
+      additionalProperties: false
+      type: object
+      title: MotionWrench
     Offset:
       properties:
         surge_ft:
@@ -4076,6 +5689,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/PolarResult'
       additionalProperties: false
@@ -4120,6 +5744,7 @@ components:
           - estimated
           - mock
           - vision
+          - synthetic
           title: Confidence
         notes:
           anyOf:
@@ -4183,6 +5808,33 @@ components:
       - force_lbf
       - mode
       title: PushPointForce
+    QualificationIssue:
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+          examples:
+          - MISSING_SWL
+        message:
+          type: string
+          title: Message
+        element_ids:
+          items:
+            type: string
+          type: array
+          title: Element Ids
+        blocking:
+          type: boolean
+          title: Blocking
+          description: True when a real analysis cannot proceed (level 'unqualified').
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - message
+      - blocking
+      title: QualificationIssue
     RecommendRequest:
       properties:
         ship_class_id:
@@ -4246,6 +5898,29 @@ components:
           minimum: 1.0
           title: Max Candidates
           default: 3
+        max_evaluations:
+          type: integer
+          maximum: 20000.0
+          minimum: 1.0
+          title: Max Evaluations
+          description: Search budget in candidate evaluations. Exceeding the space is exhaustive; otherwise the search is
+            bounded and says so.
+          default: 1500
+        neighbors_per_line:
+          type: integer
+          maximum: 6.0
+          minimum: 1.0
+          title: Neighbors Per Line
+          description: Pier fittings considered per line, nearest first.
+          default: 3
+        tide_levels_ft:
+          items:
+            type: number
+          type: array
+          maxItems: 5
+          minItems: 1
+          title: Tide Levels Ft
+          description: Water levels (MLLW) every case is evaluated at; lines are installed at the first.
       additionalProperties: false
       type: object
       required:
@@ -4253,6 +5928,55 @@ components:
       - berth_id
       - side_to
       title: RecommendRequest
+    ResultManifest:
+      properties:
+        resolved_inputs_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolved Inputs Hash
+          description: sha256 of the canonical resolved inputs.
+        code_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Code Version
+        records:
+          items:
+            $ref: '#/components/schemas/ManifestRecord'
+          type: array
+          title: Records
+        environment_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Environment Hash
+          description: sha256 of the environment snapshot used.
+        numerical_settings:
+          additionalProperties:
+            anyOf:
+            - type: number
+            - type: integer
+            - type: string
+            - type: boolean
+          type: object
+          title: Numerical Settings
+        rng_seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Rng Seed
+        rng_model_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rng Model Revision
+      additionalProperties: false
+      type: object
+      title: ResultManifest
+      description: 'What a result depended on, so it can be reproduced. `inputs_hash` still hashes the request as sent;
+
+        `resolved_inputs_hash` hashes the request after defaults and references are resolved.'
     RouteRequest:
       properties:
         origin:
@@ -4326,6 +6050,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/RouteResult'
       additionalProperties: false
@@ -4395,6 +6130,27 @@ components:
           type: boolean
           title: Implemented
           description: False while the check exists only as registry metadata.
+        coverage:
+          anyOf:
+          - type: string
+            enum:
+            - implemented
+            - partial
+            - unsupported
+          - type: 'null'
+          title: Coverage
+          description: Audit of how much of the cited requirement the code checks (S01).
+        applicability:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Applicability
+          description: Where the rule is meant to apply; limits of the check.
+        source_verified:
+          type: boolean
+          title: Source Verified
+          description: True only after the paragraph/table was checked against the edition in hand.
+          default: false
       additionalProperties: false
       type: object
       required:
@@ -4497,6 +6253,38 @@ components:
       - env_source
       title: ScenarioCreate
       description: 'A saved setup: the UI''s save file.'
+    SequenceIssue:
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+        severity:
+          type: string
+          enum:
+          - AMBER
+          - RED
+          title: Severity
+        step:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Step
+        line_number:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Line Number
+        message:
+          type: string
+          title: Message
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - severity
+      - message
+      title: SequenceIssue
     SequenceRequest:
       properties:
         ship_class_id:
@@ -4572,6 +6360,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/SequenceResult'
       additionalProperties: false
@@ -4596,6 +6395,35 @@ components:
         crews_required:
           type: integer
           title: Crews Required
+        issues:
+          items:
+            $ref: '#/components/schemas/SequenceIssue'
+          type: array
+          title: Issues
+        review_status:
+          type: string
+          enum:
+          - draft_unreviewed
+          - reviewed
+          title: Review Status
+          description: Generated sequences are drafts until a deck officer or pilot reviews them.
+          default: draft_unreviewed
+        timing_assumptions:
+          items:
+            type: string
+          type: array
+          title: Timing Assumptions
+        limitations:
+          items:
+            type: string
+          type: array
+          title: Limitations
+        total_duration_min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Total Duration Min
+          description: Critical-path estimate from the unreviewed durations.
       additionalProperties: false
       type: object
       required:
@@ -4645,6 +6473,42 @@ components:
         reference:
           type: string
           title: Reference
+        depends_on:
+          items:
+            type: integer
+          type: array
+          title: Depends On
+          description: Step numbers that must complete first.
+        duration_min:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Duration Min
+          description: Planning estimate, unreviewed.
+        tug_ids:
+          items:
+            type: string
+          type: array
+          title: Tug Ids
+          description: Tugs this step relies on.
+        state_ok:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: State Ok
+          description: Static equilibrium with the lines fast after this step (null when not evaluated).
+        state_max_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: State Max Pct
+          description: Highest utilization of that intermediate state.
+        state_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State Note
       additionalProperties: false
       type: object
       required:
@@ -4656,6 +6520,44 @@ components:
       - trigger
       - reference
       title: SequenceStep
+    SequenceValidateRequest:
+      properties:
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        berth_id:
+          type: string
+          title: Berth Id
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        tug_plan_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tug Plan Result Id
+        line_handling_crews:
+          type: integer
+          minimum: 1.0
+          title: Line Handling Crews
+          default: 6
+        steps:
+          items:
+            $ref: '#/components/schemas/SequenceStep'
+          type: array
+          minItems: 1
+          title: Steps
+          description: A proposed sequence to check, in execution order.
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - config
+      - environment
+      - steps
+      title: SequenceValidateRequest
     ShipClass:
       properties:
         class_id:
@@ -4707,6 +6609,35 @@ components:
           exclusiveMinimum: 0.0
           title: Hull Wind Area Lateral Ft2
           description: Hull-only part of the lateral area (UFC 4-159-03).
+        superstructure_height_ft:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Superstructure Height Ft
+          description: Superstructure height above the reference waterline; estimated from profile areas when absent.
+        midship_coefficient:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Midship Coefficient
+          description: Immersed midship area / (beam * draft); UFC Eq. 4-14.
+        propeller_expanded_area_ft2:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Propeller Expanded Area Ft2
+          description: Total expanded blade area; zero for no exposed propellers, estimated when absent.
+        wetted_surface_ft2:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Wetted Surface Ft2
+          description: Wetted surface at full_load; other loadings and missing values use UFC Eq. 4-18.
         wind_drag_class:
           type: string
           enum:
@@ -4894,6 +6825,43 @@ components:
       - lines
       - status
       title: ShipFittingResult
+    ShipMotion:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        pose:
+          $ref: '#/components/schemas/MotionPose'
+        velocity:
+          $ref: '#/components/schemas/MotionVelocity'
+        dofs:
+          $ref: '#/components/schemas/MotionDofs'
+        acceleration:
+          anyOf:
+          - $ref: '#/components/schemas/MotionAcceleration'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - pose
+      - velocity
+      - dofs
+      title: ShipMotion
     ShipState:
       properties:
         x_ft:
@@ -4931,7 +6899,45 @@ components:
       title: ShipState
       description: Ship pose and velocity in the berth frame. y_ft is the distance from the pier face to the centerline.
     SimFrame:
+      allOf:
+      - if:
+          properties:
+            schema_version:
+              const: rm0-v1
+          required:
+          - schema_version
+        then:
+          properties:
+            sequence:
+              type: integer
+              minimum: 0.0
+            session_id:
+              type: string
+              minLength: 1
+              pattern: \S
+            run_id:
+              type: string
+              minLength: 1
+              pattern: \S
+            scene_id:
+              type: string
+              minLength: 1
+              pattern: \S
+            scene_revision:
+              type: string
+              minLength: 1
+              pattern: \S
+          required:
+          - sequence
+          - session_id
+          - run_id
+          - scene_id
+          - scene_revision
       properties:
+        diagnostics:
+          anyOf:
+          - $ref: '#/components/schemas/SimulationDiagnostics'
+          - type: 'null'
         t_s:
           type: number
           title: T S
@@ -4957,6 +6963,102 @@ components:
             type: string
           type: array
           title: Alerts
+        schema_version:
+          anyOf:
+          - type: string
+            const: rm0-v1
+          - type: 'null'
+          title: Schema Version
+        sequence:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Sequence
+          description: Session-wide sequence, increasing across frames and lifecycle messages, including resets.
+        session_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Session Id
+        run_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Id
+          description: New run identifier on reset; t_s may then return to zero.
+        scene_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scene Id
+        scene_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scene Revision
+        motion:
+          anyOf:
+          - $ref: '#/components/schemas/ShipMotion'
+          - type: 'null'
+          description: Canonical RM0 axes; legacy pose remains unchanged.
+        tug_states:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionTugState'
+            type: array
+            maxItems: 64
+          - type: 'null'
+          title: Tug States
+        environment:
+          anyOf:
+          - $ref: '#/components/schemas/MotionEnvironment'
+          - type: 'null'
+        line_states:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionLineState'
+            type: array
+            maxItems: 512
+          - type: 'null'
+          title: Line States
+        fitting_loads:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionFittingLoad'
+            type: array
+            maxItems: 1024
+          - type: 'null'
+          title: Fitting Loads
+        fender_states:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionFenderState'
+            type: array
+            maxItems: 512
+          - type: 'null'
+          title: Fender States
+        forces:
+          anyOf:
+          - $ref: '#/components/schemas/MotionForces'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent is unknown, never valid.
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        structured_alerts:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionAlert'
+            type: array
+            maxItems: 256
+          - type: 'null'
+          title: Structured Alerts
       additionalProperties: false
       type: object
       required:
@@ -4986,6 +7088,20 @@ components:
       title: SimSeries
     SimSessionCreate:
       properties:
+        dt_s:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.0001
+          - type: 'null'
+          title: Dt S
+        duration_s:
+          anyOf:
+          - type: number
+            maximum: 7200.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Duration S
         scenario_id:
           type: string
           title: Scenario Id
@@ -5005,12 +7121,159 @@ components:
         ws_url:
           type: string
           title: Ws Url
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+        scene_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scene Url
+          description: Optional immutable SimScene resource; legacy sessions do not expose it.
+        protocol:
+          anyOf:
+          - type: string
+            const: rm0-v1
+          - type: 'null'
+          title: Protocol
+          description: Present only when the session implements the RM0 stream protocol.
       additionalProperties: false
       type: object
       required:
       - session_id
       - ws_url
       title: SimSessionCreated
+    SimulationDiagnostics:
+      properties:
+        parameter_set:
+          type: string
+          title: Parameter Set
+        qualification:
+          type: string
+          const: unqualified
+          title: Qualification
+          default: unqualified
+        integration_steps:
+          type: integer
+          title: Integration Steps
+        simulated_time_s:
+          type: number
+          title: Simulated Time S
+        initial_energy_ftlbf:
+          type: number
+          title: Initial Energy Ftlbf
+        final_energy_ftlbf:
+          type: number
+          title: Final Energy Ftlbf
+        applied_work_ftlbf:
+          type: number
+          title: Applied Work Ftlbf
+        dissipated_energy_ftlbf:
+          type: number
+          title: Dissipated Energy Ftlbf
+        line_event_energy_ftlbf:
+          type: number
+          title: Line Event Energy Ftlbf
+        energy_residual_ftlbf:
+          type: number
+          title: Energy Residual Ftlbf
+        integration_dt_s:
+          type: number
+          title: Integration Dt S
+      additionalProperties: false
+      type: object
+      required:
+      - parameter_set
+      - integration_steps
+      - simulated_time_s
+      - initial_energy_ftlbf
+      - final_energy_ftlbf
+      - applied_work_ftlbf
+      - dissipated_energy_ftlbf
+      - line_event_energy_ftlbf
+      - energy_residual_ftlbf
+      - integration_dt_s
+      title: SimulationDiagnostics
+    SolverDiagnostics:
+      properties:
+        converged:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Converged
+          description: Null when no iterative solve was performed.
+        iterations:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Iterations
+        residuals:
+          items:
+            $ref: '#/components/schemas/SolverResidual'
+          type: array
+          title: Residuals
+          description: Independent force and moment balances, each in its own unit.
+        active_constraints:
+          items:
+            type: string
+          type: array
+          title: Active Constraints
+          description: Contacts, slack lines and limits that were active at the solution.
+        rank:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Rank
+          description: Numerical rank of the support (stiffness) matrix.
+        degrees_of_freedom:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Degrees Of Freedom
+          description: Rank is full when rank equals this.
+        notes:
+          items:
+            type: string
+          type: array
+          title: Notes
+      additionalProperties: false
+      type: object
+      title: SolverDiagnostics
+      description: Numerical evidence behind a result. Absent values are `null` (not measured), never 0 or NaN.
+    SolverResidual:
+      properties:
+        name:
+          type: string
+          title: Name
+          examples:
+          - surge_force
+        value:
+          type: number
+          title: Value
+        unit:
+          type: string
+          title: Unit
+          examples:
+          - lbf
+          - ftlbf
+        tolerance:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Tolerance
+          description: Same unit as value.
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - value
+      - unit
+      - tolerance
+      title: SolverResidual
+      description: One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
     StationQuality:
       properties:
         station_id:
@@ -5045,6 +7308,12 @@ components:
             type: string
           type: array
           title: Errors
+        rejections:
+          items:
+            $ref: '#/components/schemas/TelemetryRejection'
+          type: array
+          title: Rejections
+          description: Machine-readable reasons; rejected records never influence any result.
       additionalProperties: false
       type: object
       required:
@@ -5109,12 +7378,69 @@ components:
           - type: number
           - type: 'null'
           title: Lon
+        sensor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sensor Id
+          description: 'load_cell: registered sensor/channel id (required in the validating ingest).'
+        vessel_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Vessel Id
+          description: Vessel the sensor is installed on; must match the sensor registry.
+        calibration_rev:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Calibration Rev
+          description: Calibration revision the reading was taken under.
+        seq:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Seq
+          description: Sender sequence number, used to detect replays and duplicates.
+        units:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Units
+          description: 'load_cell: must be ''lbf''. Any other value is rejected, not converted.'
+        received_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Received Utc
+          description: When the service received it (set by the service; ignored on input).
       additionalProperties: false
       type: object
       required:
       - source
       - t_utc
       title: TelemetryRecord
+    TelemetryRejection:
+      properties:
+        index:
+          type: integer
+          title: Index
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+        message:
+          type: string
+          title: Message
+      additionalProperties: false
+      type: object
+      required:
+      - index
+      - code
+      - message
+      title: TelemetryRejection
     TendingAction:
       properties:
         at_utc:
@@ -5141,6 +7467,36 @@ components:
       - action
       - amount_ft
       title: TendingAction
+    TendingInput:
+      properties:
+        at_utc:
+          type: string
+          format: date-time
+          title: At Utc
+        line_number:
+          type: integer
+          minimum: 1.0
+          title: Line Number
+        action:
+          type: string
+          enum:
+          - slack
+          - heave
+          title: Action
+          description: slack lengthens the rest length, heave shortens it.
+        amount_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Amount Ft
+      additionalProperties: false
+      type: object
+      required:
+      - at_utc
+      - line_number
+      - action
+      - amount_ft
+      title: TendingInput
+      description: An explicit tending action applied to a line's installed rest length from `at_utc` onward.
     TideStep:
       properties:
         valid_at_utc:
@@ -5155,6 +7511,17 @@ components:
             $ref: '#/components/schemas/LineTension'
           type: array
           title: Lines
+        valid:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Valid
+          description: False when this step's equilibrium solve failed; lines is then empty.
+        max_pct_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Pct Wll
       additionalProperties: false
       type: object
       required:
@@ -5208,6 +7575,13 @@ components:
           title: Lines Wet
           description: Apply the wet-strength factor (nylon loses 15%).
           default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
         from_utc:
           type: string
           format: date-time
@@ -5222,6 +7596,12 @@ components:
           minimum: 5.0
           title: Step Min
           default: 30
+        tending:
+          items:
+            $ref: '#/components/schemas/TendingInput'
+          type: array
+          title: Tending
+          description: Explicit tending applied in time order. Nothing is retensioned silently.
       additionalProperties: false
       type: object
       required:
@@ -5277,6 +7657,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/TideSweepResult'
       additionalProperties: false
@@ -5303,6 +7694,29 @@ components:
             $ref: '#/components/schemas/TendingAction'
           type: array
           title: Tending
+          description: Recommended actions (not applied) to restore each line's installed tension, at time_resolution_min
+            resolution.
+        time_resolution_min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Time Resolution Min
+          description: Internal evaluation interval; extremes between reported steps are captured at this resolution.
+        line_extremes:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/LineExtreme'
+            type: array
+          - type: 'null'
+          title: Line Extremes
+        applied_tending:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/TendingAction'
+            type: array
+          - type: 'null'
+          title: Applied Tending
+          description: The explicit tending inputs that were applied.
       additionalProperties: false
       type: object
       required:
@@ -5371,6 +7785,13 @@ components:
           title: Lines Wet
           description: Apply the wet-strength factor (nylon loses 15%).
           default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
         forecast_hours:
           type: integer
           maximum: 120.0
@@ -5383,6 +7804,20 @@ components:
           minimum: 6.0
           title: Step Min
           default: 30
+        start_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Start Utc
+          description: First step time; defaults to the current hour (inject for reproducible runs).
+        n_samples_per_step:
+          type: integer
+          maximum: 2000.0
+          minimum: 0.0
+          title: N Samples Per Step
+          description: 0 = deterministic utilization only, no probability.
+          default: 0
       additionalProperties: false
       type: object
       required:
@@ -5531,6 +7966,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/TugPlanResult'
       additionalProperties: false
@@ -5577,6 +8023,44 @@ components:
             type: string
           type: array
           title: Rationale
+        required_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+          description: Wrench the tugs must supply (after margin).
+        delivered_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+        residual_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+          description: required - delivered. Feasible only when every component is within tolerance.
+        binding_constraints:
+          items:
+            type: string
+          type: array
+          title: Binding Constraints
+          description: Rating, direction or hull-point limits that are active.
+        ratings_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ratings Basis
+          description: Where the pull ratings come from (catalog estimate, not certified).
+        assisted_max_pct_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Assisted Max Pct Wll
+          description: 'Holding plans: highest line/fitting utilization from a fresh equilibrium solve with the tugs applied.'
+        assisted_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Assisted Result Id
+          description: 'Holding plans: the analysis envelope of that fresh solve.'
       additionalProperties: false
       type: object
       required:
@@ -5758,6 +8242,17 @@ components:
             $ref: '#/components/schemas/Finding'
           type: array
           title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
         result:
           $ref: '#/components/schemas/UkcResult'
       additionalProperties: false
@@ -5813,6 +8308,64 @@ components:
       - msg
       - type
       title: ValidationError
+    Validity:
+      properties:
+        state:
+          type: string
+          enum:
+          - valid
+          - limited
+          - invalid
+          - unknown
+          title: State
+        reasons:
+          items:
+            $ref: '#/components/schemas/ValidityReason'
+          type: array
+          title: Reasons
+        diagnostics:
+          anyOf:
+          - $ref: '#/components/schemas/SolverDiagnostics'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - state
+      title: Validity
+      description: 'Whether the numbers can be relied on, independent of the GREEN/AMBER/RED status.
+
+
+        `valid`: inside the model''s qualified domain. `limited`: usable with the stated caveats, so never an
+
+        unconditional GREEN. `invalid`: do not use the numbers; status is RED. `unknown`: not assessed.
+
+        A numerical failure is not proof that no physical solution exists: report it as `invalid` with a reason.'
+    ValidityReason:
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+          examples:
+          - MISSING_FITTING_RATING
+        message:
+          type: string
+          title: Message
+        affected_components:
+          items:
+            type: string
+          type: array
+          title: Affected Components
+          description: Element ids the reason applies to, e.g. 'line-2', 'P12N-B16'.
+          examples:
+          - - line-2
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - message
+      title: ValidityReason
+      description: Why a result is limited or invalid. Codes are stable UPPER_SNAKE identifiers that clients may switch on.
     VersionInfo:
       properties:
         api_version:
@@ -5856,6 +8409,25 @@ components:
       - channel_depth_mllw_ft
       - width_ft
       title: Waypoint
+    WrenchLbf:
+      properties:
+        fx_lbf:
+          type: number
+          title: Fx Lbf
+        fy_lbf:
+          type: number
+          title: Fy Lbf
+        mz_ftlbf:
+          type: number
+          title: Mz Ftlbf
+      additionalProperties: false
+      type: object
+      required:
+      - fx_lbf
+      - fy_lbf
+      - mz_ftlbf
+      title: WrenchLbf
+      description: Force and yaw moment in the ship frame (+x forward, +y to port, yaw CCW) about midships.
     Alert:
       additionalProperties: false
       description: Message on WS /ws/alerts.
@@ -5890,6 +8462,20 @@ components:
           - type: 'null'
           default: null
           title: Limit Wind Kt
+        stale:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          description: True when the environment snapshot is older than the freshness limit.
+          title: Stale
+        provenance:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: How the alert was computed (deterministic equilibrium vs probabilistic model).
+          title: Provenance
       required:
       - alert_id
       - at_utc
@@ -5912,6 +8498,7 @@ components:
           - running
           - succeeded
           - failed
+          - cancelled
           title: State
           type: string
       required:
@@ -5938,6 +8525,210 @@ components:
       - message
       title: JobProgressEvent
       type: object
+    MotionSceneDepth:
+      additionalProperties: false
+      properties:
+        availability:
+          default: unknown
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          type: string
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+          default: null
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Absent means unknown, never valid.
+        position:
+          $ref: '#/components/schemas/BerthPosition'
+        depth_mllw_ft:
+          anyOf:
+          - minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          title: Depth Mllw Ft
+      required:
+      - position
+      title: MotionSceneDepth
+      type: object
+    MotionSceneFender:
+      additionalProperties: false
+      properties:
+        availability:
+          default: unknown
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          type: string
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+          default: null
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Absent means unknown, never valid.
+        fender_id:
+          minLength: 1
+          title: Fender Id
+          type: string
+        position:
+          $ref: '#/components/schemas/BerthPosition'
+        length_ft:
+          anyOf:
+          - exclusiveMinimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          title: Length Ft
+        standoff_ft:
+          anyOf:
+          - minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          title: Standoff Ft
+      required:
+      - fender_id
+      - position
+      title: MotionSceneFender
+      type: object
+    MotionScenePierFitting:
+      additionalProperties: false
+      properties:
+        availability:
+          default: unknown
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          type: string
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+          default: null
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Absent means unknown, never valid.
+        fitting_id:
+          minLength: 1
+          title: Fitting Id
+          type: string
+        position:
+          $ref: '#/components/schemas/BerthPosition'
+        kind:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Kind
+        capacity_lbf:
+          anyOf:
+          - exclusiveMinimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          title: Capacity Lbf
+      required:
+      - fitting_id
+      - position
+      title: MotionScenePierFitting
+      type: object
+    MotionSceneShipFitting:
+      additionalProperties: false
+      properties:
+        availability:
+          default: unknown
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          type: string
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+          default: null
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Absent means unknown, never valid.
+        fitting_id:
+          minLength: 1
+          title: Fitting Id
+          type: string
+        position:
+          $ref: '#/components/schemas/ShipPoint'
+        kind:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Kind
+        capacity_lbf:
+          anyOf:
+          - exclusiveMinimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          title: Capacity Lbf
+      required:
+      - fitting_id
+      - position
+      title: MotionSceneShipFitting
+      type: object
+    ShipPoint:
+      additionalProperties: false
+      properties:
+        x_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          description: Forward from the ship reference origin.
+          title: X Ft
+        y_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          description: Port from the ship reference origin.
+          title: Y Ft
+        z_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          description: Up from the declared reference waterline/loading.
+          title: Z Ft
+      title: ShipPoint
+      type: object
     SimControlMessage:
       additionalProperties: false
       properties:
@@ -5952,9 +8743,94 @@ components:
       - type
       title: SimControlMessage
       type: object
+    SimLifecycle:
+      additionalProperties: false
+      description: Server lifecycle metadata; defining this schema does not enable a new runtime protocol.
+      properties:
+        type:
+          const: session_lifecycle
+          default: session_lifecycle
+          title: Type
+          type: string
+        schema_version:
+          const: rm0-v1
+          default: rm0-v1
+          title: Schema Version
+          type: string
+        session_id:
+          minLength: 1
+          title: Session Id
+          type: string
+        run_id:
+          description: Changes on reset; sequence remains monotonic for the session.
+          minLength: 1
+          title: Run Id
+          type: string
+        sequence:
+          minimum: 0
+          title: Sequence
+          type: integer
+        t_s:
+          minimum: 0
+          title: T S
+          type: number
+        state:
+          enum:
+          - created
+          - running
+          - paused
+          - reset
+          - ended
+          - error
+          title: State
+          type: string
+        scene_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Scene Id
+        scene_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Scene Revision
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Message
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+          default: null
+      required:
+      - session_id
+      - run_id
+      - sequence
+      - t_s
+      - state
+      title: SimLifecycle
+      type: object
     SimLineEventMessage:
       additionalProperties: false
       properties:
+        t_s:
+          anyOf:
+          - minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          description: Simulation time; absent schedules at the next integration boundary.
+          title: T S
         type:
           const: line_event
           title: Type
@@ -5975,10 +8851,262 @@ components:
       - event
       title: SimLineEventMessage
       type: object
+    SimRecording:
+      additionalProperties: false
+      description: Bounded display recording. Sequence gaps mean decimation, never missing physics integration steps.
+      properties:
+        schema_version:
+          const: rm0-v1
+          default: rm0-v1
+          title: Schema Version
+          type: string
+        recording_id:
+          minLength: 1
+          title: Recording Id
+          type: string
+        session_id:
+          minLength: 1
+          title: Session Id
+          type: string
+        scene_id:
+          minLength: 1
+          title: Scene Id
+          type: string
+        scene_revision:
+          minLength: 1
+          title: Scene Revision
+          type: string
+        duration_s:
+          anyOf:
+          - minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          description: Recorded simulation duration, excluding paused wall time.
+          title: Duration S
+        sampling:
+          $ref: '#/components/schemas/SimSamplingPolicy'
+        frames:
+          items:
+            $ref: '#/components/schemas/SimFrame'
+          maxItems: 10000
+          minItems: 1
+          title: Frames
+          type: array
+        lifecycle:
+          items:
+            $ref: '#/components/schemas/SimLifecycle'
+          maxItems: 1000
+          title: Lifecycle
+          type: array
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+          default: null
+      required:
+      - recording_id
+      - session_id
+      - scene_id
+      - scene_revision
+      - sampling
+      - frames
+      title: SimRecording
+      type: object
+    SimSamplingPolicy:
+      additionalProperties: false
+      properties:
+        physics_dt_s:
+          anyOf:
+          - exclusiveMinimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          description: Integrator step if fixed; rendering never controls it.
+          title: Physics Dt S
+        display_interval_s:
+          anyOf:
+          - exclusiveMinimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          title: Display Interval S
+        max_pending_frames:
+          anyOf:
+          - minimum: 1
+            type: integer
+          - type: 'null'
+          default: null
+          title: Max Pending Frames
+        slow_client_policy:
+          const: drop_display_frames
+          default: drop_display_frames
+          title: Slow Client Policy
+          type: string
+        description:
+          default: Keep the newest display frame; never skip or slow physics. Sequence gaps disclose dropped frames.
+          title: Description
+          type: string
+      title: SimSamplingPolicy
+      type: object
+    SimScene:
+      additionalProperties: false
+      description: Static scene fetched once. Producers publish a new revision whenever scene content changes.
+      properties:
+        availability:
+          default: unknown
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          type: string
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+          default: null
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Absent means unknown, never valid.
+        schema_version:
+          const: rm0-v1
+          default: rm0-v1
+          title: Schema Version
+          type: string
+        scene_id:
+          minLength: 1
+          title: Scene Id
+          type: string
+        revision:
+          minLength: 1
+          title: Revision
+          type: string
+        berth_id:
+          minLength: 1
+          title: Berth Id
+          type: string
+        ship_class_id:
+          minLength: 1
+          title: Ship Class Id
+          type: string
+        loading:
+          minLength: 1
+          title: Loading
+          type: string
+        face_bearing_true_deg:
+          anyOf:
+          - exclusiveMaximum: 360
+            minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          title: Face Bearing True Deg
+        deck_height_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          description: Fixed pier-deck elevation above MLLW.
+          title: Deck Height Mllw Ft
+        ship_reference:
+          default: midships at the reference waterline
+          description: Origin used by ship geometry and frame motion.
+          title: Ship Reference
+          type: string
+        berth_outline:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/BerthPosition'
+            maxItems: 0
+            type: array
+          - items:
+              $ref: '#/components/schemas/BerthPosition'
+            maxItems: 4096
+            minItems: 3
+            type: array
+          - type: 'null'
+          default: null
+          title: Berth Outline
+        ship_hull_outline:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ShipPoint'
+            maxItems: 0
+            type: array
+          - items:
+              $ref: '#/components/schemas/ShipPoint'
+            maxItems: 4096
+            minItems: 3
+            type: array
+          - type: 'null'
+          default: null
+          title: Ship Hull Outline
+        ship_fittings:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionSceneShipFitting'
+            maxItems: 512
+            type: array
+          - type: 'null'
+          default: null
+          title: Ship Fittings
+        pier_fittings:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionScenePierFitting'
+            maxItems: 512
+            type: array
+          - type: 'null'
+          default: null
+          title: Pier Fittings
+        fenders:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionSceneFender'
+            maxItems: 512
+            type: array
+          - type: 'null'
+          default: null
+          title: Fenders
+        depth_profile:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionSceneDepth'
+            maxItems: 4096
+            type: array
+          - type: 'null'
+          default: null
+          title: Depth Profile
+      required:
+      - scene_id
+      - revision
+      - berth_id
+      - ship_class_id
+      - loading
+      title: SimScene
+      type: object
     SimTugCommandMessage:
       additionalProperties: false
       description: Client message on WS /ws/sim/{session_id}.
       properties:
+        t_s:
+          anyOf:
+          - minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          description: Simulation time; absent schedules at the next integration boundary.
+          title: T S
         type:
           const: tug_command
           title: Type
@@ -6038,7 +9166,17 @@ x-websockets:
   /ws/sim/{session_id}:
     query: limit
     client_messages: SimTugCommandMessage | SimLineEventMessage | SimControlMessage
-    server_messages: SimFrame (10 Hz)
+    server_messages: SimFrame (latest state; nominal 10 Hz at default dt)
   /ws/telemetry:
     client_messages: TelemetryRecord
     server_messages: TelemetryAccepted
+x-motion-contract:
+  schema_version: rm0-v1
+  status: Schemas and mock fixtures only; live producers retain legacy frames until explicitly upgraded.
+  models:
+  - SimFrame
+  - SimScene
+  - SimLifecycle
+  - SimRecording
+  examples: contract/examples/modeling/sim_*.json
+  design: docs/MOTION_FRAME_DESIGN.md

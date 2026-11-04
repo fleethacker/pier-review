@@ -1,6 +1,8 @@
 """Contract tests for the modeling mock server: every endpoint answers with its declared schema."""
 
 import copy
+import time
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,7 +16,7 @@ from mooring.core.schemas import (
     RecommendResponse,
     TimelineResponse,
 )
-from mooring.mock.examples import EXAMPLES
+from mooring.examples import EXAMPLES
 
 P = "/api/v1"
 client = TestClient(app)
@@ -34,8 +36,12 @@ def scenario_id() -> str:
     return r.json()["scenario_id"]
 
 
-def finish(accepted: dict) -> dict:
+def finish(accepted: dict, timeout_s: float = 20.0) -> dict:
+    deadline = time.monotonic() + timeout_s
     st = client.get(accepted["status_url"]).json()
+    while st["state"] in ("queued", "running") and time.monotonic() < deadline:
+        time.sleep(0.01)
+        st = client.get(accepted["status_url"]).json()
     assert st["state"] == "succeeded", st
     JOB_RESULT_MODELS[accepted["kind"]].model_validate(st["result"])
     return st["result"]
@@ -51,7 +57,7 @@ def finish(accepted: dict) -> dict:
 def test_gets(path):
     r = client.get(P + path)
     assert r.status_code == 200, r.text
-    assert r.headers["X-Mooring-Backend"] == "mock"
+    assert r.headers["X-Mooring-Backend"] == "mixed"  # M2 and M3 real, the rest mock
 
 
 SYNC_POSTS = {
@@ -77,7 +83,13 @@ def test_sync_posts(name, path):
     assert r.status_code in (200, 201, 202), r.text
     body = r.json()
     if "result_id" in body:
-        assert body["backend"] == "mock"
+        real = path.startswith("/loads/") or path in ("/mooring/analyze", "/mooring/envelope", "/mooring/tide-sweep", "/tugs/berthing-plan", "/tugs/hold-plan", "/windows/berthing", "/mooring/sequence")
+        assert body["backend"] == ("real" if real else "mock")
+        if real:
+            assert body["validity"] is not None
+            if not path.startswith(("/loads/", "/mooring/", "/tugs/hold")):
+                return
+            assert body["manifest"]["resolved_inputs_hash"].startswith("sha256:")
         assert client.get(f"{P}/results/{body['result_id']}").status_code == 200
 
 
@@ -96,9 +108,26 @@ def test_jobs(name, path):
     assert "event: done" in text
 
 
-def test_berthing_batch_and_series():
+@pytest.mark.parametrize("hour", range(24))
+def test_berthing_batch_and_series(monkeypatch, hour):
+    from mooring.environment import mock as env_mock
+
+    monkeypatch.setattr(env_mock, "utcnow", lambda: datetime(2026, 11, 4, hour, tzinfo=UTC))
+    scenario = copy.deepcopy(EXAMPLES["scenario"])
+    berth = client.get(f"{P}/berths/{scenario['berth_id']}").json()
+    # Wind FROM the water side (berth +y) pushes onto the pier, independent of ship side-to.
+    env = client.post(f"{P}/env/scenarios", json={
+        "name": "Steady onto-pier berthing test", "kind": "steady",
+        "wind_speed_kt": 10, "wind_gust_kt": 10,
+        "wind_from_true_deg": (berth["face_bearing_true_deg"] + 270) % 360,
+        "current_speed_kt": 0,
+    })
+    assert env.status_code == 201, env.text
+    scenario["env_source"] = {"mode": "scenario", "env_scenario_id": env.json()["env_scenario_id"]}
+    saved = client.post(f"{P}/scenarios", json=scenario)
+    assert saved.status_code == 201, saved.text
     body = copy.deepcopy(EXAMPLES["berthing_simulate"])
-    body["scenario_id"] = scenario_id()
+    body["scenario_id"] = saved.json()["scenario_id"]
     r = client.post(f"{P}/berthing/simulate", json=body)
     assert r.status_code == 202, r.text
     result = finish(r.json())
@@ -135,7 +164,9 @@ def test_analyze_example_is_plausible():
     roles = {ln.role for ln in r.result.lines}
     assert {"bow", "stern", "spring_fwd", "spring_aft"} <= roles
     assert all(ln.length_ft >= 50 for ln in r.result.lines)
-    assert r.status in ("GREEN", "AMBER")
+    # Real equilibrium: the single-part template is overloaded at a 30 kt off-pier gust (a physical finding, not an error).
+    assert r.backend == "real" and r.validity.state == "limited" and r.validity.diagnostics.converged
+    assert r.status == "RED" and any(f.rule_id == "LINE-WLL" and f.severity == "RED" for f in r.result.findings)
 
 
 def test_unknown_ship_is_404():

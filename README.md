@@ -2,11 +2,20 @@
 
 Mooring assistant for FLEETHACKER Norfolk 2026. It plans safe moorings, tug assists and line sequences from wind,
 current and tide, and produces a Mooring Evolution Safety Sheet. The plan, phases and module list are in
-[docs/PLAN.md](docs/PLAN.md).
+[docs/PLAN.md](docs/PLAN.md). Remaining modeling work follows the reviewed
+[execution plan](docs/MODELING_EXECUTION_PLAN.md), starting with S00.
 
-> **Everything runs on mock backends today.** Responses have the right shape and units, and line geometry and
-> NSTM 582 rule checks are real, but loads and agent decisions are placeholders. Every response carries
-> `"backend": "mock"` and an `X-Mooring-Backend: mock` header.
+> **Real code, placeholder data.** Real: environmental loads (UFC 4-159-03), the static mooring equilibrium, limiting wind and
+> tide sweep, tug allocation, verified holding plans, line-plan search, line sequence checks, risk sampling (with an
+> unqualified synthetic uncertainty model), persistent results and bounded jobs, and the NMEA subset. Still mock: the live
+> environment providers, the berthing and approach simulators and the approach planner. All reference data is seed data, so
+> every real result is labeled `limited`. Read [docs/MODELING_BUILDOUT_STATUS.md](docs/MODELING_BUILDOUT_STATUS.md) for
+> what each packet does and does not cover, and [docs/DEPLOYMENT_READINESS.md](docs/DEPLOYMENT_READINESS.md) before any use
+> beyond the local demo. Every envelope carries `backend`, `validity` and, where computed, a `manifest`; `GET /capabilities`
+> lists what is qualified and what blocks each capability.
+>
+> The Intake, Planner and Safety/Brief agents are real (deterministic decisions with optional guarded LLM narration); the Berth
+> Map agent is still placeholder logic. Every envelope carries `"backend": "mock"` or `"real"`; `GET /version` lists module status.
 
 ## Layout
 

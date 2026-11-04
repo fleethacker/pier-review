@@ -2,7 +2,7 @@
 
 Nov 4, 2026 · Mike Snyder · FLEETHACKER Norfolk 2026
 
-> Exported from the live planning doc: https://claude.ai/artifact/AqsZKe2xtYVV8HHBs2SSak. That doc stays the place for comments; re-export here when it changes.
+> **Execution authority:** [Remaining modeling development](MODELING_EXECUTION_PLAN.md) contains the reviewed dependency order, work packets and acceptance gates. Use it for implementation. This document retains the product roadmap and historical API sketches; the generated contract defines current payloads. The original external planning artifact is historical and must not overwrite reviewed repository changes.
 
 ## Summary
 
@@ -82,31 +82,11 @@ The UI talks only to the API layer. The agents reach the planners and physics th
 - **Storage:** YAML catalogs in the repo; SQLite for scenarios, results and sheets.
 - **Jobs:** an in-process async worker for the hackathon, replaceable by a queue later.
 
-**Repo layout.** The `mooring/` package is pure Python with no web imports. `api/` is a thin HTTP layer over it.
-
-```text
-mooring/
-  core/       schemas.py  units.py  frames.py  envelope.py
-  refdata/    ships/*.yaml  lines.yaml  berths/*.yaml  tugs.yaml
-  env/        noaa.py  replay.py  forecast.py  scenario.py  gust_model.py  telemetry.py
-  loads/      ufc_wind.py  ufc_current.py
-  solver/     static.py  line_models.py  fenders.py  envelope.py  tide_sweep.py
-  rules/      nstm582.py
-  risk/       monte_carlo.py  timeline.py  alerts.py
-  tugs/       planner.py  windows.py
-  planning/   optimizer.py  sequence.py  sequence_rules.yaml
-  vision/     berth_extract.py  enc.py
-  agent/      orchestrator.py  tools.py  prompts/
-  sheet/      safety_sheet.py  templates/
-  dynamics/   berthing.py  approach.py  squat.py
-api/          main.py  routers/  jobs.py  ws.py
-tests/        golden/  contract/  agent_evals/
-openapi.yaml
-```
+**Repo layout.** The repo is split into `frontend/` (UI), `modeling/` (physics and ML service), `agents/` (LLM agent service) and `contract/` (generated OpenAPI specs they share). Inside `modeling/`, shared capabilities (environment, loads, tug sizing, telemetry) sit beside one package per phase: `moored/`, `berthing/` and `approach/`. Each folder's README is the current source for its layout: [README](../README.md), [modeling/README.md](../modeling/README.md), [agents/README.md](../agents/README.md), [contract/README.md](../contract/README.md).
 
 ## API conventions
 
-Every field name carries its unit, in the units a bridge team uses. The physics runs in SI internally and converts at the API edge.
+Every field name carries its unit, in the units a bridge team uses. Each implementation uses a documented, consistent internal unit system and explicit tested conversions; existing UFC calculations use imperial units.
 
 | Quantity | API unit | Field suffix | Example |
 | --- | --- | --- | --- |
@@ -124,7 +104,7 @@ Every field name carries its unit, in the units a bridge team uses. The physics 
 
 - **Wind** uses the meteorological convention: direction the wind blows *from*, degrees true. This matches NOAA wind data.
 - **Current** uses the oceanographic convention: direction the water flows *toward* (set), degrees true. This matches NOAA `currents` data, where flood at cb0402 is about 190°.
-- Each environment object also returns `wind_rel_ship_deg` and `current_rel_ship_deg`, the relative bearing on the ship (0 = bow, 90 = starboard beam). That bearing is the input UFC 4-159-03 uses.
+- Each environment object also returns `wind_rel_ship_deg` and `current_rel_ship_deg`, the relative bearing on the ship (0 = bow, 90 = starboard beam). Transform these to UFC flow-toward counterclockwise angles: wind `(180 - relative_from) % 360`, current `(-relative_toward) % 360`.
 
 **Coordinate frames:**
 
@@ -282,10 +262,10 @@ Cross-cutting: `GET /jobs/{id}`, `GET /jobs/{id}/events` (SSE), `GET /health`, `
 
 ### M1 Environment service
 
-This module normalizes every source (live NOAA, historical replay, forecast, synthetic scenario, and later the ship's own sensors) into `EnvironmentSnapshot`. Nothing downstream knows where the data came from.
+This module normalizes sources into `EnvironmentSnapshot` while preserving provenance, wind basis, quality and coverage for downstream validity checks. Source-independent physics must not become source-blind risk reporting.
 
 - **Sources for Norfolk** (confirmed live on 2026-11-04 through the CO-OPS API): wind and gust from `8638614` Willoughby Degaussing Station; current and current predictions from `cb0402` Naval Station Norfolk LB 7; water level and tide predictions from `8638610` Sewells Point. Forecasts come from CBOFS for current and water level, and from NWS gridpoint forecasts for wind.
-- **Normalization:** convert NOAA 6-minute wind and the anemometer height to a 10 m, 1-minute sustained wind, which is the basis UFC uses. Record the conversion in `assumptions`.
+- **Normalization:** preserve source averaging duration, gust duration and sensor height separately from reporting interval. The legacy API sustained basis is 10 m, 1 minute; M3 converts it to its 30-second design basis. S03–S04 establish one documented conversion boundary and explicit unknown-metadata handling; never infer averaging duration from a 6-minute reporting interval.
 - **Replay mode** plays a stored historical window at 1× to 60× speed. Demos use this for repeatable "live" storms, for example a nor'easter pulled from history.
 - **Gust model:** fit the distribution of gust factor (gust ÷ sustained) and direction scatter from at least 1 year of Willoughby data, binned by wind direction sector. Also fit current residuals (observed minus predicted at cb0402). M5 samples from these.
 
@@ -332,12 +312,7 @@ POST /api/v1/scenarios            { ship_class_id, loading, berth_id, side_to, e
 
 ### M3 Environmental loads
 
-This module computes the wind and current forces and the yaw moment on the ship, using UFC 4-159-03 Chapter 4.
-
-- **Wind:** transverse force Fyw = ½ · ρa · Vw² · Ay · Cyw · fyw(θw), plus the longitudinal force and yaw moment in the same form. Cyw comes from hull and superstructure areas, with the class factor from UFC Table 4-2.
-- **Current:** transverse force Fyc = ½ · ρw · Vc² · Lwl · T · Cyc · sin θc. Cyc depends on the ratio of water depth to draft (Seelig 1992), and this is where berth depth and tide enter. The longitudinal force combines form drag, skin friction and propeller drag.
-- **Calibration:** tune each class's wind areas until the 50, 70, 100 and 150 kt loads match NSTM Table 582-3-1 within 10%.
-- **Shielding:** an optional `shielding_factor` per berth sector covers pier buildings and adjacent ships. The default is 1.0.
+**Implemented and merged.** UFC Chapter 4 forces and yaw, worked-example tests, bounded seed calibration and API wiring are in `mooring/loads/`. See [implementation notes](../modeling/README.md#m3-implementation-notes) for editions, corrections, estimates and limits. Do not implement formulas from roadmap shorthand. S03 of the [execution plan](MODELING_EXECUTION_PLAN.md) covers remaining validity and environmental-basis integration; it does not reopen calibrated coefficients or areas.
 
 ```http
 POST /api/v1/loads/environmental
@@ -644,37 +619,37 @@ D and E can start on day one against the mock server and swap in real endpoints 
 
 1. **G0, contracts frozen:** `openapi.yaml` merged, the mock server returns an example for every endpoint, and the UI can render a scenario from mocks.
 2. **G1, physics calibrated:** M3 matches NSTM Table 582-3-1 within 10% for all four classes, M4 passes the golden cases below, and M1 replay works for one historical storm.
-3. **G2, Phase 1 demo:** the agent produces a GREEN plan for DDG 51 at a mock NAVSTA pier, recommends tug horsepower, issues a gust warning during a replayed storm, and produces an approved safety sheet. **This gate is the hackathon deliverable.**
-4. **G3, Phase 2 berthing:** the interactive berthing session runs at 10 Hz, and the static tug plan agrees with the dynamic simulation within 15% on holding force.
-5. **G4, Phase 3 approach:** route and under-keel clearance checks run for a NAVSTA approach using ENC data, and a timing window is produced from tide and current predictions.
+3. **G2, Phase 1 demo:** satisfy S14 of the execution plan: demonstrate a supported safe case plus overloaded, invalid-data and undetermined cases using labeled demonstration data. Numbers must be traceable and the sequence subject-matter reviewed. A safety sheet remains a draft until actual human approval; never force a GREEN plan. **This gate is the hackathon deliverable, not operational qualification.**
+4. **G3, Phase 2 berthing:** satisfy S15–S17: independent dynamics/contact benchmarks, timestep convergence, qualified inputs and deterministic interactive controls. A 10 Hz display and agreement with static holding alone are insufficient.
+5. **G4, Phase 3 approach:** satisfy S18–S19: full-corridor coverage and datum checks, validated UKC/transit timing and qualified maneuvering dynamics, including failure cases and navigation subject-matter review.
 
 Phase 1b (berth vision) can ship any time after G0, because its only dependency is the `Berth` schema and the M7 endpoint.
 
 ## Validation and testing
 
-The physics is trusted only as far as it reproduces published Navy numbers. Each of these golden cases is a pytest test that runs in CI.
+Use the packet-specific tests and release gates in the [execution plan](MODELING_EXECUTION_PLAN.md). This table is a benchmark inventory, not a claim that every test or CI job exists. Independent analytical/source benchmarks and validity tests are required in addition to calibration.
 
 | Case | Expected | Tolerance | Module |
 | --- | --- | --- | --- |
-| DDG 51 wind load, worst bearing (105°/255°) | 116k / 227k / 463k / 1,040k lbf at 50 / 70 / 100 / 150 kt (NSTM Table 582-3-1) | ±10% | M3 |
+| DDG 51 wind load (NSTM 105°/255° → API wind-from 75°/285°) | 116k / 227k / 463k / 1,040k lbf at 50 / 70 / 100 / 150 kt (NSTM Table 582-3-1) | ±10% | M3 |
 | CG 47, LHD 1, CVN 68 wind load, same table | Values from NSTM Table 582-3-1 | ±10% | M3 |
 | UFC 4-159-03 destroyer worked example | Reproduces the Chapter 4 example forces | ±2% | M3 |
 | Wind scaling | Doubling wind speed gives 4× force (NSTM 582-2.2.4.3) | exact | M3 |
 | 2 kt beam current, typical surface ship | At least 2× the 50 kt wind force (NSTM 582-3.3.2) | qualitative | M3 |
 | Breast efficiency | 0.87 at 30°, 0.71 at 45° | exact | M4 |
-| Symmetric plan, pure beam load | Zero yaw and equal line pairs | 1e-6 | M4 |
-| Short and long line in parallel | 50 ft line carries about 2× the load of a 100 ft line | ±5% | M4 |
-| Tanker moor vs three-part moor | About 2/3 the holding capacity | ±5% | M4 |
-| Monte Carlo convergence | p95 tension stable at N = 2,000 | ±2% between seeds | M5 |
-| Static vs dynamic holding force | M6 vs M11 steady-state tug force | ±15% | M6, M11 |
+| Symmetric plan, pure beam load | Zero yaw and equal line pairs | Dimensional/scaled residual gates in S06 | M4 |
+| Short and long line in parallel | 50 ft line carries 2× a 100 ft line only for equal extension, identical material/area and active linear response | ±5% | M4 |
+| Tanker moor vs three-part moor | 2/3 only for equivalent parts, strain and supported arrangement (S05) | ±5% | M4 |
+| Monte Carlo accuracy | Known-distribution exceedance and quantile coverage, including invalid samples | Statistical accuracy criterion in S11; no universal N=2,000 guarantee | M5 |
+| Static vs dynamic holding force | M6 vs M11 steady-state consistency; supplemental to independent dynamics benchmarks | ±15% | M6, M11 |
 
 **Contract tests.**
 
 - Pydantic models generate `openapi.yaml`.
-- Schemathesis fuzzes every endpoint against it in CI.
-- The UI runs a Prism mock server from the same file, so a contract change breaks the build on both sides at once.
+- S00 establishes CI for contract drift and both Python services. Schemathesis fuzzing is a future enhancement, not implemented coverage.
+- Frontend contract/mock integration needs verified consumer tests; do not assume Prism or a shared build gate exists.
 
-**Agent evals.** About 10 scripted scenarios with known-good outcomes, for example "64 kt MST II for DDG 51 should double up lines 2 and 5" and "an infeasible case should report infeasible, not force GREEN". Each eval checks three things:
+**Agent evals.** About 10 scripted scenarios with known-good outcomes, for example "a 64 kt MST II case must evaluate the applicable design conditions and return a validated plan or an explicit infeasible/undetermined outcome" and "an infeasible case should report infeasible, not force GREEN". Each eval checks three things:
 
 - the final status,
 - that every cited number matches its `result_id`,
@@ -712,7 +687,7 @@ The physics is trusted only as far as it reproduces published Navy numbers. Each
 ## Sources
 
 - NSTM Chapter 582, Mooring and Towing, Rev 2, 2001 (Distribution B): [hosted copy](https://towmasters.wordpress.com/wp-content/uploads/2009/05/nstm-chapter-582-mooring-towing.pdf)
-- UFC 4-159-03 Design: Moorings: [WBDG PDF](https://stg.wbdg.org/FFC/DOD/UFC/ARCHIVES/ufc_4_159_03_2005.pdf), [transverse wind force](https://buildingcriteria2.tpub.com/ufc_4_159_03/ufc_4_159_030080.htm), [current forces](https://buildingcriteria2.tpub.com/ufc_4_159_03/ufc_4_159_030094.htm)
+- UFC 4-159-03 Design: Moorings: [WBDG source page](https://www.wbdg.org/ffc/dod/unified-facilities-criteria-ufc/ufc-4-159-03). M3 uses the 12 March 2020 edition with documented earlier-edition corrections; see modeling/README.md and coefficients.py. Do not silently mix editions.
 - NOAA CO-OPS data API (tested live 2026-11-04): [PORTS cb0402 Naval Station Norfolk LB 7](https://tidesandcurrents.noaa.gov/ports/ports.html?id=cb0402), [CBOFS](https://tidesandcurrents.noaa.gov/ofs/cbofs/cbofs_info.html), [CBOFS THREDDS](https://ncei.noaa.gov/thredds/catalog/model/cbofs_catalog.html)
 - [Pilot's Tug Assist Tool: bollard pull for marine pilots](https://www.marine-pilots.com/article/14778-Pilots-Tug-Assist-Tool-PTAT--Bollard-Pull-Calculation-for-Marine-Pilots)
 - [PythonVehicleSimulator (Fossen, MIT)](https://www.github.com/cybergalactic/PythonVehicleSimulator), [MoorPy (NREL, BSD)](https://github.com/NatLabRockies/MoorPy), [MoorDyn](https://moordyn.readthedocs.io/en/latest/)

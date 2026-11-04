@@ -1,4 +1,4 @@
-"""NSTM 582 rule registry used by the compliance checker (module M4).
+"""NSTM 582 rule registry used by the compliance checker (module M4), plus UFC load-model validity rules.
 
 Rule IDs are stable: safety sheets cite them. Add a rule here with a test case. References are paragraph and
 table numbers only; do not paste NSTM text into this repo (Distribution Statement B).
@@ -60,7 +60,43 @@ RULES: list[Rule] = [
          reference="NSTM Table 582-2-3", applies_to="berthing", implemented=False),
     Rule(rule_id="FITTING-CONDITION", title="Don't use suspect, damaged or occupied fittings", severity="RED",
          reference="NSTM 582-2.3.1", applies_to="pier_fitting", implemented=True),
+    # Load-model validity (UFC 4-159-03), raised by mooring.loads.range_findings, not by NSTM checks.
+    Rule(rule_id="UFC-DEPTH-RANGE", title="Water depth at or below draft: current coefficient clamped at T/d = 1",
+         severity="AMBER", reference="UFC 4-159-03 Figure 4-9; Eq. 4-10", applies_to="environment", implemented=True),
+    Rule(rule_id="UFC-CURRENT-SPEED", title="Current above the 1.5 m/s range of the current-force coefficient",
+         severity="AMBER", reference="UFC 4-159-03 4-5.1", applies_to="environment", implemented=True),
+    Rule(rule_id="UFC-LOW-REYNOLDS", title="Very low current speed: friction Reynolds number floored",
+         severity="AMBER", reference="UFC 4-159-03 Eqs. 4-19/4-20", applies_to="environment", implemented=True),
 ]
+
+# Audit (S01). Coverage says what the code checks; `source_verified` stays False because NSTM 582 is not kept in
+# this repo (distribution restriction), so no paragraph or table here has been re-verified against the edition.
+_AUDIT: dict[str, tuple[str, str]] = {
+    "LINE-WLL": ("implemented", "Uses MBS x parts x wet factor / design factor; design factor by MST only."),
+    "LINE-MBS": ("implemented", "Same tension as LINE-WLL; no dynamic or snatch allowance."),
+    "PIER-FITTING-CAP": ("partial", "Compares resultant to nominal capacity; ignores horizontal/45-degree ratings."),
+    "SHIP-BITT-SWL": ("partial", "Skipped where the ship fitting has no SWL; that is reported as missing data."),
+    "MIN-LINES": ("partial", "Role-based count; does not check nested or special arrangements."),
+    "MST-ENV": ("partial", "Wind/current envelope only; current uses the broadside component for MST II+."),
+    "LEAD-45": ("implemented", "Breast lines only; horizontal angle from perpendicular."),
+    "ONE-PER-FITTING": ("partial", "Opposing-spring exception not evaluated."),
+    "CLEAT-USE": ("partial", "Bollard availability is not checked."),
+    "NO-MIXED-LINES": ("implemented", "Material and construction compared across the plan."),
+    "SHORT-LINE": ("partial", "Length threshold only; slack not measured."),
+    "LONG-LINE-PRETENSION": ("partial", "Advisory when no pretension is given."),
+    "LINE-SLOPE": ("implemented", "Advisory threshold of 30 degrees."),
+    "BOW-POSITION": ("partial", "Advisory; distance rule only."),
+    "PARTS-CAPACITY": ("partial", "Advisory; does not compute reeving capacity."),
+    "NESTED-MST": ("unsupported", "No nesting model; do not claim compliance."),
+    "TUG-HOLD-LINES": ("partial", "Sequence-level advisory."),
+    "BERTHING-SPEED": ("unsupported", "No berthing-speed evaluation until M11 qualification."),
+    "FITTING-CONDITION": ("implemented", "Uses catalog condition and occupancy flags only."),
+    "UFC-DEPTH-RANGE": ("implemented", "Load-model validity, not an NSTM rule."),
+    "UFC-CURRENT-SPEED": ("implemented", "Load-model validity, not an NSTM rule."),
+    "UFC-LOW-REYNOLDS": ("implemented", "Load-model validity, not an NSTM rule."),
+}
+for _r in RULES:
+    _r.coverage, _r.applicability = _AUDIT[_r.rule_id][0], _AUDIT[_r.rule_id][1]  # type: ignore[assignment]
 
 RULES_BY_ID = {r.rule_id: r for r in RULES}
 

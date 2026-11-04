@@ -32,7 +32,17 @@ class PushPointForce(Model):
     mode: Literal["push", "pull"]
 
 
+class WrenchLbf(Model):
+    """Force and yaw moment in the ship frame (+x forward, +y to port, yaw CCW) about midships."""
+
+    fx_lbf: float
+    fy_lbf: float
+    mz_ftlbf: float
+
+
 class TugPlanResult(Model):
+    wire_omitted_defaults = {"required_wrench": None, "delivered_wrench": None, "residual_wrench": None, "binding_constraints": [], "ratings_basis": None, "assisted_max_pct_wll": None, "assisted_result_id": None}
+
     required_lateral_lbf: float
     required_by_point: list[PushPointForce]
     assignments: list[TugAssignment]
@@ -41,6 +51,13 @@ class TugPlanResult(Model):
     recommended_tug_count: int
     feasible: bool
     rationale: list[str]
+    required_wrench: WrenchLbf | None = Field(default=None, description="Wrench the tugs must supply (after margin).")
+    delivered_wrench: WrenchLbf | None = None
+    residual_wrench: WrenchLbf | None = Field(default=None, description="required - delivered. Feasible only when every component is within tolerance.")
+    binding_constraints: list[str] = Field(default_factory=list, description="Rating, direction or hull-point limits that are active.")
+    ratings_basis: str | None = Field(default=None, description="Where the pull ratings come from (catalog estimate, not certified).")
+    assisted_max_pct_wll: float | None = Field(default=None, description="Holding plans: highest line/fitting utilization from a fresh equilibrium solve with the tugs applied.")
+    assisted_result_id: str | None = Field(default=None, description="Holding plans: the analysis envelope of that fresh solve.")
 
 
 class TugPlanResponse(Envelope[TugPlanResult]):
@@ -48,6 +65,8 @@ class TugPlanResponse(Envelope[TugPlanResult]):
 
 
 class BerthingWindowRequest(Model):
+    wire_omitted_defaults = {"available_tug_ids": None, "margin": 0.25, "step_min": 6, "min_duration_min": 0.0}
+
     berth_id: str
     ship_class_id: str
     loading: str = "full_load"
@@ -56,18 +75,27 @@ class BerthingWindowRequest(Model):
     to_utc: datetime
     max_current_kt: float = Field(default=0.5, ge=0)
     max_gust_kt: float | None = Field(default=None, ge=0)
+    available_tug_ids: list[str] | None = Field(default=None, description="Fleet requested for the berthing; defaults to the whole catalog fleet.")
+    margin: float = Field(default=0.25, ge=0, le=1)
+    step_min: int = Field(default=6, ge=1, le=60, description="Coarse sampling interval; threshold crossings between samples are refined to 1 min.")
+    min_duration_min: float = Field(default=0.0, ge=0, description="Windows shorter than this are dropped.")
 
 
 class BerthingWindow(Model):
-    start_utc: datetime
-    end_utc: datetime
+    start_utc: datetime = Field(description="First feasible minute (inclusive).")
+    end_utc: datetime = Field(description="Last feasible minute (inclusive).")
     max_current_kt: float
     max_gust_kt: float
     required_power_hp: float
 
 
 class BerthingWindowsResult(Model):
+    wire_omitted_defaults = {"forecast_coverage_end_utc": None, "gaps": [], "resolution_note": None}
+
     windows: list[BerthingWindow]
+    forecast_coverage_end_utc: datetime | None = Field(default=None, description="Last time with forecast data; later times are gaps, never windows.")
+    gaps: list[str] = Field(default_factory=list)
+    resolution_note: str | None = None
 
 
 class BerthingWindowsResponse(Envelope[BerthingWindowsResult]):

@@ -30,9 +30,9 @@ The agents application now has its own HTTP body/rate controls and resource owne
 
 The separate agents service now uses bounded real background jobs (`AGENTS_WORKERS=2`, `AGENTS_QUEUE=16`,
 `AGENTS_JOB_TIMEOUT_S=300`), cancellation, terminal failure events and resumable SSE. Steps reflect actual
-work. It still lacks persistent plan/report/sheet storage in this packet; modeling SQLite durability does not
-cover those objects. Restart loses agent records. This is not operational
-readiness or a distributed worker system.
+work. Default in-memory mode loses agent records on restart. Opt-in file-backed persistence now covers
+plans/reports/sheets and terminal jobs as described below; interrupted work is failed, not resumed. This is not
+operational readiness or a distributed worker system.
 
 ### Agents authentication and ownership
 

@@ -754,6 +754,12 @@ components:
           - type: string
           - type: 'null'
           title: Sequence Result Id
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Common line-installation tide used across assessed conditions; absent on legacy plans.
         analysis_result_id:
           anyOf:
           - type: string
@@ -2286,6 +2292,11 @@ components:
           - type: string
           - type: 'null'
           title: Analysis Result Id
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
         sequence_result_id:
           anyOf:
           - type: string

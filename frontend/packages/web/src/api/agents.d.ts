@@ -416,6 +416,11 @@ export interface components {
             sequence?: components["schemas"]["SequenceResult"] | null;
             /** Sequence Result Id */
             sequence_result_id?: string | null;
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Common line-installation tide used across assessed conditions; absent on legacy plans.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
             /** Analysis Result Id */
             analysis_result_id?: string | null;
             /** Risk Result Id */
@@ -1342,6 +1347,8 @@ export interface components {
             validity?: components["schemas"]["Validity"] | null;
             /** Analysis Result Id */
             analysis_result_id?: string | null;
+            /** Installed At Water Level Mllw Ft */
+            installed_at_water_level_mllw_ft?: number | null;
             /** Sequence Result Id */
             sequence_result_id?: string | null;
             /** Threshold Result Ids */

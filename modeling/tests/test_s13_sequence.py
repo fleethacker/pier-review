@@ -233,3 +233,18 @@ def test_long_dependency_path_does_not_overflow_the_python_stack():
     assert _critical_path(steps) == 3000
     steps[0].depends_on = [2999]
     assert _critical_path(steps) is None
+
+
+def test_sequence_keeps_declared_installation_tide_across_intermediate_states(monkeypatch):
+    from mooring.mechanics import equilibrium as eq
+    captured = []
+    original = eq.build_system
+    def build(*args, **kwargs):
+        system = original(*args, **kwargs)
+        captured.append((kwargs["install_water_level_ft"], system.env.water_level_mllw_ft))
+        return system
+    monkeypatch.setattr(eq, "build_system", build)
+    result = seq(environment={**CALM, "water_level_mllw_ft": 3.5}, installed_at_water_level_mllw_ft=-1.25)
+    assert len(captured) > 1
+    assert set(captured) == {(-1.25, 3.5)}
+    assert any("-1.25 ft MLLW" in a for a in result["assumptions"])

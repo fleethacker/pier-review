@@ -270,7 +270,8 @@ def _state(ship, berth, req, lines, specs, fast, power, tugs, df, doubled):
     if blocked:
         return False, None, "; ".join(blocked)
     try:
-        system = eq.build_system(ship, berth, cfg, specs, req.environment, loading=req.loading, lines_wet=True, tugs=tugs)
+        system = eq.build_system(ship, berth, cfg, specs, req.environment, loading=req.loading, lines_wet=True, tugs=tugs,
+                                 install_water_level_ft=req.installed_at_water_level_mllw_ft)
     except eq.SystemError as e:
         return False, None, str(e)
     if system.depth_ft(eq.Pose()) <= mean_draft_ft(ship, req.loading):
@@ -321,7 +322,8 @@ def _result(req, ship, berth, steps, tug_assignments, result_id_tug):
                               code_version="mooring.planning.sequence@1.0.0", records=records, environment_hash=resolved_inputs_hash(req.environment))
     return envelope(SequenceResponse, model="mooring.planning.sequence", request=req, result=result, status=status_with_validity(status, validity),
                     validity=validity, backend="real", model_version="1.0.0", manifest=manifest,
-                    assumptions=[f"Loading {req.loading}; strength design factor uses MST {req.mst}.",
+                    assumptions=[f"Line installation tide: {req.installed_at_water_level_mllw_ft if req.installed_at_water_level_mllw_ft is not None else req.environment.water_level_mllw_ft:g} ft MLLW; no implicit tending in these draft static checks.",
+                                 f"Loading {req.loading}; strength design factor uses MST {req.mst}.",
                                  "Intermediate states: only deployed parts are modeled (one until double_up), slack until taken to power; tugs hold until every line is on its bollard. Tug release is checked before further tensioning.",
                                  *LIMITATIONS])
 

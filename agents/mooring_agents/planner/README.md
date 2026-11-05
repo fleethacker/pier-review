@@ -97,3 +97,5 @@ condition aggregation, best-plan rollback, inventory, scenario resolution, prove
 The API now queues the real loop on a bounded worker pool. SSE steps/proposals arrive as computed,
 not after an artificial mock delay. Poll plan/job terminal state before requesting review or follow-ups.
 Failure and cancellation emit terminal `done` with `state` and `error`; reconnect with `Last-Event-ID`.
+
+All new plans retain `installed_at_water_level_mllw_ft`, taken from the first intake planning condition (or sole environment snapshot). Search, subsequent condition analyses, holding assistance, draft sequence, risk and what-if requests retain this common installation tide; they do not implicitly retension lines at each later tide. Independent review preserves it, including when a supplemental intake is supplied. Legacy plans without this field retain their old per-condition assumption; regenerate them before relying on multi-tide comparisons.

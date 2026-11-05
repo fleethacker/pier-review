@@ -78,6 +78,7 @@ def _build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
         sheet_id=new_id("sheet"), version=version, plan_id=plan.plan_id, review_id=review.review_id if review else None,
         locked=False, status=status, validity=validity,
         analysis_result_id=a.result_id, sequence_result_id=plan.sequence_result_id,
+        installed_at_water_level_mllw_ft=plan.installed_at_water_level_mllw_ft,
         threshold_result_ids=review.thresholds.cites if review else [],
         holding_tugs=getattr(rec, "holding_tugs", []) or [],
         header=SheetHeader(ship_class_id=rec.scenario.ship_class_id, berth_id=rec.scenario.berth_id,
@@ -147,6 +148,8 @@ def render_html(s: SafetySheet) -> str:
     holding_note = ("Prescribed assistance included in the holding assessment; continuous availability must be arranged."
                     if s.holding_tugs else "Holding assistance is not recorded in this archived sheet; inspect the cited analysis before use."
                     if s.holding_tugs is None else "No prescribed holding assistance is included in the line assessment.")
+    installation = (f"{s.installed_at_water_level_mllw_ft:g} ft MLLW; held fixed across assessed conditions, with no implicit tending"
+                    if s.installed_at_water_level_mllw_ft is not None else "not recorded in this legacy sheet; inspect the cited inputs")
     citations = "".join(f"<li>{e(cite)}</li>" for cite in s.cited_result_ids)
     return f"""<!doctype html><html><head><meta charset="utf-8"><title>Mooring Evolution Safety Sheet</title>
 <style>body{{font-family:system-ui,sans-serif;margin:24px;color:#111}}table{{border-collapse:collapse}}
@@ -160,6 +163,7 @@ td,th{{border:1px solid #999;padding:4px 8px;text-align:left}}.st{{font-weight:7
 MST {s.environment.mst}</p>
 <p>Evaluated condition: {s.environment.observed.valid_at_utc:%Y-%m-%d %H:%M %z}; source {e(s.environment.observed.source)}.
 These are assessed inputs, not a live observation display.</p>
+<p>Line-installation water level: {installation}.</p>
 {f'<h2>Bridge brief</h2><p>{e(s.brief)}</p>' if s.brief else ''}
 <h2>Directional gust thresholds</h2>
 <p>Modeling result references: {e(', '.join(s.threshold_result_ids)) or 'Unavailable in this archived sheet'}.</p>

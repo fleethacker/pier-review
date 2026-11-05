@@ -6775,6 +6775,12 @@ components:
           - type: string
           - type: 'null'
           title: Tug Plan Result Id
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Common installation tide for draft static checks; defaults to the evaluated water level.
         line_handling_crews:
           type: integer
           minimum: 1.0
@@ -7024,6 +7030,12 @@ components:
           - type: string
           - type: 'null'
           title: Tug Plan Result Id
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Common installation tide for draft static checks; defaults to the evaluated water level.
         line_handling_crews:
           type: integer
           minimum: 1.0

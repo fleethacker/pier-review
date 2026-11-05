@@ -2,6 +2,8 @@
 
 ## Log
 
+- 22:38 EST: reviewed DC6 locally against a real NOAA US5ORFCC base+5 updates (temporary files only). Fixed combined/prefixed DSID metadata, distinct VDAT/SDAT, explicit WGS84/metres/MLLW subset, CRS/local-datum guards and malformed geometry/depth rejection. 24 focused tests and full suite 1384 pass (no skips/xfails); UI typecheck/lint/81 tests/build and contract generation pass. Actual reader accepts metadata and 141 polygons. DEPARE-only limitations remain explicit; no clearance qualification.
+
 - 22:33 EST: real bounded agent-job burst, no external network/LLM: 40 requests, 18 accepted, 22 rejected with HTTP 429 and Retry-After; cancelled one queued job, remaining 17 completed AMBER with unique plan ids. Elapsed 31.85 s on this machine; this is local saturation evidence, not deployment qualification.
 
 - 22:33 EST: supplied risk timeline and explicit training provenance pass 1360 Python tests, no skips/xfails; 33 focused risk tests and 81 UI tests/typecheck/lint/build pass. Supplied knots, exact endpoints, gap/time validation, invalid-source suppression and per-step failed-sample bounds are covered. Training remains isolated/labeled even with public providers configured.

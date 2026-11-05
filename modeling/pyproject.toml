@@ -11,6 +11,8 @@ dependencies = [
     "httpx>=0.27",
     "fiona>=1.10",
     "shapely>=2.0",
+    "xarray>=2025.1",
+    "netCDF4>=1.7",
 ]
 
 [build-system]

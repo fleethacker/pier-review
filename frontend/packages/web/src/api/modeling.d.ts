@@ -3745,6 +3745,11 @@ export interface components {
             /** Tug Plan Result Id */
             tug_plan_result_id?: string | null;
             /**
+             * Installed At Water Level Mllw Ft
+             * @description Common installation tide for draft static checks; defaults to the evaluated water level.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
+            /**
              * Line Handling Crews
              * @default 6
              */
@@ -3893,6 +3898,11 @@ export interface components {
             environment: components["schemas"]["EnvironmentSnapshot"];
             /** Tug Plan Result Id */
             tug_plan_result_id?: string | null;
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Common installation tide for draft static checks; defaults to the evaluated water level.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
             /**
              * Line Handling Crews
              * @default 6

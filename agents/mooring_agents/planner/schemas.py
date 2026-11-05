@@ -31,7 +31,7 @@ class RationaleItem(Model):
 
 
 class AgentPlan(Model):
-    wire_omitted_defaults = {"sequence_result_id": None}
+    wire_omitted_defaults = {"sequence_result_id": None, "installed_at_water_level_mllw_ft": None}
     plan_id: str
     scenario_id: str
     intake_report_id: str | None = None
@@ -41,6 +41,8 @@ class AgentPlan(Model):
     tug_plan: TugPlanResult | None = None
     sequence: SequenceResult | None = None
     sequence_result_id: str | None = None
+    installed_at_water_level_mllw_ft: float | None = Field(default=None,
+        description="Common line-installation tide used across assessed conditions; absent on legacy plans.")
     analysis_result_id: str | None = None
     risk_result_id: str | None = None
     rationale: list[RationaleItem] = Field(default_factory=list)

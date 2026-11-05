@@ -204,7 +204,11 @@ def test_safety_review_and_sheet(planned, intake_report):
     assert by_id["CITES-RESOLVE"].passed and by_id["CITES-IN-LEDGER"].passed
     # A WLL envelope with current, pretension and fenders cannot establish a line-breaking speed by square-root scaling.
     assert rv.thresholds.limit_breaking_gust_kt is None
-    assert rv.thresholds.limit_wll_gust_kt is not None
+    # Preserving installation tide exposes an unresolved envelope bearing in this fixed multi-tide fixture.
+    # Unknown directional evidence must block a usable aggregate threshold, not be silently discarded.
+    assert rv.thresholds.limit_wll_gust_kt is None
+    assert any(point.limit_wll_gust_kt is None for point in rv.thresholds.directions)
+    assert not by_id["GUST-THRESHOLD"].passed and rv.verdict != "ready_for_signature"
     sheet_r = client.post(f"{P}/safety-sheets", json={"plan_id": planned, "review_id": rv.review_id})
     assert sheet_r.status_code == 201, sheet_r.text
     sheet = SafetySheet.model_validate(client.get(f"{P}/safety-sheets/{sheet_r.json()['sheet_id']}").json())
@@ -307,10 +311,13 @@ def test_sheet_preserves_holding_assistance_and_visible_result_references(plan_i
     sheet = renderer.build(record, latest_review(plan_id))
     assert sheet.holding_tugs[0].force_lbf == 1000
     assert sheet.analysis_result_id == record.analysis.result_id
+    assert sheet.installed_at_water_level_mllw_ft == record.plan.installed_at_water_level_mllw_ft
     assert sheet.sequence_result_id == record.plan.sequence_result_id
     assert sheet.sequence_result_id in sheet.cited_result_ids
     assert set(sheet.threshold_result_ids) <= set(sheet.cited_result_ids)
     rendered = renderer.render_html(sheet)
+    assert 'Line-installation water level:' in rendered
+    assert 'held fixed across assessed conditions' in rendered
     assert 'Holding assistance' in rendered and 'continuous availability' in rendered
     assert 'Berthing tug plan' in rendered and 'PP-FWD-P' in rendered and '1,000 lbf' in rendered
     assert sheet.analysis_result_id in rendered
@@ -326,8 +333,9 @@ def test_sheet_preserves_holding_assistance_and_visible_result_references(plan_i
     assert 'Static check: blocking' in rendered and injection not in rendered
     # Absent legacy data means unknown, never zero assistance.
     old = sheet.model_dump(mode='json')
-    for field in ('holding_tugs','analysis_result_id','threshold_result_ids','sequence_result_id'):
+    for field in ('holding_tugs','analysis_result_id','threshold_result_ids','sequence_result_id','installed_at_water_level_mllw_ft'):
         old.pop(field)
     legacy = SafetySheet.model_validate(old)
     assert legacy.holding_tugs is None and 'not recorded in this archived sheet' in renderer.render_html(legacy)
+    assert legacy.installed_at_water_level_mllw_ft is None and 'not recorded in this legacy sheet' in renderer.render_html(legacy)
     assert legacy.sequence_result_id is None and 'sequence_result_id' not in legacy.model_dump()

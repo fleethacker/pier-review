@@ -86,7 +86,7 @@ class RecommendResponse(Envelope[RecommendResult]):
 
 
 class SequenceRequest(Model):
-    wire_omitted_defaults = {"loading": "full_load", "mst": "II"}
+    wire_omitted_defaults = {"loading": "full_load", "mst": "II", "installed_at_water_level_mllw_ft": None}
     ship_class_id: str
     loading: str = "full_load"
     mst: MooringServiceType = "II"
@@ -94,6 +94,8 @@ class SequenceRequest(Model):
     config: MooringConfig
     environment: EnvironmentSnapshot
     tug_plan_result_id: str | None = None
+    installed_at_water_level_mllw_ft: float | None = Field(default=None,
+        description="Common installation tide for draft static checks; defaults to the evaluated water level.")
     line_handling_crews: int = Field(default=6, ge=1)
 
 

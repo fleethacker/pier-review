@@ -468,3 +468,29 @@ def test_invalid_component_remains_blocking_in_complete_plan(setup, monkeypatch,
     if component == 'tugs':
         assert seen[0]['tug_plan_result_id'] is None
         assert any('Invalid berthing-tug assessment' in value for value in rec.plan.assumptions)
+
+
+def test_tide_changes_keep_one_installation_through_plan_risk_and_what_if(setup, monkeypatch):
+    client, tk = setup
+    report = report_for(client)
+    report.planning_conditions[0].environment = client.env.model_copy(update={"water_level_mllw_ft": -1.25})
+    report.planning_conditions[1].environment = client.env.model_copy(update={"water_level_mllw_ft": 3.5})
+    monkeypatch.setitem(REPORTS, "changing-tide", report)
+    # Make the later tide govern, so rec.env cannot be mistaken for installation.
+    client.analyze_fn = lambda b: ("AMBER", 70 if b["environment"]["water_level_mllw_ft"] == 3.5 else 30)
+    sequences = []
+    original = client.sequence
+    async def sequence(body):
+        sequences.append(body)
+        return await original(body)
+    monkeypatch.setattr(client, "sequence", sequence)
+    rec = run(tk, intake_report_id="changing-tide", max_iterations=1)
+    assert rec.env.water_level_mllw_ft == 3.5
+    assert rec.plan.installed_at_water_level_mllw_ft == -1.25
+    assert {b["environment"]["water_level_mllw_ft"] for b in client.requests} == {-1.25, 3.5}
+    assert all(b["installed_at_water_level_mllw_ft"] == -1.25 for b in [*client.requests, *client.risks, *sequences])
+    restored = agent._load_record(agent.SavedPlan.model_validate_json(agent._save_record(rec).model_dump_json()))
+    assert restored.plan.installed_at_water_level_mllw_ft == -1.25
+    asyncio.run(agent.answer(restored, "NW 15 kt", tk))
+    assert client.requests[-1]["installed_at_water_level_mllw_ft"] == -1.25
+    assert client.requests[-1]["environment"]["water_level_mllw_ft"] == 3.5

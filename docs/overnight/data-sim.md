@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 23:35 EST (B): small S13 consistency change in owned sequence checks (`berthing/sequence.py`): optional installation tide now passes to equilibrium, matching planner multi-tide analyses/risk/review. No simulator/environment changes. Model schema stays additive, regression test checks every intermediate build retains that tide.
+
 - B 23:23 EST: tiny provider-status correction in environment/__init__.py: NWS/CBOFS readers are installed but a composed forecast is not wired; replacing stale “DC2/DC3 not installed” labels without changing providers/source selection. M6 module status also corrected from mock to real rated allocation with unqualified fleet data.
 
 - B 23:14 EST: CBOFS live subset succeeds: valid 2026-11-05 18Z surface 0.320 kt toward 57.48° / 1.265 ft MLLW at 36.96,-76.33; 4m and 6m unavailable. Explicit neighbor -76.335 has 6m current 0.207 kt. Reader does not silently substitute cell/layer. Temporary decoded subset + provenance under /tmp/psp-public-data/cbofs-regular-pier-subset.nc; no data committed. Complete forecast composition and depth applicability remain blockers.

@@ -172,9 +172,11 @@ class ApprovalCreate(Model):
 
 class SafetySheet(Model):
     wire_omitted_defaults = {"validity": None, "analysis_result_id": None,
-                            "threshold_result_ids": [], "holding_tugs": None, "sequence_result_id": None}
+                            "threshold_result_ids": [], "holding_tugs": None, "sequence_result_id": None,
+                            "installed_at_water_level_mllw_ft": None}
     validity: Validity | None = None
     analysis_result_id: str | None = None
+    installed_at_water_level_mllw_ft: float | None = None
     sequence_result_id: str | None = None
     threshold_result_ids: list[str] = Field(default_factory=list)
     holding_tugs: list[TugAssignment] | None = Field(default=None,

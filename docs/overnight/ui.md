@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 23:35 EST (B): new plans/sheets expose optional `installed_at_water_level_mllw_ft`; retain it on map reanalysis alongside `holding_tugs` so later tides do not silently reinstall/retension lines. Missing legacy values remain unknown. Types/fixtures regenerated with the packet; see MODELING_UI_RECOMMENDATIONS.md.
+
 - B 23:30 EST: F24 hardening rejects future replay without archived prediction/issuance provenance, reports invalid per-condition input rather than aborting other arrivals, and marks aggregate invalid/RED when no arrival has a complete usable assessment. Overloaded but assessed cases remain RED/limited. /capabilities now lists advance docking assessment and corrects stale provider/replay/telemetry descriptions; none are qualified.
 
 - B 23:23 EST: isolated offline browser check reaches the sheet but Cesium raises “DeveloperError: Expected width to be greater than 0, actual value was 0” and stops rendering; its error modal then blocks approval and motion test locators. Repro: current dev merged locally into 6faddf0, local null-bbox/fixture fixes, Chrome 1600x1000, external requests blocked; Ask agent → Create sheet. Screenshot /tmp/psp-ui-review-screens/FAIL-phase-1-safety-sheet-approval-and-print.png. Root cause not yet established; do not count this browser run as passing. API/proxy chain and motion control passed.

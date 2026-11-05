@@ -152,7 +152,8 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
     environments = [condition.environment for report in reports for condition in report.planning_conditions] or [rec.env]
     environments = list({json.dumps(env.model_dump(mode="json"), sort_keys=True): env for env in environments}.values())
     holding = getattr(rec, "holding_tugs", None) or []
-    reanalyses = [await tk.analyze(_analyze_body(rec.scenario, plan.config, condition, rec.mst, holding))
+    installation_tide = getattr(plan, "installed_at_water_level_mllw_ft", None)
+    reanalyses = [await tk.analyze(_analyze_body(rec.scenario, plan.config, condition, rec.mst, holding, installation_tide))
                   for condition in environments]
     rank = {"GREEN": 0, "INFO": 0, "AMBER": 1, "RED": 2}
     reanalysis_checks = [
@@ -162,7 +163,7 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
     ]
     results.extend(reanalysis_checks)
 
-    envelopes = [await tk.envelope({**_analyze_body(rec.scenario, plan.config, condition, rec.mst, holding), "step_deg": 15})
+    envelopes = [await tk.envelope({**_analyze_body(rec.scenario, plan.config, condition, rec.mst, holding, installation_tide), "step_deg": 15})
                  for condition in environments]
     points = _conservative_points(envelopes)
     worst = min(points, key=lambda point: (0, 0) if _gust_limit(point) is None else (1, _gust_limit(point)))

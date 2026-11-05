@@ -2,6 +2,8 @@
 
 ## Log
 
+- 23:37 EST: multi-tide planner audit found analyses/risk/review implicitly reinstalling lines at each condition. Added common installation tide to plans/sheets, requests and draft sequence checks, including persistence/what-if. Regression checks later governing tide and supplemental review. One fixed integration fixture now correctly has an unknown directional gust limit and blocks readiness; its assertion now checks that conservative outcome. 90 focused, 20 API and 1467 full Python tests pass, no skips/xfails. Contract/types regenerated, UI 81 tests/typecheck/lint/build pass.
+
 - 23:33 EST: forecast planning rejects future replay observations without archived prediction/issuance provenance, isolates invalid snapshot inputs so later usable arrivals remain assessable, and marks wholly unusable assessments invalid without claiming physical infeasibility. Capability discovery now includes advance docking and correct installed-reader/telemetry status. 44 focused and 1465 full Python tests pass, no skips/xfails; contract regenerated without drift. UI typecheck/lint/build and 81 tests pass.
 
 - 23:25 EST: UI compatibility review published in UI_COMPATIBILITY_REVIEW.md; ui/frontend-updates remains held/unmerged. Local-only null-box and fixture fixes allow 135 UI tests/typecheck/lint/build. Strict offline browser/proxy check: 14 pass, 4 fail, 0 skip; Cesium zero-width render failure blocks sheet approval and later browser steps. API/proxy motion and planner/sheet flows pass, but API demo plan is RED and does not prove supported-case gate. Findings delivered to UI inbox and commit discussion. Current dev status-label corrections pass 1454 Python tests and 81 UI tests plus typecheck/lint/build; contract unchanged after regeneration.

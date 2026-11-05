@@ -126,7 +126,7 @@ def test_review_reanalyzes_every_condition_with_holding_tugs(monkeypatch):
 
     from mooring_agents.safety import agent as safety_agent
 
-    seen = []
+    seen, envelope_requests = [], []
 
     class TK:
         plan_id = None
@@ -141,13 +141,14 @@ def test_review_reanalyzes_every_condition_with_holding_tugs(monkeypatch):
                                                           findings=[]))
 
         async def envelope(self, body):
+            envelope_requests.append(body)
             point = SimpleNamespace(wind_rel_deg=90, limit_wind_kt=60, first_failure_element="line-2")
             return SimpleNamespace(result_id="env", result=SimpleNamespace(worst=point, points=[point]))
 
     env = SimpleNamespace(wind_gust_kt=20, model_dump=lambda mode=None: {"wind_gust_kt": 20})
     storm = SimpleNamespace(wind_gust_kt=99, model_dump=lambda mode=None: {"wind_gust_kt": 99})
     tugs = [{"tug_id": "T1", "push_point_id": "PP-FWD-P", "mode": "push", "force_lbf": 1000}]
-    plan = SimpleNamespace(rationale=[], config=SimpleNamespace(model_dump=lambda **k: {}), tug_plan=None)
+    plan = SimpleNamespace(rationale=[], config=SimpleNamespace(model_dump=lambda **k: {}), tug_plan=None, installed_at_water_level_mllw_ft=-1.25)
     rec = SimpleNamespace(plan=plan, scenario=SimpleNamespace(scenario_id="s", ship_class_id="DDG-51-FIIA",
                           loading="full_load", berth_id="b"), env=env, mst="II", holding_tugs=tugs)
     report = SimpleNamespace(planning_conditions=[SimpleNamespace(environment=env), SimpleNamespace(environment=storm)],
@@ -155,7 +156,7 @@ def test_review_reanalyzes_every_condition_with_holding_tugs(monkeypatch):
     monkeypatch.setitem(safety_agent.PLANS, "plan-x", rec)
     monkeypatch.setitem(safety_agent.REPORTS, "intake-x", report)
     monkeypatch.setattr(safety_agent, "_analyze_body",
-                        lambda sc, cfg, e, mst, t=None: {"environment": e.model_dump(), "tugs": t or []})
+                        lambda sc, cfg, e, mst, t=None, installation=None: {"environment": e.model_dump(), "tugs": t or [], "installed_at_water_level_mllw_ft": installation})
     monkeypatch.setenv("AGENTS_LLM_PROVIDER", "none")
     review = asyncio.run(safety_agent.review(
         safety_agent.SafetyReviewRequest(plan_id="plan-x", intake_report_id="intake-x"), TK()))
@@ -165,6 +166,9 @@ def test_review_reanalyzes_every_condition_with_holding_tugs(monkeypatch):
     assert not by_id["REANALYSIS-NOT-RED"].passed  # the storm condition is RED even though the first is GREEN
     assert set(by_id["REANALYSIS-NOT-RED"].cites) == {"re-20", "re-99"}
     assert review.verdict == "revise"
+
+    assert all(b["installed_at_water_level_mllw_ft"] == -1.25 for b in [*seen, *envelope_requests])
+    assert len(envelope_requests) == 2
 
 
 def test_unknown_or_zero_limit_cannot_pass_gust_check():
@@ -231,7 +235,7 @@ def test_supplemental_intake_cannot_erase_original_failures(monkeypatch):
     monkeypatch.setitem(agent.PLANS, 'review-union', rec)
     monkeypatch.setitem(agent.REPORTS, 'original-review-input', report(original, True))
     monkeypatch.setitem(agent.REPORTS, 'supplemental-review-input', report(supplemental, False))
-    monkeypatch.setattr(agent, '_analyze_body', lambda sc, cfg, e, mst, t=None: {'environment': e.model_dump(mode='json')})
+    monkeypatch.setattr(agent, '_analyze_body', lambda sc, cfg, e, mst, t=None, installation=None: {'environment': e.model_dump(mode='json')})
     monkeypatch.setenv('AGENTS_LLM_PROVIDER', 'none')
 
     class TK:

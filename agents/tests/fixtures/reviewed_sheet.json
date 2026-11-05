@@ -1,0 +1,992 @@
+{
+  "layout": {
+    "state": "available",
+    "sheet_id": "sheet_0548edb7c7084428",
+    "sheet_version": 1,
+    "plan_id": "plan_31374482089344c8",
+    "review_id": "review_288c7387cf9d48dc",
+    "analysis_result_id": "res_6082fdd5f79b4f11",
+    "geometry_hash": "sha256:0c2a09d78c7e9c32715e040b209d2f64f053fe97eb1072f3e75e20e4f98e0d45",
+    "sheet_binding_hash": "sha256:c4b01fce030d5d4d001e846200dfab1701c665ac91e077be90879a30d3ed92d7",
+    "ship_revision": "sha256:ac280216fa793cea69180b321def5993838f7582eeb6fbe246ecdc0bff5e4fae",
+    "berth_revision": "sha256:6eaead7735de4fc8a39b831b46b3536627fe4573d73f833142d173f92393e4a0",
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1000 461.29\" role=\"img\" aria-label=\"Assessed mooring layout\"><rect width=\"1000\" height=\"461.29\" fill=\"white\"/><g font-family=\"sans-serif\" fill=\"#172554\"><text x=\"20.00\" y=\"22.00\" font-size=\"15\">DDG-51-FIIA \u00b7 NAVSTA-NORFOLK-P12-N \u00b7 starboard side to</text><text x=\"20.00\" y=\"42.00\" font-size=\"11\">Solved plan view; schematic hull. Assessment validity: limited.</text><polygon points=\"294.87,157.30 568.65,157.30 616.97,136.44 568.65,115.57 294.87,115.57\" fill=\"#dbeafe\" stroke=\"#1e40af\"/><line x1=\"45.00\" y1=\"164.88\" x2=\"925.00\" y2=\"164.88\" stroke=\"#475569\" stroke-width=\"6\"/><line x1=\"589.94\" y1=\"154.14\" x2=\"632.93\" y2=\"193.33\" stroke=\"#2563eb\" stroke-width=\"2\"/><text x=\"611.44\" y=\"169.73\" font-size=\"11\">#1</text><text x=\"20.00\" y=\"242.29\" font-size=\"12\">#1 \u00b7 NYLON-DB-7IN \u00b7 1 part(s)</text><text x=\"20.00\" y=\"256.29\" font-size=\"11\">BITT-1S \u2192 CHOCK-1S \u2192 P12N-M08</text><line x1=\"560.23\" y1=\"156.67\" x2=\"519.14\" y2=\"168.67\" stroke=\"#2563eb\" stroke-width=\"2\"/><text x=\"539.68\" y=\"158.67\" font-size=\"11\">#2</text><text x=\"20.00\" y=\"274.29\" font-size=\"12\">#2 \u00b7 NYLON-DB-7IN \u00b7 1 part(s)</text><text x=\"20.00\" y=\"288.29\" font-size=\"11\">BITT-2S \u2192 CHOCK-2S \u2192 P12N-B13</text><line x1=\"484.37\" y1=\"157.30\" x2=\"481.21\" y2=\"193.33\" stroke=\"#2563eb\" stroke-width=\"2\"/><text x=\"482.79\" y=\"171.31\" font-size=\"11\">#3</text><text x=\"20.00\" y=\"306.29\" font-size=\"12\">#3 \u00b7 NYLON-DB-7IN \u00b7 1 part(s)</text><text x=\"20.00\" y=\"320.29\" font-size=\"11\">BITT-3S \u2192 CHOCK-3S \u2192 P12N-M06</text><line x1=\"395.86\" y1=\"157.30\" x2=\"405.34\" y2=\"193.33\" stroke=\"#2563eb\" stroke-width=\"2\"/><text x=\"400.60\" y=\"171.31\" font-size=\"11\">#4</text><text x=\"510.00\" y=\"242.29\" font-size=\"12\">#4 \u00b7 NYLON-DB-7IN \u00b7 1 part(s)</text><text x=\"510.00\" y=\"256.29\" font-size=\"11\">BITT-4S \u2192 CHOCK-4S \u2192 P12N-M05</text><line x1=\"338.97\" y1=\"156.03\" x2=\"405.34\" y2=\"168.67\" stroke=\"#2563eb\" stroke-width=\"2\"/><text x=\"372.16\" y=\"158.35\" font-size=\"11\">#5</text><text x=\"510.00\" y=\"274.29\" font-size=\"12\">#5 \u00b7 NYLON-DB-7IN \u00b7 1 part(s)</text><text x=\"510.00\" y=\"288.29\" font-size=\"11\">BITT-5S \u2192 CHOCK-5S \u2192 P12N-B10</text><line x1=\"305.46\" y1=\"149.08\" x2=\"253.62\" y2=\"168.67\" stroke=\"#2563eb\" stroke-width=\"2\"/><text x=\"279.54\" y=\"154.88\" font-size=\"11\">#6</text><text x=\"510.00\" y=\"306.29\" font-size=\"12\">#6 \u00b7 NYLON-DB-7IN \u00b7 1 part(s)</text><text x=\"510.00\" y=\"320.29\" font-size=\"11\">BITT-6S \u2192 CHOCK-6S \u2192 P12N-B06</text><circle cx=\"253.62\" cy=\"168.67\" r=\"3\" fill=\"#475569\"/><text x=\"243.62\" y=\"183.67\" font-size=\"9\">P12N-B06</text><circle cx=\"405.34\" cy=\"168.67\" r=\"3\" fill=\"#475569\"/><text x=\"395.34\" y=\"183.67\" font-size=\"9\">P12N-B10</text><circle cx=\"519.14\" cy=\"168.67\" r=\"3\" fill=\"#475569\"/><text x=\"509.14\" y=\"183.67\" font-size=\"9\">P12N-B13</text><circle cx=\"405.34\" cy=\"193.33\" r=\"3\" fill=\"#475569\"/><text x=\"395.34\" y=\"208.33\" font-size=\"9\">P12N-M05</text><circle cx=\"481.21\" cy=\"193.33\" r=\"3\" fill=\"#475569\"/><text x=\"471.21\" y=\"208.33\" font-size=\"9\">P12N-M06</text><circle cx=\"632.93\" cy=\"193.33\" r=\"3\" fill=\"#475569\"/><text x=\"622.93\" y=\"208.33\" font-size=\"9\">P12N-M08</text><circle cx=\"359.20\" cy=\"115.57\" r=\"5\" fill=\"none\" stroke=\"#92400e\"/><text x=\"366.20\" y=\"107.57\" font-size=\"10\">Berthing T1 (push)</text><circle cx=\"552.64\" cy=\"115.57\" r=\"5\" fill=\"none\" stroke=\"#92400e\"/><text x=\"559.64\" y=\"96.57\" font-size=\"10\">Berthing T2 (push)</text><line x1=\"70.00\" y1=\"366.29\" x2=\"65.54\" y2=\"339.66\" stroke=\"#334155\" stroke-width=\"2\"/><line x1=\"65.54\" y1=\"339.66\" x2=\"62.75\" y2=\"347.23\" stroke=\"#334155\" stroke-width=\"2\"/><line x1=\"65.54\" y1=\"339.66\" x2=\"70.64\" y2=\"345.91\" stroke=\"#334155\" stroke-width=\"2\"/><text x=\"110.00\" y=\"370.29\" font-size=\"11\">North 0\u00b0 true</text><line x1=\"315.00\" y1=\"366.29\" x2=\"319.92\" y2=\"339.74\" stroke=\"#334155\" stroke-width=\"2\"/><line x1=\"319.92\" y1=\"339.74\" x2=\"314.71\" y2=\"345.90\" stroke=\"#334155\" stroke-width=\"2\"/><line x1=\"319.92\" y1=\"339.74\" x2=\"322.58\" y2=\"347.36\" stroke=\"#334155\" stroke-width=\"2\"/><text x=\"355.00\" y=\"370.29\" font-size=\"11\">Wind toward 20\u00b0 true</text><line x1=\"560.00\" y1=\"366.29\" x2=\"560.24\" y2=\"339.29\" stroke=\"#334155\" stroke-width=\"2\"/><line x1=\"560.24\" y1=\"339.29\" x2=\"556.17\" y2=\"346.26\" stroke=\"#334155\" stroke-width=\"2\"/><line x1=\"560.24\" y1=\"339.29\" x2=\"564.17\" y2=\"346.33\" stroke=\"#334155\" stroke-width=\"2\"/><text x=\"600.00\" y=\"370.29\" font-size=\"11\">Current toward 10\u00b0 true</text><line x1=\"800.00\" y1=\"366.29\" x2=\"863.22\" y2=\"366.29\" stroke=\"#334155\" stroke-width=\"2\"/><text x=\"800.00\" y=\"386.29\" font-size=\"11\">100 ft scale</text><text x=\"20.00\" y=\"416.29\" font-size=\"11\">Sheet sheet_0548edb7c7084428 v1 \u00b7 Plan plan_31374482089344c8</text><text x=\"20.00\" y=\"436.29\" font-size=\"11\">Review review_288c7387cf9d48dc \u00b7 Analysis res_6082fdd5f79b4f11</text></g></svg>",
+    "unavailable_reason": null
+  },
+  "validity": {
+    "state": "limited",
+    "reasons": [
+      {
+        "code": "REFERENCE_DATA_NOT_QUALIFIED",
+        "message": "ship 'DDG-51-FIIA' is estimated data, not published/qualified.",
+        "affected_components": [
+          "DDG-51-FIIA",
+          "NAVSTA-NORFOLK-P12-N",
+          "NYLON-DB-7IN"
+        ]
+      },
+      {
+        "code": "FITTING_HEIGHT_LOADING_UNSPECIFIED",
+        "message": "Ship fitting heights are not corrected for the requested loading.",
+        "affected_components": [
+          "DDG-51-FIIA"
+        ]
+      }
+    ],
+    "diagnostics": null
+  },
+  "analysis_result_id": "res_6082fdd5f79b4f11",
+  "installed_at_water_level_mllw_ft": 1.8,
+  "sequence_result_id": "res_b6fe6139cd034c27",
+  "threshold_result_ids": [
+    "res_6a56d881a32343d1"
+  ],
+  "holding_tugs": [],
+  "sheet_id": "sheet_0548edb7c7084428",
+  "version": 1,
+  "plan_id": "plan_31374482089344c8",
+  "review_id": "review_288c7387cf9d48dc",
+  "locked": false,
+  "status": "AMBER",
+  "header": {
+    "ship_class_id": "DDG-51-FIIA",
+    "ship_name": null,
+    "berth_id": "NAVSTA-NORFOLK-P12-N",
+    "side_to": "starboard",
+    "evolution": "moor",
+    "planned_utc": "2026-11-05T18:46:51.693174Z"
+  },
+  "environment": {
+    "observed": {
+      "valid_at_utc": "2026-11-05T18:46:46.107531Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 5.0,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": null,
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "envsc_ec22d5d631f94c49",
+          "age_s": 0.0,
+          "flags": [
+            "scenario"
+          ]
+        }
+      ]
+    },
+    "forecast_summary": "No windows of concern; MST required is I; it does not exceed the ship's MST II. Next 48 h at Pier 12 North face (NAVSTA Norfolk): 0 window(s) of concern. Gusts peak 5 kt; MST I conditions.",
+    "mst": "II"
+  },
+  "line_plan": [
+    {
+      "line_number": 1,
+      "role": "bow",
+      "spec_id": "NYLON-DB-7IN",
+      "parts": 1,
+      "ship_fitting_id": "BITT-1S",
+      "pier_fitting_id": "P12N-M08",
+      "tension_lbf": 2167.0,
+      "pct_wll": 6.0,
+      "status": "GREEN"
+    },
+    {
+      "line_number": 2,
+      "role": "spring_aft",
+      "spec_id": "NYLON-DB-7IN",
+      "parts": 1,
+      "ship_fitting_id": "BITT-2S",
+      "pier_fitting_id": "P12N-B13",
+      "tension_lbf": 2164.0,
+      "pct_wll": 6.0,
+      "status": "GREEN"
+    },
+    {
+      "line_number": 3,
+      "role": "breast",
+      "spec_id": "NYLON-DB-7IN",
+      "parts": 1,
+      "ship_fitting_id": "BITT-3S",
+      "pier_fitting_id": "P12N-M06",
+      "tension_lbf": 2143.0,
+      "pct_wll": 5.9,
+      "status": "GREEN"
+    },
+    {
+      "line_number": 4,
+      "role": "breast",
+      "spec_id": "NYLON-DB-7IN",
+      "parts": 1,
+      "ship_fitting_id": "BITT-4S",
+      "pier_fitting_id": "P12N-M05",
+      "tension_lbf": 2144.0,
+      "pct_wll": 5.9,
+      "status": "GREEN"
+    },
+    {
+      "line_number": 5,
+      "role": "spring_fwd",
+      "spec_id": "NYLON-DB-7IN",
+      "parts": 1,
+      "ship_fitting_id": "BITT-5S",
+      "pier_fitting_id": "P12N-B10",
+      "tension_lbf": 2176.0,
+      "pct_wll": 6.0,
+      "status": "GREEN"
+    },
+    {
+      "line_number": 6,
+      "role": "stern",
+      "spec_id": "NYLON-DB-7IN",
+      "parts": 1,
+      "ship_fitting_id": "BITT-6S",
+      "pier_fitting_id": "P12N-B06",
+      "tension_lbf": 2163.0,
+      "pct_wll": 6.0,
+      "status": "GREEN"
+    }
+  ],
+  "fitting_utilization": [
+    {
+      "fitting_id": "P12N-M08",
+      "load_lbf": 2167.0,
+      "capacity_lbf": 450000.0,
+      "pct": 0.5,
+      "lines": [
+        1
+      ],
+      "status": "GREEN"
+    },
+    {
+      "fitting_id": "P12N-B13",
+      "load_lbf": 2164.0,
+      "capacity_lbf": 200000.0,
+      "pct": 1.1,
+      "lines": [
+        2
+      ],
+      "status": "GREEN"
+    },
+    {
+      "fitting_id": "P12N-M06",
+      "load_lbf": 2143.0,
+      "capacity_lbf": 450000.0,
+      "pct": 0.5,
+      "lines": [
+        3
+      ],
+      "status": "GREEN"
+    },
+    {
+      "fitting_id": "P12N-M05",
+      "load_lbf": 2144.0,
+      "capacity_lbf": 450000.0,
+      "pct": 0.5,
+      "lines": [
+        4
+      ],
+      "status": "GREEN"
+    },
+    {
+      "fitting_id": "P12N-B10",
+      "load_lbf": 2176.0,
+      "capacity_lbf": 70000.0,
+      "pct": 3.1,
+      "lines": [
+        5
+      ],
+      "status": "GREEN"
+    },
+    {
+      "fitting_id": "P12N-B06",
+      "load_lbf": 2163.0,
+      "capacity_lbf": 200000.0,
+      "pct": 1.1,
+      "lines": [
+        6
+      ],
+      "status": "GREEN"
+    }
+  ],
+  "tug_plan": {
+    "required_lateral_lbf": 2384.0,
+    "required_by_point": [
+      {
+        "push_point_id": "PP-AFT-P",
+        "force_lbf": 1090.0,
+        "mode": "push"
+      },
+      {
+        "push_point_id": "PP-FWD-P",
+        "force_lbf": 1293.0,
+        "mode": "push"
+      }
+    ],
+    "assignments": [
+      {
+        "tug_id": "T1",
+        "push_point_id": "PP-AFT-P",
+        "mode": "push",
+        "force_lbf": 1090.0,
+        "direction_true_deg": 189.5
+      },
+      {
+        "tug_id": "T2",
+        "push_point_id": "PP-FWD-P",
+        "mode": "push",
+        "force_lbf": 1293.0,
+        "direction_true_deg": 189.5
+      }
+    ],
+    "total_bollard_pull_lbf": 235000.0,
+    "total_power_hp": 9000.0,
+    "recommended_tug_count": 2,
+    "feasible": true,
+    "rationale": [
+      "Supply fx 18 lbf, fy -2,384 lbf, mz -31,063 ft.lbf (margin 25% included); normal push-point forces only."
+    ],
+    "required_wrench": {
+      "fx_lbf": 17.61320367439317,
+      "fy_lbf": -2383.763549055997,
+      "mz_ftlbf": -31062.98162087072
+    },
+    "delivered_wrench": {
+      "fx_lbf": 0.0,
+      "fy_lbf": -2383.763549055997,
+      "mz_ftlbf": -31063.181301657343
+    },
+    "residual_wrench": {
+      "fx_lbf": 17.61320367439317,
+      "fy_lbf": 0.0,
+      "mz_ftlbf": 0.19968078662350308
+    },
+    "ratings_basis": "Catalog bollard pull (seed/estimated unless published); ahead for pushing, astern for pulling, capped by the push point rating; efficiency factor 1. Not certified ratings. Horsepower is not converted to force."
+  },
+  "sequence": [
+    {
+      "step": 1,
+      "line_number": 2,
+      "action": "pass",
+      "station": "forecastle",
+      "crews": 1,
+      "trigger": "Bridge orders first line over",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6",
+      "depends_on": [],
+      "duration_min": 5.0,
+      "tug_ids": [],
+      "state_ok": null,
+      "state_max_pct": null,
+      "state_note": null
+    },
+    {
+      "step": 2,
+      "line_number": 2,
+      "action": "secure_pier",
+      "station": "pier",
+      "crews": 1,
+      "trigger": "Line 2 eye ashore",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6.3",
+      "depends_on": [
+        1
+      ],
+      "duration_min": 3.0,
+      "tug_ids": [],
+      "state_ok": true,
+      "state_max_pct": 0.0,
+      "state_note": "worst line-2 at 0% of its WLL limit"
+    },
+    {
+      "step": 3,
+      "line_number": 5,
+      "action": "pass",
+      "station": "fantail",
+      "crews": 1,
+      "trigger": "Line 2 on its bollard",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6",
+      "depends_on": [
+        2
+      ],
+      "duration_min": 5.0,
+      "tug_ids": [],
+      "state_ok": null,
+      "state_max_pct": null,
+      "state_note": null
+    },
+    {
+      "step": 4,
+      "line_number": 5,
+      "action": "secure_pier",
+      "station": "pier",
+      "crews": 1,
+      "trigger": "Line 5 eye ashore",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6.3",
+      "depends_on": [
+        3
+      ],
+      "duration_min": 3.0,
+      "tug_ids": [],
+      "state_ok": true,
+      "state_max_pct": 0.0,
+      "state_note": "worst line-5 at 0% of its WLL limit"
+    },
+    {
+      "step": 5,
+      "line_number": 3,
+      "action": "pass",
+      "station": "waist",
+      "crews": 1,
+      "trigger": "Line 5 on its bollard",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6",
+      "depends_on": [
+        4
+      ],
+      "duration_min": 5.0,
+      "tug_ids": [],
+      "state_ok": null,
+      "state_max_pct": null,
+      "state_note": null
+    },
+    {
+      "step": 6,
+      "line_number": 3,
+      "action": "secure_pier",
+      "station": "pier",
+      "crews": 1,
+      "trigger": "Line 3 eye ashore",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6.3",
+      "depends_on": [
+        5
+      ],
+      "duration_min": 3.0,
+      "tug_ids": [],
+      "state_ok": true,
+      "state_max_pct": 0.0,
+      "state_note": "worst line-5 at 0% of its WLL limit"
+    },
+    {
+      "step": 7,
+      "line_number": 3,
+      "action": "hold",
+      "station": "waist",
+      "crews": 1,
+      "trigger": "Tugs holding the ship alongside",
+      "caution": "Keep this line slack-tended; don't take it to power until the tugs ease off.",
+      "reference": "NSTM 582-2.2.3.1",
+      "depends_on": [
+        6
+      ],
+      "duration_min": 0.0,
+      "tug_ids": [
+        "T1",
+        "T2"
+      ],
+      "state_ok": null,
+      "state_max_pct": null,
+      "state_note": null
+    },
+    {
+      "step": 8,
+      "line_number": 4,
+      "action": "pass",
+      "station": "waist",
+      "crews": 1,
+      "trigger": "Line 3 on its bollard",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6",
+      "depends_on": [
+        6
+      ],
+      "duration_min": 5.0,
+      "tug_ids": [],
+      "state_ok": null,
+      "state_max_pct": null,
+      "state_note": null
+    },
+    {
+      "step": 9,
+      "line_number": 4,
+      "action": "secure_pier",
+      "station": "pier",
+      "crews": 1,
+      "trigger": "Line 4 eye ashore",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6.3",
+      "depends_on": [
+        8
+      ],
+      "duration_min": 3.0,
+      "tug_ids": [],
+      "state_ok": true,
+      "state_max_pct": 0.0,
+      "state_note": "worst line-5 at 0% of its WLL limit"
+    },
+    {
+      "step": 10,
+      "line_number": 4,
+      "action": "hold",
+      "station": "waist",
+      "crews": 1,
+      "trigger": "Tugs holding the ship alongside",
+      "caution": "Keep this line slack-tended; don't take it to power until the tugs ease off.",
+      "reference": "NSTM 582-2.2.3.1",
+      "depends_on": [
+        9
+      ],
+      "duration_min": 0.0,
+      "tug_ids": [
+        "T1",
+        "T2"
+      ],
+      "state_ok": null,
+      "state_max_pct": null,
+      "state_note": null
+    },
+    {
+      "step": 11,
+      "line_number": 1,
+      "action": "pass",
+      "station": "forecastle",
+      "crews": 1,
+      "trigger": "Line 4 on its bollard",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6",
+      "depends_on": [
+        9
+      ],
+      "duration_min": 5.0,
+      "tug_ids": [],
+      "state_ok": null,
+      "state_max_pct": null,
+      "state_note": null
+    },
+    {
+      "step": 12,
+      "line_number": 1,
+      "action": "secure_pier",
+      "station": "pier",
+      "crews": 1,
+      "trigger": "Line 1 eye ashore",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6.3",
+      "depends_on": [
+        11
+      ],
+      "duration_min": 3.0,
+      "tug_ids": [],
+      "state_ok": true,
+      "state_max_pct": 0.0,
+      "state_note": "worst line-5 at 0% of its WLL limit"
+    },
+    {
+      "step": 13,
+      "line_number": 6,
+      "action": "pass",
+      "station": "fantail",
+      "crews": 1,
+      "trigger": "Line 1 on its bollard",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6",
+      "depends_on": [
+        12
+      ],
+      "duration_min": 5.0,
+      "tug_ids": [],
+      "state_ok": null,
+      "state_max_pct": null,
+      "state_note": null
+    },
+    {
+      "step": 14,
+      "line_number": 6,
+      "action": "secure_pier",
+      "station": "pier",
+      "crews": 1,
+      "trigger": "Line 6 eye ashore",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6.3",
+      "depends_on": [
+        13
+      ],
+      "duration_min": 3.0,
+      "tug_ids": [],
+      "state_ok": true,
+      "state_max_pct": 0.0,
+      "state_note": "worst line-5 at 0% of its WLL limit"
+    },
+    {
+      "step": 15,
+      "line_number": null,
+      "action": "hold",
+      "station": "bridge",
+      "crews": 1,
+      "trigger": "All lines on their bollards; tugs ease off",
+      "caution": null,
+      "reference": "NSTM 582-2.2.3.1",
+      "depends_on": [
+        2,
+        4,
+        6,
+        9,
+        12,
+        14
+      ],
+      "duration_min": 0.0,
+      "tug_ids": [
+        "T1",
+        "T2"
+      ],
+      "state_ok": true,
+      "state_max_pct": 2.3,
+      "state_note": "worst line-3 at 2% of its WLL limit"
+    },
+    {
+      "step": 16,
+      "line_number": 2,
+      "action": "take_to_power",
+      "station": "forecastle",
+      "crews": 1,
+      "trigger": "Bridge orders lines taken to power",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6.5",
+      "depends_on": [
+        15
+      ],
+      "duration_min": 4.0,
+      "tug_ids": [],
+      "state_ok": true,
+      "state_max_pct": 3.6,
+      "state_note": "worst line-2 at 4% of its WLL limit"
+    },
+    {
+      "step": 17,
+      "line_number": 5,
+      "action": "take_to_power",
+      "station": "fantail",
+      "crews": 1,
+      "trigger": "Bridge orders lines taken to power",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6.5",
+      "depends_on": [
+        15
+      ],
+      "duration_min": 4.0,
+      "tug_ids": [],
+      "state_ok": true,
+      "state_max_pct": 6.4,
+      "state_note": "worst line-2 at 6% of its WLL limit"
+    },
+    {
+      "step": 18,
+      "line_number": 3,
+      "action": "take_to_power",
+      "station": "waist",
+      "crews": 1,
+      "trigger": "Bridge orders lines taken to power",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6.5",
+      "depends_on": [
+        15
+      ],
+      "duration_min": 4.0,
+      "tug_ids": [],
+      "state_ok": true,
+      "state_max_pct": 6.1,
+      "state_note": "worst line-5 at 6% of its WLL limit"
+    },
+    {
+      "step": 19,
+      "line_number": 4,
+      "action": "take_to_power",
+      "station": "waist",
+      "crews": 1,
+      "trigger": "Bridge orders lines taken to power",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6.5",
+      "depends_on": [
+        15
+      ],
+      "duration_min": 4.0,
+      "tug_ids": [],
+      "state_ok": true,
+      "state_max_pct": 6.5,
+      "state_note": "worst line-2 at 6% of its WLL limit"
+    },
+    {
+      "step": 20,
+      "line_number": 1,
+      "action": "take_to_power",
+      "station": "forecastle",
+      "crews": 1,
+      "trigger": "Bridge orders lines taken to power",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6.5",
+      "depends_on": [
+        15
+      ],
+      "duration_min": 4.0,
+      "tug_ids": [],
+      "state_ok": true,
+      "state_max_pct": 7.9,
+      "state_note": "worst line-2 at 8% of its WLL limit"
+    },
+    {
+      "step": 21,
+      "line_number": 6,
+      "action": "take_to_power",
+      "station": "fantail",
+      "crews": 1,
+      "trigger": "Bridge orders lines taken to power",
+      "caution": null,
+      "reference": "NSTM 582-2.4.6.5",
+      "depends_on": [
+        15
+      ],
+      "duration_min": 4.0,
+      "tug_ids": [],
+      "state_ok": true,
+      "state_max_pct": 6.0,
+      "state_note": "worst line-5 at 6% of its WLL limit"
+    },
+    {
+      "step": 22,
+      "line_number": null,
+      "action": "tend",
+      "station": "bridge",
+      "crews": 1,
+      "trigger": "All lines doubled up and tensioned",
+      "caution": "Equalize: slack the shortest lines about 1 ft; pre-tension lines over 100 ft.",
+      "reference": "NSTM 582-2.4.4.1.c",
+      "depends_on": [
+        16,
+        17,
+        18,
+        19,
+        20,
+        21
+      ],
+      "duration_min": 10.0,
+      "tug_ids": [],
+      "state_ok": null,
+      "state_max_pct": null,
+      "state_note": null
+    }
+  ],
+  "sequence_review_status": "draft_unreviewed",
+  "sequence_limitations": [
+    "Static check only: transient loads while lines are handled and tugs maneuver are not evaluated; they need the M11 simulator.",
+    "Rule table is a draft from NSTM 582-2.4.6 paragraph references that were not re-verified in this repository.",
+    "Durations are unreviewed planning estimates, not measured line-handling times."
+  ],
+  "go_no_go": [
+    {
+      "condition": "Gusts above 32 kt (80% of plan limit)",
+      "action": "Reassess the plan with the bridge and pilot; use only an independently reviewed tending or assistance procedure"
+    },
+    {
+      "condition": "Gusts above 40 kt (working-load limit)",
+      "action": "Call holding tugs; consider an alternate berth"
+    }
+  ],
+  "brief": null,
+  "directional_thresholds": [
+    {
+      "wind_rel_deg": 0.0,
+      "governing_element": "line-5",
+      "limit_wll_gust_kt": 100.0,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 15.0,
+      "governing_element": "line-1",
+      "limit_wll_gust_kt": 70.3125,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 30.0,
+      "governing_element": "line-3",
+      "limit_wll_gust_kt": 51.875,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 45.0,
+      "governing_element": "line-3",
+      "limit_wll_gust_kt": 43.125,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 60.0,
+      "governing_element": "line-3",
+      "limit_wll_gust_kt": 40.0,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 75.0,
+      "governing_element": "line-3",
+      "limit_wll_gust_kt": 39.6875,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 90.0,
+      "governing_element": "line-3",
+      "limit_wll_gust_kt": 40.625,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 105.0,
+      "governing_element": "line-3",
+      "limit_wll_gust_kt": 41.5625,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 120.0,
+      "governing_element": "line-3",
+      "limit_wll_gust_kt": 43.4375,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 135.0,
+      "governing_element": "line-3",
+      "limit_wll_gust_kt": 49.0625,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 150.0,
+      "governing_element": "line-4",
+      "limit_wll_gust_kt": 60.3125,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 165.0,
+      "governing_element": "line-6",
+      "limit_wll_gust_kt": 82.8125,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 180.0,
+      "governing_element": "line-2",
+      "limit_wll_gust_kt": 86.875,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 195.0,
+      "governing_element": "line-2",
+      "limit_wll_gust_kt": 84.375,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 210.0,
+      "governing_element": "line-2",
+      "limit_wll_gust_kt": 87.8125,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 225.0,
+      "governing_element": "line-2",
+      "limit_wll_gust_kt": 115.625,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 240.0,
+      "governing_element": "P12N-CAMEL-1",
+      "limit_wll_gust_kt": 120.0,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 255.0,
+      "governing_element": "P12N-CAMEL-1",
+      "limit_wll_gust_kt": 122.8125,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 270.0,
+      "governing_element": "P12N-CAMEL-2",
+      "limit_wll_gust_kt": 85.625,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 285.0,
+      "governing_element": "P12N-CAMEL-2",
+      "limit_wll_gust_kt": 66.5625,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 300.0,
+      "governing_element": "line-4",
+      "limit_wll_gust_kt": 56.875,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 315.0,
+      "governing_element": "line-4",
+      "limit_wll_gust_kt": 54.6875,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 330.0,
+      "governing_element": "line-4",
+      "limit_wll_gust_kt": 57.5,
+      "estimated_breaking_gust_kt": null
+    },
+    {
+      "wind_rel_deg": 345.0,
+      "governing_element": "line-4",
+      "limit_wll_gust_kt": 69.6875,
+      "estimated_breaking_gust_kt": null
+    }
+  ],
+  "warnings": [
+    {
+      "rule_id": "REFERENCE_DATA_NOT_QUALIFIED",
+      "severity": "AMBER",
+      "element_ids": [
+        "DDG-51-FIIA",
+        "NAVSTA-NORFOLK-P12-N",
+        "NYLON-DB-7IN"
+      ],
+      "message": "ship 'DDG-51-FIIA' is estimated data, not published/qualified.",
+      "reference": "Result validity"
+    },
+    {
+      "rule_id": "FITTING_HEIGHT_LOADING_UNSPECIFIED",
+      "severity": "AMBER",
+      "element_ids": [
+        "DDG-51-FIIA"
+      ],
+      "message": "Ship fitting heights are not corrected for the requested loading.",
+      "reference": "Result validity"
+    }
+  ],
+  "rationale": [
+    {
+      "text": "Started from the optimizer's highest-ranked candidate.",
+      "cites": [
+        "res_06777b0415b6448b"
+      ]
+    },
+    {
+      "text": "Preserved modeling-resolved unstretched line spans for subsequent rechecks; these are not rope-cutting lengths or handling instructions.",
+      "cites": [
+        "res_6082fdd5f79b4f11"
+      ]
+    },
+    {
+      "text": "Checked the final configuration at a required planning condition.",
+      "cites": [
+        "res_6082fdd5f79b4f11"
+      ]
+    },
+    {
+      "text": "Checked the final configuration at a required planning condition.",
+      "cites": [
+        "res_eba9df1b590143e0"
+      ]
+    },
+    {
+      "text": "Gust-risk assessment for a required planning condition.",
+      "cites": [
+        "res_b1b74046b51c4e72"
+      ]
+    },
+    {
+      "text": "Gust-risk assessment for a required planning condition.",
+      "cites": [
+        "res_df55c4b6abdc45f5"
+      ]
+    },
+    {
+      "text": "Berthing tugs are sized for the most demanding required condition.",
+      "cites": [
+        "res_6cb3806fcd744428",
+        "res_fadc83d2fb544b6e"
+      ]
+    }
+  ],
+  "assumptions": [
+    "Configured model: deterministic-fallback; adjustment mode: deterministic.",
+    "Model text is not used as factual rationale; physics results govern status.",
+    "Line installation is fixed at the first planning condition water level (1.8 ft MLLW); no implicit tending between conditions.",
+    "Forecast-only planning checks the supplied conditions; it does not establish MST design-condition compliance. Intake selects representative snapshots, not every forecast sample; use the forecast-plan endpoint for an arrival/holding interval assessment.",
+    "Quasi-static 3-DOF equilibrium (surge, sway, yaw) of a rigid hull; heave, roll, pitch and dynamics are not modeled.",
+    "Applied environmental loads include wind and current only; wave and wake loads are not evaluated.",
+    "Lines are tension-only; tension = parts x effective MBS x curve(strain) with the catalog stretch curve scaled by the effective (wet/dry) MBS.",
+    "Fenders are unilateral springs (catalog linear stiffness) in contact over a parallel body of +/- half the waterline length.",
+    "Pier-fitting loads are the 3-D vector sum of attached lines compared with the nominal capacity.",
+    "Rest lengths are set at the installation water level and stay fixed; the ship rides the water level.",
+    "Design factor 3.0 (MST II).",
+    "line 1: rest length from default 2% pretension.",
+    "line 2: rest length from default 2% pretension.",
+    "line 3: rest length from default 2% pretension.",
+    "line 4: rest length from default 2% pretension.",
+    "line 5: rest length from default 2% pretension.",
+    "line 6: rest length from default 2% pretension.",
+    "Gust duration not given: assumed 30 s (legacy).",
+    "Wind averaging/gust duration/height not documented in the snapshot: legacy assumption applied (10 m, 60 s sustained, 30 s gust).",
+    "No lines fast: tugs must cancel the whole static wind-and-current wrench (surge, sway, yaw) at the berthing heading.",
+    "Catalog bollard pull (seed/estimated unless published); ahead for pushing, astern for pulling, capped by the push point rating; efficiency factor 1. Not certified ratings. Horsepower is not converted to force.",
+    "Margin 25% applied to the wrench.",
+    "UFC 4-159-03 (2020), Chapter 4; Eq. 4-3 harmonic and symmetric angle folding restored from the earlier UFC edition.",
+    "Wind basis follows supplied metadata; unsupported conversions and any legacy assumptions are listed below.",
+    "Wind shielding scales all wind forces and moments equally; current is unshielded.",
+    "Static wind and current loads only; wave and wake loads are not evaluated.",
+    "Water depth is actual depth at the ship; water level is not added again.",
+    "Current model assumes a wide harbor/channel, level keel, and 15 C salt-water viscosity (Table 4-1); density uses the request.",
+    "Yaw uses UFC Tables 4-5/4-10: DDG and CG use destroyer wind / FFG current; CVN and LHD use carrier wind / CVE 55 current. CG is assumed at midships.",
+    "Ship geometry is estimated: Wind-force magnitudes calibrated to NSTM Table 582-3-1 with areas within 25% of original seeds; peak bearings also match after converting NSTM flow-toward angles to API wind-from angles. Transverse drag class is extensive_superstructure (C=1.02), per UFC Table 4-2 for destroyers. Dimensions approximate from public fact sheets; fittings notional. Superstructure height frozen before area calibration using original hull area/LWL plus original superstructure area/(0.5 LWL), assuming a rectangular half-length superstructure. Midship coefficient 0.83 estimated by analogy to UFC Table 4-8 destroyer. Wetted surface estimated with UFC Eq. 4-18 at full_load and density 1020 kg/m3; other loadings recompute the estimate. Propeller expanded area estimated using Eqs. 4-22/4-23 and Table 4-7, pitch ratio 1 (LHD uses carrier analogy).",
+    "Line installation tide: 1.8 ft MLLW; no implicit tending in these draft static checks.",
+    "Loading full_load; strength design factor uses MST II.",
+    "Intermediate states: only deployed parts are modeled (one until double_up), slack until taken to power; tugs hold until every line is on its bollard. Tug release is checked before further tensioning.",
+    "Static check only: transient loads while lines are handled and tugs maneuver are not evaluated; they need the M11 simulator.",
+    "Rule table is a draft from NSTM 582-2.4.6 paragraph references that were not re-verified in this repository.",
+    "Durations are unreviewed planning estimates, not measured line-handling times.",
+    "200 instantaneous samples of gust factor, direction and current from model 'synthetic-demo' r1; each solved to equilibrium.",
+    "Failed samples are counted, reported and used to bound the probability.",
+    "Fender exceedance compares energy with rated energy; reported load percentiles are reaction force in lbf.",
+    "No dynamic or snatch amplification is modeled; the dynamic factor, if any, scales wind force once."
+  ],
+  "cited_result_ids": [
+    "res_06777b0415b6448b",
+    "res_6082fdd5f79b4f11",
+    "res_6a56d881a32343d1",
+    "res_6cb3806fcd744428",
+    "res_6f4b188240744756",
+    "res_b1b74046b51c4e72",
+    "res_b6fe6139cd034c27",
+    "res_df55c4b6abdc45f5",
+    "res_eba9df1b590143e0",
+    "res_fadc83d2fb544b6e"
+  ],
+  "sources": [
+    {
+      "source": "NSTM 582 (paragraph references only)",
+      "url": null,
+      "confidence": "published",
+      "notes": null
+    },
+    {
+      "source": "UFC 4-159-03 Chapter 4",
+      "url": null,
+      "confidence": "published",
+      "notes": null
+    },
+    {
+      "source": "mooring.solver.equilibrium (real); reference data qualification is reported in validity",
+      "url": null,
+      "confidence": "estimated",
+      "notes": null
+    }
+  ],
+  "approvals": [],
+  "disclaimer": "Decision aid only. The Commanding Officer and pilot retain authority for the mooring evolution. Values marked mock or estimated are not validated."
+}

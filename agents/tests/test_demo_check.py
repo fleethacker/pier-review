@@ -107,6 +107,17 @@ def test_prediction_narration_preserves_real_model_evidence(demo, transport):
     assert "uncovered hazards explicit" in detail
 
 
+def test_bound_forecast_and_layout_survive_real_service_handoff(demo, transport, monkeypatch):
+    import demo_check_planning as planning
+    from mooring.examples import EXAMPLES
+
+    http, response = transport
+    monkeypatch.setattr(planning.urllib.request, "urlopen", lambda url, **kwargs: EventResponse(response("GET", url + "?follow=false").content))
+    _, scenario = http("POST", "http://demo/api/modeling/api/v1/scenarios", EXAMPLES["scenario"])
+    detail = planning.forecast_binding_check("http://demo", ROOT / "contract/examples/modeling", http, scenario["scenario_id"])
+    assert "same source/revision/hash" in detail and "immutable illustrated sheet" in detail
+
+
 @pytest.mark.parametrize("event", [
     b'event: step\ndata: {}\n\nevent: done\ndata: {"state":"failed","error":"solver timeout"}\n\n',
     b'event: step\ndata: {}\n\n',

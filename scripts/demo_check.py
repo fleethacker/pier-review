@@ -33,7 +33,7 @@ import urllib.request
 from urllib.parse import urlsplit, urlunsplit
 from types import SimpleNamespace
 
-from demo_check_planning import advance_planning_check, four_case_checks, prediction_brief_check
+from demo_check_planning import advance_planning_check, four_case_checks, forecast_binding_check, prediction_brief_check
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -77,11 +77,19 @@ def readiness_checks(ctx: dict, profile: str) -> None:
     else:
         record("FAIL" if profile == "readiness" else "SKIP", "Live rm0-v1 frames (S1/Snyder)",
                "live session emitted a legacy frame or no frame; authored replay fixtures do not satisfy S1")
+    if ctx.get("runtime_protocol_checked"):
+        record("PASS", "Runtime scene, recording, speed and reconnect (S1/A1)", "verified through the UI HTTP/WebSocket proxies")
+    else:
+        record("FAIL" if profile == "readiness" else "SKIP", "Build readiness (S1/Snyder + A1/Bixler)",
+               "runtime scene/recordings, speed and reconnect were not verified")
+    if ctx.get("forecast_binding_checked"):
+        record("PASS", "Forecast manifest handoff (P1/A3)", "supplied series retained through Intake, Planner, Safety and sheet")
+    else:
+        record("FAIL" if profile == "readiness" else "SKIP", "Build readiness (P1/Snyder + A3/Bixler)",
+               "forecast revision handoff to Intake/Planner/Safety has not passed")
     blockers = (
-        ("S1/Snyder + U2/Kori", "runtime scene/recordings, speed and reconnect coverage awaits S1 integration"),
         ("D1/Cruz + U3/Kori", "component availability and startup rejection checks await D1's published interface"),
-        ("P1/Snyder + A3/Bixler", "forecast revision handoff to Intake/Planner/Safety is not covered by the supplied-series check"),
-        ("U1/U4/Kori", "browser four-case review selection and advance-planning story are not covered by the current browser helper"),
+        ("U1/U4/Kori", "complete independent-review browser chains for all four cases remain beyond the supported-chain and initial-outcome checks"),
         ("S2/Snyder + U5/Kori", "simulation-time forcing and source labels over changing forcing are not covered"),
     )
     for owner, detail in blockers:
@@ -255,17 +263,25 @@ def api_checks(stack: Stack) -> dict:
 
     def motion_session():
         import websockets  # in the repo venv: uvicorn[standard] depends on it
+        from mooring.core.schemas.dynamics import SimFrame, SimRecording
+        from mooring.core.schemas.motion import SimScene
 
         body = json.loads((EXAMPLES / "berthing_session.json").read_text())
         body["scenario_id"] = ctx["scenario_id"]
         _, created = http("POST", modeling + "/berthing/sessions", body)
         url = websocket_url(ui, created["session_id"])
+        session_api = modeling + "/berthing/sessions/" + created["session_id"]
+        _, scene_data = http("GET", session_api + "/scene")
+        scene = SimScene.model_validate(scene_data)
+        assert created["protocol"] == "rm0-v1"
 
         async def run():
             notes = []
             async with websockets.connect(url) as ws:
                 first = await motion_frame(ws)
+                SimFrame.model_validate(first)
                 assert first["t_s"] == 0, "a session starts at time zero"
+                assert (first["scene_id"], first["scene_revision"]) == (scene.scene_id, scene.revision)
                 ctx["motion_frame"] = first
                 notes.append("connected at t=0")
                 await ws.send(json.dumps({"type": "resume"}))
@@ -308,12 +324,40 @@ def api_checks(stack: Stack) -> dict:
                     msg = await motion_frame(ws, timeout=5)
                     if msg["t_s"] == 0:
                         notes.append("reset returned to t=0")
+                        assert msg["run_id"] != first["run_id"], "reset must start a distinct run"
+                        reset_frame = msg
                         break
                 else:
                     raise AssertionError("reset did not return to time zero")
+                await ws.send(json.dumps({"type": "set_speed", "speed": 2}))
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
+                    speed_event = json.loads(await asyncio.wait_for(ws.recv(), 5))
+                    if speed_event.get("type") == "session_lifecycle" and speed_event.get("speed") == 2:
+                        notes.append("2x speed acknowledged")
+                        break
+                else:
+                    raise AssertionError("speed change was not acknowledged")
+            # Wait for the previous controller's bounded disconnect cleanup before reconnecting.
+            await asyncio.sleep(0.2)
+            async with websockets.connect(url + f"?after_sequence={reset_frame['sequence']}") as ws:
+                resumed = await motion_frame(ws)
+                SimFrame.model_validate(resumed)
+                assert resumed["run_id"] == reset_frame["run_id"]
+                assert resumed["sequence"] >= reset_frame["sequence"] and resumed["t_s"] == 0
+                notes.append("reconnect retained paused run and scene")
             return "; ".join(notes)
 
-        return asyncio.run(run())
+        detail = asyncio.run(run())
+        _, recording_data = http("GET", session_api + "/recording")
+        recording = SimRecording.model_validate(recording_data)
+        assert recording.frames and recording.scene_id == scene.scene_id
+        assert len({frame.run_id for frame in recording.frames}) >= 2, "recording lost the run before reset"
+        assert any(event.speed == 2 for event in recording.lifecycle), "recording lost the speed event"
+        _, index = http("GET", modeling + "/berthing/recordings?limit=100")
+        assert any(item["session_id"] == created["session_id"] for item in index["recordings"])
+        ctx["runtime_protocol_checked"] = True
+        return detail + "; validated scene and indexed recording"
 
     def berth_vision():
         import base64
@@ -383,6 +427,11 @@ def api_checks(stack: Stack) -> dict:
     check("Advance planning: synthetic coverage, alternatives and installation (A1)",
           lambda: advance_planning_check(ui, EXAMPLES, http))
     if ctx.get("scenario_id"):
+        def forecast_binding():
+            detail = forecast_binding_check(ui, EXAMPLES, http, ctx["scenario_id"])
+            ctx["forecast_binding_checked"] = True
+            return detail
+        check("Forecast selection: immutable manifest handoff and sheet layout (A3/A11)", forecast_binding)
         check("Motion: session over WebSocket through the proxy (resume, command, pause, reset)", motion_session)
     return ctx
 

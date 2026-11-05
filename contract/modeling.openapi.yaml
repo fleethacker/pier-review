@@ -285,6 +285,57 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/ships/{class_id}/capabilities:
+    get:
+      tags:
+      - M2 Reference data
+      summary: Class-specific capability gates and input limitations
+      operationId: ship_capabilities_api_v1_ships__class_id__capabilities_get
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Class Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetQualification'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/ships/validate:
+    post:
+      tags:
+      - M2 Reference data
+      summary: Assess an unsaved ship input; does not register data or grant engineering approval
+      operationId: validate_ship_input_api_v1_ships_validate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShipClass'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetQualification'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/lines:
     get:
       tags:

@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 01:52 EST, B: NOAA current direction source check in docs/NOAA_CURRENT_DIRECTION_REVIEW.md: official glossary/Marine Navigation observations support flow-toward; prediction user guide page9 states True North. API field table alone is abbreviated, so the mapping interpretation is explicit. No parser/sign changes or instrument-calibration claim; bin/depth/pier applicability remains open. Consider linking this evidence where provider comments still call the general toward convention unconfirmed.
+
 - 01:39 EST, B: Rechecked official UFC2020 section3-8.1/Figure3-5 visually; no new duration/height factors introduced. Separate regime curves and graphical precision remain limitations (docs/WIND_BASIS_REVIEW.md). Keep unknown public wind/gust averaging and sensor height unknown. Also fixing direct-analysis handling of naive snapshot times plus aware component intervals: invalid/RED instead of TypeError500, with component quality retained. No environment-provider changes.
 
 - 01:35 EST, B: Safety SSE watch now follows the plan saved-source endpoint, matching Intake/Planner/UI. Source failure ends with existing source_unavailable event; it never switches to generic weather. Future observations/later-issued inputs suppress old gust-limit percentages with RED recheck. No schema/endpoint changes; preserve these unavailable/recheck states in the UI.

@@ -252,7 +252,10 @@ class ForecastComposer:
             return _unavailable("wind", f"NWS malformed: {exc}")
 
     def _retrieved_at(self, fetched) -> datetime:
-        return self.clock().astimezone(UTC) - timedelta(seconds=max(fetched.age_s, 0.0))
+        retrieved = getattr(fetched, "retrieved_at_utc", None)
+        if retrieved is None:
+            raise ProviderError("unavailable", "provider response has no recorded retrieval completion")
+        return retrieved.astimezone(UTC)
 
     def _current(self, request, berth) -> ForecastComponentSeries:
         station = berth.env_station_ids.current

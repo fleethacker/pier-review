@@ -104,6 +104,20 @@ def test_cache_hit_expiry_and_stale_fallback():
         c.get("https://provider.invalid/data")
 
 
+def test_recorded_retrieval_is_immutable_across_fresh_and_stale_cache_hits():
+    c, clock, calls = client([OK, TimeoutError("down")], retries=0, min_interval_s=0,
+                            cache_ttl_s=60, max_stale_s=300)
+    first = c.get("https://provider.invalid/data")
+    assert first.retrieved_at_utc == clock.value
+    clock.value += timedelta(seconds=30)
+    cached = c.get("https://provider.invalid/data")
+    clock.value += timedelta(seconds=60)
+    stale = c.get("https://provider.invalid/data")
+    assert cached.from_cache and stale.stale and len(calls) == 2
+    assert first.retrieved_at_utc == cached.retrieved_at_utc == stale.retrieved_at_utc
+    assert first.content == cached.content == stale.content
+
+
 def test_breaker_opens_short_circuits_then_half_opens_and_closes():
     c, clock, calls = client([TimeoutError("down"), OK], retries=0, min_interval_s=0, breaker_failures=1, breaker_reset_s=30)
     with pytest.raises(ProviderError):

@@ -12,7 +12,7 @@ import math
 import threading
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -190,6 +190,8 @@ class HttpPayload:
     from_cache: bool = False
     stale: bool = False
     age_s: float = 0.0
+    # Recorded once at transport completion; age is not a reproducible timestamp.
+    retrieved_at_utc: datetime | None = None
 
     def json(self) -> Any:
         try:
@@ -275,7 +277,7 @@ class ProviderHttpClient:
         return url, tuple(sorted((str(k), str(v)) for k, v in params.items()))
 
     def _cached(self, payload: HttpPayload, *, age_s: float, stale: bool) -> HttpPayload:
-        return HttpPayload(payload.status_code, payload.content, payload.headers, True, stale, age_s)
+        return replace(payload, from_cache=True, stale=stale, age_s=age_s)
 
     def get(self, url: str, params: Mapping[str, str] | None = None) -> HttpPayload:
         # A shared provider client coalesces cache misses and serializes its rate/breaker state.
@@ -323,7 +325,9 @@ class ProviderHttpClient:
                 else:
                     self.breaker.succeeded()
                     if 200 <= payload.status_code < 300:
-                        self._cache[key] = (self.clock.now(), payload)
+                        retrieved = self.clock.now().astimezone(UTC)
+                        payload = replace(payload, retrieved_at_utc=retrieved)
+                        self._cache[key] = (retrieved, payload)
                     return payload
             if attempt < self.policy.retries:
                 self.clock.sleep(self.policy.backoff_s * (2**attempt))

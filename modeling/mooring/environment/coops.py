@@ -149,14 +149,18 @@ def parse_currents(doc: dict) -> list[dict]:
 
 def parse_predictions(doc: dict) -> list[dict]:
     _check_error(doc)
-    return [{"t": _t(r.get("t")), "water_level_ft": _num(r.get("v"))} for r in doc.get("predictions", [])]
+    rows = doc.get("predictions")
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise ProviderError("malformed", "response predictions must be a list of objects")
+    return [{"t": _t(r.get("t")), "water_level_ft": _num(r.get("v"))} for r in rows]
 
 
 def parse_current_predictions(doc: dict) -> list[dict]:
     _check_error(doc)
-    rows = (doc.get("current_predictions") or {}).get("cp")
-    if not isinstance(rows, list):
-        raise ProviderError("malformed", "response has no current_predictions.cp list")
+    predictions = doc.get("current_predictions")
+    rows = predictions.get("cp") if isinstance(predictions, dict) else None
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise ProviderError("malformed", "response current_predictions.cp must be a list of objects")
     return [{"t": _t(r.get("Time")), "current_speed_kt": _num(r.get("Speed")), "current_set_true_deg": _num(r.get("Direction")),
              "bin": r.get("Bin"), "depth_ft": _num(r.get("Depth"))} for r in rows]
 
@@ -213,6 +217,7 @@ class Fetched:
     doc: dict
     stale: bool
     age_s: float
+    retrieved_at_utc: datetime | None = None
 
 
 class Fetcher:
@@ -273,7 +278,7 @@ class Fetcher:
             raise ProviderError("malformed", "response JSON is not an object")
         if "error" in doc:
             self.client.invalidate(self.base_url, {str(k): str(v) for k, v in params.items()})
-        return Fetched(doc, payload.stale, payload.age_s)
+        return Fetched(doc, payload.stale, payload.age_s, payload.retrieved_at_utc)
 
 
 class Coops:

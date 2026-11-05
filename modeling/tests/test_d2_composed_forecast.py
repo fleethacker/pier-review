@@ -179,6 +179,77 @@ def test_compose_http_endpoint_returns_the_same_frozen_revision():
     assert result.json() == expected.model_dump(mode="json")
 
 
+def test_cached_revision_and_snapshot_hash_do_not_depend_on_parsing_latency():
+    from mooring.moored.forecast_resolver import resolve_forecast
+
+    class Clock:
+        value = AS_OF - timedelta(minutes=1)
+
+        def now(self):
+            return self.value
+
+    clock = Clock()
+
+    class DelayedFetcher(Fetcher):
+        latency_ms = 1
+
+        def get(self, params):
+            result = super().get(params)
+            # Different parsing/dispatch delays must not revise a cached acquisition.
+            clock.value += timedelta(milliseconds=self.latency_ms)
+            self.latency_ms += 1
+            return result
+
+    fetcher = DelayedFetcher(prediction_transport(), clock=clock.now, sleep=lambda _: None,
+                             retries=0, min_interval_s=0)
+    service = ForecastComposer(nws=FixtureNWS(), coops_fetcher=fetcher, clock=clock.now)
+    first = service.compose(request())
+    second = service.compose(request())
+    assert fetcher.calls == 2
+    assert first == second
+    first_binding = resolve_forecast(first.snapshots, as_of_utc=AS_OF, from_utc=START, to_utc=END)
+    second_binding = resolve_forecast(second.snapshots, as_of_utc=AS_OF, from_utc=START, to_utc=END)
+    assert first_binding.content_hash == second_binding.content_hash
+    assert first_binding.binding_hash == second_binding.binding_hash
+
+
+def test_unrecorded_retrieval_is_unavailable_without_backdating_it_from_cache_age():
+    from mooring.environment.coops import Fetched
+
+    class LegacyFetcher:
+        def get(self, params):
+            _, body = prediction_transport()("unused", params, 10)
+            return Fetched(json.loads(body), False, 0)
+
+    response = ForecastComposer(nws=FixtureNWS(), coops_fetcher=LegacyFetcher(), clock=lambda: AS_OF).compose(request())
+    by_component = {item.availability.component: item for item in response.manifest.components}
+    assert response.manifest.status == "partial"
+    assert by_component["wind"].availability.state == "prediction"
+    for name in ("current", "water_level"):
+        assert "no recorded retrieval" in by_component[name].availability.reason
+
+
+@pytest.mark.parametrize("product,body,component", [
+    ("predictions", {"predictions": [None]}, "water_level"),
+    ("predictions", {"predictions": "bad rows"}, "water_level"),
+    ("currents_predictions", {"current_predictions": {"cp": [None]}}, "current"),
+    ("currents_predictions", {"current_predictions": [1]}, "current"),
+])
+def test_malformed_coops_rows_only_disable_the_affected_component(product, body, component):
+    normal = prediction_transport()
+
+    def transport(url, params, timeout):
+        return (200, json.dumps(body)) if params["product"] == product else normal(url, params, timeout)
+
+    fetcher = Fetcher(transport, clock=lambda: AS_OF, sleep=lambda _: None, retries=0, min_interval_s=0)
+    response = ForecastComposer(nws=FixtureNWS(), coops_fetcher=fetcher, clock=lambda: AS_OF).compose(request())
+    by_component = {item.availability.component: item for item in response.manifest.components}
+    assert response.manifest.status == "partial" and response.snapshots == []
+    assert by_component[component].availability.state == "unavailable"
+    assert "malformed" in by_component[component].availability.reason
+    assert all(item.availability.state == "prediction" for name, item in by_component.items() if name != component)
+
+
 def test_plus_24_forecast_runs_through_complete_docking_and_holding_window():
     forecast = composer().compose(request()).snapshots
     base = docking_cases()[0].analysis_request

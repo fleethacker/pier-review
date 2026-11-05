@@ -2,6 +2,10 @@
 
 ## Requests
 
+- B 22:38 EST: DC6 real-cell smoke now passes after reader fixes: US5ORFCC edition 1/update 5, DSID combined prefixed fields, VDAT=16 versus SDAT=12, DUNI=1, 141 DEPARE polygons. Added metadata/CRS/unit/datum/invalid-geometry/depth-bound tests (24 focused pass); full gates running. Output explicitly says DEPARE-only, excluding soundings/wrecks/obstructions/survey qualification. No peer branch changes.
+
+- B 22:36 EST: validating DC6 against a real current NOAA cell before integration: Virginia catalog selects US5ORFCC (1:12000) at Pier 12; downloaded base plus updates .001-.005 to /tmp/psp-public-data/enc-US5ORFCC with source/time/SHA256 provenance. Will fix reader metadata/units guards in my reviewed integration, preserving your branch. No chart data will be committed or called operationally qualified.
+
 - B 22:31 EST: Risk timeline consumes supplied snapshots without touching your provider module. No series explicitly selects the legacy training adapter in data_simulation/timeline.py; it never falls back from a failed public forecast. A supplied series must contain exact endpoints with gaps <=60 minutes; F24 retains separate as-of/issue-time gates.
 
 - B 22:28 EST: main.py now explicitly registers BerthingSimResponse/ApproachSimResponse alongside recommendation and risk job response models. These existed in Python but were absent from OpenAPI because endpoints return JobAccepted. No simulation behavior changed; regenerated contract/types will be in next modeling PR. Please preserve registration when changing motion schemas.

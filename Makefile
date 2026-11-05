@@ -29,7 +29,8 @@ check: test
 
 smoke-live:           ## Opt-in live provider checks (never part of CI)
 	@if test "$${MOORING_LIVE_SMOKE:-}" = 1; then \
-		uv run --all-packages python scripts/smoke_coops.py; \
+		uv run --all-packages python scripts/smoke_coops.py && \
+		uv run --all-packages python scripts/smoke_waves.py; \
 	else \
 		echo "skipped: set MOORING_LIVE_SMOKE=1"; \
 	fi

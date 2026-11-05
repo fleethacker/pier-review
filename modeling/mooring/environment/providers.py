@@ -206,6 +206,49 @@ def httpx_transport(url: str, params: Mapping[str, str], timeout_s: float, heade
     return HttpPayload(response.status_code, response.content, dict(response.headers))
 
 
+def bounded_httpx_transport(
+    url: str,
+    params: Mapping[str, str],
+    timeout_s: float,
+    headers: Mapping[str, str],
+    *,
+    max_response_bytes: int,
+    max_elapsed_s: float,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> HttpPayload:
+    """Stream with byte and elapsed-time caps, including slow-drip responses."""
+    started = monotonic()
+
+    def ensure_elapsed_bound() -> None:
+        if monotonic() - started >= max_elapsed_s:
+            raise httpx.TimeoutException(f"response exceeded {max_elapsed_s}s elapsed limit")
+
+    with httpx.stream(
+        "GET",
+        url,
+        params=params,
+        timeout=httpx.Timeout(timeout_s, read=min(timeout_s, 1.0)),
+        headers=headers,
+        follow_redirects=False,
+    ) as response:
+        ensure_elapsed_bound()
+        declared = response.headers.get("content-length")
+        if declared is not None:
+            try:
+                if int(declared) > max_response_bytes:
+                    raise httpx.HTTPError(f"response exceeds {max_response_bytes} bytes")
+            except ValueError:
+                pass
+        content = bytearray()
+        for chunk in response.iter_bytes():
+            ensure_elapsed_bound()
+            content.extend(chunk)
+            if len(content) > max_response_bytes:
+                raise httpx.HTTPError(f"response exceeds {max_response_bytes} bytes")
+        ensure_elapsed_bound()
+        return HttpPayload(response.status_code, bytes(content), dict(response.headers))
+
+
 @dataclass
 class ProviderHttpClient:
     """Deterministic provider HTTP policy with explicit stale-cache behavior."""

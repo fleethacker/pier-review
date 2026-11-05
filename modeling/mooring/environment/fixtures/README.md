@@ -32,3 +32,11 @@ NWS response is available in this repository, so the offline package does not cl
 
 The package covers 2026-01-01 00:00–00:54 UTC and never loops or extrapolates. It is labeled `replay` with an
 `observation` basis. It is demonstration replay data, not a forecast or operational qualification.
+
+`ndbc/` contains short, provider-native excerpts from NOAA/NDBC realtime wave products for stations 44099 and 44014,
+retrieved on 2026-11-05. The excerpts retain the original headers, units, timestamps, missing-value tokens, total sea,
+provider partitions, density bins and alpha1 direction convention. They are parser fixtures, not a complete observation
+archive; the production adapter keeps full fetched rows and marks undocumented sample bounds/timestamp position unknown.
+The native `data_spec` separation-frequency value `9.999` is the provider's missing sentinel and stays missing. NDBC
+directions are directions waves come from, clockwise from true north. These offshore stations are never relabeled as
+Pier 12 measurements or berth forcing.

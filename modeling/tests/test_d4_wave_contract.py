@@ -48,8 +48,8 @@ def _gfs_series(*, times: list[str], coverage: str = "complete", issued: str | N
         "timestamp_basis": "instant",
         "total_sea": {
             "component": "total_sea", "significant_height_ft": 3.0,
-            "period_s": 8.0, "period_basis": "peak",
-            "direction_from_true_deg": 110.0, "direction_basis": "peak",
+            "period_s": 8.0, "period_basis": "primary_mean",
+            "direction_from_true_deg": 110.0, "direction_basis": "primary",
         },
     }) for value in times]
     series = OffshoreWaveSeries.model_construct(

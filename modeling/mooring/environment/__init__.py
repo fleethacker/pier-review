@@ -55,7 +55,8 @@ def _missing_capabilities():
             reason="forecast status requires an as-of time and horizon via POST /api/v1/env/forecast/compose"
         ),
         EnvironmentComponentAvailability(
-            component="waves", state="unavailable", reason="no wave provider configured (D4)"
+            component="waves", state="unavailable",
+            reason="wave status requires an as-of time and horizon via POST /api/v1/env/waves/compose"
         ),
     ]
 
@@ -289,6 +290,8 @@ def provider_modules() -> dict[str, str]:
         "Provider NOAA CO-OPS": coops,
         "Provider NWS": "bound forecast composition (missing gust/coverage stays unavailable)",
         "Provider CBOFS": "decoded cache artifact only when exact coordinate/depth/layer and publication evidence match",
+        "Provider NOAA/NDBC waves": "bound 44099 observation and independent 44014 check; offshore boundary only",
+        "Provider GFS-Wave": "validated decoded atlocn.0p16 artifact when configured; otherwise unavailable",
     }
 
 
@@ -309,6 +312,6 @@ def compose_forecast(request):
 
 
 def compose_waves(request):
-    """D4 contract stub; implementation is delivered on the following item branch."""
-    from .errors import ProviderError
-    raise ProviderError("unavailable", "wave acquisition is not implemented on the contract-only branch")
+    """Resolve NDBC observations and optional decoded GFS-Wave guidance independently."""
+    from .waves import compose
+    return compose(request)

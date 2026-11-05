@@ -65,7 +65,6 @@ export function forcingOf(frame: SimFrame): Pick<SimClockView, 'forcingTS' | 'fo
   // S2 publishes the revision on the frame; retain older environment-local metadata compatibility.
   const rev = frame.forcing_revision ?? env?.['forcing_revision'] ?? env?.['revision'];
   const kinds = [
-    frame.motion?.provenance?.kind,
     ...(['wind', 'current', 'water'] as const).map((k) => (env?.[k] as { provenance?: { kind?: string } } | null | undefined)?.provenance?.kind),
   ];
   return {

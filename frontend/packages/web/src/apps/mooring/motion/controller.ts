@@ -147,6 +147,8 @@ export class MotionController {
   private replayTimer: ReturnType<typeof setInterval> | undefined;
   private replayClock = 0;
   private disposed = false;
+  private loadEpoch = 0;
+  private forcingSyntheticOverride: boolean | null = null;
   private rawFrames: SimFrame[] = [];
   private sessionLayoutKey: string | null = null;
   /** Newest lifecycle sequence received; a reconnect asks only for lifecycle messages after it. */
@@ -196,6 +198,8 @@ export class MotionController {
   }
 
   private stopEverything(): void {
+    this.loadEpoch += 1;
+    this.forcingSyntheticOverride = null;
     this.stopReplay();
     this.stream?.close();
     this.stream = null;
@@ -213,8 +217,9 @@ export class MotionController {
     const frame = adaptFrame(raw, { faceBearingDeg: this.face() });
     const forcing = forcingOf(raw);
     this.state.set({ forcingRevision: forcing.forcingRevision ?? this.s.forcingRevision,
-      forcingSynthetic: this.s.forcingSynthetic === true || forcing.training });
+      forcingSynthetic: this.forcingSyntheticOverride ?? (this.s.forcingSynthetic === true || forcing.training) });
     const clock = this.s.source === 'live' ? this.simClock.observe(raw, Date.now(), this.s.lifecycle === 'running') : null;
+    if (clock) clock.training = this.s.forcingSynthetic ?? clock.training;
     if (clock || this.s.clock) this.state.set({ clock });
     const p = { x: frame.ship.x_ft, y: frame.ship.y_ft };
     this.state.set((s) => {
@@ -274,7 +279,7 @@ export class MotionController {
 
   // ---- scene ----------------------------------------------------------------------------------------------
 
-  private async loadScene(url: string | null | undefined): Promise<void> {
+  private async loadScene(url: string | null | undefined, epoch = this.loadEpoch): Promise<void> {
     if (!url) {
       this.state.set({ scene: null, sceneError: 'This session does not publish a scene; the berth outline is not drawn.' });
       return;
@@ -282,25 +287,32 @@ export class MotionController {
     try {
       const res = await fetch(url, { headers: authHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      this.state.set({ scene: (await res.json()) as SimScene, sceneError: null });
+      const scene = (await res.json()) as SimScene;
+      if (epoch !== this.loadEpoch || this.disposed) return;
+      this.state.set({ scene, sceneError: null });
     } catch (e) {
+      if (epoch !== this.loadEpoch || this.disposed) return;
       this.state.set({ scene: null, sceneError: `Scene unavailable: ${e instanceof Error ? e.message : String(e)}` });
     }
   }
 
   // ---- recording playback -----------------------------------------------------------------------------------
 
-  async loadRecording(url: string = FIXTURE_RECORDING_URL, sceneUrl: string | null = FIXTURE_SCENE_URL, label = 'Recorded fixture (mock)'): Promise<void> {
+  async loadRecording(url: string = FIXTURE_RECORDING_URL, sceneUrl: string | null = FIXTURE_SCENE_URL, label = 'Recorded fixture (mock)', forcing?: Pick<SessionRecordingRef, 'forcingRevision' | 'forcingSynthetic'>): Promise<void> {
     this.stopEverything();
-    this.state.set({ forcingRevision: null, forcingSynthetic: null, lifecycleReasons: [], lifecycleInvalid: false });
+    const epoch = this.loadEpoch;
+    this.forcingSyntheticOverride = forcing?.forcingSynthetic ?? null;
+    this.state.set({ forcingRevision: forcing?.forcingRevision ?? null, forcingSynthetic: forcing?.forcingSynthetic ?? null, lifecycleReasons: [], lifecycleInvalid: false });
     this.state.set({ busy: true, error: null, source: 'recording', link: 'idle', lifecycle: null, frame: null, trail: [], playing: false, sessionId: null });
     try {
       const res = await fetch(url, { headers: authHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const rec = (await res.json()) as SimRecording;
+      if (epoch !== this.loadEpoch || this.disposed) return;
       if (!rec.frames?.length) throw new Error('The recording has no frames.');
       this.rawFrames = rec.frames;
-      await this.loadScene(sceneUrl);
+      await this.loadScene(sceneUrl, epoch);
+      if (epoch !== this.loadEpoch || this.disposed) return;
       this.state.set({
         recording: { id: rec.recording_id, durationS: rec.duration_s ?? rec.frames[rec.frames.length - 1].t_s, frames: rec.frames, label },
         busy: false,
@@ -309,6 +321,7 @@ export class MotionController {
       });
       this.seek(rec.frames[0].t_s);
     } catch (e) {
+      if (epoch !== this.loadEpoch || this.disposed) return;
       this.state.set({ busy: false, source: 'none', recording: null, error: `Could not load the recording: ${e instanceof Error ? e.message : String(e)}` });
     }
   }
@@ -374,9 +387,7 @@ export class MotionController {
   async loadSessionRecording(sessionId: string): Promise<void> {
     const ref = this.s.sessionRecordings.find((r) => r.sessionId === sessionId);
     if (!ref) return;
-    await this.loadRecording(ref.recordingUrl, ref.sceneUrl, `Session ${sessionId} recording (synthetic dynamics)`);
-    this.state.set({ forcingRevision: this.s.forcingRevision ?? ref.forcingRevision ?? null,
-      forcingSynthetic: this.s.forcingSynthetic === true || ref.forcingSynthetic === true });
+    await this.loadRecording(ref.recordingUrl, ref.sceneUrl, `Session ${sessionId} recording (synthetic dynamics)`, ref);
   }
 
   // ---- live session -----------------------------------------------------------------------------------------
@@ -409,6 +420,7 @@ export class MotionController {
       const created = unwrap(await modeling.POST('/api/v1/berthing/sessions', { body: { scenario_id: scenarioId, initial_state: initial } }));
       if (inputKey !== this.host.layoutKey()) throw new Error('Inputs changed while creating the session. The new session remains paused; start again.');
       this.sessionLayoutKey = layoutKey;
+      this.forcingSyntheticOverride = created.forcing_synthetic ?? null;
       this.state.set({ sessionId: created.session_id, forcingRevision: created.forcing_revision ?? null,
         forcingSynthetic: created.forcing_synthetic ?? null });
       const sceneUrl = created.scene_url ? serviceUrl(MODELING_BASE, created.scene_url) : null;

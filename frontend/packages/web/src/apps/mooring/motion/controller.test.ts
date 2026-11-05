@@ -469,3 +469,29 @@ it('retains synthetic forcing metadata and surfaces uncovered validity through l
   expect(m.s.lifecycleReasons).toEqual(['FORCING_UNCOVERED: Forcing ends before this step.']);
   m.dispose();
 });
+
+it('keeps explicit real forcing authoritative even with mock dynamics or component provenance', async () => {
+  vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's1', ws_url: '/ws/sim/s1', forcing_synthetic: false } } as never);
+  const m = make();
+  await m.startSession();
+  stream.handlers!.onMessage({ ...recording.frames[10], sequence: 1 });
+  flush();
+  expect(m.s.forcingSynthetic).toBe(false);
+  expect(m.s.clock?.training).toBe(false);
+  m.dispose();
+});
+
+it('does not apply an old session recording or its provenance after another recording is selected', async () => {
+  let finish!: (value: unknown) => void;
+  const old = new Promise((resolve) => { finish = resolve; });
+  vi.stubGlobal('fetch', vi.fn((url: string) => url === '/old' ? old : Promise.resolve({ ok: true, json: async () => ({ ...recording, recording_id: 'new' }) })));
+  const m = make();
+  m.state.set({ sessionRecordings: [{ sessionId: 'old', recordingUrl: '/old', sceneUrl: null, startedAt: '', forcingRevision: 'old-revision', forcingSynthetic: true }] });
+  const pending = m.loadSessionRecording('old');
+  await m.loadRecording('/new', null, 'New');
+  finish({ ok: true, json: async () => ({ ...recording, recording_id: 'old' }) });
+  await pending;
+  expect(m.s.recording?.id).toBe('new');
+  expect(m.s.forcingRevision).not.toBe('old-revision');
+  m.dispose();
+});

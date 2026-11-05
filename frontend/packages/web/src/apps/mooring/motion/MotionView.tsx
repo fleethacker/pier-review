@@ -55,7 +55,7 @@ export function Badges({ frame, state }: { frame: ViewFrame | null; state: Motio
       <Pill color={env ? '#8ba4c4' : STATUS_COLOR.NONE}>
         environment: {env ? `${sourceText ?? 'source not stated'}${ageS != null ? `, ${ageS.toFixed(0)} s old` : ', age not stated'}` : 'not in frame'}
       </Pill>
-      {(state.forcingSynthetic || state.clock?.training) && (
+      {(state.forcingSynthetic ?? state.clock?.training) && (
         <Pill color={STATUS_COLOR.AMBER} title="The forcing in this session is synthetic training data, not an observation or forecast.">
           training · synthetic forcing
         </Pill>

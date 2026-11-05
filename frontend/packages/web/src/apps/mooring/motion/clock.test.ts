@@ -55,7 +55,7 @@ describe('forcingOf', () => {
 
   it('labels mock forcing as training', () => {
     expect(forcingOf(f(3, 'r1', { t_s: 3, wind: { provenance: { kind: 'mock' } } })).training).toBe(true);
-    expect(forcingOf(recording.frames[10]).training).toBe(true);
+    expect(forcingOf({ ...recording.frames[10], environment: null }).training).toBe(false);
   });
 });
 
@@ -63,4 +63,8 @@ it('formats clock text', () => {
   expect(clockText(65)).toBe('1:05');
   expect(clockText(3723)).toBe('1:02:03');
   expect(clockText(-4)).toBe('0:00');
+});
+
+it('does not confuse surrogate body dynamics with synthetic environmental forcing', () => {
+  expect(forcingOf({ ...recording.frames[10], environment: { wind: { provenance: { kind: 'measured' } } } } as unknown as SimFrame).training).toBe(false);
 });

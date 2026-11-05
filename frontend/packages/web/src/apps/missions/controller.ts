@@ -776,7 +776,8 @@ export class MissionsController {
   }
 
   setCameraOn(on: boolean): void {
-    this.store.setState({ cameraOn: on });
+    // The Transit tab toggle always means "predict the transit vessel", even if the Camera tab last used a preset.
+    this.store.setState(on && this.state.tab === 'transit' ? { cameraOn: on, camSource: 'transit', camResult: null } : { cameraOn: on });
     if (!on) {
       this.camThrottle.cancel();
       this.host.store.replaceEntitiesOfKind(CAMERA_ALL_KINDS, []);

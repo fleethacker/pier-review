@@ -26,7 +26,7 @@ CODE = "mooring.tugs.allocation@1.0.0"
 
 def _fleet(ids: list[str] | None):
     try:
-        return [refdata.tug(t) for t in ids] if ids else refdata.tugs()
+        return [refdata.tug(t) for t in ids] if ids is not None else refdata.tugs()
     except refdata.NotFound as e:
         raise refdata.InvalidReference(str(e)) from None
 

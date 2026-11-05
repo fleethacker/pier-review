@@ -2734,7 +2734,7 @@ components:
             type: array
           - type: 'null'
           title: Available Tug Ids
-          description: Defaults to the whole fleet.
+          description: Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
       additionalProperties: false
       type: object
       required:
@@ -2818,7 +2818,7 @@ components:
             type: array
           - type: 'null'
           title: Available Tug Ids
-          description: Fleet requested for the berthing; defaults to the whole catalog fleet.
+          description: Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
         margin:
           type: number
           maximum: 1.0
@@ -4214,6 +4214,7 @@ components:
             type: array
           - type: 'null'
           title: Available Tug Ids
+          description: Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
       additionalProperties: false
       type: object
       required:

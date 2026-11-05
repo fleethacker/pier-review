@@ -1276,7 +1276,7 @@ export interface components {
             margin: number;
             /**
              * Available Tug Ids
-             * @description Defaults to the whole fleet.
+             * @description Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
              */
             available_tug_ids?: string[] | null;
         };
@@ -1337,7 +1337,7 @@ export interface components {
             max_gust_kt?: number | null;
             /**
              * Available Tug Ids
-             * @description Fleet requested for the berthing; defaults to the whole catalog fleet.
+             * @description Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
              */
             available_tug_ids?: string[] | null;
             /**
@@ -2268,7 +2268,10 @@ export interface components {
              * @default 0.25
              */
             margin: number;
-            /** Available Tug Ids */
+            /**
+             * Available Tug Ids
+             * @description Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
+             */
             available_tug_ids?: string[] | null;
         };
         /** ImageFitting */

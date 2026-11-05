@@ -3,8 +3,8 @@
 Tugs are sized by re-solving the real equilibrium with candidate tug forces applied and checking every line, fitting and
 fender against its limit at the *solved* pose. There is no scalar sum of overloads: a tug that cures sway but worsens yaw
 fails the check. Candidates are tugs on water-side push points acting against the dominant lateral load, at a uniform
-fraction of each tug's rating (ratings from the catalog, not certified). The smallest plan that passes is chosen: fewest
-tugs, then least total force. Every reported assisted utilization comes from a fresh solve whose envelope is stored and
+fraction of each tug's rating (ratings from the catalog, not certified). Smaller tug sets are tried first and search
+stops at the first passing candidate; minimum total force is not established. Every reported assisted utilization comes from a fresh solve whose envelope is stored and
 referenced by `assisted_result_id`. If no candidate passes, the best attempt is returned as infeasible: that says the
 search found no plan, not that none exists. Returned assignments are additions to the request tugs; the cited assisted
 result includes both existing and additional assistance.
@@ -40,7 +40,7 @@ def hold_plan(req: HoldTugRequest) -> TugPlanResponse:
     target = 100.0 / (1.0 + req.margin)
     ship = system.ship
     try:
-        fleet = [refdata.tug(t) for t in req.available_tug_ids] if req.available_tug_ids else refdata.tugs()
+        fleet = [refdata.tug(t) for t in req.available_tug_ids] if req.available_tug_ids is not None else refdata.tugs()
     except refdata.NotFound as e:
         raise refdata.InvalidReference(str(e)) from None
     used_tugs = {t.tug_id for t in req.tugs}
@@ -131,4 +131,5 @@ def hold_plan(req: HoldTugRequest) -> TugPlanResponse:
                     status=status_with_validity("GREEN" if feasible else "RED", v), validity=v, manifest=final.manifest,
                     assumptions=["Returned tug assignments are additional to existing request assistance; the cited assisted result includes both.",
                                  "Candidates re-solved with the real equilibrium; utilization checked for every line, fitting and fender.",
+                                 "Smaller additional tug sets are tried first; search stops at the first passing candidate, not the minimum total force.",
                                  f"Utilization target {target:.0f}% = 100% / (1 + margin {req.margin:.0%}).", *solver.ASSUMPTIONS])

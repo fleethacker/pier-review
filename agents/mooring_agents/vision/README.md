@@ -40,8 +40,9 @@ not the image. Unknown kinds and out-of-face geometry are rejected.
 Response includes extraction source/reason, image hash, modeling geometry result ID and optional catalog-preview
 recommendation result ID. Changed image geometry requires confirmation before line search; a catalog preview is
 not analysis of modified geometry. Confirmation preserves the draft ID, cannot overwrite another berth, and cannot
-promote estimates to published qualification. No draft is registered before confirmation. Runtime berths remain
-single-process; persistent deployment storage is still required.
+promote estimates to published qualification. No draft is registered before confirmation. Confirmed berths persist in modeling
+when MOORING_DB is file-backed; unset storage remains ephemeral. Agent drafts/reports additionally require
+AGENTS_PERSIST=1. Stored berths are shared references, not private assets or engineering-approved geometry.
 
 Image payload follows [OpenAI Responses image inputs](https://developers.openai.com/api/docs/guides/images-vision).
 No real model-perception accuracy is established; tests use a generated fixture and fake model transport.

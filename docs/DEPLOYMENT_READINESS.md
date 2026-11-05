@@ -6,7 +6,7 @@
 
 | Control | Configuration / implementation | Limits |
 | --- | --- | --- |
-| Durable results | `MOORING_DB`: SQLite WAL, numbered migrations | Results, resolved snapshots, scenarios, batch frames, jobs and ownership; one process/host. Unset is in-memory and lost on restart. |
+| Durable results | `MOORING_DB`: SQLite WAL, numbered migrations | Results, resolved snapshots, scenarios, confirmed shared berths, batch frames, jobs and ownership; one process/host. Unset is in-memory and lost on restart. |
 | Bounded jobs | `MOORING_WORKERS=2`, `MOORING_QUEUE=16`, `MOORING_JOB_DEADLINE_S` unset | Overload 429 with `Retry-After`. Cancellation/deadlines cooperative. Cancelled workers retain capacity until they exit. Queued/running jobs become failed on restart; not resumed. |
 | API identity | `MOORING_API_KEYS` JSON object mapping principal names to unique bearer keys of at least 32 characters | Constant-time byte comparisons. Applies to HTTP except health, and WebSocket handshakes. No identity provider, roles or revocation service. |
 | Ownership | SQLite ownership records plus worker context propagation | Jobs/status/SSE/cancellation, results, scenarios and simulator sessions separated by principal. Unknown or another owner's ids return 404 / WS 4404. Legacy unowned resources remain inaccessible when enforcement is enabled. |
@@ -76,9 +76,11 @@ credential objects. Tests reopen a real SQLite file, retrieve the completed auth
 and tool-call audit, reject a different principal, and append concurrent approvals without losing entries.
 
 One process per service/database is supported. No distributed jobs, automatic retention, verified approval roles,
-freshness revalidation of archived sheets, or durable user-confirmed reference catalog is claimed. Existing local-demo
+or freshness revalidation of archived sheets is claimed. Existing local-demo
 mode stays in memory. Back up an explicitly separate AGENTS_LEDGER_DB along with MOORING_DB if configured.
 
-Shared berth references are immutable by ID: identical registration retries are idempotent, and conflicting replacements return HTTP409, including authenticated callers. Reads still expose the shared catalog; this is not a private asset registry. A revised berth needs a new ID, so another principal cannot silently replace the geometry/depth behind an existing scenario. Runtime entries remain ephemeral and require a separate durable administration workflow.
+Shared berth references are immutable by ID: identical registration retries are idempotent, and conflicting replacements return HTTP409, including authenticated callers. Reads still expose the shared catalog; this is not a private asset registry. A revised berth needs a new ID, so another principal cannot silently replace the geometry/depth behind an existing scenario. Confirmed runtime entries use the same SQLite file when MOORING_DB is configured, and are included in its backup/restore. Unset storage remains ephemeral. Conflicting seed definitions on a later software update fail explicitly rather than replacing persisted geometry. Asset administration, retirement and engineering approval still require a separate workflow.
 
 A 5 November 2026 local TCP probe exercised two separate service processes with required authentication and a shared file-backed database. Completed scenario, environment scenario, Intake, plan, review, approved sheet and analysis documents survived a full stop/restart unchanged. An online backup restored to a new path preserved the same documents, result hashes, ownership, event log and tool ledger; the approved sheet stayed locked. Safety monitoring resumed against the saved source. This exercised the seeded berth path, not persistence of runtime catalog additions, distributed operation or deployment durability guarantees.
+
+A follow-up authenticated TCP probe used a newly registered berth rather than the seed ID. Full restart and backup restoration preserved its exact geometry, shared catalog visibility, immutable-ID conflicts and an AMBER/limited reanalysis. The same seven owned documents, hashes, terminal events, tool ledger, locked sheet and saved-source Safety watch survived. Unit tests also exercise a separate-process catalog read, database isolation and conflicting independent-process registrations. These are local persistence checks, not asset qualification or multi-process service support.

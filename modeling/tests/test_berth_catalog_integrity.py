@@ -15,9 +15,12 @@ SEED = 'NAVSTA-NORFOLK-P12-N'
 
 @pytest.fixture
 def catalog(monkeypatch):
-    monkeypatch.setattr(refdata, '_runtime_berths', {})
+    from mooring.core import store
+    database = store.Database(':memory:')
+    monkeypatch.setattr(store, 'db', lambda: database)
     monkeypatch.setenv('MOORING_RATE_PER_MINUTE', '0')
-    return TestClient(app)
+    yield TestClient(app)
+    database.close()
 
 
 @pytest.mark.parametrize('authenticated', [False, True])
@@ -110,3 +113,111 @@ def test_single_or_unordered_unique_depth_samples_remain_supported(catalog, monk
     value['depth_profile'] = [{'x_ft': 100, 'depth_mllw_ft': 40}, {'x_ft': 0, 'depth_mllw_ft': 30}]
     assert catalog.post(f'{P}/berths', json=value).status_code == 201
     assert depth_at(refdata.berth(value['berth_id']), 50) == 35
+
+
+def test_confirmed_berth_survives_reopen_and_backup_restore(tmp_path, monkeypatch):
+    from mooring.core import store
+    from mooring.core.backup import backup, restore
+
+    live_path = str(tmp_path / 'catalog.sqlite')
+    backup_path = str(tmp_path / 'backup.sqlite')
+    restore_path = str(tmp_path / 'restored.sqlite')
+    database = store.Database(live_path)
+    monkeypatch.setattr(store, 'db', lambda: database)
+    original = refdata.berth(SEED).model_copy(update={'berth_id': 'DURABLE-CATALOG'})
+    try:
+        refdata.add_berth(original)
+        import os
+        import subprocess
+        import sys
+        child = subprocess.run(
+            [sys.executable, "-c", "from mooring import refdata; print(refdata.berth('DURABLE-CATALOG').model_dump_json())"],
+            env={**os.environ, "MOORING_DB": live_path}, capture_output=True, text=True, check=True,
+        )
+        assert json.loads(child.stdout) == original.model_dump(mode='json')
+        backup(database, backup_path)
+        database.close()
+        database = store.Database(live_path)
+        assert refdata.berth(original.berth_id) == original
+        restore(backup_path, restore_path)
+        database.close()
+        database = store.Database(restore_path)
+        assert refdata.berth(original.berth_id) == original
+        assert refdata.add_berth(original) == original
+        with pytest.raises(refdata.ReferenceConflict):
+            refdata.add_berth(original.model_copy(update={'name': 'Changed after recovery'}))
+        assert sum(b.berth_id == original.berth_id for b in refdata.berths()) == 1
+    finally:
+        database.close()
+
+
+def test_catalog_follows_database_not_process_memory(monkeypatch):
+    from mooring.core import store
+
+    first, second = store.Database(':memory:'), store.Database(':memory:')
+    monkeypatch.setattr(store, 'db', lambda: first)
+    original = refdata.berth(SEED).model_copy(update={'berth_id': 'DATABASE-SCOPED'})
+    try:
+        refdata.add_berth(original)
+        monkeypatch.setattr(store, 'db', lambda: second)
+        with pytest.raises(refdata.NotFound):
+            refdata.berth(original.berth_id)
+        assert original.berth_id not in {b.berth_id for b in refdata.berths()}
+        monkeypatch.setattr(store, 'db', lambda: first)
+        assert refdata.berth(original.berth_id) == original
+    finally:
+        first.close()
+        second.close()
+
+
+@pytest.mark.parametrize('same_definition', [False, True])
+def test_seed_upgrade_never_silently_rebinds_stored_reference(catalog, monkeypatch, same_definition):
+    original = refdata.berth(SEED).model_copy(update={'berth_id': 'LATER-SEED'})
+    refdata.add_berth(original)
+    later = original if same_definition else original.model_copy(update={'name': 'Changed seed definition'})
+    seeds = {**refdata._seed_berths(), later.berth_id: later}
+    monkeypatch.setattr(refdata, '_seed_berths', lambda: seeds)
+    if same_definition:
+        assert refdata.berth(original.berth_id) == original
+        assert refdata.add_berth(original) == original
+        assert sum(b.berth_id == original.berth_id for b in refdata.berths()) == 1
+    else:
+        for lookup in (lambda: refdata.berth(original.berth_id), refdata.berths, lambda: refdata.add_berth(later)):
+            with pytest.raises(refdata.InvalidReference, match='conflicts with the installed seed catalog'):
+                lookup()
+
+
+def test_independent_processes_cannot_replace_a_registration(tmp_path, monkeypatch):
+    import os
+    import subprocess
+    import sys
+    from mooring.core import store
+
+    path = str(tmp_path / 'concurrent.sqlite')
+    database = store.Database(path)
+    monkeypatch.setattr(store, 'db', lambda: database)
+    script = """
+import sys
+from mooring import refdata
+candidate = refdata.berth('NAVSTA-NORFOLK-P12-N').model_copy(update={
+    'berth_id': 'PROCESS-RACE', 'name': sys.argv[1]})
+try:
+    refdata.add_berth(candidate)
+    print('created')
+except refdata.ReferenceConflict:
+    print('conflict')
+"""
+    def register(index):
+        result = subprocess.run([sys.executable, '-c', script, str(index)],
+                                env={**os.environ, 'MOORING_DB': path},
+                                capture_output=True, text=True, check=True, timeout=20)
+        return index, result.stdout.strip()
+    try:
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            outcomes = list(pool.map(register, range(4)))
+        winners = [index for index, outcome in outcomes if outcome == 'created']
+        assert len(winners) == 1
+        assert sum(outcome == 'conflict' for _, outcome in outcomes) == 3
+        assert refdata.berth('PROCESS-RACE').name == str(winners[0])
+    finally:
+        database.close()

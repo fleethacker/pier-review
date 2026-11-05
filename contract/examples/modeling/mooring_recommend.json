@@ -1,0 +1,9 @@
+{
+  "ship_class_id": "DDG-51-FIIA",
+  "loading": "full_load",
+  "berth_id": "NAVSTA-NORFOLK-P12-N",
+  "side_to": "starboard",
+  "ship_x_ft": 650,
+  "design_mst": "II",
+  "max_candidates": 3
+}

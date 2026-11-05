@@ -1,0 +1,32 @@
+# Mock harbor tug fleet. Generic names; bollard pull from rough rules of thumb.
+- tug_id: T1
+  name: Harbor Tug 1
+  propulsion: asd
+  power_hp: 5000
+  bollard_pull_ahead_lbf: 130000
+  bollard_pull_astern_lbf: 120000
+  provenance: &id001
+    source: Mock seed data for development
+    confidence: mock
+    notes: Placeholder values. Not real Navy data; replace before any operational use.
+- tug_id: T2
+  name: Harbor Tug 2
+  propulsion: asd
+  power_hp: 4000
+  bollard_pull_ahead_lbf: 105000
+  bollard_pull_astern_lbf: 95000
+  provenance: *id001
+- tug_id: T3
+  name: Harbor Tug 3
+  propulsion: tractor
+  power_hp: 4000
+  bollard_pull_ahead_lbf: 95000
+  bollard_pull_astern_lbf: 90000
+  provenance: *id001
+- tug_id: T4
+  name: Harbor Tug 4
+  propulsion: conventional
+  power_hp: 3000
+  bollard_pull_ahead_lbf: 66000
+  bollard_pull_astern_lbf: 40000
+  provenance: *id001

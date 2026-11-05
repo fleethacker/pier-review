@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.env
+.env.*
+.DS_Store
+data/raw/
+
+# make demo-check
+docs/overnight/demo-check-logs/
+
+# trained detector weights and training runs
+data/runs/
+models/*.pt

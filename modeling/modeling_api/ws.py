@@ -4,6 +4,8 @@ Every channel accepts `limit` (close after N server messages; 0 = run until the 
 """
 
 import asyncio
+import hmac
+import os
 from datetime import datetime, timedelta
 
 from mooring.environment.coops import ProviderError
@@ -164,6 +166,11 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0):
 
 @router.websocket("/ws/telemetry")
 async def ws_telemetry(ws: WebSocket, limit: int = 0):
+    key = os.environ.get("MOORING_TELEMETRY_KEY")
+    supplied = ws.headers.get("x-telemetry-key")
+    if key and not (supplied and hmac.compare_digest(key, supplied)):
+        await ws.close(code=1008, reason="telemetry key required")
+        return
     await ws.accept()
     sent = 0
     try:

@@ -15,7 +15,8 @@ bounded. Source arbitration keeps an explicit scenario/manual input first and
 never lets an observation silently displace a qualified forecast.
 
 No AIS message type is supported yet. AIS input is rejected with
-`AIS_UNSUPPORTED`; no position is guessed from an undecoded payload. A live AIS
+`AIS_UNSUPPORTED`; no position is guessed from an undecoded payload. HTTP and
+WebSocket ingest enforce the same configured telemetry key. A live AIS
 decoder requires the licensed/current IEC/NMEA payload definition and a named
 set of message types. No proprietary load-cell wire payload is supported
 without a vendor specification; the normalized authenticated JSON record is

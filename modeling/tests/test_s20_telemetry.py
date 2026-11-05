@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from modeling_api.main import app
 from mooring.core.schemas import EnvironmentSnapshot, TelemetryBatch, TelemetryRecord
@@ -186,3 +187,14 @@ def test_http_ingest_enforces_the_key_only_when_configured(monkeypatch):
     assert client.post("/api/v1/telemetry/batch", json=body, headers={"X-Telemetry-Key": "wrong"}).status_code == 401
     ok = client.post("/api/v1/telemetry/batch", json=body, headers={"X-Telemetry-Key": "s3cret"})
     assert ok.status_code == 202 and ok.json()["accepted"] == 1
+
+
+def test_websocket_ingest_uses_the_same_configured_key(monkeypatch):
+    monkeypatch.setenv("MOORING_TELEMETRY_KEY", "s3cret")
+    with pytest.raises(WebSocketDisconnect) as denied:
+        with client.websocket_connect("/ws/telemetry?limit=1"):
+            pass
+    assert denied.value.code == 1008
+    with client.websocket_connect("/ws/telemetry?limit=1", headers={"X-Telemetry-Key": "s3cret"}) as ws:
+        ws.send_json({})
+        assert ws.receive_json()["rejected"] == 1

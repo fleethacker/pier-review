@@ -106,9 +106,12 @@ and the shell only deals with the scene model.
 A second tab: replay a naval exercise in 3D on a Mapbox map. Ships move across open ocean with wakes, routes,
 formations and conditions you configure. There is no backend; the simulation runs in the browser.
 
-**Mapbox token.** Mapbox GL needs a public access token (`pk.…`). Either put `VITE_MAPBOX_TOKEN=pk.…` in `frontend/.env`
-(or the environment of whatever builds the app; Vite inlines it, which is fine for a public token) or paste it into the
-prompt the tab shows when it has none (kept in this browser's local storage). The default **Standard** map style works
+**Mapbox token.** Mapbox GL needs a public access token (`pk.…`). The tab looks for one in this order: the build
+(`VITE_MAPBOX_TOKEN=pk.…` in `frontend/.env` or the environment of whatever builds the app; Vite inlines it, which is
+fine for a public token), one pasted into this browser (the prompt the tab shows when it has none, kept in local
+storage), and the server (`MAPBOX_TOKEN` in the environment of the modeling service, served from
+`/api/v1/exercise/config`; on Domino, set it as an environment variable on the app and restart it; secret `sk.` tokens
+are never served). The server route means the token does not have to be present at build time. The default **Standard** map style works
 with any valid token. The **Satellite** styles also need raster-tile access, which some tokens and plans do not have;
 the tab says so if Mapbox refuses.
 
@@ -131,6 +134,20 @@ the tab says so if Mapbox refuses.
   speed; a destroyed ship stays where it is, dark and burning, and a destroyed aircraft is gone. Ships also shoot at
   missiles aimed at their own side (a shot kill chance, shots per missile, a reload time, a magazine and a radar-horizon
   range), which is what makes a salvo a contest. All of these are set per class and can be overridden per unit.
+- Sensors and detection (a switch in the Scenario panel, off by default so older scenarios behave as before): units only
+  know what their side's sensors can see. Radar range grows with the fourth root of the target's cross-section (so a
+  radar signature a tenth the size cuts range to about 56%), is cut off by the radar horizon (an antenna 22 m up sees a
+  sea skimmer at about 30 km, a jet at 8 km altitude at about 380 km) and by sea clutter on low targets; sonar hears
+  noise, which is why a quiet submarine is heard at a fraction of the range at which it hears a ship. Tracks are shared
+  across a side, so a scouting helicopter or aircraft can find a target for a ship that cannot see it. Missiles and
+  torpedoes are held until the target is tracked and in range (the salvo then goes off at the spacing it was planned
+  with, and the event list says "held: not tracked" or "held: out of range"), and ships only shoot at missiles they have
+  been tracking for a few seconds. A **Detected** event marks the first time each side picks a unit up.
+- Rough seas (a switch next to it): the wind sets a sea state, and small craft slow down in it (fast attack craft from
+  sea state 4, carriers hardly at all). Radar also loses low targets in the clutter.
+- Decoys: a ship can carry decoys and jammers. Each missile or torpedo that gets close uses one up and may be led away.
+- Submarines and torpedoes: a submarine is drawn as a dark hull and sail, heard rather than seen, and fires torpedoes that run
+  under the water. Ship missile defences cannot shoot torpedoes; decoys are the defence.
 - Playback: play, pause, restart, scrub, 1x to 600x. Camera: fit all, follow, chase, orbit (circles the selected ship, or
   the whole group), and **Present**, which hides the panels and fills the screen with the map plus a minimal HUD (Esc
   exits). The view opens with a fly-in to the main group. View: ship size exaggeration (so ships read when zoomed
@@ -138,9 +155,21 @@ the tab says so if Mapbox refuses.
 - Look: the light preset (dawn, day, dusk, night) lights the sea, and at dusk and night the ships' navigation and deck
   lights glow. Dusk and night are the most dramatic; the presets use them.
 
-Six presets ship with it: a carrier group transit, a surface contact intercept at night, a formation drill, a **missile
-salvo on a carrier group**, a **minefield transit** and an **air raid with SAM defence**. The last three include red-team
-setups. Use **Edit as JSON** or **Download** in the Scenario panel to save or load your own. The **Events** tab at the
+Eight presets ship with it: a carrier group transit, a surface contact intercept at night, a formation drill, a **missile
+salvo on a carrier group**, a **minefield transit**, an **air raid with SAM defence**, a **submarine ambush** and
+**over the horizon** (a hostile destroyer that cannot see the carrier group sends a helicopter to find it; sweep the
+helicopter's altitude in the red team). The last five include red-team setups. Use **Edit as JSON** or **Download** in the Scenario panel to save or load your own, or **Saved scenarios** to keep them
+in this browser or in a **shared library** on the server that everyone using the app can open (saving over a scenario
+someone else changed since you opened it is refused, so nobody's work is lost). The shared library is one JSON file per
+scenario in `EXERCISE_DATA_DIR` (default `/mnt/data/exercise` if it can be written, else `.exercise-data`); in a container
+whose disk is thrown away on restart, point it at a persistent volume.
+
+**Editing on the map.** With the clock at the start, drag a ship to move where it starts. Select a ship with a route, then
+drag its waypoints, or drag one of the small dots between two waypoints to add a waypoint there; right-click a waypoint to
+remove it. A dashed line follows the pointer and nothing is recomputed until you let go, and Esc cancels. Dragging is off
+while placing waypoints, in a replay, and for units that are launched rather than placed. **Record** plays the scenario and
+saves the map as a WebM video (the map itself; panels and labels are not in the picture, and it needs a recent Chrome, Edge
+or Firefox). The **Events** tab at the
 bottom lists launches, hits, interceptions and losses in words (click one to jump to it) and the timeline marks them.
 
 ### Red team: how likely is it?
@@ -149,9 +178,12 @@ bottom lists launches, hits, interceptions and losses in words (click one to jum
 often things happen. You set three things, all saved with the scenario:
 
 - **Outcomes**: the questions to ask. A unit is hit, destroyed or falls below a strength; a side loses N units; a mine goes
-  off; N missiles are shot down; two units come within some distance of each other.
+  off; N missiles are shot down; two units come within some distance of each other; a unit is detected (by anyone, or by one
+  side). Any of them can be limited to "by this time", and they combine: **all of**, **any of** or **not** other outcomes
+  listed above (so "the carrier is hit and a destroyer is lost", or "the carrier is not hit within 12 minutes").
 - **What varies**: any of wind and current, or, per unit, speed, heading, start position, route position, launch time,
-  altitude, hit points, damage, hit chance, defence kill chance and shots, or whether it is present at all. Each draws from
+  altitude, hit points, damage, hit chance, defence kill chance and shots, radar signature and range, decoys and decoy
+  chance, or whether it is present at all. Each draws from
   a uniform, normal, triangular or listed distribution, and replaces, adds to or multiplies the scenario's value.
   Missile hits, defensive shots and mines are chances on top of that.
 - **A sweep** (optional): repeat the whole batch at several values to draw a curve, for example how the chance a carrier
@@ -159,8 +191,16 @@ often things happen. You set three things, all saved with the scenario:
 
 Results show each outcome's chance with a 95% interval (Wilson), a histogram of when it happens, a ranking of which
 variation drives it (the correlation between each draw and the outcome, with the average value when it happens and when it
-does not), and average hits, interceptions and losses per run. Runs go in the browser in short slices so the page stays
-usable, with progress and a Stop button.
+does not), and average hits, interceptions and losses per run. Every chance carries its "±", and a chart shows it settling
+as runs accumulate, with a note of how many runs would get within ±2 points. Tick **Stop early when sure enough** to end a
+batch as soon as every interval is that narrow. Runs go on worker threads (up to seven, fewer on small machines; if workers
+are blocked the batch quietly runs on the page's own thread), with progress and a Stop button. Results can be downloaded as
+**CSV** or **JSON** (scenario, settings and results together), or opened as a printable **report**.
+
+**Comparing.** **Keep as baseline** remembers a finished batch; change the scenario or a setting, run again, and each chance
+shows how far it moved, with an interval on the change (grey arrows are within noise). This is the way to answer "does
+adding a destroyer help?" without squinting at two percentages. **Show their paths together on the map** draws up to six runs
+where an outcome happened (red) and six where it did not (green).
 
 Every batch is reproducible: the same seed, scenario and settings give the same numbers, and every run can be **replayed
 on the map** (choose a run where an outcome happened, or one where it did not) with the same random draws and the same
@@ -183,9 +223,16 @@ purpose: speed and turn rate are limited per class, and escorts hold station wit
 turns need a slow guide turn rate (see `maxTurnRateDegPerS` in the presets), because an escort 1.5 km abeam cannot keep
 up with a guide that turns on a 300 m radius.
 
-Tests cover the simulation (including the engagements and the Monte Carlo statistics), the scenario JSON, the map view
-(against a fake Mapbox) and the panels. The map itself was checked in headless Chromium with software WebGL; check it on a
-real GPU before demoing.
+Tests cover the simulation (including the engagements, sensors and the Monte Carlo statistics), the scenario JSON, the map
+view (against a fake Mapbox), the panels, and the server's library, token and error endpoints. `npm run test:e2e` drives a
+production build and the real modeling service in headless Chromium (software WebGL, so it checks that things load and work,
+not how the map looks); it needs Playwright, which is not a dependency: `npm i --no-save playwright && npx playwright install chromium`.
+Browser problems (uncaught errors, a lost WebGL context, a refused token) are sent to the modeling service's log under the
+`exercise` logger, with any Mapbox token blanked first. Check the look on a real GPU before demoing.
+
+**Not modeled**: terrain and coastlines (the scenarios are open ocean; Mapbox draws real land, but nothing in the
+simulation knows about it), electronic warfare beyond decoys, weather beyond wind and sea state, anything that flies a
+deck cycle (carrier flight operations), and fuel. Detection is deterministic: in range means seen.
 
 ## Contract conventions the UI follows
 
@@ -244,5 +291,6 @@ The repo-root [`app.sh`](../app.sh) is the Domino app entry point. It starts the
 `127.0.0.1:8000` and `:8001`, builds the UI, and serves it on `0.0.0.0:8888`. Only the UI port is exposed; the UI's
 server proxies `api/modeling/*` and `api/agents/*` to the two services (`MODELING_PROXY_TARGET` and
 `AGENTS_PROXY_TARGET`). Requirements: Python 3.12 with `uv`, and Node 20 with npm (the script downloads Node 20 if the
-environment lacks it). Entry script: `app.sh`; branch: `ui/frontend`. A hardware tier with at least 4 GiB of memory
-is enough for the build. This script has not been run on Domino yet; check the first start's logs.
+environment lacks it). Entry script: `app.sh`; branch: `frontend-exercise`. A hardware tier with at least 4 GiB of memory
+is enough for the build. To give the exercise tab its Mapbox token and a place to keep the shared library, add
+`MAPBOX_TOKEN` and `EXERCISE_DATA_DIR` (a path on a persistent volume) to the app's environment variables and restart it.

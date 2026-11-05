@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from threading import RLock
 
 from .schemas import ToolCall
+from mooring.core import access
 
 LEDGER: list[ToolCall] = []
 _SCOPES: dict[str, str | None] = {}
@@ -19,7 +20,8 @@ _LOCK = RLock()
 
 
 def _database_path() -> str | None:
-    path = os.environ.get("AGENTS_LEDGER_DB") or None
+    from ..shared.storage import persistence_enabled
+    path = os.environ.get("AGENTS_LEDGER_DB") or (os.environ["MOORING_DB"] if persistence_enabled() else None)
     if path == ":memory:":
         raise ValueError("AGENTS_LEDGER_DB must name a file; unset it to use the in-memory ledger")
     return path
@@ -58,7 +60,8 @@ def calls_for(plan_id: str | None = None) -> list[ToolCall]:
     path = _database_path()
     if path is None:
         with _LOCK:
-            return [call for call in LEDGER if plan_id is None or call.plan_id == plan_id]
+            return [call for call in LEDGER if (plan_id is None or call.plan_id == plan_id)
+                    and access.allowed("agent_call", call.call_id)]
     with _database(path) as db:
         if plan_id is None:
             rows = db.execute("SELECT payload FROM physics_tool_calls ORDER BY sequence").fetchall()
@@ -66,11 +69,12 @@ def calls_for(plan_id: str | None = None) -> list[ToolCall]:
             rows = db.execute(
                 "SELECT payload FROM physics_tool_calls WHERE plan_id = ? ORDER BY sequence", (plan_id,)
             ).fetchall()
-    return [ToolCall.model_validate_json(row[0]) for row in rows]
+    return [call for row in rows if access.allowed("agent_call", (call := ToolCall.model_validate_json(row[0])).call_id)]
 
 
 def append_call(call: ToolCall) -> None:
     """Record a call without applying a budget (for non-tool audit entries)."""
+    access.claim("agent_call", call.call_id)
     path = _database_path()
     key = _budget_key(call)
     if path is None:
@@ -93,6 +97,7 @@ def reserve_call(call: ToolCall, max_calls: int, *, scope_id: str | None = None)
     reservation is denied. Anonymous calls use an optional toolkit-local scope;
     without one they are logged but have no shared anonymous budget.
     """
+    access.claim("agent_call", call.call_id)
     path = _database_path()
     key = _budget_key(call, scope_id)
     if path is None:

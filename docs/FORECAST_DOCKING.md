@@ -15,3 +15,23 @@ The endpoint supplies line placements and holding assessments. Generate and inde
 `POST /api/v1/data-simulation/forecast` generates labeled synthetic training series. Implementation and reusable examples live in `modeling/mooring/data_simulation/`. The request fixes seed, UTC anchor, baseline, triangular gust peak/noise and optional water-level oscillation. These are scenario controls, not fitted meteorological/tidal coefficients. Results say `source=scenario`, `basis=scenario`, and `not_a_forecast`; no generator is an automatic NOAA fallback.
 
 Opt-in public checks on 4 November evening successfully fetched NWS `/points/36.959,-76.33` and 48 hours of CO-OPS MLLW tide predictions for 8638610 into `/tmp/psp-public-data/`, with retrieval URLs/times. Files are temporary and not part of tests or committed fixtures. Provider implementation stays with agent C. Source references: [NWS API](https://www.weather.gov/documentation/services-web-api), [CO-OPS API](https://api.tidesandcurrents.noaa.gov/api/prod/).
+
+## Tide-dependent tending checks
+
+`POST /mooring/tide-sweep` accepts optional `water_level_forecast`: a list of supplied
+`EnvironmentSnapshot` records covering the whole requested interval. Only their MLLW water levels vary;
+wind/current remain fixed at the main request. Supplied levels are linearly interpolated with a maximum
+60-minute gap, and each forecast knot is evaluated so an interior peak is not lost between report times.
+Interpolation and spatial representativeness remain unqualified. Missing/poor/stale source data or incomplete
+coverage returns 422; it never falls back to synthetic values.
+
+Omitting the series explicitly uses the legacy training tide, now isolated in `mooring/data_simulation/tides.py`
+and labeled `SYNTHETIC_TIDE_SERIES` in validity. It can never establish a qualified GREEN result. Sweeps require
+timezone-aware, increasing bounds, at most 120 hours, and include the final partial reporting interval. Tending
+actions must fall within the window; actions that produce a nonpositive rest length are rejected. Tending
+recommendations remain advisory and unreviewed.
+
+Forecast provenance gates also reject poor/suspect quality, future observations disguised as forecasts, missing public
+forecast issue time/prediction basis, snapshots before their declared interval, and holding a snapshot past its declared
+validity end. Short operations may fit within a short declared interval; extending the holding duration requires actual
+coverage. These gates apply before a window is called supported; unavailable data is never replaced by a calm value.

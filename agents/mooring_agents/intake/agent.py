@@ -62,7 +62,7 @@ def _headline(report: IntakeReport) -> str:
         comparison = f"it {relation} the ship's MST {report.mst.ship_mst}"
     incomplete = any(q.issue == "missing" and q.severity == "RED" for q in report.data_quality)
     if incomplete:
-        return f"Forecast assessment incomplete; {concern.lower()}; current-snapshot MST is {required}; future exceedance is unknown."
+        return f"Forecast assessment incomplete; {concern.lower()}; MST from available snapshots is {required}; future exceedance is unknown."
     return f"{concern}; MST required is {required}; {comparison}."
 
 

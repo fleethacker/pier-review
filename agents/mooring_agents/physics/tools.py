@@ -27,6 +27,8 @@ class ToolSpec(Model):
 
 
 TOOLS: list[ToolSpec] = [
+    ToolSpec(name="get_environment_scenario", description="Read the declared steady, ramp or replay source without inventing future samples.",
+             method="GET", path="/env/scenarios/{env_scenario_id}", request_schema=None),
     ToolSpec(name="save_berth", description="Register explicitly human-confirmed berth geometry, preserving estimated provenance.",
              method="POST", path="/berths", request_schema="Berth"),
     ToolSpec(name="draft_berth", description="Build unsaved draft geometry using catalog data and optional image anchors.",

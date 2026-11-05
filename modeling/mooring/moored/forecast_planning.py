@@ -26,8 +26,18 @@ LIMITATIONS = ['Static line/holding assessment, not a validated docking maneuver
               'A supported window is conditional on the stated forecast, assets and continuous tug availability.']
 
 
-def _input_problem(snapshot, as_of):
+def _input_problem(snapshot, as_of, valid_until=None):
     meta = snapshot.metadata
+    if snapshot.source == 'forecast' and (meta is None or meta.basis != 'prediction' or meta.issued_at_utc is None):
+        return 'Public forecast lacks prediction basis or issuance time'
+    if meta and meta.quality in ('poor', 'suspect'):
+        return 'Environment quality is poor or suspect; a supported arrival cannot be established'
+    if meta and meta.basis == 'observation' and snapshot.valid_at_utc > as_of:
+        return 'Future observations cannot be used as a forecast'
+    if meta and meta.valid_from_utc and snapshot.valid_at_utc < meta.valid_from_utc:
+        return 'Snapshot precedes its declared validity interval'
+    if meta and meta.valid_to_utc and (valid_until or snapshot.valid_at_utc) > meta.valid_to_utc:
+        return 'Forecast would be held beyond its declared validity interval'
     if meta and meta.issued_at_utc and meta.issued_at_utc > as_of:
         return 'Forecast was issued after planning as-of time'
     if snapshot.source in ('live', 'ship_sensor') and snapshot.valid_at_utc > as_of:
@@ -83,9 +93,10 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
                 if ctx is not None:
                     ctx.check_cancelled()
                 snapshot = req.forecast[index]
-                key = (index, install_level)
+                valid_until = min(dates[index + 1], end) if index + 1 < len(dates) else end
+                problem = _input_problem(snapshot, req.as_of_utc, valid_until)
+                key = (index, install_level, problem)
                 if key not in cache:
-                    problem = _input_problem(snapshot, req.as_of_utc)
                     if problem:
                         checked = DockingConditionResult(valid_at_utc=snapshot.valid_at_utc,
                             analysis_result_id=None, outcome='unavailable', max_pct_wll=None,

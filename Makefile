@@ -1,4 +1,4 @@
-.PHONY: install mock modeling agents contract contract-check test check
+.PHONY: install mock modeling agents contract contract-check test check smoke-live
 
 install:            ## Install both Python services into one virtualenv
 	uv sync --all-packages
@@ -22,3 +22,10 @@ test:               ## Run all Python tests (includes the contract check)
 	uv run --all-packages pytest -q
 
 check: test
+
+smoke-live:           ## Opt-in live provider checks (never part of CI)
+	@if test "$${MOORING_LIVE_SMOKE:-}" = 1; then \
+		uv run --all-packages python scripts/smoke_coops.py; \
+	else \
+		echo "skipped: set MOORING_LIVE_SMOKE=1"; \
+	fi

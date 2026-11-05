@@ -131,3 +131,34 @@ def test_forecast_api_job_and_training_endpoint_validate_against_contract():
         response = ForecastDockingResponse.model_validate(job['result'])
         assert response.manifest and response.manifest.resolved_inputs_hash
         assert response.result.selected_arrival_utc
+
+
+@pytest.mark.parametrize('kind', ['poor', 'suspect', 'missing_issue', 'future_observation', 'short_validity', 'not_yet_valid'])
+def test_unusable_forecast_provenance_cannot_support_arrival_or_sneak_into_search(kind):
+    req = request(optimize_lines=True)
+    series = []
+    for snapshot in req.forecast:
+        fields = dict(basis='prediction', source='fixture public provider', issued_at_utc=req.as_of_utc, quality='good')
+        if kind in ('poor', 'suspect'): fields['quality'] = kind
+        if kind == 'missing_issue': fields['issued_at_utc'] = None
+        if kind == 'future_observation': fields['basis'] = 'observation'
+        if kind == 'short_validity': fields['valid_to_utc'] = snapshot.valid_at_utc + timedelta(minutes=15)
+        if kind == 'not_yet_valid': fields['valid_from_utc'] = snapshot.valid_at_utc + timedelta(minutes=15)
+        series.append(snapshot.model_copy(update={'source': 'forecast', 'metadata': EnvironmentMetadata(**fields)}))
+    result = assess(req.model_copy(update={'forecast': series}))
+    assert result.result.selected_arrival_utc is None
+    assert all(window.outcome == 'unavailable' for window in result.result.windows)
+    if kind != 'short_validity':
+        assert result.result.recommendation_result_id is None
+        assert result.result.evaluations == 0
+
+
+def test_validity_interval_may_cover_short_operation_but_not_later_hold():
+    req = request(arrival_step_min=60, operation_hours=.25, holding_hours=0)
+    series = [snapshot.model_copy(update={'source': 'forecast', 'metadata': EnvironmentMetadata(
+        basis='prediction', issued_at_utc=req.as_of_utc, quality='good',
+        valid_from_utc=snapshot.valid_at_utc, valid_to_utc=snapshot.valid_at_utc+timedelta(minutes=15))}) for snapshot in req.forecast]
+    result = assess(req.model_copy(update={'forecast': series}))
+    assert result.result.selected_arrival_utc is not None
+    held = assess(req.model_copy(update={'forecast': series, 'holding_hours':1}))
+    assert held.result.selected_arrival_utc is None

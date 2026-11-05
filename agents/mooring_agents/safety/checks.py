@@ -81,6 +81,9 @@ def mst_within_ship(report) -> CheckResult:
     if report is None:
         return _check("MST-WITHIN-SHIP", "Forecast stays within the ship's Mooring Service Type", False, "AMBER",
                       "No intake report; forecast MST has not been assessed.")
+    if getattr(report.mst, "ship_mst", None) is None:
+        return _check("MST-WITHIN-SHIP", "Forecast stays within the ship's Mooring Service Type", False, "AMBER",
+                      "Ship MST is unknown; exceedance cannot be assessed. Supply ship-specific intake before approval.")
     passed = not report.mst.exceeds_ship_mst
     return _check("MST-WITHIN-SHIP", "Forecast stays within the ship's Mooring Service Type", passed, "RED",
                   report.mst.reason if report else "No intake report; MST not assessed against the forecast.")

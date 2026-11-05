@@ -5,7 +5,8 @@ this project predicts and draws where a ship will go over the next minutes from 
 commands in force (rudder, engine, tugs, lines) and current conditions (wind, current, tide), with an honest uncertainty
 corridor and contact warnings. Around that core: mooring and docking planning with a Mooring Evolution Safety Sheet, berthing
 and port-transit simulation, and mission storyboarding that ties a recorded track to timestamped images and reports. See the
-[north star in the master plan](docs/MASTER_PLAN.md#north-star-a-backup-camera-for-ships).
+[north star in the master plan](docs/MASTER_PLAN.md#north-star-a-backup-camera-for-ships). The trajectory prediction service
+and overlay are planned work; the implemented static planning and synthetic simulation do not yet provide that camera.
 
 Mooring planning demonstrator for FLEETHACKER Norfolk 2026. It evaluates mooring configurations, tug assistance and draft
 line sequences against wind, current and tide, and produces a Mooring Evolution Safety Sheet. The plan, phases and module

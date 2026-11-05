@@ -32,7 +32,7 @@ BACKENDS: dict[str, str] = {
     "M3 environmental loads": "real",
     "M4 static solver (moored)": "real (equilibrium; limited by seed data)",
     "M5 risk engine (moored)": "real (synthetic uncertainty model, unqualified)",
-    "M6 tug planner (moored, berthing)": "mock",
+    "M6 tug planner (moored, berthing)": "real (rated allocation; fleet data unqualified)",
     "M7 optimizer (moored)": "real (bounded search; seed data)",
     "M7 sequence (berthing)": "real (draft, unreviewed, static check)",
     "M11 berthing simulator": "real (synthetic body; vessel dynamics unqualified)",

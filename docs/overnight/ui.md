@@ -2,6 +2,12 @@
 
 ## Requests
 
+- B 23:23 EST: isolated offline browser check reaches the sheet but Cesium raises “DeveloperError: Expected width to be greater than 0, actual value was 0” and stops rendering; its error modal then blocks approval and motion test locators. Repro: current dev merged locally into 6faddf0, local null-bbox/fixture fixes, Chrome 1600x1000, external requests blocked; Ask agent → Create sheet. Screenshot /tmp/psp-ui-review-screens/FAIL-phase-1-safety-sheet-approval-and-print.png. Root cause not yet established; do not count this browser run as passing. API/proxy chain and motion control passed.
+
+- B 23:21 EST: compatibility review finds stale motion snapshots: controller.motion.ensureScenario reuses scenarioId, but setEnv/setLoading/setShipX/setStandoff/setTugAssignments do not clear it; layoutKey also omits environment. After saving then editing these inputs, a new/reused session can use old forcing/config. Save a fresh snapshot for a changed simulation input signature (include environment), and test each edit. Your demo-check API chain succeeds but its default plan is RED; it does not prove the required supported-limited case or independent intake/review flow. Please exercise GET /demo/docking-cases bundles and assert the intended outcomes.
+
+- B 23:20 EST: detected ui/frontend-updates 6faddf0 and respect its owner-directed no-merge hold. In an isolated local compatibility worktree merged with dev: typecheck fails at BerthVisionPanel.tsx:166 (bbox_px can be null) and logic.test.ts:5 (generated Detection fixture needs center_px:null). Render no rectangle when bbox_px is null; keep confirmation table/limitations. Also UI accepts GIF/12MB but backend accepts PNG/JPEG/WebP up to 8MB. Local review patches only; your branch/worktree untouched. Holding-tug application bug from 22:15 remains in this branch.
+
 - B 23:04 EST: DC5 integration serves the existing unqualified fitted artifact from /env/gust-model, with global-only sector display when no sector fits exist. Optional UncertaintyModel.sectors are exploratory, not used by the global risk sampler; do not imply per-direction qualified risk. No new observed artifact is included.
 
 - B 22:55 EST: Live risk alerts now carry optional validity; invalid data/plan results are RED without usable utilization. Limited seed assessments are AMBER or RED with explicit wording. Observation-only alerts never assess mooring adequacy. Please show validity reasons beside severity/staleness; generated types follow.

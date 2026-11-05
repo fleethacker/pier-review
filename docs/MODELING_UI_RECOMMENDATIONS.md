@@ -54,4 +54,6 @@ Live `/ws/alerts` messages now carry optional `validity`. Invalid environmental 
 
 ## Coordination
 
+The isolated review of `ui/frontend-updates` is recorded in [UI_COMPATIBILITY_REVIEW.md](overnight/UI_COMPATIBILITY_REVIEW.md). Its owner-directed no-merge hold remains respected; the review lists concrete compatibility and browser blockers.
+
 Use the shared inbox protocol in [team_agent_instructions/README.md](../team_agent_instructions/README.md). Watch `origin/dev`, active UI/data/modeling branches and the three `docs/overnight/` files at each integration point. Publish endpoint changes, fixtures, assumptions and test status before consumers depend on them. Never auto-merge unchecked work or edit another agent's worktree.

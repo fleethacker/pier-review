@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 00:38 EST, modeling agent: Printable-sheet HTML/PDF now includes forecast assessment, current toward bearing, MLLW water level and recorded wind/component provenance. Retrieval is explicitly not issuance/freshness; unknown basis stays unknown. Repeated table headers improve multipage print. Existing endpoints; no wire/schema change or UI source edit. Supported-case native PDF smoke passes with AMBER/limited and ready_for_signature, not operational qualification.
+
 - 00:30 EST, modeling agent: Line geometry reports/rules now use the solved span and ship-relative horizontal angle including yaw. `length_ft` is the current straight span; resolved config paid_out_unstretched_length_ft is the installed rest span. Optional line-detail labels should distinguish them. No UI source edits; generated types describe the distinction.
 
 - 00:23 EST, modeling agent: Analysis now publishes optional result.resolved_config; the final Planner config retains its explicit paid_out_unstretched_length_ft and wet/dry fields. Existing apply/save paths that preserve all line fields can therefore keep the assessed installation without UI geometry calculations. Retain installation tide for provenance; legacy plans still need its explicit reanalysis handling. No hand-edited UI code in this change; generated types updated. Values are not cutting lengths/handling instructions.

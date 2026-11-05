@@ -70,3 +70,5 @@ Branch `ws-e/berthing-sim-and-readiness`, stacked on the build-out branch while 
 ## Concurrent agent-job smoke (4 November evening)
 
 A burst of 40 real planner HTTP requests through in-process ASGI with two job workers and 16 queue slots accepted 18 and rejected 22 with HTTP 429 plus Retry-After. One queued job was cancelled; the remaining 17 completed with unique plan ids and AMBER/limited supported-case results. Elapsed 31.85 s, macOS arm64, no LLM or external provider. This demonstrates local queue/cancellation behavior, not deployment capacity, cross-host operation or scheduling guarantees.
+
+A follow-up on 5 November repeated six bursts of 40 submissions with resolved line spans retained in each final plan: 240 submitted, 108 accepted, 132 rejected with 429/Retry-After, six queued cancellations and 102 successful unique AMBER/limited plans. Each burst took 30.87–32.87 s locally. This checks queue reuse, cancellation and payload preservation; it does not establish deployment throughput or operational qualification.

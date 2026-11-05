@@ -5,6 +5,7 @@ first approval; edits create a new version.
 """
 
 import html
+from datetime import UTC
 
 from mooring.core import access
 from mooring.core.envelopes import new_id, utcnow
@@ -111,6 +112,35 @@ def approve(sheet: SafetySheet, req: ApprovalCreate) -> SafetySheet:
         return updated
 
 
+
+def _environment_provenance_html(environment) -> str:
+    """Render source timing without treating retrieval as issuance or inventing wind basis."""
+    e = html.escape
+    metadata = environment.metadata
+    if metadata is None:
+        return "<p>Wind averaging, gust duration and reference height: not recorded in these inputs.</p>"
+    def quantity(value, unit):
+        return f"{value:g} {unit}" if value is not None else "unknown"
+    def timestamp(value):
+        if value is None:
+            return "unknown"
+        if value.tzinfo is None:
+            return value.strftime("%Y-%m-%d %H:%M") + " (timezone unknown)"
+        return value.astimezone(UTC).strftime("%Y-%m-%d %H:%MZ")
+    basis = (f"<p>Wind averaging: {quantity(metadata.wind_averaging_s, 's')}; "
+             f"gust duration: {quantity(metadata.gust_duration_s, 's')}; "
+             f"reference height: {quantity(metadata.wind_reference_height_m, 'm')}.</p>")
+    items = []
+    for item in metadata.components or [metadata]:
+        label = getattr(item, "component", "combined input").replace("_", " ")
+        text = (f"{label}: {item.source or 'source not recorded'}; basis {item.basis}; quality {item.quality}; "
+                f"issued {timestamp(item.issued_at_utc)}; retrieved {timestamp(getattr(item, 'retrieved_at_utc', None))}; "
+                f"valid {timestamp(item.valid_from_utc)} to {timestamp(item.valid_to_utc)}")
+        limits = "; ".join(getattr(item, "limitations", []))
+        items.append(f"<li>{e(text)}{'; '+e(limits) if limits else ''}</li>")
+    return basis + "<p>Retrieval is an availability record, not a provider issue time or proof of freshness.</p><ul>" + "".join(items) + "</ul>"
+
+
 def render_html(s: SafetySheet) -> str:
     e = html.escape
     lines = "".join(f"<tr><td>{r.line_number}</td><td>{e(r.role)}</td><td>{e(r.spec_id)}</td><td>{r.parts}</td>"
@@ -153,25 +183,28 @@ def render_html(s: SafetySheet) -> str:
     citations = "".join(f"<li>{e(cite)}</li>" for cite in s.cited_result_ids)
     return f"""<!doctype html><html><head><meta charset="utf-8"><title>Mooring Evolution Safety Sheet</title>
 <style>body{{font-family:system-ui,sans-serif;margin:24px;color:#111}}table{{border-collapse:collapse}}
-td,th{{border:1px solid #999;padding:4px 8px;text-align:left}}.st{{font-weight:700}}</style></head><body>
+td,th{{border:1px solid #999;padding:4px 8px;text-align:left}}.st{{font-weight:700}}thead{{display:table-header-group}}tr{{break-inside:avoid}}</style></head><body>
 <h1>Mooring Evolution Safety Sheet</h1>
 {validity_banner}
 <p>Sheet {e(s.sheet_id)} v{s.version} &middot; Status <span class="st">{s.status}</span> &middot;
 {e(s.header.ship_class_id)} {e(s.header.side_to)} side to {e(s.header.berth_id)}</p>
 <p>Wind {s.environment.observed.wind_speed_kt:.0f} kt gusting {s.environment.observed.wind_gust_kt:.0f} kt from
-{s.environment.observed.wind_from_true_deg:03.0f}; current {s.environment.observed.current_speed_kt:.1f} kt;
-MST {s.environment.mst}</p>
+{s.environment.observed.wind_from_true_deg:03.0f}° true; current {s.environment.observed.current_speed_kt:.1f} kt
+flowing toward {s.environment.observed.current_set_true_deg:03.0f}° true; water level
+{s.environment.observed.water_level_mllw_ft:.2f} ft MLLW; assessment MST {s.environment.mst}</p>
 <p>Evaluated condition: {s.environment.observed.valid_at_utc:%Y-%m-%d %H:%M %z}; source {e(s.environment.observed.source)}.
 These are assessed inputs, not a live observation display.</p>
 <p>Line-installation water level: {installation}.</p>
+{_environment_provenance_html(s.environment.observed)}
+<h2>Forecast assessment</h2><p>{e(s.environment.forecast_summary or 'No forecast summary recorded.')}</p>
 {f'<h2>Bridge brief</h2><p>{e(s.brief)}</p>' if s.brief else ''}
 <h2>Directional gust thresholds</h2>
 <p>Modeling result references: {e(', '.join(s.threshold_result_ids)) or 'Unavailable in this archived sheet'}.</p>
-<table><tr><th>Relative wind</th><th>Governing element</th><th>Working-load limit</th>
-<th>Breaking threshold estimate</th></tr>{thresholds}</table>
+<table><thead><tr><th>Relative wind</th><th>Governing element</th><th>Working-load limit</th>
+<th>Breaking threshold estimate</th></tr></thead><tbody>{thresholds}</tbody></table>
 <h2>Line plan</h2><p>Static loads for the evaluated condition, result {e(s.analysis_result_id or 'unavailable in this archived sheet')}.
-Other reviewed conditions may govern individual elements.</p><table><tr><th>#</th><th>Role</th><th>Line</th><th>Parts</th><th>Ship fitting</th>
-<th>Pier fitting</th><th>Tension (lbf)</th><th>% WLL</th><th>Status</th></tr>{lines}</table>
+Other reviewed conditions may govern individual elements.</p><table><thead><tr><th>#</th><th>Role</th><th>Line</th><th>Parts</th><th>Ship fitting</th>
+<th>Pier fitting</th><th>Tension (lbf)</th><th>% WLL</th><th>Status</th></tr></thead><tbody>{lines}</tbody></table>
 <h2>Holding assistance</h2><p>{holding_note}</p><ul>{holding}</ul>
 <h2>Berthing tug plan</h2><p>{tug_line}</p>
 <h2>Go / no-go</h2><ul>{gng}</ul>

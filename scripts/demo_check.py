@@ -50,6 +50,20 @@ def websocket_url(base_url: str, session_id: str) -> str:
                       parts.path.rstrip("/") + f"/api/modeling/ws/sim/{session_id}", "", ""))
 
 
+async def motion_frame(ws, timeout: float = 10.0) -> dict:
+    """Read an actual motion frame, not a lifecycle message with the same time."""
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("motion frame did not arrive before the deadline")
+        message = json.loads(await asyncio.wait_for(ws.recv(), remaining))
+        if message.get("type") == "error":
+            raise AssertionError(f"simulation protocol error: {message}")
+        if "t_s" in message and "pose" in message:
+            return message
+
+
 def readiness_checks(ctx: dict, profile: str) -> None:
     """Never promote a passing baseline smoke to the master plan's full acceptance.
 
@@ -250,7 +264,7 @@ def api_checks(stack: Stack) -> dict:
         async def run():
             notes = []
             async with websockets.connect(url) as ws:
-                first = json.loads(await asyncio.wait_for(ws.recv(), 10))
+                first = await motion_frame(ws)
                 assert first["t_s"] == 0, "a session starts at time zero"
                 ctx["motion_frame"] = first
                 notes.append("connected at t=0")
@@ -291,8 +305,8 @@ def api_checks(stack: Stack) -> dict:
                 notes.append(f"pause held t={held_time:g}")
                 await ws.send(json.dumps({"type": "reset"}))
                 for _ in range(40):
-                    msg = json.loads(await asyncio.wait_for(ws.recv(), 5))
-                    if "t_s" in msg and msg["t_s"] == 0:
+                    msg = await motion_frame(ws, timeout=5)
+                    if msg["t_s"] == 0:
                         notes.append("reset returned to t=0")
                         break
                 else:

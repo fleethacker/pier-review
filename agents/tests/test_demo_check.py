@@ -1,8 +1,10 @@
 """Acceptance-runner regressions against the real services over in-memory HTTP."""
 
 from email.message import Message
+import asyncio
 import importlib.util
 import io
+import json
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -122,6 +124,25 @@ def test_sse_heartbeats_cannot_extend_completion_deadline(demo, monkeypatch):
 def test_hosted_websocket_keeps_tls_and_domino_path(demo):
     assert demo.websocket_url("https://demo.example/domino/app/", "session_123") == "wss://demo.example/domino/app/api/modeling/ws/sim/session_123"
     assert demo.websocket_url("http://127.0.0.1:8888", "session_123") == "ws://127.0.0.1:8888/api/modeling/ws/sim/session_123"
+
+
+@pytest.mark.parametrize("state", ["created", "reset"])
+def test_motion_check_waits_for_frame_after_lifecycle(demo, state):
+    frame = {"t_s": 0, "pose": {"x_ft": 0, "y_ft": 20, "yaw_deg": 0}}
+    messages = iter([{"type": "session_lifecycle", "state": state, "t_s": 0}, frame])
+
+    async def recv():
+        return json.dumps(next(messages))
+
+    assert asyncio.run(demo.motion_frame(SimpleNamespace(recv=recv))) == frame
+
+
+def test_motion_check_rejects_protocol_error_before_frame(demo):
+    async def recv():
+        return json.dumps({"type": "error", "message": "session ended"})
+
+    with pytest.raises(AssertionError, match="simulation protocol error"):
+        asyncio.run(demo.motion_frame(SimpleNamespace(recv=recv)))
 
 
 def test_readiness_cannot_pass_missing_build_dependencies(demo):

@@ -5,8 +5,9 @@ this project predicts and draws where a ship will go over the next minutes from 
 commands in force (rudder, engine, tugs, lines) and current conditions (wind, current, tide), with an honest uncertainty
 corridor and contact warnings. Around that core: mooring and docking planning with a Mooring Evolution Safety Sheet, berthing
 and port-transit simulation, and mission storyboarding that ties a recorded track to timestamped images and reports. See the
-[north star in the master plan](docs/MASTER_PLAN.md#north-star-a-backup-camera-for-ships). The trajectory prediction service
-and overlay are planned work; the implemented static planning and synthetic simulation do not yet provide that camera.
+[north star in the master plan](docs/MASTER_PLAN.md#north-star-a-backup-camera-for-ships). The initial transit-based prediction service
+and missions/Transit overlay are merged (#14), with limited validity. The berthing prediction engine, complete starting
+state, coastline checks and calibrated uncertainty remain unfinished; see [PREDICTION.md](docs/PREDICTION.md).
 
 Mooring planning demonstrator for FLEETHACKER Norfolk 2026. It evaluates mooring configurations, tug assistance and draft
 line sequences against wind, current and tide, and produces a Mooring Evolution Safety Sheet. The plan, phases and module
@@ -20,7 +21,7 @@ Repository: [fleethacker/pier-review](https://github.com/fleethacker/pier-review
 > rated tug allocation, holding-plan checks, bounded line-plan search, draft sequence checks, risk sampling, bounded jobs
 > and optional SQLite persistence. Risk artifacts remain unqualified. Berthing uses a real integrator with an explicitly
 > synthetic vessel body; approach planning/simulation remain mock. CO-OPS observations and individual NWS/CBOFS/chart readers
-> exist, but a complete public forecast for docking is not yet wired. Default operation stays offline with labeled
+> exist, but a complete public forecast for docking is not yet wired. Public provider/composer work is implemented in open [PR #13](https://github.com/fleethacker/pier-review/pull/13), pending its separate review/merge. Default operation stays offline with labeled
 > synthetic data. Supplied forecast snapshots support planning at least 24 hours before arrival; see
 > [FORECAST_DOCKING.md](docs/FORECAST_DOCKING.md).
 >
@@ -32,8 +33,8 @@ Repository: [fleethacker/pier-review](https://github.com/fleethacker/pier-review
 > Without a vision model, Berth Map creates a draft from supplied metadata/catalog geometry, not image extraction.
 > Drafts require confirmation; sequence rules and durations need deck-officer/pilot review.
 
-Two further features merged in PR #10 with [16 independent review findings still open](https://github.com/fleethacker/pier-review/pull/10#issuecomment-6663809986);
-they are not approved clean. **Mission storyboarding** rebuilds a ship's path from recorded fixes and ties timestamped
+Two further features merged in PR #10. PR #14 addressed several transit defects, but the original review is not
+closed as a whole; the [finding ledger](docs/MODELING_BUILDOUT_STATUS.md#pr-10-review-disposition) assigns the remaining work. **Mission storyboarding** rebuilds a ship's path from recorded fixes and ties timestamped
 images and reports to it (see gap and extrapolation requirements in
 [MISSION_STORYBOARD.md](docs/MISSION_STORYBOARD.md)), and **port transit simulation** runs own-thrust and tug-assisted
 ships along demonstration routes with a surrogate maneuvering model, always of limited validity

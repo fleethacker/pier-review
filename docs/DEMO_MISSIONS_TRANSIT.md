@@ -1,8 +1,11 @@
-# Demo: mission storyboard (S5) and port transit (S6)
+# Demo: backup camera (S7), mission storyboard (S5) and port transit (S6)
 
-A 5-minute script for the Missions app, how to prepare its data, what to say about limits, and what to check when it
-misbehaves. Specs: [MISSION_STORYBOARD.md](MISSION_STORYBOARD.md), [PORT_TRANSIT.md](PORT_TRANSIT.md). Plan:
-[MASTER_PLAN.md](MASTER_PLAN.md) (S5, S6). Everything shown is synthetic or demonstration data.
+A 7-minute script for the Missions app, how to prepare its data, what to say about limits, and what to check when it
+misbehaves. Specs: [PREDICTION.md](PREDICTION.md), [MISSION_STORYBOARD.md](MISSION_STORYBOARD.md),
+[PORT_TRANSIT.md](PORT_TRANSIT.md). Plan: [MASTER_PLAN.md](MASTER_PLAN.md) (north star, S5, S6, S7). The camera presets use
+real NOAA CO-OPS observations recorded on 5 November 2026; the storyboard data and transit routes are demonstration data.
+
+**Lead with the backup camera (section 3):** it is the product's north star. The storyboard and transit demos support it.
 
 ## 0. Before you start (5 minutes, once)
 
@@ -14,7 +17,7 @@ cd frontend/packages/web && npm install && npm run dev      # UI on http://local
 ```
 
 Or `./app.sh` (builds the UI and serves everything on :8888; the Domino entry point). Open
-`http://localhost:4000/?app=missions` (or `:8888`). There are two tabs: **Storyboard** and **Transit**. Missions are kept
+`http://localhost:4000/?app=missions` (or `:8888`). There are three tabs: **Storyboard**, **Transit** and **Camera**. Missions are kept
 by the backend between runs, so use a fresh mission name each rehearsal.
 
 Make the demo files (offline, deterministic):
@@ -28,7 +31,8 @@ starting 2026-11-05 12:00 UTC, one fix every 30 s, with a deliberate 10 minute g
 with `scripts/check_missions_ui.py` if you have Playwright (see its docstring); it drives this same flow and prints
 PASS/FAIL per step.
 
-Do the first Transit run once before the demo to warm it up (a run takes seconds, longer on a slow machine).
+Do the first Transit run and one Camera prediction once before the demo to warm them up (a transit run takes seconds;
+a camera prediction about 2.5 s, longer on a slow machine).
 
 ## 1. Storyboard demo (about 2.5 minutes)
 
@@ -64,7 +68,25 @@ Tip: the map shows about 8 km at a time. Leave **Keep the ship centered** on whi
 Optional first comparison: run **DDG-51 inbound ... own thrust** and then the tug-assisted preset; the tug run shows the
 orange arrows and a controlled final approach, the own-thrust run does not.
 
-## 3. What to say about limits
+## 3. Backup camera demo (about 2 minutes) — lead with this
+
+"A car's backup camera draws where the car will go as you turn the wheel. This draws where the ship will go over the next
+few minutes, from where it is now, what it is doing, and the conditions in the water."
+
+| # | Click or type | Say |
+| --- | --- | --- |
+| 1 | Tab **Camera**, source **Preset**, preset **Approaching Pier 12 at 4 kt**. Wait about 2.5 s. | "A DDG about 0.4 nautical miles off Pier 12 North, heading for it at 4 knots. The wind, current and water level are real NOAA observations at Norfolk from earlier today." |
+| 2 | Point at the **cyan path**, the hull outlines with **+30s, +60s** labels and the translucent **corridor**. | "Cyan is the predicted path if nothing changes. The outlines are the hull every 30 seconds. The shaded corridor is the spread across sampled variations in wind, current and the ship's starting state." |
+| 3 | Point at the red marker and the banner **Predicted pier contact in 380 s**. | "Holding these commands, the hull reaches the pier fenders in about six minutes. The percentage is the share of sampled runs that do, not a calibrated probability." |
+| 4 | Click **Engine astern half**. Wait about 2.5 s. | "What if we go astern now? The orange path stops well short: closest approach about 1,900 feet." |
+| 5 | Click **Rudder 15° port**. | "Or turn away: closest approach about 730 feet. The crew can try options before acting." |
+| 6 | Point at the validity panel: **Limited**, **Stale input**, **Hazards not checked: coastline**. | "Everything is labeled. The conditions are from 16:54 UTC, so the input is flagged as stale. The ship model is a surrogate. This is decision support, not navigational guidance." |
+| 7 | Tab **Transit**, run **DDG-51 inbound, tug-assisted final approach**, select the vessel in the **Vessels** table, tick **Backup camera**, press **Play**. | "Now the camera rides along with a moving ship: it re-predicts about once a second from wherever the ship is, like the backup camera updating as you reverse." |
+
+Avoid on the preset: **Tug push to starboard (port shoulder)**. It pushes the bow toward the pier, so it still shows
+contact and makes a confusing demo point. Preset mode does not follow the playhead; only the Transit vessel mode does.
+
+## 4. What to say about limits
 
 Say these out loud. They are the honest answer to "can I trust it?".
 
@@ -76,15 +98,26 @@ Storyboard:
   offset is given. A stated position is compared with the track, never used to correct it.
 - Tracks are shown as recorded; duplicates and out-of-order fixes are reported.
 
+Backup camera:
+- It uses the same surrogate port-transit dynamics as the transit demo, not a separate model, and it is not validated for
+  any ship.
+- The starting state uses forward speed only; sway and turn rate at the start are approximated (flagged).
+- Conditions are held constant over the horizon; the corridor's spread is illustrative, not the fitted uncertainty model.
+- Breach percentages are shares of sampled runs, not calibrated probabilities.
+- It checks the pier face and fenders (and other vessels' paths when supplied). It does not check coastline, shoals or
+  under-keel clearance, and it says so.
+- Inputs carry their age; old inputs are flagged as stale. Decision support for a demonstrator, never navigational guidance.
+
 Port transit:
 - A surrogate 3-DOF maneuvering model (published main-dimension regressions), not validated for any ship.
 - Propulsion, rudder and tug response are labeled assumptions; the reference data has no ship speed/power.
 - Deep water only: no squat, bank effect or under-keel clearance.
 - No ship-ship interaction; tug hulls are not simulated, only their forces.
-- Routes are demonstration routes with approximate waypoints, not charted channels. Not navigational advice.
+- Routes are demonstration routes checked only against OpenStreetMap coastline, not charted channels. Not navigational
+  advice.
 - Validity is always limited, with reasons shown in the UI. Do not present any result as a qualified prediction.
 
-## 4. Troubleshooting
+## 5. Troubleshooting
 
 | Symptom | Check |
 | --- | --- |
@@ -98,3 +131,6 @@ Port transit:
 | Map shows empty water or the ship is off screen | The map shows about 8 km. Turn on **Keep the ship centered** (follow toggle), or select an event to jump to it. Without a Mapbox token the backdrop is plain. |
 | Transit Run never finishes | Wait up to 3 minutes on slow machines; check the modeling log. Re-run after a reload; reducing the vessel list or duration is not needed for the presets. |
 | Old missions clutter the list | They persist in the backend store. Use a unique mission name per rehearsal, or restart with a fresh store. |
+| Camera shows "Sample prediction (backend unavailable)" | The prediction endpoint was unreachable, so the app shows the stored example. Check the modeling service is running; the example is real-NOAA output but at a fixed position, so it will not sit on a moving Transit vessel. |
+| Camera what-if seems not to change | Each prediction takes about 2.5 s; the previous text shows until the new one arrives. Wait before clicking again. |
+| Camera on Transit does not follow the ship | Select the vessel in the **Vessels** table first, then tick **Backup camera** and press **Play**. Preset mode never follows the playhead. |

@@ -1,6 +1,9 @@
 # Berthing simulation: synthetic demonstration only
 
-The batch and interactive APIs use `mooring.berthing.simulator` and shared RK4 mechanics. This is an implemented adapter, pending review, **not vessel-qualified dynamics or a Phase 2 release**. Every result, frame and session acknowledgement includes `VESSEL_DYNAMICS_UNQUALIFIED`. Seed outputs are limited (at least AMBER); invalid output is RED.
+Ownership: **Snyder M-SIM** implements, **Snyder M-PLAN** independently reviews/benchmarks, **Kori** owns consumers,
+and **Bixler** owns integrated acceptance. Follow [execution ownership](MASTER_PLAN.md#execution-ownership).
+
+The batch and interactive APIs use `mooring.berthing.simulator` and shared RK4 mechanics. This adapter and the S1 runtime extensions are implemented (current PR #6); physical qualification and the Phase 2 release gate remain open. Every result, frame and session acknowledgement includes `VESSEL_DYNAMICS_UNQUALIFIED`. Seed outputs are limited (at least AMBER); invalid output is RED.
 
 ## Parameters and physical limits
 

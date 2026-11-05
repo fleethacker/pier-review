@@ -12,7 +12,7 @@ export const COLORS = {
   background: '#0a1628',
   selection: '#00e5ff',
   text: '#d6e4f5',
-  dim: '#4a6a8a',
+  dim: '#7390b0',
 };
 
 export function colorFor(status: Status | undefined, fallback?: string): string {

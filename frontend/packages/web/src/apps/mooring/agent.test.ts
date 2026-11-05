@@ -94,7 +94,9 @@ describe('applying and undoing an agent plan', () => {
 
 describe('safety sheet image provenance', () => {
   it('does not attach the current edited map to an immutable plan sheet', async () => {
-    c.agent.state.set({ planId: plan.plan_id, plan });
+    // A sheet is only built from an explicit independent review of this plan.
+    c.agent.state.set({ planId: plan.plan_id, plan, phase: 'done',
+      review: { state: 'ready', progress: 1, error: null, review: { review_id: 'rev-1', plan_id: plan.plan_id } as never } });
     c.state.set({ lines: [line(99)], shipXFt: 900 });
     const capture = vi.fn(() => 'data:image/jpeg;base64,unreviewed-map');
     c.host.store.capture = capture;

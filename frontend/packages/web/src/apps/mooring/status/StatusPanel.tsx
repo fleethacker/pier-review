@@ -7,10 +7,12 @@ import type { SourceState } from './sources';
 
 const STATE_STYLE: Record<SourceState, { color: string; label: string }> = {
   live: { color: STATUS_COLOR.GREEN, label: 'live' },
+  prediction: { color: '#38bdf8', label: 'prediction' },
   replay: { color: '#a78bfa', label: 'replay' },
   mock: { color: STATUS_COLOR.AMBER, label: 'mock' },
   manual: { color: '#8ba4c4', label: 'typed' },
   unavailable: { color: STATUS_COLOR.RED, label: 'unavailable' },
+  error: { color: STATUS_COLOR.RED, label: 'error' },
 };
 
 /** Where each data stream comes from, how old it is and why it is not live; plus what each capability is qualified for. */
@@ -24,7 +26,8 @@ export function StatusPanel() {
   const catalogOk = useMooring((s) => s.catalogOk);
   const statusError = useMooring((s) => s.statusError);
   const backend = useMooring((s) => s.backend);
-  const rows = deriveSources({ env, envMode, capabilities });
+  const envError = useMooring((s) => s.envError);
+  const rows = deriveSources({ env, envMode, capabilities, envError });
   const { limited, total } = limitedCount(capabilities);
   return (
     <Panel title="Data sources and capabilities" className="space-y-2 p-4">
@@ -36,7 +39,7 @@ export function StatusPanel() {
               <div className="flex items-center justify-between gap-2">
                 <span className="text-mil-text">{r.label}</span>
                 <span className="flex items-center gap-2">
-                  {(r.state === 'live' || r.state === 'replay') && <span className="text-[10px] text-mil-dim">{formatAge(r.ageS)}</span>}
+                  {(r.state === 'live' || r.state === 'replay' || r.state === 'prediction') && <span className="text-[10px] text-mil-dim">{formatAge(r.ageS)}</span>}
                   <span className="rounded-sm border px-1.5 py-px font-mono text-[10px] uppercase tracking-wider" style={{ color: st.color, borderColor: `${st.color}66` }}>
                     {st.label}
                   </span>
@@ -44,6 +47,8 @@ export function StatusPanel() {
               </div>
               <div className="text-[10px] text-mil-dim">
                 {r.provider}
+                {r.basis ? ` · basis ${r.basis}` : ''}
+                {r.quality && r.quality !== 'good' ? ` · quality ${r.quality}` : ''}
                 {r.reason ? ` · ${r.reason}` : ''}
               </div>
             </li>

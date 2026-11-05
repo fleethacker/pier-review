@@ -184,6 +184,24 @@ def _line_states_and_loads(model, pose):
         wrench_f[0] += w.fx_lbf
         wrench_f[1] += w.fy_lbf
         moment += w.mz_ftlbf
+    # Every configured line is reported. Inactive lines carry configuration (fitting IDs) only: IDs are not
+    # measurement_fields, so they validate alongside availability "unavailable" and no tension/geometry.
+    active = {ls["line_number"] for ls in lines}
+    for n, rec in model.all_lines.items():
+        if n in active:
+            continue
+        last = next((t.kind for t in reversed(model.transitions)
+                     if t.element_id == f"line-{n}" and t.kind in ("secured", "tensioned", "released")), None)
+        what = ("Line was released; no tension or geometry is reported."
+                if last == "released" else "Line is not yet made fast; no tension or geometry is reported.")
+        lines.append({"availability": "unavailable",
+                      "validity": {"state": "unknown", "reasons": [{"code": "LINE_NOT_ACTIVE", "message": what,
+                                   "affected_components": [f"line-{n}"]}]},
+                      "provenance": {"kind": "unknown", "source": SOURCE, "references": [], "notes": []},
+                      "line_number": n, "tension_lbf": None, "status": "unknown",
+                      "ship_fitting_id": rec.ln.ship_fitting_id, "pier_fitting_id": rec.ln.pier_fitting_id,
+                      "ship_end": None, "pier_end": None, "polyline": None})
+    lines.sort(key=lambda d: d["line_number"])
     loads = []
     for owner, acc, cap in (("pier", pier_acc, pier_cap), ("ship", ship_acc, ship_cap)):
         for fid, v in acc.items():
@@ -206,7 +224,11 @@ def rich_frame(model, *, session_id: str, run_id: str, sequence: int, scene: Sim
     t = legacy.t_s
     pose, frame, env, system = model.body.pose(s), model.system.frame, model.env, model.system
 
-    accel = _deriv(model.params, s, model.forces(t, s))[3:]
+    # _deriv returns body-frame rates (du/dt, dv/dt, dr/dt). Berth-frame velocity is R(psi)*(u, v) with
+    # R' = r*R*J, J(u, v) = (-v, u), so inertial acceleration of the ship origin in ship axes is
+    #   a = nu_dot + r*J*nu  ->  a_surge = du/dt - v*r,  a_sway = dv/dt + u*r;  yaw accel = dr/dt.
+    du, dv, dr = _deriv(model.params, s, model.forces(t, s))[3:]
+    accel = (du - s[4] * s[5], dv + s[3] * s[5], dr)
     motion = {**_live("ship"),
         "pose": {"x_ft": s[0], "y_ft": s[1], "yaw_deg": math.degrees(s[2])},
         "velocity": {"surge_fps": s[3], "sway_fps": s[4], "yaw_degps": math.degrees(s[5])},
@@ -256,7 +278,7 @@ def rich_frame(model, *, session_id: str, run_id: str, sequence: int, scene: Sim
     provenance = {"kind": "estimated", "source": SOURCE, "references": [], "notes": [
         "Real RK4 integration of a synthetic, unqualified body (arbitrary mass, inertia and damping) with seed catalog data.",
         "Forces are berth-axes planar wrenches about the instantaneous ship origin; vertical components are not modeled.",
-        "Acceleration is the body-frame time derivative of surge, sway and yaw velocity from the equations of motion.",
+        "Acceleration is the inertial acceleration of the ship origin in ship axes (ft/s2, deg/s2): body-frame rates from the equations of motion with the rotation terms (-v*r surge, +u*r sway) added back.",
         "Tug position, velocity and acceleration are not modeled; tug forces follow the commanded linear slew.",
         "Waves and wakes are unavailable, not zero."]}
 

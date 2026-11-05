@@ -258,3 +258,63 @@ def test_scene_content_and_validation(setup):
     for el in (*scene.ship_fittings, *scene.pier_fittings, *scene.fenders, *scene.depth_profile):
         assert el.availability == "available" and el.provenance.kind == "estimated"
         assert el.validity.reasons[0].code == "SEED_REFERENCE_DATA"
+
+
+def test_acceleration_is_inertial_in_ship_axes(setup):
+    """Independent check: rotate body velocity into berth axes at t and t+h, difference, rotate back at t."""
+    from mooring.mechanics.dynamics import rk4
+    m = make(setup)
+    secure_all(m)
+    m.advance(0.5)
+    s = (m.integrator.state[0], m.integrator.state[1], math.radians(7.0), 0.8, -0.6, 0.05)
+    t, h = m.t, 1e-4
+    frame, _ = frame_of(m, state=s, t=t)
+    s2 = rk4(m.params, m.forces, t, s, h)
+
+    def berth_vel(st):
+        c, sn = math.cos(st[2]), math.sin(st[2])
+        return (st[3] * c - st[4] * sn, st[3] * sn + st[4] * c)
+    (vx0, vy0), (vx1, vy1) = berth_vel(s), berth_vel(s2)
+    ax, ay = (vx1 - vx0) / h, (vy1 - vy0) / h
+    c, sn = math.cos(s[2]), math.sin(s[2])
+    a_surge, a_sway = c * ax + sn * ay, -sn * ax + c * ay
+    yaw_acc = math.degrees((s2[5] - s[5]) / h)
+    acc = frame.motion.acceleration
+    assert acc.surge_fps2 == pytest.approx(a_surge, rel=1e-3, abs=1e-3)
+    assert acc.sway_fps2 == pytest.approx(a_sway, rel=1e-3, abs=1e-3)
+    assert acc.yaw_degps2 == pytest.approx(yaw_acc, rel=1e-3, abs=1e-3)
+    # The rotation terms are material here, so this would fail with the raw body-frame derivatives.
+    raw = rich._deriv(m.params, s, m.forces(t, s))
+    assert abs(acc.surge_fps2 - raw[3]) > 1e-3 and abs(acc.sway_fps2 - raw[4]) > 1e-3
+
+
+def test_released_and_unmade_lines_are_listed_unavailable(setup):
+    m = make(setup)
+    nums = sorted(m.all_lines)
+    assert len(nums) >= 2
+    first, second = nums[0], nums[1]
+    for n in (first, second):
+        m.schedule(SimLineEventMessage(type="line_event", t_s=0, line_number=n, event="secured"))
+    m.schedule(SimLineEventMessage(type="line_event", t_s=0.5, line_number=first, event="released"))
+    m.advance(1)
+    frame, _ = frame_of(m)
+    assert [l.line_number for l in frame.line_states] == nums
+    by = {l.line_number: l for l in frame.line_states}
+    for n in nums:
+        rec = m.all_lines[n]
+        assert (by[n].ship_fitting_id, by[n].pier_fitting_id) == (rec.ln.ship_fitting_id, rec.ln.pier_fitting_id)
+    rel = by[first]
+    assert rel.availability == "unavailable" and rel.status == "unknown" and rel.validity.state == "unknown"
+    assert rel.tension_lbf is None and rel.ship_end is None and rel.pier_end is None and not rel.polyline
+    assert rel.validity.reasons[0].code == "LINE_NOT_ACTIVE" and "released" in rel.validity.reasons[0].message
+    assert by[second].availability == "available" and by[second].tension_lbf is not None
+    for n in nums[2:]:   # never secured
+        r = by[n]
+        assert r.availability == "unavailable" and r.validity.reasons[0].code == "LINE_NOT_ACTIVE"
+        assert "not yet made fast" in r.validity.reasons[0].message and r.tension_lbf is None
+    # Fitting loads only for fittings carrying active lines; legacy lines are exactly the active ones.
+    active_ids = {rec.ln.ship_fitting_id for rec in m.system.lines} | {rec.ln.pier_fitting_id for rec in m.system.lines}
+    assert {f.fitting_id for f in frame.fitting_loads} == active_ids
+    assert frame.lines == m.frame().lines
+    assert [l.line_number for l in frame.lines] == [second]
+    assert SimFrame.model_validate_json(frame.model_dump_json()) == frame

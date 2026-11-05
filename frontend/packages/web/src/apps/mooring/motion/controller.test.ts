@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const stream = vi.hoisted(() => ({
   handlers: null as null | { onMessage: (m: unknown) => void; onStatus: (s: string) => void },
-  send: vi.fn((_data: string) => true),
+  send: vi.fn<(data: string) => boolean>(() => true),
   close: vi.fn(),
 }));
 

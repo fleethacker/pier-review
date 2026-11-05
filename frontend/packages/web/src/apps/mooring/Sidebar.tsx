@@ -4,6 +4,7 @@ import { useUnitSystem } from './units';
 import { AgentPanel } from './panels/AgentPanel';
 import { EnvPanel } from './panels/EnvPanel';
 import { LinesPanel } from './panels/LinesPanel';
+import { MotionLauncher } from './panels/MotionLauncher';
 import { RecommendPanel } from './panels/RecommendPanel';
 import { ResultPanel } from './panels/ResultPanel';
 import { ScenarioPanel } from './panels/ScenarioPanel';
@@ -48,6 +49,7 @@ export function Sidebar() {
       <LinesPanel />
       <ResultPanel />
       <SequencePanel />
+      <MotionLauncher />
       <RecommendPanel />
       <ScenarioPanel />
     </div>

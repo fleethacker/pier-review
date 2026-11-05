@@ -31,10 +31,15 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     viteStaticCopy({
-      targets: ['Workers', 'ThirdParty', 'Assets', 'Widgets'].map((dir) => ({
-        src: `${cesiumSource}/${dir}`,
-        dest: cesiumBaseUrl,
-      })),
+      targets: [
+        ...['Workers', 'ThirdParty', 'Assets', 'Widgets'].map((dir) => ({
+          src: `${cesiumSource}/${dir}`,
+          dest: cesiumBaseUrl,
+        })),
+        // Recorded RM0 motion fixtures, so the motion view can replay with no backend and no network.
+        { src: '../../../contract/examples/modeling/sim_recording_60s.json', dest: 'fixtures' },
+        { src: '../../../contract/examples/modeling/sim_scene.json', dest: 'fixtures' },
+      ],
     }),
   ],
   define: { CESIUM_BASE_URL: JSON.stringify(cesiumBaseUrl) },

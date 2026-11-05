@@ -6,10 +6,14 @@ import type { Role } from '../agent';
 import { fmt, useUnitSystem } from '../units';
 import { useAgent, useController, useMooring } from './context';
 import { ResultLink } from './ResultLink';
+import { MotionView } from '../motion/MotionView';
 
 export function Overlay() {
   useUnitSystem();
+  const c = useController();
   const overlay = useMooring((s) => s.overlay);
+  const motionOpen = c.motion.state.use((s) => s.open);
+  if (motionOpen) return <MotionView controller={c.motion} />;
   if (!overlay) return null;
   return overlay.kind === 'result' ? <ResultViewer id={overlay.id} /> : <SheetViewer />;
 }

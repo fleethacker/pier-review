@@ -8,7 +8,7 @@ import { ControllerContext } from './context';
 import { MapCanvas } from './MapCanvas';
 import { RedTeamPanel } from './RedTeam';
 import { Side } from './Side';
-import { StoryboardPanel } from './Storyboard';
+import { StoryboardPanel } from './StoryboardPanel';
 import { Sidebar } from './Sidebar';
 import type { ExerciseTab } from './Sidebar';
 import { Store } from '../../lib/store';

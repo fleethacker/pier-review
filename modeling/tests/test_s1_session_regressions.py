@@ -121,12 +121,12 @@ def test_resync_after_eviction_restates_state_once(setup, fake_rich):
         if i % 100 == 0: clock.now += 1.0
         s.receive("a", SimSpeedMessage(type="set_speed", speed=1 + (i % 2)))
     assert len(s.lifecycle) == sim_sessions.LIFECYCLE_LOG and s.lifecycle_evicted_through > 0
-    seq = s.sequence
+    seq, evicted = s.sequence, s.lifecycle_evicted_through
     s.resync(-1)
     assert s.sequence == seq + 1
     last = s.lifecycle[-1]
     assert last.sequence == seq + 1 and last.state == s.state == "running"
-    assert "no longer retained" in last.message and str(s.lifecycle_evicted_through) in last.message
+    assert "no longer retained" in last.message and f"sequence {evicted} " in last.message
     assert last.speed == s.speed
     after = s.sequence
     s.resync(after)                       # a current client gets nothing new

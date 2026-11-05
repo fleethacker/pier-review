@@ -1,6 +1,15 @@
 # Deployment readiness (S21): what exists and what does not
 
-**The modeling service is not ready for live use.** The controls below are implemented locally, pending review. This is not deployment approval or a completed S21 gate.
+**The modeling service is not ready for live use.** The local controls below do not establish deployment approval or a completed S21 gate.
+
+**Execution owners:** Bixler leads A1/A2/A4 rehearsal and release; Kori owns browser/UI acceptance, Snyder modeling/runtime
+limits and Cruz provider availability/freshness. Review responsibilities and dependencies are in the
+[master plan ownership table](MASTER_PLAN.md#execution-ownership).
+
+Integration snapshot: `dev` at `3ababad`, 5 November 2026. S1 rich sessions (#6), P1/P2 forecast resolution/recheck (#4/#8),
+limited S7/U8 prediction (#14) and U1–U7 UI (#18) are merged. D1–D4 provider composition remains in open #13.
+Rehearse their combined release candidate before marking any end-to-end gate passed. Historical local evidence below
+is retained with its original scope; this documentation refresh did not rerun tests or the hosting rehearsal.
 
 ## A2: Domino demo launch and rehearsal
 
@@ -16,7 +25,7 @@ after SIGINT. See [local evidence and screenshots](LOCAL_REHEARSAL.md); server-g
 
 Configure the app command as `./app.sh`, with the repository root as its working directory. The compute environment
 needs `uv`, Python 3.12 (or permission for `uv` to install the pinned version), and **Node >=22.17.0 with npm**.
-The current lockfile's Cesium packages require that Node version; the old Node 20 image must be updated.
+The current lockfile requires that Node version; the old Node 20 image needs the documented runtime setup. PR #18 adds `frontend/domino-app.sh` for that environment; Bixler/Kori must verify it on the actual target rather than treating the wrapper as hosting evidence.
 `app.sh` fails with an installation hint when a runtime is missing instead of downloading a Linux-x64 runtime into
 an arbitrary host. Dependency installation uses the committed Python and npm lockfiles and requires package access
 or prepopulated caches. Runtime data and planning can run offline after installation.

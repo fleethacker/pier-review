@@ -62,3 +62,5 @@ Unknown quantities are `null`. NaN and infinity are rejected on input (`422`) an
 ## Berth reference identity
 
 `POST /berths` registers immutable shared reference data. Retrying identical data under the same ID returns the existing ID; different data under a seed or runtime ID returns HTTP409. Submit revised geometry, depth, ratings or provenance under a new `berth_id` and explicitly select it in a new/revised scenario. This prevents a catalog write from silently changing another saved scenario's physical reference. Vision confirmation preserves its draft ID, so changed data after confirmation requires a new draft. Runtime reference storage remains process-local; this is not a durable revision registry or an engineering approval workflow.
+
+A `MooringConfig` requires unique `line_number` values. Duplicate IDs return422 at request validation because analysis rows and line-handling commands must identify one line unambiguously. Numbering gaps and an empty layout remain valid inputs; an empty layout still needs a physical determination from the solver. Inputs are never silently renumbered.

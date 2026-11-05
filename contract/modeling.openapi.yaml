@@ -5070,6 +5070,7 @@ components:
             $ref: '#/components/schemas/MooringLine'
           type: array
           title: Lines
+          description: Lines with unique line_number identifiers; gaps in numbering are permitted.
       additionalProperties: false
       type: object
       required:

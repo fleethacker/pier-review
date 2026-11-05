@@ -2806,7 +2806,10 @@ export interface components {
              * @description Defaults to the berth's camel standoff.
              */
             standoff_ft?: number | null;
-            /** Lines */
+            /**
+             * Lines
+             * @description Lines with unique line_number identifiers; gaps in numbering are permitted.
+             */
             lines: components["schemas"]["MooringLine"][];
         };
         /**

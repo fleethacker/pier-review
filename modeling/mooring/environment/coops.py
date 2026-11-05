@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from .errors import ProviderError
+from .providers import HttpPayload, HttpPolicy, ProviderHttpClient, provider_config
 
 BASE_URL = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter"
 APPLICATION = "mooring-assistant"
@@ -124,7 +125,7 @@ def parse_wind(doc: dict) -> list[dict]:
     for r in _data(doc):
         flags = _flags(r.get("f"))
         out.append({"t": _t(r.get("t")), "wind_speed_kt": _num(r.get("s")), "wind_from_true_deg": _num(r.get("d")), "wind_gust_kt": _num(r.get("g")),
-                    "quality": "suspect" if any(flags) else "good"})
+                    "quality": "suspect" if any(flags) else "good", "original": dict(r)})
     return out
 
 
@@ -134,14 +135,15 @@ def parse_water_level(doc: dict) -> list[dict]:
     for r in _data(doc):
         flags = _flags(r.get("f"))
         out.append({"t": _t(r.get("t")), "water_level_ft": _num(r.get("v")), "quality": "suspect" if any(flags) else "good",
-                    "preliminary": r.get("q") == "p"})
+                    "preliminary": r.get("q") == "p", "original": dict(r)})
     return out
 
 
 def parse_currents(doc: dict) -> list[dict]:
     out = []
     for r in _data(doc):
-        out.append({"t": _t(r.get("t")), "current_speed_kt": _num(r.get("s")), "current_set_true_deg": _num(r.get("d")), "bin": r.get("b"), "quality": "good"})
+        out.append({"t": _t(r.get("t")), "current_speed_kt": _num(r.get("s")), "current_set_true_deg": _num(r.get("d")), "bin": r.get("b"),
+                    "quality": "good", "original": dict(r)})
     return out
 
 
@@ -185,7 +187,10 @@ def assemble(wind: list[dict], level: list[dict], current: list[dict], *, wind_s
         qualities = [w["quality"], lv["quality"], cu["quality"]]
         quality = "poor" if "poor" in qualities else "suspect" if "suspect" in qualities else "good"
         out.append({"t": w["t"].isoformat(), **fields, "quality": quality, "current_bin": str(bin), "current_depth_ft": bin_depth_ft,
-                    "source": f"NOAA CO-OPS wind {wind_station}, water level {level_station}, currents {current_station} bin {bin}; {ASSUMED_CURRENT_DIRECTION}"})
+                    "source": f"NOAA CO-OPS wind {wind_station}, water level {level_station}, currents {current_station} bin {bin}; {ASSUMED_CURRENT_DIRECTION}",
+                    "original": {**{f"wind_{k}": str(v) for k, v in w["original"].items()},
+                                 **{f"level_{k}": str(v) for k, v in lv["original"].items()},
+                                 **{f"current_{k}": str(v) for k, v in cu["original"].items()}}})
     return out, notes
 
 
@@ -219,48 +224,56 @@ class Fetcher:
 
     def __init__(self, transport: Transport = urllib_transport, *, clock: Callable[[], datetime] = lambda: datetime.now(UTC),
                  sleep: Callable[[float], None] = time.sleep, timeout_s: float = 10.0, retries: int = 2, backoff_s: float = 1.0,
-                 min_interval_s: float = 0.5, cache_ttl_s: float = 300.0, max_stale_s: float = 3600.0):
+                 min_interval_s: float = 0.5, cache_ttl_s: float = 300.0, max_stale_s: float = 3600.0,
+                 breaker_failures: int = 3, breaker_reset_s: float = 30.0, base_url: str | None = None):
+        class InjectedClock:
+            def now(self):
+                return clock()
+
+            def sleep(self, seconds):
+                sleep(seconds)
+
+        config = provider_config("coops", default_base_url=BASE_URL)
+        self.base_url = base_url or config.base_url or BASE_URL
         self.transport, self.clock, self.sleep = transport, clock, sleep
         self.timeout_s, self.retries, self.backoff_s = timeout_s, retries, backoff_s
         self.min_interval_s, self.cache_ttl_s, self.max_stale_s = min_interval_s, cache_ttl_s, max_stale_s
-        self.cache: dict[tuple, tuple[datetime, dict]] = {}
-        self.last_call: datetime | None = None
-        self.calls = 0
+        def adapted(url, params, timeout, headers):
+            status, text = transport(url, dict(params), timeout)
+            return HttpPayload(status, text.encode("utf-8"), {})
+        self.client = ProviderHttpClient(
+            "NOAA CO-OPS",
+            HttpPolicy(timeout_s, retries, backoff_s, min_interval_s, cache_ttl_s, max_stale_s,
+                       breaker_failures, breaker_reset_s),
+            InjectedClock(),
+            adapted,
+        )
+
+    @property
+    def cache(self):
+        return self.client._cache
+
+    @property
+    def calls(self):
+        return self.client.calls
+
+    @property
+    def breaker(self):
+        return self.client.breaker
 
     def get(self, params: dict) -> Fetched:
-        key = tuple(sorted(params.items()))
-        now = self.clock()
-        hit = self.cache.get(key)
-        if hit and (now - hit[0]).total_seconds() <= self.cache_ttl_s:
-            return Fetched(hit[1], False, (now - hit[0]).total_seconds())
-        last_err = "no attempt"
-        for attempt in range(self.retries + 1):
-            if self.last_call is not None:
-                wait = self.min_interval_s - (self.clock() - self.last_call).total_seconds()
-                if wait > 0:
-                    self.sleep(wait)
-            self.last_call = self.clock()
-            self.calls += 1
-            try:
-                status, text = self.transport(BASE_URL, params, self.timeout_s)
-            except (OSError, TimeoutError) as e:
-                last_err = f"{type(e).__name__}: {e}"
-            else:
-                if status >= 500 or status == 429:
-                    last_err = f"HTTP {status}"
-                else:
-                    try:
-                        doc = json.loads(text)
-                    except ValueError:
-                        raise ProviderError("malformed", "response is not JSON") from None
-                    if isinstance(doc, dict) and "error" not in doc:
-                        self.cache[key] = (self.clock(), doc)
-                    return Fetched(doc, False, 0.0)
-            if attempt < self.retries:
-                self.sleep(self.backoff_s * (2 ** attempt))
-        if hit and (now - hit[0]).total_seconds() <= self.max_stale_s:
-            return Fetched(hit[1], True, (now - hit[0]).total_seconds())
-        raise ProviderError("unavailable", f"CO-OPS unavailable after {self.retries + 1} attempts ({last_err}); no usable cached data")
+        payload = self.client.get(self.base_url, {str(k): str(v) for k, v in params.items()})
+        try:
+            doc = payload.json()
+        except ProviderError:
+            self.client.invalidate(self.base_url, {str(k): str(v) for k, v in params.items()})
+            raise
+        if not isinstance(doc, dict):
+            self.client.invalidate(self.base_url, {str(k): str(v) for k, v in params.items()})
+            raise ProviderError("malformed", "response JSON is not an object")
+        if "error" in doc:
+            self.client.invalidate(self.base_url, {str(k): str(v) for k, v in params.items()})
+        return Fetched(doc, payload.stale, payload.age_s)
 
 
 class Coops:

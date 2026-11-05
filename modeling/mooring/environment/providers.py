@@ -8,6 +8,8 @@ never manufactures environmental values when a provider cannot answer.
 from __future__ import annotations
 
 import json
+import math
+import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -132,8 +134,9 @@ class HttpPolicy:
             self.max_stale_s,
             self.breaker_reset_s,
         )
-        if any(x < 0 for x in nonnegative) or self.breaker_failures < 1:
-            raise ValueError("provider policy values must be non-negative and breaker_failures positive")
+        if (any(not math.isfinite(x) or x < 0 for x in nonnegative) or self.timeout_s <= 0 or
+                type(self.retries) is not int or type(self.breaker_failures) is not int or self.breaker_failures < 1):
+            raise ValueError("provider policy values must be finite/non-negative; timeout and integer breaker threshold positive; retries an integer")
 
 
 class BreakerState(StrEnum):
@@ -207,6 +210,7 @@ class ProviderHttpClient:
     user_agent: str = "mooring-environment-client/0.1"
 
     def __post_init__(self) -> None:
+        self._lock = threading.RLock()
         self.breaker = CircuitBreaker(
             self.policy.breaker_failures,
             self.policy.breaker_reset_s,
@@ -223,16 +227,28 @@ class ProviderHttpClient:
         return HttpPayload(payload.status_code, payload.content, payload.headers, True, stale, age_s)
 
     def get(self, url: str, params: Mapping[str, str] | None = None) -> HttpPayload:
+        # A shared provider client coalesces cache misses and serializes its rate/breaker state.
+        with self._lock:
+            return self._get(url, params)
+
+    def _get(self, url: str, params: Mapping[str, str] | None = None) -> HttpPayload:
         params = params or {}
         key = self._key(url, params)
         now = self.clock.now()
         hit = self._cache.get(key)
         if hit:
             age_s = (now - hit[0]).total_seconds()
-            if age_s <= self.policy.cache_ttl_s:
+            if 0 <= age_s <= self.policy.cache_ttl_s:
                 return self._cached(hit[1], age_s=age_s, stale=False)
 
-        self.breaker.allow()
+        try:
+            self.breaker.allow()
+        except ProviderError:
+            if hit:
+                age_s = (self.clock.now() - hit[0]).total_seconds()
+                if 0 <= age_s <= self.policy.max_stale_s:
+                    return self._cached(hit[1], age_s=age_s, stale=True)
+            raise
         last_error = "no attempt"
         for attempt in range(self.policy.retries + 1):
             if self._last_call is not None:
@@ -262,8 +278,9 @@ class ProviderHttpClient:
 
         self.breaker.failed()
         if hit:
-            age_s = (now - hit[0]).total_seconds()
-            if age_s <= self.policy.max_stale_s:
+            # Retries, transport latency and backoff all age the cached value.
+            age_s = (self.clock.now() - hit[0]).total_seconds()
+            if 0 <= age_s <= self.policy.max_stale_s:
                 return self._cached(hit[1], age_s=age_s, stale=True)
         raise ProviderError(
             "unavailable",

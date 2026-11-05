@@ -204,6 +204,10 @@ export class SceneRenderer {
       this.fit(state);
     }
     if (!prev || prev.lighting !== state.lighting) this.effects.setLighting(state.lighting);
+    if (state.cameraPreset && state.cameraPreset.revision !== prev?.cameraPreset?.revision) {
+      this.view.setPreset(state.cameraPreset.name, state.cameraPreset.target);
+      this.onViewChange();
+    }
     if (!prev || prev.viewMode !== state.viewMode) {
       this.view.setMode(state.viewMode);
       this.onViewChange();

@@ -296,6 +296,7 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
   const s = c.state.use((x) => x);
   const [offset, setOffset] = useState(120);
   const face = s.scene?.face_bearing_true_deg ?? DEFAULT_FACE_BEARING;
+  const map = s.view === 'map';
 
   // Keyboard: space toggles run/pause, r resets, Escape closes. Ignored while typing in a field.
   useEffect(() => {
@@ -319,8 +320,12 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
   }, [c]);
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-50 flex flex-col bg-mil-bg" role="dialog" aria-label="Motion view">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-mil-border bg-mil-panel px-3 py-2">
+    <div
+      className={cn('flex flex-col', map ? 'pointer-events-none absolute inset-0 z-20' : 'pointer-events-auto fixed inset-0 z-50 bg-mil-bg')}
+      role="dialog"
+      aria-label="Motion view"
+    >
+      <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-3 border-b border-mil-border bg-mil-panel px-3 py-2">
         <div className="flex flex-wrap items-center gap-3">
           <span className="mil-label">Motion view</span>
           <Button size="sm" onClick={() => void c.startSession(offset)} disabled={s.busy}>{s.source === 'live' ? 'Restart session' : 'Start session'}</Button>
@@ -331,13 +336,36 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
           </label>
           <Button size="sm" variant="secondary" onClick={() => void c.loadRecording()} disabled={s.busy}>Replay recording</Button>
         </div>
-        <Button size="sm" variant="ghost" onClick={() => c.close()} aria-keyshortcuts="Escape">Close</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="group" aria-label="View" className="flex">
+            {(['plan', 'map'] as const).map((v) => (
+              <button
+                key={v}
+                aria-pressed={s.view === v}
+                onClick={() => c.setView(v)}
+                className={cn('h-8 border px-3 font-mono text-[10px] uppercase tracking-wider', s.view === v ? 'border-mil-cyan/60 bg-mil-cyan/20 text-mil-cyan' : 'border-mil-border text-mil-text hover:text-white')}
+              >
+                {v === 'plan' ? 'Plan' : 'Map 2D/3D'}
+              </button>
+            ))}
+          </div>
+          {map && (
+            <div role="group" aria-label="Camera" className="flex">
+              {([['top', 'Top'], ['bow', 'Bow'], ['portQuarter', 'Port quarter'], ['pierSide', 'Pier side']] as const).map(([id, label]) => (
+                <button key={id} onClick={() => c.setCamera(id)} className="h-8 border border-mil-border px-2 font-mono text-[10px] uppercase tracking-wider text-mil-text hover:text-white">
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => c.close()} aria-keyshortcuts="Escape">Close</Button>
+        </div>
       </div>
 
-      <div className="border-b border-mil-border px-3 py-2"><Badges frame={s.frame} state={s} /></div>
+      <div className={cn('border-b border-mil-border px-3 py-2', map ? 'pointer-events-auto bg-mil-panel/95' : '')}><Badges frame={s.frame} state={s} /></div>
 
       {(s.error || s.notice || s.sceneError || s.lifecycleMessage) && (
-        <div className="space-y-1 border-b border-mil-border px-3 py-1 text-[11px]">
+        <div className={cn('space-y-1 border-b border-mil-border px-3 py-1 text-[11px]', map ? 'pointer-events-auto bg-mil-panel/95' : '')}>
           {s.error && <p role="alert" className="text-mil-red">{s.error}</p>}
           {s.notice && <p role="status" className="text-mil-amber">{s.notice}</p>}
           {s.sceneError && <p className="text-mil-dim">{s.sceneError}</p>}
@@ -346,8 +374,19 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
       )}
 
       <div className="flex min-h-0 flex-1">
-        <div className="relative min-w-0 flex-1">
-          {s.source === 'none' && !s.busy ? (
+        <div className={cn('relative min-w-0 flex-1', map && 'pointer-events-none')}>
+          {map ? (
+            <div className="pointer-events-none absolute bottom-2 left-3 max-w-[70%] rounded-sm border border-mil-border bg-mil-panel/85 p-2 text-[10px] text-mil-dim">
+              {s.frame ? (
+                <>
+                  <p>Map view draws position, heading and simulated heave from the frame. Drag to pan; in 3D, drag to orbit.</p>
+                  {s.notDrawn.length > 0 && <p className="mt-0.5">Not drawn: {s.notDrawn.join(', ')}.</p>}
+                </>
+              ) : (
+                <p>The map shows the planning layout until a frame arrives.</p>
+              )}
+            </div>
+          ) : s.source === 'none' && !s.busy ? (
             <div className="flex h-full items-center justify-center p-8 text-center text-xs text-mil-dim">
               <div>
                 <p className="text-sm text-mil-text">Nothing running.</p>
@@ -369,13 +408,13 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
             </>
           )}
         </div>
-        <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-mil-border bg-mil-panel/60" aria-label="Frame readouts">
+        <aside className={cn('w-[320px] shrink-0 overflow-y-auto border-l border-mil-border', map ? 'pointer-events-auto bg-mil-panel/95' : 'bg-mil-panel/60')} aria-label="Frame readouts">
           {s.frame && <EnvironmentGlyph frame={s.frame} faceBearingDeg={face} />}
           <Readouts frame={s.frame} />
         </aside>
       </div>
 
-      <div className="border-t border-mil-border bg-mil-panel px-3 py-2">
+      <div className="pointer-events-auto border-t border-mil-border bg-mil-panel px-3 py-2">
         {s.source === 'live' ? <LiveControls c={c} s={s} tugIds={c.tugIds()} lineNumbers={c.lineNumbers()} /> : s.source === 'recording' ? <ReplayControls c={c} s={s} /> : <p className="text-[11px] text-mil-dim">Controls appear once a session or recording is loaded. Space plays or pauses, R resets a live session, Esc closes.</p>}
       </div>
     </div>

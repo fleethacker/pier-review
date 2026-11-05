@@ -22,6 +22,7 @@ from mooring.core.schemas import (
 )
 from mooring.loads import mean_draft_ft, off_pier, range_findings
 from mooring.loads.validity import classify_findings, merge_reasons, wind_basis
+from mooring.tugs.validation import assignment_errors
 from mooring.mechanics import Pose
 from mooring.rules.nstm582 import RULES, CheckContext, check_all, design_factor
 
@@ -59,7 +60,13 @@ def solve_request(req: AnalyzeRequest, *, start: Pose = Pose(), force_rel_tol: f
     except eq.SystemError as e:
         raise refdata.InvalidReference(str(e)) from None
     refdata.loading(ship, req.loading)
-    return system, eq.solve(system, start, force_rel_tol=force_rel_tol), specs
+    if system.depth_ft(start) <= 0:
+        raise refdata.InvalidReference("Actual water depth must be positive; berth depth plus water level is nonpositive")
+    try:
+        solution = eq.solve(system, start, force_rel_tol=force_rel_tol)
+    except ValueError as exc:
+        raise refdata.InvalidReference(f"Invalid equilibrium inputs: {exc}") from None
+    return system, solution, specs
 
 
 def _validity(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs, load_findings, basis) -> Validity:
@@ -90,9 +97,20 @@ def _validity(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs, l
         if rec.ln.parts == 2:
             limited.append(ValidityReason(code="REEVING_ASSUMED_PARALLEL", affected_components=[f"line-{rec.ln.line_number}"],
                                           message="Two-part (tanker moor) arrangement modeled as identical parallel strands without chock friction."))
+    for error in assignment_errors(system.ship, req.tugs, refdata.tugs()):
+        invalid.append(ValidityReason(code="TUG_ASSIGNMENT_INVALID", message=error,
+                                      affected_components=[t.tug_id for t in req.tugs]))
+    fleet = {t.tug_id: t for t in refdata.tugs()}
     for t in system.tugs:
+        catalog = fleet.get(t.tug.tug_id)
+        if catalog and catalog.provenance.confidence != "published":
+            limited.append(ValidityReason(code="TUG_DATA_UNQUALIFIED", message="Tug ratings are catalog estimates, not qualified fleet evidence.",
+                                          affected_components=[t.tug.tug_id]))
+        if t.tug.direction_true_deg is not None:
+            limited.append(ValidityReason(code="TUG_DIRECTIONAL_CAPACITY_UNQUALIFIED", message="A true-direction force is prescribed without a qualified directional tug performance envelope.",
+                                          affected_components=[t.tug.tug_id]))
         if t.tug.force_lbf > t.max_force_lbf:
-            limited.append(ValidityReason(code="TUG_FORCE_EXCEEDS_PUSH_POINT_LIMIT", affected_components=[t.tug.push_point_id],
+            invalid.append(ValidityReason(code="TUG_FORCE_EXCEEDS_PUSH_POINT_LIMIT", affected_components=[t.tug.push_point_id],
                                           message=f"Tug force {t.tug.force_lbf:.0f} lbf exceeds the {t.max_force_lbf:.0f} lbf push point limit."))
     if not req.config.lines:
         invalid.append(ValidityReason(code="NO_LINES", message="No mooring lines: nothing restrains the ship.", affected_components=["config"]))
@@ -193,7 +211,10 @@ def build_result(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs
 
 
 def manifest_for(req: AnalyzeRequest, system: eq.System, specs, sol: eq.Solution, extra: dict | None = None) -> ResultManifest:
-    snapshot = {"request": req.model_dump(mode="json"), "ship": system.ship.model_dump(mode="json"),
+    fleet = {t.tug_id: t for t in refdata.tugs()}
+    resolved_tugs = {t.tug_id: fleet[t.tug_id].model_dump(mode="json") for t in req.tugs if t.tug_id in fleet}
+    snapshot = {"tug_specs": resolved_tugs, "unresolved_tug_ids": sorted({t.tug_id for t in req.tugs if t.tug_id not in fleet}),
+                "request": req.model_dump(mode="json"), "ship": system.ship.model_dump(mode="json"),
                 "berth": system.berth.model_dump(mode="json"), "line_specs": {k: v.model_dump(mode="json") for k, v in specs.items()},
                 "settings": {"max_iter": eq.MAX_ITER, "rel_tol": eq.REL_TOL, "bound_xy_ft": eq.BOUND_XY_FT,
                              "bound_yaw_rad": eq.BOUND_YAW_RAD}, **(extra or {})}
@@ -202,6 +223,7 @@ def manifest_for(req: AnalyzeRequest, system: eq.System, specs, sol: eq.Solution
     records = [ManifestRecord(kind="ship", id=system.ship.class_id, revision=_record_rev(snapshot["ship"])),
                ManifestRecord(kind="berth", id=system.berth.berth_id, revision=_record_rev(snapshot["berth"]))]
     records += [ManifestRecord(kind="line_spec", id=k, revision=_record_rev(v)) for k, v in snapshot["line_specs"].items()]
+    records += [ManifestRecord(kind="tug", id=k, revision=_record_rev(v)) for k, v in resolved_tugs.items()]
     return ResultManifest(resolved_inputs_hash=h, code_version=f"{MODEL}@{VERSION}", records=records,
                           environment_hash=resolved_inputs_hash(req.environment),
                           numerical_settings=snapshot["settings"])

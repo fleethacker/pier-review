@@ -43,7 +43,12 @@ async def ws_env(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", mode: st
                 snap = env.scenario_snapshot(env_scenario_id, datetime.now().astimezone())
             elif mode == "replay":
                 elapsed = (datetime.now().astimezone() - started) * speed
-                snap = env.synthetic(replay_start + elapsed, "replay")
+                try:
+                    snap = env.replay_snapshot(berth_id, replay_start + elapsed)
+                except ProviderError as e:
+                    await ws.send_json({"error": e.kind, "detail": str(e)})
+                    await ws.close(code=1013)
+                    return
             else:
                 try:
                     snap = env.now(berth_id)

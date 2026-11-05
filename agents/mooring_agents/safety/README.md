@@ -1,7 +1,7 @@
 # Safety/Brief agent
 
 The last line of defense. It independently validates the Planner's plan, warns when gusts approach the plan's
-working-load and breaking thresholds, and produces the Mooring Evolution Safety Sheet with rationale and safety
+working-load gust thresholds, and produces the Mooring Evolution Safety Sheet with rationale and safety
 margins for human approval.
 
 **Status:** real deterministic review and warning stream (`agent.py`) with optional guarded LLM narration; real sheet
@@ -12,10 +12,10 @@ assembly with HTML and PDF rendering (`sheet.py`).
 - **Review in:** `SafetyReviewRequest`: `plan_id`, optional `intake_report_id`, `target_margin_pct_wll`.
 - **Review out:** `SafetyReview`:
   - `checks[]`: id, pass/fail, severity, detail, cites;
-  - `thresholds`: worst wind direction, governing element, limiting gust for the working-load limit, estimated
+  - `thresholds`: worst wind direction, governing element, limiting gust for the working-load limit, unavailable
     breaking gust, forecast max gust;
   - `verdict`: `ready_for_signature`, `revise` or `reject`.
-- **Warnings out:** `GustWarning` SSE events, each with the percentage of the working-load and breaking limits for
+- **Warnings out:** `GustWarning` SSE events, each with the percentage of the working-load gust limit for
   the current wind direction.
 - **Sheet:** `SafetySheet` plus HTML render and approvals (pilot, First Lieutenant, CO). It locks on the first
   approval.
@@ -37,23 +37,28 @@ assembly with HTML and PDF rendering (`sheet.py`).
 | --- | --- |
 | `CITES-RESOLVE`: every cited `result_id` exists in modeling | RED |
 | `CITES-IN-LEDGER`: every cite came from a Planner tool call logged for this plan | RED |
-| `REANALYSIS-NOT-RED`: independent `analyze_mooring` at the worst intake condition | RED |
+| `REANALYSIS-NOT-RED`: independent `analyze_mooring` at every original and supplemental intake condition | RED |
 | `MARGIN`: highest utilization ≤ target | AMBER |
 | `NO-RED-FINDINGS`: no RED NSTM 582 findings | RED |
 | `GUST-THRESHOLD`: forecast max gust < 80% of the limiting gust (`limit_envelope`) | AMBER, or RED at ≥ 100% |
 | `TUGS-FEASIBLE`: tug plan covers the required force | RED |
 | `MST-WITHIN-SHIP`: forecast within the ship's MST | RED and verdict `reject` |
 
-**Breaking threshold:** the mock estimates it as the working-load limiting gust × √(design factor), because line
-tension grows with wind speed squared. Replace this with a direct calculation from modeling once the solver is
-real: ask for the gust at which the governing line reaches its breaking strength.
+**Breaking threshold:** unavailable. A wind-speed square-root estimate cannot establish line or fender breaking
+behavior. Only a future independently qualified modeling result can supply that threshold.
+
+A supplemental intake adds to the original plan's conditions. Each check aggregates failures from every condition;
+`PLAN-NOT-RED` prevents an independent review from clearing unresolved planner failures. Gust limits use the lowest
+established solver limit in each direction across all assessed conditions; an unknown limit remains unknown. This is
+a conservative selection of modeling results, not a new load calculation. Forecast coverage/MST checks consider both
+reports. The sheet cites the supplemental report when supplied, and never invents a line-doubling procedure from a
+high-utilization line number. Line-handling sequences remain draft/unreviewed until reviewed by a deck officer or pilot.
 
 ## Work remaining
 
-The brief, per-direction working-load thresholds, hardened warning stream, PDF rendering, and locked-sheet
-versioning are implemented. The breaking threshold remains explicitly labeled as an estimate. Modeling still needs
-a direct endpoint that returns the gust at which the governing line reaches breaking strength; Safety must consume
-that result rather than reproduce line physics.
+Operationally qualified data, verified human approval authority, fresh-condition revalidation, and a validated breaking
+model remain outside this demonstration. Archived approvals do not authorize a later operation. HTML is always available;
+PDF needs the documented native rendering libraries.
 
 ## Guardrails
 

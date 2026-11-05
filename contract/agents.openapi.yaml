@@ -217,8 +217,7 @@ paths:
     get:
       tags:
       - Planner agent
-      summary: 'SSE: step (AgentStepEvent), proposal (AgentProposalEvent), message (AgentMessageEvent), done (AgentDoneEvent).
-        follow=true keeps the stream open for follow-up answers.'
+      summary: SSE computed step/proposal events and terminal done; follow=true includes subsequent answers.
       operationId: plan_events_api_v1_agent_plans__plan_id__events_get
       parameters:
       - name: plan_id
@@ -234,6 +233,15 @@ paths:
           type: boolean
           default: true
           title: Follow
+      - name: last-event-id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            minimum: 0
+          - type: 'null'
+          title: Last-Event-Id
       responses:
         '200':
           description: Successful Response
@@ -249,7 +257,7 @@ paths:
     post:
       tags:
       - Planner agent
-      summary: Ask a follow-up; the answer streams as a `message` event
+      summary: Ask a follow-up; the answer streams as a message event
       operationId: plan_message_api_v1_agent_plans__plan_id__messages_post
       parameters:
       - name: plan_id
@@ -584,6 +592,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - System
+      summary: Cancel Job
+      operationId: cancel_job_api_v1_jobs__job_id__delete
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/jobs/{job_id}/events:
     get:
       tags:
@@ -597,6 +630,15 @@ paths:
         schema:
           type: string
           title: Job Id
+      - name: last-event-id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            minimum: 0
+          - type: 'null'
+          title: Last-Event-Id
       responses:
         '200':
           description: Successful Response
@@ -2210,7 +2252,7 @@ components:
           - type: string
           - type: 'null'
           title: Intake Report Id
-          description: Re-check against this report's conditions.
+          description: Add this report's conditions to the original intake conditions; neither report is discarded.
         target_margin_pct_wll:
           type: number
           maximum: 100.0
@@ -2816,6 +2858,12 @@ components:
       description: Model-computed gust limits; breaking remains unavailable without a separate validated model.
     ToolCall:
       properties:
+        operation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operation Id
+          description: Server-created agent operation budget scope; absent on legacy/direct gateway calls.
         call_id:
           type: string
           title: Call Id
@@ -3216,6 +3264,24 @@ components:
           - RED
           title: Status
           type: string
+        state:
+          anyOf:
+          - enum:
+            - queued
+            - running
+            - succeeded
+            - failed
+            - cancelled
+            type: string
+          - type: 'null'
+          default: null
+          title: State
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Error
       required:
       - plan_id
       - status

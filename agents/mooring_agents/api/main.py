@@ -3,6 +3,8 @@
 Agents reach physics only through the Physics agent's logged toolkit (MODELING_API_URL). One router per agent.
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -10,6 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic.json_schema import models_json_schema
 
 from mooring import refdata
+from mooring.core.jobs import JobQueueFull
 
 from ..physics.client import ModelingError
 from ..backend import overall_backend
@@ -19,7 +22,8 @@ from ..vision.schemas import VisionMetadata, VisionResponse
 from ..intake.schemas import IntakeReport
 from ..safety.schemas import SafetyReview
 from .routers import intake, physics, planner, safety, system, vision
-from .state import API_PREFIX, get_client  # noqa: F401  (tests override get_client)
+from .security import Controls
+from .state import API_PREFIX, JOBS, get_client  # noqa: F401  (tests override get_client)
 
 TAGS = [
     {"name": "Intake agent", "description": "Environment data -> windows of concern, MST assessment, design conditions."},
@@ -38,9 +42,16 @@ LLM agent service for the mooring assistant. Typical flow: `POST /intake/reports
 engineering qualification; inspect result validity and `/version` for module status.
 """
 
-app = FastAPI(title="Mooring Assistant: Agents API", version="1.1.0", description=DESCRIPTION, openapi_tags=TAGS,
+@asynccontextmanager
+async def lifespan(app):
+    yield
+    JOBS.shutdown()
+
+
+app = FastAPI(lifespan=lifespan, title="Mooring Assistant: Agents API", version="1.1.0", description=DESCRIPTION, openapi_tags=TAGS,
               separate_input_output_schemas=False)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(Controls)
 
 
 @app.middleware("http")
@@ -54,6 +65,12 @@ async def backend_header(request: Request, call_next):
 async def modeling_error(_: Request, exc: ModelingError):
     code = exc.status if exc.status in (404, 409, 422, 429, 504) else 502
     return JSONResponse(status_code=code, content={"detail": exc.detail})
+
+
+@app.exception_handler(JobQueueFull)
+async def job_queue_full(_: Request, exc: JobQueueFull):
+    return JSONResponse(status_code=429, content={"detail": str(exc)},
+                        headers={"Retry-After": str(exc.retry_after_s)})
 
 
 @app.exception_handler(refdata.NotFound)

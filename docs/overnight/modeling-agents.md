@@ -2,6 +2,22 @@
 
 ## Log
 
+- 21:11 EST: DC0 provider branch merged locally; fixed cache age after retry/backoff, age-bounded breaker fallback, shared-client serialization and invalid policy settings. No peer branch/worktree altered. Source/provider adapters remain data-team-owned.
+
+- 21:08 EST: direct static tug assistance now invalidates unknown/duplicate/overrated assignments; invalid assistance produces no numeric wind limit, and tug records enter result manifests. Tide sweep accepts supplied water-level snapshots, evaluates their knots, and isolates/labels its legacy training fallback. Source and interpolation remain explicitly limited.
+
+- 21:00 EST: auth packet PR #32 published, 1189 tests pass. Job client now enforces elapsed-time deadlines including submission/poll HTTP, handles cancelled remote jobs immediately, cancels accepted remote work on caller stop, and refuses untrusted status paths before forwarding credentials.
+
+- 20:55 EST: agents auth integration implemented: caller credentials forwarded to modeling through worker context; plans/reports/reviews/sheets/vision jobs/ledger owner-scoped, body and per-principal rate caps. Authenticated real chain and adversarial cross-owner attempts pass. Shared confirmed berth catalog and unverified approval roles remain deployment blockers.
+
+- 20:51 EST: integrated colleague branch ws-a/dc8-data-requests into the modeling branch, retaining its detailed asset/sensor inventory and adding our procedure, forecast-basis, propulsion and abort/replan requirements. Provider plumbing branch remains pending the stale-age review request. Jobs packet: 1179 Python and 81 UI tests pass.
+
+- 20:48 EST: provider/intake PR #30 published with 1175 passing tests. Real agent task queue and live planner events implemented; 64 focused tests pass including gated work, saturation, cancellation, failure, and SSE resume. Persistence/authentication still separate work, not claimed.
+
+- 20:43 EST: vision PR #29 CI green and merged. Intake now refuses to extrapolate ramp/replay snapshots as steady; missing scenario-series capability is explicit. Partial/malformed forecast coverage and future-sample quality flags propagate into safety findings. 204 focused tests pass.
+
+- 20:41 EST: M4 PR #29 published, 1148 Python tests. M5 Anthropic Messages adapter implemented with official current protocol, explicit model/key, no network in tests, existing application guards unchanged. Full suite 1165 passed; contract-check clean; 177 provider/agent focused checks passed. Provider perception/narration quality remains unverified.
+
 - 20:40 EST: safety PR #28 merged after green CI (1136 Python tests). Vision metadata/optional image pipeline implemented: modeling owns projection and estimated catalog capacities; confirmation uses logged toolkit and cannot replace catalog ids or promote provenance. Full suite 1147 passed before one additional confirmation regression; frontend 81 passed, typecheck/lint/build green.
 
 - 20:30 EST: Safety basis corrections targeted 40 tests passed, including real supported demo through sheet. Explicit modeled gust limits replace mislabeled sustained limits; unsupported breaking-speed estimates removed (prior test expectation corrected accordingly). Sheet now carries validity and real source/forecast statements. OpenAI Docs skill applied to optional vision input adapter; claude-api and openai-platform-api-key skills not installed, so provider documentation will be checked directly; no live LLM dependency.
@@ -46,3 +62,21 @@
 ## REVIEW_NEEDED
 
 NSTM references, line/pier capacities, wind averaging conversions, tug estimates, sequence durations and intermediate handling assumptions.
+
+- 21:15 EST: PR #34 merged after both CI jobs passed. DC0 provider branch integrated locally with cache-age/breaker/policy fixes; 1231 Python tests pass, no skips/xfails. Five complete local supported chains median 3.09 s; real TCP make-mock smoke passed intake/planner/review/approval/HTML/SSE/vision confirmation. PDF honestly returns 501 without renderer. Both temporary servers stopped.
+
+- 21:19 EST: opt-in agent persistence now retains completed chains and audit/ownership without serializing credentials. Service-scoped job recovery prevents cross-service interruption. Durable chain, cross-owner reads, terminal SSE replay and concurrent approvals tests pass; full regression underway. Watcher found DC1 CO-OPS and DC2 NWS branches, queued for integration review.
+
+- 21:25 EST: PR #36 pushed (1237 Python/81 UI tests, no skips/xfails). Safety hardening preserves original plus supplemental conditions and every check failure, refuses unresolved RED plans, and takes the lowest/unknown solver limit across conditions. Forecast planning now rejects poor/suspect or expired-interval inputs. Focused 31 tests pass; full suite underway.
+
+- 21:30 EST: DC1 CO-OPS integration plus provenance/cache fixes: 1253 Python tests pass, no skips/xfails; focused provider/replay 67 pass. Bundled synthetic replay is now explicitly scenario-basis; historical CO-OPS snapshots say replay. No forecast fallback introduced.
+
+- 21:35 EST: all four named cases traversed real local HTTP intake→planner→review→HTML. Supported: AMBER/limited, ready_for_signature (3.34 s). Overload: RED/limited, reject (4.17 s). Invalid depth: RED/invalid, revise (4.35 s). Initially underconstrained: planner repairs arrangement to AMBER/limited, ready_for_signature (3.10 s); initial result remains RED/undetermined. Search hardening now rejects locked-line bypasses of inventory/fitting constraints and reports actual assessed case counts; focused search/equilibrium 55 tests pass.
+
+- 21:36 EST: search fixes full suite 1265 passed, no skips/xfails; UI typecheck/lint/81 tests/build passed, contract regenerated unchanged. API nonpositive-depth requests now return 422. Corrected cases_evaluated expectation: candidates that stop early no longer claim every case was solved.
+
+- 21:38 EST: repeated-review budget regression fixed: server-created operation scopes bound each review/agent request while preserving one plan audit. Legacy/direct gateway per-plan budgets stay intact; concurrent requests within an operation cannot overspend. Focused ledger/security/client suite 52 passed.
+
+- 21:46 EST: user requested explicit cross-agent coordination and ongoing UI recommendations. Added docs/MODELING_UI_RECOMMENDATIONS.md with endpoint/example links, priorities and implemented/pending distinctions; notified both peer inboxes to watch each other and dev. Existing watcher checks remote refs/inboxes every two minutes.
+
+- 21:50 EST: operation-scoped budgets plus DC2 integration pass 1286 Python tests, no skips/xfails; UI typecheck/lint/81 tests/build and contract generation pass. Eighteen NWS adapter tests cover interval intersections, active-period clipping, malformed/overlapping inputs, units and stale provenance. Recorded public grid smoke yields 30 intervals covering 48h without missing gust; not an operational qualification. Posted coordination/review comments on data PRs #43/#45/#46.

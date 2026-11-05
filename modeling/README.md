@@ -114,3 +114,9 @@ No UFC coefficient was tuned to match the bearings.
   often measured over different durations; their use is not a verified wind basis or a guarantee of conservative coupled behavior. When M1 ingests real NOAA data, it must state each
   source's gust definition and normalize gusts to a 30-second basis (UFC Section 3-8.1, Figure 3-5), or add
   an explicit `gust_duration_s` to `EnvironmentSnapshot` for `compute_loads` to convert.
+
+Search treats locked assignments as constraints, not exemptions: unavailable/excluded fittings, unknown or duplicate
+locked slots, incompatible ropes/chocks, and insufficient inventory for any locked spec produce no candidate. Duplicate
+inventory entries are rejected instead of silently overwriting counts. `cases_evaluated` counts cases actually assessed;
+a failed solve or invalid depth can stop a candidate early, so only feasible candidates necessarily assess every case.
+Nonpositive actual water depth is an explicit input error, not a load-model crash.

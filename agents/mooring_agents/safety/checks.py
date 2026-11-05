@@ -95,9 +95,29 @@ def forecast_coverage(report) -> CheckResult:
                   "Forecast intake supplied without blocking coverage findings." if report else "No forecast intake supplied.")
 
 
+def all_conditions(checks: list[CheckResult]) -> CheckResult:
+    """Preserve each condition's failures; overall severity is not a substitute for each check."""
+    failed = [check for check in checks if not check.passed]
+    rank = {"INFO": 0, "GREEN": 0, "AMBER": 1, "RED": 2}
+    return checks[0].model_copy(update={
+        "passed": not failed,
+        "severity": max((check.severity for check in failed), key=rank.get) if failed else "INFO",
+        "detail": "; ".join(dict.fromkeys(check.detail for check in (failed or checks))),
+        "cites": list(dict.fromkeys(cite for check in checks for cite in check.cites)),
+    })
+
+
+def plan_not_red(plan) -> CheckResult:
+    status = getattr(plan, "status", None)
+    return _check("PLAN-NOT-RED", "The completed plan has no unresolved RED status", status in ("GREEN", "AMBER"),
+                  "RED" if status == "RED" else "AMBER",
+                  f"Planner status is {status or 'unknown'}; independent review cannot erase unresolved plan failures.",
+                  list(getattr(plan, "condition_analysis_result_ids", None) or []))
+
+
 CHECK_IDS: tuple[str, ...] = (
     "CITES-RESOLVE", "CITES-IN-LEDGER", "REANALYSIS-NOT-RED", "MARGIN",
-    "NO-RED-FINDINGS", "GUST-THRESHOLD", "TUGS-FEASIBLE", "MST-WITHIN-SHIP", "FORECAST-COVERAGE",
+    "NO-RED-FINDINGS", "GUST-THRESHOLD", "TUGS-FEASIBLE", "MST-WITHIN-SHIP", "FORECAST-COVERAGE", "PLAN-NOT-RED",
 )
 
 

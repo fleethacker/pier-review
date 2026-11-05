@@ -41,7 +41,15 @@ BACKENDS: dict[str, str] = {
 }
 
 
+def backend_modules() -> dict[str, str]:
+    modules = dict(BACKENDS)
+    modules.update(env.provider_modules())
+    if env.source_mode() == "coops":
+        modules["M1 environment"] = "real (CO-OPS observations; forecast unavailable)"
+    return modules
+
+
 def overall_backend() -> str:
     """'real' if every module is real, 'mock' if none is, else 'mixed'. Drives /health and X-Mooring-Backend."""
-    real = [v.startswith("real") for v in BACKENDS.values()]
+    real = [v.startswith("real") for k, v in backend_modules().items() if not k.startswith("Provider ")]
     return "real" if all(real) else "mock" if not any(real) else "mixed"

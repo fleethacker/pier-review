@@ -2,7 +2,7 @@
 
 Two ways to submit:
 
-* `submit(kind, result)`: legacy (used by the agents service and tests). The result already exists; it is revealed
+* `submit(kind, result)`: legacy (retained for compatibility tests). The result already exists; it is revealed
   after MOCK_JOB_DELAY_S seconds (default 3) so UIs can exercise progress bars. Tests set MOCK_JOB_DELAY_S=0.
 * `submit_task(kind, fn)`: real background work. The callable runs on a bounded worker pool after the acknowledgement
   is returned; progress reflects work the callable reports; jobs can be cancelled and given deadlines.
@@ -130,13 +130,16 @@ class Job:
 
 class JobStore:
     def __init__(self, base_path: str, *, workers: int | None = None, queue_size: int | None = None,
-                 persist: bool = False, deadline_s: float | None = None):
+                 persist: bool = False, deadline_s: float | None = None, namespace: str = "modeling"):
         self.base_path = base_path.rstrip("/")
         self.jobs: dict[str, Job] = {}
         self.workers = workers or int(os.environ.get("MOORING_WORKERS", "2"))
         self.queue_size = queue_size if queue_size is not None else int(os.environ.get("MOORING_QUEUE", "16"))
         self.default_deadline_s = deadline_s if deadline_s is not None else (
             float(os.environ["MOORING_JOB_DEADLINE_S"]) if "MOORING_JOB_DEADLINE_S" in os.environ else None)
+        if not namespace.strip():
+            raise ValueError("Job namespace must not be empty")
+        self.namespace = namespace
         self.persist = persist
         self._pool: ThreadPoolExecutor | None = None
         self._guard = threading.Lock()
@@ -249,18 +252,24 @@ class JobStore:
             return
         d = store.db()
         with d.lock:
-            d.execute("INSERT OR REPLACE INTO jobs VALUES (?,?,?,?,?,?,?)",
+            existing = d.execute("SELECT namespace FROM jobs WHERE job_id=?", (job.job_id,))
+            if existing and existing[0][0] != self.namespace:
+                raise ValueError("Job id already belongs to another service")
+            d.execute("INSERT OR REPLACE INTO jobs "
+                      "(job_id,kind,state,created_at_utc,finished_at_utc,error,result,namespace,event_log) "
+                      "VALUES (?,?,?,?,?,?,?,?,?)",
                       (job.job_id, job.kind, job.state, job.created.isoformat(),
                        job.finished.isoformat() if job.finished else None, job.error,
-                       json.dumps(job.result) if job.result is not None else None))
+                       json.dumps(job.result) if job.result is not None else None,
+                       self.namespace, json.dumps(job.log)))
 
     def recover(self) -> int:
         """After a restart: work that was queued or running did not finish and will not be resumed."""
         d = store.db()
         with d.lock:
-            n = len(d.execute("SELECT job_id FROM jobs WHERE state IN ('queued','running')"))
+            n = len(d.execute("SELECT job_id FROM jobs WHERE namespace=? AND state IN ('queued','running')", (self.namespace,)))
             d.execute("UPDATE jobs SET state='failed', error='interrupted by restart', finished_at_utc=? "
-                      "WHERE state IN ('queued','running')", (utcnow().isoformat(),))
+                      "WHERE namespace=? AND state IN ('queued','running')", (utcnow().isoformat(), self.namespace))
         return n
 
     def purge(self, older_than_s: float) -> int:
@@ -272,22 +281,24 @@ class JobStore:
             return 0
         d = store.db()
         with d.lock:
-            n = len(d.execute("SELECT job_id FROM jobs WHERE finished_at_utc IS NOT NULL AND finished_at_utc < ?", (cutoff,)))
-            d.execute("DELETE FROM jobs WHERE finished_at_utc IS NOT NULL AND finished_at_utc < ?", (cutoff,))
+            n = len(d.execute("SELECT job_id FROM jobs WHERE namespace=? AND finished_at_utc IS NOT NULL AND finished_at_utc < ?", (self.namespace, cutoff)))
+            d.execute("DELETE FROM jobs WHERE namespace=? AND finished_at_utc IS NOT NULL AND finished_at_utc < ?", (self.namespace, cutoff))
         return n
 
     def _from_db(self, job_id: str) -> Job | None:
         if not self.persist:
             return None
-        rows = store.db().execute("SELECT kind,state,created_at_utc,finished_at_utc,error,result FROM jobs WHERE job_id=?", (job_id,))
+        rows = store.db().execute("SELECT kind,state,created_at_utc,finished_at_utc,error,result,event_log FROM jobs WHERE job_id=? AND namespace=?", (job_id, self.namespace))
         if not rows:
             return None
-        kind, state, created, finished, error, result = rows[0]
+        kind, state, created, finished, error, result, event_log = rows[0]
         job = Job(job_id, kind, datetime.fromisoformat(created), task=True, task_state=state, error=error,
                   result=json.loads(result) if result else None,
                   finished=datetime.fromisoformat(finished) if finished else None)
         job.task_progress = 1.0 if state == "succeeded" else 0.0
-        job.log.append(("done", {"job_id": job_id, "state": state}))
+        job.log = [tuple(event) for event in json.loads(event_log or "[]")]
+        if not job.log or job.log[-1][0] != "done":
+            job.log.append(("done", {"job_id": job_id, "state": state}))
         return job
 
     # ---------- reading ----------

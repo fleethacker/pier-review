@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from mooring import refdata
+from mooring.core import access
 
 from ...physics.schemas import ToolCall, ToolCallResult, ToolInvocation
 from ...physics.toolkit import PhysicsToolkit, UnknownTool, calls_for
@@ -20,6 +21,8 @@ def tools():
 @router.post("/physics/tools/{tool_name}", response_model=ToolCallResult,
              summary="Run one physics tool through the logged gateway")
 async def run_tool(tool_name: str, req: ToolInvocation, client: Client):
+    if req.plan_id and not access.allowed("agent_plan", req.plan_id):
+        raise refdata.NotFound(f"Plan '{req.plan_id}' not found")
     tk = PhysicsToolkit(client, req.caller, req.plan_id)
     try:
         output = await tk.call(tool_name, req.input)
@@ -31,5 +34,7 @@ async def run_tool(tool_name: str, req: ToolInvocation, client: Client):
 
 @router.get("/physics/calls", response_model=list[ToolCall], summary="Tool-call ledger, optionally for one plan")
 def list_calls(plan_id: str | None = None):
+    if plan_id and not (access.allowed("agent_plan", plan_id) or access.allowed("agent_report", plan_id)):
+        raise refdata.NotFound(f"Plan '{plan_id}' not found")
     return calls_for(plan_id)
 

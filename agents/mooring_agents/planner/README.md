@@ -4,7 +4,7 @@ The reasoning loop. It proposes tug count and horsepower, the line configuration
 and the line sequence, runs the Physics tools, checks results against NSTM 582 limits, and iterates until margins
 are acceptable or it reports that no safe plan exists.
 
-**Status:** `agent.py` implements the guarded adjustment loop with optional LLM proposals. `mock.py` is a compatibility shim sharing the same plan store. Physics capabilities remain mixed/mock; this agent does not qualify those models.
+**Status:** `agent.py` implements the guarded adjustment loop with optional LLM proposals. `mock.py` is a compatibility shim sharing the same plan store. Modeling validity remains authoritative; this agent does not qualify those models.
 
 ## Inputs and outputs
 
@@ -41,7 +41,7 @@ are acceptable or it reports that no safe plan exists.
    - add holding tugs (`hold_tugs`).
 
    Explain each move in a `step` event.
-5. **Stop** when every element is GREEN and the highest utilization ≤ target, or when the iteration budget is
+5. **Stop** when no element is RED and the highest utilization ≤ target (AMBER/limited remains explicitly limited), or when the iteration budget is
    spent. In that case, return the best plan with `status` RED or AMBER and say why in `open_questions`.
 6. **Finish:** `plan_tugs` for berthing, `generate_sequence`, `risk_exceedance` at the design condition, and the
    rationale.
@@ -93,3 +93,7 @@ the existing 1.3 gust multiplier as an assumption. The Safety reviewer re-analyz
 
 `agents/tests/test_planner.py` covers adversarial proposals, incomplete/failed providers, deadlines,
 condition aggregation, best-plan rollback, inventory, scenario resolution, provenance and follow-ups.
+
+The API now queues the real loop on a bounded worker pool. SSE steps/proposals arrive as computed,
+not after an artificial mock delay. Poll plan/job terminal state before requesting review or follow-ups.
+Failure and cancellation emit terminal `done` with `state` and `error`; reconnect with `Last-Event-ID`.

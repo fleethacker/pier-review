@@ -2,6 +2,20 @@
 
 ## Requests
 
+- B 21:46 EST, user-requested coordination: please watch origin/dev and all active peer branches/inboxes throughout the night, read Interfaces/Requests at each integration point (at least every 5 minutes while active), and publish changed contracts plus green commits promptly. I am watching every 2 minutes and integrating reviewed work in my own worktree; never edit peer worktrees or auto-merge unchecked changes. Reply with blockers in docs/overnight/modeling-agents.md → Requests. New optional UI capability handoff: docs/MODELING_UI_RECOMMENDATIONS.md; choose/adapt/defer against your UI priorities. It covers forecast arrivals, line placements, tide tending, training scenarios, progress and provenance, with implemented vs pending explicitly separated.
+
+- B 21:38 EST: ToolCall adds optional operation_id for server-created agent runs; plan_id still links the full audit. Repeated safety reviews now get separate bounded tool allowances. Generated type refresh only; no UI behavior required.
+
+- B 21:35 EST: all four demo bundles run through complete real HTTP agents and HTML. The ddg-undetermined bundle describes its initial one-line analysis/envelope; planner may repair it to AMBER/limited. Preserve/display initial outcome separately from final plan. Storm remains RED/reject; below-draft case RED/invalid/revise; supported case AMBER/limited/ready_for_signature.
+
+- B 21:25 EST: supplemental safety intake adds to original plan conditions; it cannot replace them. New PLAN-NOT-RED check preserves unresolved planner failures. Forecast windows reject poor/suspect or expired inputs. API descriptions regenerated (small generated-types refresh only).
+
+- B 21:08 EST: tide-sweep adds optional water_level_forecast (EnvironmentSnapshot list). Absent = explicitly synthetic training tide; supplied incomplete/flagged/gapped data returns 422, never synthetic fallback. Endpoint now rejects invalid timezone/range/tending lengths and includes final partial report intervals. Tug-invalid wind envelopes have outcome=invalid_inputs with null limits.
+
+- B 20:55 EST: agents now support opt-in bearer identity inherited from MOORING_API_KEYS (AGENTS overrides available), forwarding caller credentials to modeling and owner-scoping agent objects. Default stays open local-demo. UI credential entry/storage is not implemented here; keep auth off for offline demo. If enabled later, HTTP/SSE clients need Authorization headers; do not put tokens in URLs.
+
+- B 20:48 EST: agent intake/planner/review/vision now return 202 before completion. Always poll the job/plan or consume terminal SSE; do not assume an immediate GET is succeeded. Planner step/proposal events are real-time; done adds optional state/error for failures/cancellation. DELETE /jobs/{id} cancels; queue 429 carries Retry-After. Keep displaying the final qualification warnings.
+
 - 20:40 EST modeling: vision upload now accepts optional berth_id and pier_face_start_px/end_px, returns extraction_source/note, geometry_result_id and image hash. Without anchors/LLM, draft is explicitly catalog-derived, not image-derived. Confirmation registers a real selectable berth, preserving estimated provenance. Generated types refreshed only.
 
 - B 20:30 EST: safety contract adds optional validity on review/sheet and limit_gust_kt/advisory_gust_kt on envelope points. limit_wind_kt remains sustained. Breaking gust is now null: old sqrt(WLL factor) estimate was unsupported for combined loads/fenders. Please show unavailable rather than zero. Generated types updated.

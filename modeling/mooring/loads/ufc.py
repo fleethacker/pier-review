@@ -132,7 +132,11 @@ def ship_inputs(ship, loading, water_density):
     if lc is None:
         raise refdata.InvalidReference(f"Unknown loading {loading!r} for {ship.class_id}")
     draft = (lc.draft_fwd_ft + lc.draft_aft_ft) / 2
-    volume = lc.displacement_lt * LT_TO_LB / (water_density * KGM3_TO_SLUG_FT3 * G_FPS2)
+    weight_density = water_density * KGM3_TO_SLUG_FT3 * G_FPS2
+    if weight_density == 0:
+        # Positive subnormal input can underflow during unit conversion; never substitute a density.
+        raise OverflowError("Water density conversion exceeds the supported numerical range")
+    volume = lc.displacement_lt * LT_TO_LB / weight_density
     height = getattr(ship, "superstructure_height_ft", None)
     if height is None:
         height = ship.hull_wind_area_lateral_ft2 / ship.lwl_ft + (ship.wind_area_lateral_ft2 - ship.hull_wind_area_lateral_ft2) / (c.SUPERSTRUCTURE_LENGTH_FRACTION * ship.lwl_ft)
@@ -149,8 +153,8 @@ def ship_inputs(ship, loading, water_density):
 def compute_loads(ship, loading, heading_true_deg, env, water_depth_ft, use_gust=True, shielding_factor=1.0) -> LoadsResult:
     """UFC Eqs. 4-1–4-26, pp. 54–79; public signature, Navy units and API bearings.
 
-    Sustained input is converted from 60 s to 30 s using graphical Figure 3-5
-    synoptic readings. Gust input is assumed already 30 s (duration absent in API).
+    Wind metadata is interpreted by wind_basis; legacy sustained input uses the
+    Figure 3-5 conversion, while a documented 30 s input needs no conversion.
     Shielding multiplies every wind force/moment, never current.
     """
     if not math.isfinite(water_depth_ft) or water_depth_ft <= 0:
@@ -158,7 +162,8 @@ def compute_loads(ship, loading, heading_true_deg, env, water_depth_ft, use_gust
     if not 0 <= shielding_factor <= 1:
         raise ValueError("Shielding factor must be between zero and one.")
     rho_a, rho_w = env.air_density_kgm3 * KGM3_TO_SLUG_FT3, env.water_density_kgm3 * KGM3_TO_SLUG_FT3
-    vw = wind_basis(env, use_gust).speed_kt * KT_TO_FPS  # the single wind-basis conversion boundary
+    basis = wind_basis(env, use_gust)  # the single wind-basis conversion boundary
+    vw = basis.speed_kt * KT_TO_FPS
     vc = env.current_speed_kt * KT_TO_FPS
     rel_w, rel_c = (env.wind_from_true_deg - heading_true_deg) % 360, (env.current_set_true_deg - heading_true_deg) % 360
     tw, tc = (180 - rel_w) % 360, (-rel_c) % 360
@@ -170,7 +175,7 @@ def compute_loads(ship, loading, heading_true_deg, env, water_depth_ft, use_gust
         fx_lbf=shielding_factor * longitudinal_wind_force(rho_a, vw, ship.wind_area_frontal_ft2, tw, longitudinal_class),
         fy_lbf=shielding_factor * transverse_wind_force(rho_a, vw, ship.wind_area_lateral_ft2, cy, tw),
         mz_ftlbf=shielding_factor * wind_yaw_moment(rho_a, vw, ship.wind_area_lateral_ft2, ship.loa_ft, tw, yaw_kind),
-        coefficients={"cy": cy, "wind_speed_basis_factor": 1.0 if use_gust else c.SUSTAINED_TO_30S},
+        coefficients={"cy": cy, "wind_speed_basis_factor": basis.factor},
     )
     cyc = transverse_current_coefficient(ship.lwl_ft, ship.beam_ft, draft, volume, midship, water_depth_ft)
     fy = transverse_current_force(rho_w, vc, ship.lwl_ft, draft, cyc, tc)

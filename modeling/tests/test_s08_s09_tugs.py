@@ -204,3 +204,104 @@ def test_windows_refine_crossings_and_respect_minimum_duration():
 def test_insufficient_fleet_gives_no_windows():
     j = windows(available_tug_ids=["T4"], max_current_kt=2.0, max_gust_kt=60.0).json()
     assert j["status"] in ("AMBER", "RED") or j["result"]["windows"] is not None
+
+
+@pytest.mark.parametrize("problem", ["over_target", "invalid", "unknown"])
+def test_holding_candidate_requires_the_fresh_assessment_to_establish_feasibility(monkeypatch, problem):
+    from mooring.moored import holding
+    from mooring.core.schemas import Validity, ValidityReason
+    original = holding.solver.analyze
+    def fresh(req):
+        response = original(req).model_copy(deep=True)
+        if problem == "over_target":
+            response.result.min_margin.pct_wll = 95.0  # Above the requested 80% margin target, below WLL.
+        else:
+            response.validity = Validity(state=problem, reasons=[ValidityReason(code="TEST_FRESH_FAILURE",
+                message="Injected fresh-assessment failure", affected_components=["equilibrium"])])
+        return response
+    monkeypatch.setattr(holding.solver, "analyze", fresh)
+    response = hold()
+    assert response.status_code == 200
+    result = response.json()
+    assert result["result"]["feasible"] is False and result["status"] == "RED"
+    assert any("fresh independent solve" in note for note in result["result"]["rationale"])
+
+
+def test_holding_report_retains_fender_governing_utilization_from_fresh_assessment(monkeypatch):
+    from mooring.moored import holding
+    original = holding.solver.analyze
+    def fresh(req):
+        response = original(req).model_copy(deep=True)
+        response.result.min_margin.element_id = "fender-test"
+        response.result.min_margin.pct_wll = 79.0
+        return response
+    monkeypatch.setattr(holding.solver, "analyze", fresh)
+    result = hold().json()["result"]
+    assert result["assisted_max_pct_wll"] == 79.0
+    assert any("fender-test" in note for note in result["rationale"])
+
+
+@pytest.mark.parametrize('call', [hold, berthing, windows], ids=['holding', 'berthing', 'windows'])
+def test_explicit_empty_available_fleet_never_uses_catalog_tugs(call):
+    response = call(available_tug_ids=[])
+    assert response.status_code == 200, response.text
+    result = response.json()['result']
+    if call is windows:
+        assert result['windows'] == []  # The synthetic series has nonzero environmental loads.
+    else:
+        assert result['assignments'] == []
+        assert result['recommended_tug_count'] == 0
+        assert result['feasible'] is False
+
+
+@pytest.mark.parametrize('call', [hold, berthing, windows], ids=['holding', 'berthing', 'windows'])
+def test_duplicate_available_tug_ids_are_rejected_before_allocation(call):
+    response = call(available_tug_ids=['T4', 'T4'])
+    assert response.status_code == 422, response.text
+    assert 'unique' in response.text
+
+
+def test_empty_additional_fleet_preserves_existing_holding_assistance():
+    first = hold().json()['result']
+    assert first['feasible'] and first['assignments']
+    response = hold(tugs=first['assignments'], available_tug_ids=[])
+    assert response.status_code == 200, response.text
+    result = response.json()['result']
+    assert result['feasible'] and result['assignments'] == []
+    assert result['recommended_tug_count'] == 0
+    assert result['assisted_max_pct_wll'] <= 100 / 1.25
+
+
+@pytest.mark.parametrize('bounds', [
+    {'from_utc': '2026-11-04T12:00:00'},
+    {'to_utc': '2026-11-05T12:00:00'},
+    {'from_utc': '2026-11-05T13:00:00Z', 'to_utc': '2026-11-05T12:00:00Z'},
+])
+def test_window_bounds_reject_ambiguous_or_reversed_times(bounds):
+    response = windows(**bounds)
+    assert response.status_code == 422, response.text
+
+
+@pytest.mark.parametrize('month,day', [(3, 8), (11, 1)])
+def test_window_sampling_covers_elapsed_time_through_clock_changes(monkeypatch, month, day):
+    from zoneinfo import ZoneInfo
+    from mooring.berthing import service
+    from mooring.core.schemas import BerthingWindowRequest
+    zone = ZoneInfo('America/New_York')
+    start = datetime(2026, month, day, 0, 30, tzinfo=zone)
+    end = datetime(2026, month, day, 4, 30, tzinfo=zone)
+    expected = []
+    t = start.astimezone(UTC)
+    while t <= end.astimezone(UTC):
+        expected.append(t)
+        t += timedelta(minutes=6)
+    seen = []
+    original = service.environment.synthetic
+    def recorded(at, *args):
+        seen.append(at.astimezone(UTC))
+        return original(at, *args)
+    monkeypatch.setattr(service.environment, 'synthetic', recorded)
+    req = BerthingWindowRequest.model_validate(EXAMPLES['windows_berthing'] | {
+        'from_utc': start, 'to_utc': end, 'step_min': 6, 'available_tug_ids': []})
+    service.windows(req)
+    assert seen == expected  # No feasible windows/refinement without tugs: inspect the actual sampled instants.

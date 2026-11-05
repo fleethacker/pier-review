@@ -23,6 +23,10 @@ class Georef(Model):
 class VisionMetadata(Model):
     """Sent as the `metadata` form field (a JSON string) next to the `image` file."""
 
+    wire_omitted_defaults = {"berth_id": None, "pier_face_start_px": None, "pier_face_end_px": None}
+    berth_id: str | None = Field(default=None, description="Catalog berth supplying surveyed face location and notional fittings; absent uses an explicitly labeled demo template.")
+    pier_face_start_px: tuple[float, float] | None = None
+    pier_face_end_px: tuple[float, float] | None = None
     image_kind: Literal["satellite", "chart", "berthing_plan", "photo"]
     georef: Georef | None = None
     berth_name: str | None = None
@@ -33,12 +37,20 @@ class VisionMetadata(Model):
 class Detection(Model):
     item_id: str
     kind: str = Field(description="Pier fitting kind, 'fender', 'camel', 'pier_face' or 'obstruction'.")
-    bbox_px: tuple[float, float, float, float] = Field(description="[x, y, width, height] in image pixels.")
+    wire_omitted_defaults = {"center_px": None}
+    center_px: tuple[float, float] | None = None
+    bbox_px: tuple[float, float, float, float] | None = Field(description="[x, y, width, height] in image pixels; null when not measured from the image.")
     confidence: float = Field(ge=0, le=1)
     needs_confirmation: bool
 
 
 class VisionResult(Model):
+    wire_omitted_defaults = {"extraction_source": None, "extraction_note": None, "geometry_result_id": None, "image_sha256": None, "recommendation_result_id": None}
+    recommendation_result_id: str | None = None
+    extraction_source: Literal["deterministic", "llm", "detector"] | None = None
+    extraction_note: str | None = None
+    geometry_result_id: str | None = None
+    image_sha256: str | None = None
     draft_berth: Berth
     detections: list[Detection]
     recommended_config: MooringConfig | None

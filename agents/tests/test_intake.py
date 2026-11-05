@@ -58,6 +58,13 @@ class FakeToolkit:
         self.requests.append("now")
         return self.current
 
+    async def scenario_environment(self, scenario_id):
+        self.requests.append("saved_source")
+        return self.current
+
+    async def environment_scenario(self, scenario_id):
+        return SimpleNamespace(kind="steady")
+
     async def forecast(self, bid, hours, step):
         self.requests.append("forecast")
         return ForecastSeries(berth_id=bid, step_min=step, series=self.series)
@@ -303,6 +310,8 @@ def test_intake_ledger_still_belongs_to_report(monkeypatch):
 
 
 @pytest.mark.parametrize("sentence", [
+    "Proceed with docking.", "Docking is approved.",
+    "The berth is suitable for arrival.", "The plan is ready_for_signature.",
     "Conditions are calm and safe for berthing.", "The gust window is low risk.",
     "Conditions are MST III.", "Conditions are MST: III.", "The windows are GREEN.",
     "The situation is benign.", "Conditions are amber.", "The window is RED.",
@@ -319,22 +328,22 @@ def test_model_cannot_replace_risk_headline(monkeypatch, sentence):
     install(monkeypatch, data)
     result = run()
     assert result.summary == baseline.summary
-    assert result.summary.startswith("Highest window severity is RED; MST required is II; it does not exceed the ship's MST II.")
+    assert result.summary.startswith("Highest window severity is RED; MST required is II; it does not exceed the ship's MST II; input quality is AMBER; review is required before relying on this assessment.")
     assert result.summary_source == "deterministic"
     assert result.narration_note == "guardrail: risk language"
 
 
 def test_risk_headline_covers_calm_exceedance_and_unknown_ship():
     calm = run(tk=FakeToolkit(calm=True))
-    assert calm.summary.startswith("No windows of concern; MST required is I; it does not exceed the ship's MST II.")
+    assert calm.summary.startswith("No windows of concern; MST required is I; it does not exceed the ship's MST II; input quality is AMBER; review is required before relying on this assessment.")
     tk = FakeToolkit()
     tk.current.wind_speed_kt = 80
     tk.current.wind_gust_kt = 90
     high = run(tk=tk)
-    assert high.summary.startswith("Highest window severity is RED; MST required is III; it exceeds the ship's MST II.")
+    assert high.summary.startswith("Highest window severity is RED; MST required is III; it exceeds the ship's MST II; input quality is AMBER; review is required before relying on this assessment.")
     req = IntakeRequest(berth_id="NAVSTA-NORFOLK-P12-N", horizon_hours=2)
     unknown = run(req)
-    assert "ship MST is unknown, so exceedance cannot be assessed." in unknown.summary
+    assert "ship MST is unknown, so exceedance cannot be assessed; input quality is AMBER; review is required" in unknown.summary
 
 
 @pytest.mark.parametrize("suffix", ["kt", "knots", "m/s", "mph", "deg", "°", "ft"])
@@ -455,3 +464,289 @@ def test_legitimate_narration_still_passes(sentence):
     facts = {"/current/wind_gust_kt": "14.0 kt", "/windows/0/severity": "RED", "/mst/mst_required": "II"}
     assert agent._render(sentence, facts, sentence=True)
 
+
+
+def test_saved_scenario_environment_is_used_instead_of_live_forecast():
+    tk = FakeToolkit(calm=True)
+    seen = []
+    async def scenario(_):
+        return SimpleNamespace(berth_id='NAVSTA-NORFOLK-P12-N', ship_class_id='DDG-51-FIIA', side_to='starboard',
+                               env_source=SimpleNamespace(mode='scenario', env_scenario_id='saved-weather'))
+    async def saved(scenario_id):
+        seen.append(scenario_id)
+        return tk.current
+    tk.scenario, tk.scenario_environment = scenario, saved
+    result = run(tk=tk)
+    assert seen == ['scenario_test'] and 'forecast' not in tk.requests
+    assert 'now' not in tk.requests  # The saved-source endpoint owns source selection.
+    assert not result.berthing_windows  # live windows cannot stand in for scenario windows
+    assert result.planning_conditions[0].environment.wind_gust_kt == 8
+
+
+def test_forecast_outage_is_not_silently_replaced_with_calm_forecast():
+    from mooring_agents.physics.client import ModelingError
+    tk = FakeToolkit(calm=True)
+    async def unavailable(*args): raise ModelingError(503, 'forecast unavailable')
+    tk.forecast = unavailable
+    result = run(tk=tk)
+    assert any(q.issue == 'missing' and q.severity == 'RED' for q in result.data_quality)
+    assert 'current snapshot only' in result.mst.reason
+    assert {c.environment.valid_at_utc for c in result.planning_conditions} == {NOW}
+
+
+@pytest.mark.parametrize('kind', ['ramp', 'replay'])
+def test_nonsteady_scenario_is_not_extrapolated_as_a_constant(kind):
+    tk = FakeToolkit(calm=True)
+    async def environment_scenario(_): return SimpleNamespace(kind=kind)
+    tk.environment_scenario = environment_scenario
+    result = run(request(env_scenario_id='variable'), tk)
+    assert {c.environment.valid_at_utc for c in result.planning_conditions} == {NOW}
+    assert any(q.issue == 'missing' and q.severity == 'RED' and kind in q.detail for q in result.data_quality)
+    assert 'Forecast assessment incomplete' in result.summary
+    assert 'future exceedance is unknown' in result.summary
+
+
+@pytest.mark.parametrize('problem', ['short', 'late_start', 'unordered', 'duplicate', 'naive', 'gap'])
+def test_incomplete_or_malformed_forecast_does_not_claim_full_horizon(problem):
+    tk = FakeToolkit(calm=True)
+    if problem == 'short': tk.series = tk.series[:1]
+    elif problem == 'late_start': tk.series = tk.series[1:]
+    elif problem == 'unordered': tk.series = list(reversed(tk.series))
+    elif problem == 'duplicate': tk.series[1] = tk.series[0]
+    elif problem == 'naive': tk.series[1] = tk.series[1].model_copy(update={'valid_at_utc': NOW.replace(tzinfo=None)})
+    else: tk.series = [tk.series[0], tk.series[-1]]
+    result = run(tk=tk)
+    assert any(q.issue == 'missing' and q.severity == 'RED' for q in result.data_quality)
+    assert 'Forecast assessment incomplete' in result.summary
+    assert 'future exceedance is unknown' in result.summary
+
+
+def test_forecast_only_quality_flags_and_metadata_are_not_ignored():
+    tk = FakeToolkit(calm=True)
+    tk.series[1] = EnvironmentSnapshot.model_validate({**tk.series[1].model_dump(),
+        'quality': [{'station_id': 'current', 'age_s': 0, 'flags': ['unavailable']}],
+        'metadata': {'basis': 'prediction', 'source': 'forecast-grid', 'quality': 'suspect'}})
+    result = run(tk=tk)
+    assert any(q.station_id == 'current' and q.issue == 'missing' and q.severity == 'RED' for q in result.data_quality)
+    assert any(q.station_id == 'forecast-grid' and q.issue == 'flagged' for q in result.data_quality)
+    assert 'Forecast assessment incomplete' in result.summary
+
+
+def test_saved_mock_current_uses_canonical_source_and_never_live_now():
+    tk = FakeToolkit(calm=True)
+    async def scenario(_):
+        return SimpleNamespace(berth_id='NAVSTA-NORFOLK-P12-N', ship_class_id='DDG-51-FIIA', side_to='starboard',
+                               env_source=SimpleNamespace(mode='mock', env_scenario_id=None))
+    async def forbidden(*args, **kwargs): pytest.fail('Saved mock source used live now')
+    tk.scenario, tk.env_now = scenario, forbidden
+    result = run(tk=tk)
+    assert 'saved_source' in tk.requests
+    assert result.planning_conditions[0].environment.source == 'mock'
+
+
+def test_intake_rejects_conflicting_saved_scenario_berth():
+    from mooring_agents.physics.client import ModelingError
+    tk = FakeToolkit(calm=True)
+    async def scenario(_):
+        return SimpleNamespace(berth_id='another-berth', ship_class_id='DDG-51-FIIA', side_to='starboard',
+                               env_source=SimpleNamespace(mode='mock', env_scenario_id=None))
+    tk.scenario = scenario
+    with pytest.raises(ModelingError, match='do not match'):
+        run(request(berth_id='NAVSTA-NORFOLK-P12-N'), tk)
+
+
+def test_mock_scenario_does_not_import_public_forecast_or_provider_windows():
+    tk = FakeToolkit(calm=True)
+    async def scenario(_):
+        return SimpleNamespace(berth_id='NAVSTA-NORFOLK-P12-N', ship_class_id='DDG-51-FIIA', side_to='starboard',
+                               env_source=SimpleNamespace(mode='mock', env_scenario_id=None))
+    tk.scenario = scenario
+    tk.series = [sample.model_copy(update={'source':'forecast', 'quality':[], 'wind_gust_kt':100}) for sample in tk.series]
+    report = run(tk=tk)
+    assert all(condition.environment.source == 'mock' for condition in report.planning_conditions)
+    assert any('does not match the selected synthetic source' in issue.detail for issue in report.data_quality)
+    assert not report.berthing_windows and all(not isinstance(item, dict) for item in tk.requests)
+
+
+@pytest.mark.parametrize('quality,severity', [('poor','RED'), ('suspect','AMBER'), ('unknown','INFO')])
+def test_component_quality_is_not_hidden_by_good_aggregate_metadata(quality, severity):
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    tk = FakeToolkit(calm=True)
+    tk.current.quality = []
+    for sample in tk.series:
+        sample.quality = []
+    tk.series[-1].metadata = EnvironmentMetadata(basis='prediction', quality='good', components=[
+        EnvironmentComponentProvenance(component='current', source='tidal fixture', basis='prediction', quality=quality,
+            limitations=['No weather residual.'])])
+    report = run(tk=tk)
+    assert any(issue.station_id == 'current: tidal fixture' and issue.severity == severity and 'component' in issue.detail
+               for issue in report.data_quality)
+    assert any('issue time is unknown' in issue.detail for issue in report.data_quality)
+    assert any('No weather residual.' in issue.detail for issue in report.data_quality)
+    assert not any(window.severity in ('AMBER','RED') for window in report.windows)
+    from mooring_agents.safety.checks import forecast_coverage
+    check = forecast_coverage(report)
+    assert check.passed == (quality == 'unknown')
+    if quality != 'unknown':
+        assert check.severity == severity
+
+
+
+def test_out_of_interval_component_blocks_review_even_when_not_the_worst_gust():
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    from mooring_agents.safety.checks import forecast_coverage
+    tk = FakeToolkit(calm=True)
+    tk.series[-1].metadata = EnvironmentMetadata(basis='prediction', quality='good', components=[
+        EnvironmentComponentProvenance(component='water_level', source='fixture', basis='prediction', quality='good',
+            valid_to_utc=NOW+timedelta(minutes=1))])
+    report = run(tk=tk)
+    assert any(issue.issue == 'out_of_range' and issue.severity == 'RED' for issue in report.data_quality)
+    check = forecast_coverage(report)
+    assert not check.passed and check.severity == 'RED'
+
+
+@pytest.mark.parametrize("use_llm", [False, True])
+@pytest.mark.parametrize("quality, severity", [("poor", "RED"), ("suspect", "AMBER"), ("unknown", None)])
+def test_code_headline_preserves_quality_qualification(monkeypatch, use_llm, quality, severity):
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    tk = FakeToolkit(calm=True)
+    for sample in [tk.current, *tk.series]:
+        sample.quality = []
+    tk.series[-1].metadata = EnvironmentMetadata(basis="prediction", quality="good", components=[
+        EnvironmentComponentProvenance(component="current", source="fixture", basis="prediction", quality=quality)])
+    if use_llm:
+        install(monkeypatch, proposal(summary_sentences=["Review the observations before planning.",
+                                                        "Confirm the available forecast with the mooring team."]))
+    report = run(tk=tk)
+    headline = report.summary.split(".", 1)[0]
+    assert "No windows of concern" in headline
+    assert ("input quality is" in headline) == (severity is not None)
+    if severity:
+        assert f"input quality is {severity}; review is required" in headline
+    assert report.summary_source == ("llm" if use_llm else "deterministic")
+
+
+@pytest.mark.parametrize('problem', ['future_live', 'future_replay', 'future_observation', 'future_issued',
+                                     'unknown_issue', 'late_component', 'missing_component'])
+def test_unavailable_future_guidance_cannot_become_a_planning_condition(problem):
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    tk = FakeToolkit(calm=True)
+    for sample in [tk.current, *tk.series]:
+        sample.quality = []
+    sample = tk.series[1].model_copy(update={'wind_speed_kt': 99, 'wind_gust_kt': 99, 'source': 'forecast'})
+    if problem == 'future_live':
+        sample.source = 'live'
+    elif problem == 'future_replay':
+        sample.source = 'replay'
+    elif problem == 'future_observation':
+        sample.metadata = EnvironmentMetadata(basis='observation', age_s=0)
+    elif problem == 'future_issued':
+        sample.metadata = EnvironmentMetadata(basis='prediction', issued_at_utc=NOW+timedelta(minutes=1))
+    elif problem == 'unknown_issue':
+        sample.metadata = EnvironmentMetadata(basis='prediction')
+    else:
+        kinds = ('wind', 'current', 'water_level') if problem == 'late_component' else ('wind',)
+        sample.metadata = EnvironmentMetadata(basis='prediction', components=[
+            EnvironmentComponentProvenance(component=kind, source='fixture', basis='prediction', quality='good',
+                retrieved_at_utc=NOW+timedelta(minutes=1)) for kind in kinds])
+    tk.series[1] = sample
+    report, usable = asyncio.run(core.assess_with_forecast(request(), tk))
+    assert any(issue.issue == 'missing' and issue.severity == 'RED' for issue in report.data_quality)
+    assert report.mst.max_wind_kt == 5
+    assert all(condition.environment.wind_speed_kt != 99 for condition in report.planning_conditions)
+    assert sample not in usable
+    assert all(window.severity != 'RED' for window in report.windows)
+
+
+def test_available_composite_prediction_keeps_unknown_issue_as_information():
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    tk = FakeToolkit(calm=True)
+    for sample in [tk.current, *tk.series]:
+        sample.quality = []
+    tk.series[1] = tk.series[1].model_copy(update={'source': 'forecast', 'wind_speed_kt': 20, 'wind_gust_kt': 20,
+        'metadata': EnvironmentMetadata(basis='prediction', components=[
+            EnvironmentComponentProvenance(component=kind, source='fixture', basis='prediction', quality='good',
+                retrieved_at_utc=NOW-timedelta(minutes=1)) for kind in ('wind', 'current', 'water_level')])})
+    report = run(tk=tk)
+    assert report.mst.max_wind_kt == 20
+    assert not any(issue.severity in ('AMBER', 'RED') for issue in report.data_quality)
+    assert any('issue time is unknown' in issue.detail for issue in report.data_quality)
+
+
+def test_future_observation_cannot_be_the_current_assessment():
+    from mooring_agents.physics.client import ModelingError
+    tk = FakeToolkit(calm=True)
+    tk.current = tk.current.model_copy(update={'source': 'live', 'valid_at_utc': NOW+timedelta(hours=1)})
+    with pytest.raises(ModelingError, match='Future observations'):
+        run(tk=tk)
+
+
+def test_all_unavailable_forecast_samples_leave_only_the_actual_current_snapshot():
+    tk = FakeToolkit(calm=True)
+    tk.series = [sample.model_copy(update={'source': 'forecast', 'metadata': None,
+                                         'wind_speed_kt': 99, 'wind_gust_kt': 99}) for sample in tk.series]
+    report, usable = asyncio.run(core.assess_with_forecast(request(), tk))
+    assert usable == [tk.current]
+    assert report.mst.max_wind_kt == tk.current.wind_speed_kt
+    assert all(item.environment == tk.current for item in report.planning_conditions)
+    assert any(issue.severity == 'RED' and 'excluded' in issue.detail for issue in report.data_quality)
+
+
+def test_optional_narration_only_receives_temporally_available_snapshots(monkeypatch):
+    tk = FakeToolkit(calm=True)
+    tk.series[1] = tk.series[1].model_copy(update={'source': 'live', 'wind_speed_kt': 99, 'wind_gust_kt': 99})
+    fake = install(monkeypatch, proposal(extra_condition={'forecast_index': 1,
+                                                        'why': 'Review this additional forecast condition.'}))
+    report = run(tk=tk)
+    payload = json.loads(fake.calls[0][0][-1].content)
+    assert len(payload['forecast']) == 2
+    assert all(sample['wind_speed_kt'] != 99 for sample in payload['forecast'])
+    assert report.summary_source == 'llm'
+    assert report.summary.startswith('Forecast assessment incomplete;')
+    assert all(condition.environment.wind_speed_kt != 99 for condition in report.planning_conditions)
+
+
+def test_offset_inputs_are_converted_before_printing_utc_times():
+    tk = FakeToolkit()
+    offset = timezone(timedelta(hours=-5))
+    tk.current = tk.current.model_copy(update={'valid_at_utc': NOW.astimezone(offset)})
+    tk.series = [sample.model_copy(update={'valid_at_utc': sample.valid_at_utc.astimezone(offset)}) for sample in tk.series]
+    report = run(tk=tk)
+    assert '12:00Z' in report.planning_conditions[0].why
+    assert report.current.valid_at_utc.utcoffset() == timedelta(0)
+    assert tk.current.valid_at_utc.utcoffset() == timedelta(hours=-5)  # no caller mutation
+
+
+def test_repeated_local_hour_does_not_drop_a_forecast_peak(monkeypatch):
+    from zoneinfo import ZoneInfo
+    zone = ZoneInfo('America/New_York')
+    anchor = datetime(2026, 11, 1, 5, tzinfo=UTC)
+    monkeypatch.setattr(core, 'utcnow', lambda: anchor)
+    tk = FakeToolkit(calm=True)
+    tk.current = tk.current.model_copy(update={'valid_at_utc': anchor.astimezone(zone)})
+    tk.series = [tk.current.model_copy(update={
+        'valid_at_utc': (anchor + timedelta(minutes=30*i)).astimezone(zone),
+        'wind_gust_kt': 64 if i == 2 else 8,
+    }) for i in range(5)]
+    report = run(tk=tk)
+    assert not any(q.station_id == 'forecast' and q.issue == 'missing' for q in report.data_quality)
+    assert any(w.severity == 'RED' and w.peak_value == 64 for w in report.windows)
+    assert report.planning_conditions[0].environment.valid_at_utc == anchor + timedelta(hours=1)
+    assert '06:00Z' in report.planning_conditions[0].why
+
+
+@pytest.mark.parametrize('boundary', ['before_start', 'after_end'])
+def test_aggregate_interval_failure_blocks_review_even_on_nonpeak_sample(boundary):
+    from mooring.core.schemas import EnvironmentMetadata
+    from mooring_agents.safety.checks import forecast_coverage
+    tk = FakeToolkit(calm=True)
+    for sample in [tk.current, *tk.series]:
+        sample.quality = []
+    at = tk.series[-1].valid_at_utc
+    interval = ({'valid_from_utc': at + timedelta(minutes=1)} if boundary == 'before_start'
+                else {'valid_to_utc': at - timedelta(minutes=1)})
+    tk.series[-1].metadata = EnvironmentMetadata(source='interval fixture', basis='scenario', quality='good', **interval)
+    report = run(tk=tk)
+    assert any(issue.issue == 'out_of_range' and issue.severity == 'RED' for issue in report.data_quality)
+    assert 'input quality is RED' in report.summary.split('.')[0]
+    assert not forecast_coverage(report).passed

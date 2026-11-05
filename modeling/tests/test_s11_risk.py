@@ -3,7 +3,7 @@
 import copy
 import math
 import random
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -82,6 +82,106 @@ def test_failed_samples_are_counted_and_bound_the_probability():
     assert t.failed == 100 and t.n == 1000
     lower, upper = t.any_wll / t.n, (t.any_wll + t.failed) / t.n
     assert lower < t.any_wll / (t.n - t.failed) < upper + 1e-12
+
+
+def test_failed_sampling_still_checks_cancellation():
+    calls = []
+    class Cancelled(Exception):
+        pass
+    def progress(i):
+        calls.append(i)
+        if i == 50:
+            raise Cancelled
+    with pytest.raises(Cancelled):
+        risk.monte_carlo(lambda: None, lambda _: None, 1000, progress)
+    assert calls == [0, 50]
+
+
+@pytest.fixture
+def horizon_inputs():
+    from mooring.core.schemas import AnalyzeRequest, ExceedanceRequest
+    req = ExceedanceRequest(**{**EXAMPLES["risk_exceedance"], "n_samples": 10, "n_trajectories": 10, "horizon_hours": 1.1})
+    base = AnalyzeRequest.model_validate(req.model_dump(include=set(AnalyzeRequest.model_fields)))
+    system, sol, specs = risk.solver.solve_request(base)
+    return req, system, specs, sol, unc.SYNTHETIC_DEMO, risk.design_factor(req.mst)
+
+
+def test_horizon_failure_is_unknown_with_bounds_and_endpoint_coverage(monkeypatch, horizon_inputs):
+    calls = []
+    def trajectory(self, base, n_steps, step_min):
+        calls.append((n_steps, step_min))
+        return [base] * n_steps
+    monkeypatch.setattr(unc.Sampler, "trajectory", trajectory)
+    # A whole failed trajectory must not be silently classified as non-exceeding.
+    monkeypatch.setattr(risk, "_eval_env", lambda *args: None)
+    h = risk._horizon(*horizon_inputs)
+    assert h.n_failed == 10 and h.p_event_bounds == [0, 1] and h.p_event_ci95 == [0, 1]
+    assert calls == [(4, 22.0)] * 10
+    assert h.effective_step_min * (calls[0][0] - 1) == pytest.approx(h.horizon_hours * 60)
+
+
+def test_horizon_mixed_results_preserve_failed_bounds(monkeypatch, horizon_inputs):
+    outcomes = iter([None, {"line-1": (2, 1, 3)}] * 5)
+    monkeypatch.setattr(risk, "_eval_env", lambda *args: next(outcomes))
+    h = risk._horizon(*horizon_inputs)
+    assert h.n_failed == 5 and h.p_event == 0.5 and h.p_event_bounds == [0.5, 1]
+    assert h.p_event_ci95[1] == 1 and h.p_event_ci95[0] < 0.5
+
+
+def test_horizon_checks_cancellation_within_a_trajectory(monkeypatch, horizon_inputs):
+    class Cancelled(Exception):
+        pass
+    class Context:
+        count = 0
+        def check_cancelled(self):
+            self.count += 1
+            if self.count == 3:
+                raise Cancelled
+        def progress(self, *args):
+            pass
+    calls = []
+    def evaluate(*args):
+        calls.append(1)
+        return {"line-1": (0, 1, 3)}
+    monkeypatch.setattr(risk, "_eval_env", evaluate)
+    with pytest.raises(Cancelled):
+        risk._horizon(*horizon_inputs, ctx=Context())
+    assert len(calls) == 1
+
+
+def test_all_failed_risk_calculations_are_invalid(monkeypatch, horizon_inputs):
+    monkeypatch.setattr(risk, "_eval_env", lambda *args: None)
+    req = horizon_inputs[0].model_copy(update={"include_horizon": True})
+    response = risk.exceedance(req)
+    assert response.status == "RED" and response.validity.state == "invalid"
+    assert response.result.n_valid == 0 and response.result.p_any_bounds == [0, 1]
+    assert response.result.horizon.p_event_bounds == [0, 1]
+    assert {"NO_VALID_RISK_SAMPLES", "FAILED_TRAJECTORIES"} <= {r.code for r in response.validity.reasons}
+
+
+def test_async_risk_result_schemas_are_published_for_consumers():
+    import re
+    from modeling_api.main import openapi_schema
+    contract = openapi_schema()
+    schemas = contract["components"]["schemas"]
+    assert {"ExceedanceResponse", "TimelineResponse", "HorizonRisk"} <= schemas.keys()
+    assert {"p_event_bounds", "effective_step_min"} <= schemas["HorizonRisk"]["properties"].keys()
+    # Every result promised in a job endpoint's public summary must be usable by consumers.
+    for path, methods in contract["paths"].items():
+        for operation in methods.values():
+            match = re.search(r"(?:result is an? |job result: )(\w+Response)", operation.get("summary", ""))
+            if match:
+                assert match[1] in schemas, (path, match[1])
+
+
+def test_sample_evaluator_includes_loaded_ship_fittings(horizon_inputs):
+    _, system, _, sol, _, df = horizon_inputs
+    evaluated = risk._eval_env(system, sol.pose, df)
+    expected = {rec.ln.ship_fitting_id for rec in system.lines}
+    rated = {f.fitting_id: f.swl_lbf for f in system.ship.fittings if f.swl_lbf}
+    assert expected & rated.keys()
+    for fid in expected & rated.keys():
+        assert evaluated[fid][1:] == (rated[fid], None)
 
 
 # ---------- service ----------
@@ -177,6 +277,81 @@ def test_timeline_with_sampling_gives_pointwise_probabilities_labeled_scenario_o
     assert "UNQUALIFIED_UNCERTAINTY_MODEL" in {r["code"] for r in j["validity"]["reasons"]}
 
 
+def supplied_timeline():
+    body = copy.deepcopy(EXAMPLES["risk_timeline"])
+    start = datetime(2026, 11, 4, 12, tzinfo=UTC)
+    base = EnvironmentSnapshot.model_validate(body["environment"])
+    body.update(start_utc=start.isoformat(), forecast_hours=1, step_min=60, forecast=[
+        base.model_copy(update={"valid_at_utc": start + timedelta(minutes=i), "source": "scenario",
+            "wind_speed_kt": 10, "wind_gust_kt": 50 if i == 15 else 12}).model_dump(mode="json")
+        for i in (0, 15, 30, 45, 60)
+    ])
+    return body
+
+
+def test_timeline_supplied_knots_preserve_interior_gust_and_never_use_training_fallback(monkeypatch):
+    from mooring.data_simulation import timeline as training
+    def forbidden(*args):
+        raise AssertionError("supplied forecast cannot be replaced by training data")
+    monkeypatch.setattr(training, "sample", forbidden)
+    body = supplied_timeline()
+    response = client.post(f"{P}/risk/timeline", json=body)
+    assert response.status_code == 202
+    result = wait(response.json())["result"]
+    assert result["forcing_source"] == "supplied" and len(result["steps"]) == 5
+    assert [s["wind_gust_kt"] for s in result["steps"]] == [12, 50, 12, 12, 12]
+    assert [s["environment"]["valid_at_utc"] for s in result["steps"]] == [s["valid_at_utc"] for s in body["forecast"]]
+
+
+@pytest.mark.parametrize("change", ["no_start", "naive_start", "naive_sample", "duplicate", "unordered", "missing_end", "gap"])
+def test_timeline_rejects_ambiguous_or_incomplete_forecast(change):
+    body = supplied_timeline()
+    if change == "no_start":
+        body.pop("start_utc")
+    elif change == "naive_start":
+        body["start_utc"] = "2026-11-04T12:00:00"
+    elif change == "naive_sample":
+        body["forecast"][1]["valid_at_utc"] = "2026-11-04T12:15:00"
+    elif change == "duplicate":
+        body["forecast"][1] = body["forecast"][0]
+    elif change == "unordered":
+        body["forecast"].reverse()
+    elif change == "missing_end":
+        body["forecast"].pop()
+    else:
+        body["forecast_hours"] = 2
+        body["forecast"] = [body["forecast"][0], {**body["forecast"][-1], "valid_at_utc": "2026-11-04T14:00:00Z"}]
+    assert client.post(f"{P}/risk/timeline", json=body).status_code == 422
+
+
+def test_legacy_timeline_is_explicit_training_even_when_public_provider_is_enabled(monkeypatch):
+    monkeypatch.setenv("MOORING_ENV_SOURCE", "coops")
+    response = timeline(forecast_hours=1, step_min=45)
+    assert response["result"]["forcing_source"] == "synthetic_training"
+    steps = response["result"]["steps"]
+    assert len(steps) == 3 and steps[-1]["valid_at_utc"] == "2026-11-04T13:00:00Z"
+    assert all(s["environment"]["source"] == "scenario" and s["status"] != "GREEN" for s in steps)
+    assert "SYNTHETIC_TIMELINE" in {r["code"] for r in response["validity"]["reasons"]}
+    assert all("SYNTHETIC_TIMELINE" in {r["code"] for r in s["validity"]["reasons"]} for s in steps)
+
+
+def test_timeline_bad_quality_is_invalid_not_a_usable_percentage():
+    body = supplied_timeline()
+    body["forecast"][1]["metadata"] = {"basis": "prediction", "quality": "poor", "source": "fixture"}
+    response = wait(client.post(f"{P}/risk/timeline", json=body).json())
+    step = response["result"]["steps"][1]
+    assert response["status"] == "RED" and response["validity"]["state"] == "invalid"
+    assert step["status"] == "RED" and step["valid"] is False and step.get("max_pct_wll") is None
+
+
+def test_timeline_failed_sampling_is_reported_with_unknown_probability(monkeypatch):
+    monkeypatch.setattr(risk, "_eval_env", lambda *args: None)
+    response = timeline(forecast_hours=1, step_min=60, n_samples_per_step=20)
+    assert response["validity"]["state"] == "invalid" and response["status"] == "RED"
+    assert all(s["n_failed"] == 20 and s["n_valid"] == 0 and s["p_any_bounds"] == [0, 1]
+               and s["p_any_exceeds_wll"] is None for s in response["result"]["steps"])
+
+
 def test_alert_carries_event_time_provenance_and_staleness():
     from mooring.core.schemas import AnalyzeRequest, EnvironmentMetadata
     req = AnalyzeRequest(**EXAMPLES["mooring_analyze"])
@@ -184,3 +359,81 @@ def test_alert_carries_event_time_provenance_and_staleness():
     assert fresh.at_utc == req.environment.valid_at_utc and "no probability" in fresh.provenance and fresh.stale is False
     old = req.environment.model_copy(update={"metadata": EnvironmentMetadata(basis="observation", age_s=4000.0)})
     assert risk.alert_for(old, req).stale is True and "stale" in risk.alert_for(old, req).message
+
+
+@pytest.mark.parametrize("with_plan", [False, True])
+def test_alert_rejects_poor_environment_before_solving(monkeypatch, with_plan):
+    from mooring.core.schemas import AnalyzeRequest, EnvironmentMetadata
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"])
+    env = req.environment.model_copy(update={"metadata": EnvironmentMetadata(basis="observation", quality="poor", age_s=0)})
+    def unexpected(*args, **kwargs):
+        pytest.fail("invalid environmental inputs must not be solved")
+    monkeypatch.setattr(risk.solver, "solve_request", unexpected)
+    alert = risk.alert_for(env, req if with_plan else None)
+    assert alert.severity == "RED" and alert.validity.state == "invalid"
+    assert alert.element_id is None and "%" not in alert.message
+    assert "ENVIRONMENT_POOR_QUALITY" in {r.code for r in alert.validity.reasons}
+
+
+def test_alert_grounding_is_invalid_without_utilization():
+    from mooring.core.schemas import AnalyzeRequest
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"])
+    env = req.environment.model_copy(update={"water_level_mllw_ft": -30.0})
+    alert = risk.alert_for(env, req)
+    assert alert.severity == "RED" and alert.validity.state == "invalid"
+    assert alert.element_id is None and "%" not in alert.message
+    assert "DEPTH_NOT_ABOVE_DRAFT" in {r.code for r in alert.validity.reasons}
+
+
+def test_alert_seed_plan_is_explicitly_limited():
+    from mooring.core.schemas import AnalyzeRequest
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"])
+    alert = risk.alert_for(req.environment, req)
+    assert alert.validity.state == "limited" and alert.severity in ("AMBER", "RED")
+    assert "Limited assessment" in alert.message and alert.element_id is not None
+
+
+def test_alert_no_plan_is_observation_not_adequacy():
+    from mooring.core.schemas import AnalyzeRequest, EnvironmentMetadata
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"])
+    alert = risk.alert_for(req.environment, None)
+    assert alert.validity.state == "limited" and "no plan assessed" in alert.message
+    old = req.environment.model_copy(update={"metadata": EnvironmentMetadata(basis="observation", age_s=4000)})
+    alert = risk.alert_for(old, None)
+    assert alert.stale and alert.severity == "AMBER"
+    assert "ALERT_ENVIRONMENT_STALE" in {r.code for r in alert.validity.reasons}
+
+
+def test_alert_invalid_plan_reference_is_structured():
+    from mooring.core.schemas import AnalyzeRequest
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"]).model_copy(update={"ship_class_id": "missing-ship"})
+    alert = risk.alert_for(req.environment, req)
+    assert alert.severity == "RED" and alert.validity.state == "invalid"
+    assert alert.element_id is None and "%" not in alert.message
+
+
+def test_alert_optional_validity_preserves_legacy_wire():
+    from mooring.core.schemas import Alert
+    env = EnvironmentSnapshot(**EXAMPLES["mooring_analyze"]["environment"])
+    alert = Alert(alert_id="legacy", at_utc=env.valid_at_utc, severity="INFO", element_id=None, message="Observation", env=env)
+    assert "validity" not in alert.model_dump(mode="json")
+
+
+@pytest.mark.parametrize("installation_tide", [None, -1.0])
+def test_alert_keeps_installed_rest_lengths_as_tide_changes(monkeypatch, installation_tide):
+    from mooring.core.schemas import AnalyzeRequest
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"]).model_copy(update={"installed_at_water_level_mllw_ft": installation_tide})
+    original_solve = risk.solver.solve_request
+    baseline, _, _ = original_solve(req)
+    baseline_lengths = [line.model.rest_length_ft for line in baseline.lines]
+    env = req.environment.model_copy(update={"water_level_mllw_ft": req.environment.water_level_mllw_ft + 4})
+    captured = []
+    def capture(current_req):
+        result = original_solve(current_req)
+        captured.append([line.model.rest_length_ft for line in result[0].lines])
+        return result
+    monkeypatch.setattr(risk.solver, "solve_request", capture)
+    risk.alert_for(env, req)
+    assert captured[0] == pytest.approx(baseline_lengths, rel=1e-12)
+    retensioned, _, _ = original_solve(req.model_copy(update={"environment": env, "installed_at_water_level_mllw_ft": None}))
+    assert any(abs(line.model.rest_length_ft - old) > 1e-3 for line, old in zip(retensioned.lines, baseline_lengths))

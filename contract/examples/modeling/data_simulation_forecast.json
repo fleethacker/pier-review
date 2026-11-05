@@ -1,0 +1,27 @@
+{
+  "berth_id": "NAVSTA-NORFOLK-P12-N",
+  "start_utc": "2026-11-04T15:48:00Z",
+  "baseline": {
+    "valid_at_utc": "2026-11-04T15:48:00Z",
+    "source": "scenario",
+    "wind_speed_kt": 4.0,
+    "wind_gust_kt": 5.0,
+    "wind_from_true_deg": 200.0,
+    "current_speed_kt": 0.1,
+    "current_set_true_deg": 10.0,
+    "water_level_mllw_ft": 1.8,
+    "tide_stage": "ebb",
+    "air_density_kgm3": 1.225,
+    "water_density_kgm3": 1020.0,
+    "wind_rel_ship_deg": null,
+    "current_rel_ship_deg": null,
+    "quality": []
+  },
+  "duration_hours": 48,
+  "step_min": 60,
+  "seed": 42,
+  "gust_peak_kt": 15.0,
+  "gust_noise_sigma_kt": 0.0,
+  "water_level_amplitude_ft": 0.0,
+  "water_level_period_hours": 12.0
+}

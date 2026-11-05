@@ -59,19 +59,36 @@ export function shipPose(ship: ShipClass, side: SideTo, shipXFt: number, standof
 }
 
 /** Simple pointed-bow hull outline in the ship frame (+x forward, +y to port, midships origin), in meters. */
-export function hullPoints(loaFt: number, beamFt: number): [number, number][] {
-  const half = loaFt / 2;
+/**
+ * Half-hull profiles, stern to bow, as [fraction of LOA from midships (+ forward), fraction of half-beam].
+ * Mirrored to port and starboard. The widest point is always 1, so the outline spans exactly LOA and beam.
+ */
+const HALF_PROFILES: Record<string, [number, number][]> = {
+  // Destroyer: transom stern, long parallel body, flared and sharply raked bow.
+  DDG: [[-0.5, 0.74], [-0.46, 0.9], [-0.38, 0.98], [-0.3, 1], [0.12, 1], [0.24, 0.93], [0.34, 0.74], [0.42, 0.46], [0.47, 0.22], [0.5, 0]],
+  // Cruiser: narrower and finer than the destroyer.
+  CG: [[-0.5, 0.7], [-0.46, 0.88], [-0.38, 0.98], [-0.3, 1], [0.1, 1], [0.23, 0.92], [0.34, 0.7], [0.42, 0.42], [0.47, 0.2], [0.5, 0]],
+  // Amphibious assault ship: full flat-sided body, squared stern, blunt bow.
+  LHD: [[-0.5, 0.86], [-0.49, 0.97], [-0.44, 1], [0.3, 1], [0.38, 0.97], [0.44, 0.84], [0.48, 0.58], [0.5, 0.3], [0.5, 0]],
+  LHA: [[-0.5, 0.86], [-0.49, 0.97], [-0.44, 1], [0.3, 1], [0.38, 0.97], [0.44, 0.84], [0.48, 0.58], [0.5, 0.3], [0.5, 0]],
+  DEFAULT: [[-0.5, 0.8], [-0.25, 1], [0.2, 1], [0.5, 0]],
+};
+
+/** Carrier flight deck, port side [x, y] in LOA and half-beam fractions: the angled deck overhangs to port. */
+const CVN_PORT: [number, number][] = [[-0.5, 0.72], [-0.46, 0.95], [-0.3, 1], [-0.08, 0.98], [0.04, 0.88], [0.2, 0.84], [0.38, 0.62], [0.46, 0.3], [0.5, 0]];
+/** Starboard side: straighter, with the island sitting on the edge. */
+const CVN_STBD: [number, number][] = [[-0.5, -0.72], [-0.47, -0.9], [-0.4, -0.96], [-0.2, -1], [0.18, -1], [0.3, -0.92], [0.4, -0.66], [0.46, -0.32], [0.5, 0]];
+
+export function hullPoints(loaFt: number, beamFt: number, hullType?: string): [number, number][] {
   const hb = beamFt / 2;
-  const pts: [number, number][] = [
-    [-half, -hb * 0.8],
-    [-0.25 * loaFt, -hb],
-    [0.2 * loaFt, -hb],
-    [half, 0],
-    [0.2 * loaFt, hb],
-    [-0.25 * loaFt, hb],
-    [-half, hb * 0.8],
-  ];
-  return pts.map(([x, y]) => [ft(x), ft(y)]);
+  const at = (x: number, y: number): [number, number] => [ft(x * loaFt), ft(y * hb)];
+  if (hullType === 'CVN') {
+    return [...CVN_STBD.map(([x, y]) => at(x, y)), ...[...CVN_PORT].reverse().slice(1).map(([x, y]) => at(x, y))];
+  }
+  const half = HALF_PROFILES[hullType ?? ''] ?? HALF_PROFILES.DEFAULT;
+  const stbd = half.map(([x, y]) => at(x, -y));
+  const port = [...half].reverse().slice(1, -1).map(([x, y]) => at(x, y));
+  return [...stbd, ...port];
 }
 
 const SHIP_COLOR = '#4c7db3';
@@ -85,6 +102,11 @@ function fittingColor(condition: string): string {
 
 function statusOf(s: string | undefined): Status {
   return s === 'GREEN' || s === 'AMBER' || s === 'RED' ? s : 'NONE';
+}
+
+/** Invalid/unknown results cannot supply usable forces or passing element colors. */
+export function hasUsableAnalysis(analysis: AnalyzeResponse | null): boolean {
+  return analysis?.validity?.state === 'valid' || analysis?.validity?.state === 'limited';
 }
 
 function usageProps(
@@ -142,7 +164,7 @@ export function pierEntities(berth: Berth, analysis: AnalyzeResponse | null): Sc
     ],
   };
 
-  const used = new Map((analysis?.result.pier_fittings ?? []).map((f) => [f.fitting_id, f]));
+  const used = new Map((hasUsableAnalysis(analysis) ? analysis?.result.pier_fittings ?? [] : []).map((f) => [f.fitting_id, f]));
   const fittings = berth.fittings.map<SceneEntity>((f) => {
     const r = used.get(f.fitting_id);
     return {
@@ -226,58 +248,136 @@ interface Block {
   h: number;
   /** Raised off the hull top, meters (decks above the hull). */
   lift?: number;
+  /** An arbitrary outline instead of the rectangle, as [fraction of LOA, fraction of beam] points. */
+  poly?: [number, number][];
+  color?: string;
 }
 
-/** Rough above-deck profiles so each class reads as a different ship. Not to scale; the hull outline is what counts. */
+const DECK = '#2f4f73';
+const DECK_MARK = '#c9d6e6';
+const GRAY = '#7ba3d1';
+const DARK = '#5d86b3';
+
+/** A rectangle given by its two corners, as a polygon block. */
+const box = (x0: number, x1: number, y0: number, y1: number, h: number, lift = 0, color?: string): Block => ({
+  x: (x0 + x1) / 2, len: Math.abs(x1 - x0), y: (y0 + y1) / 2, w: Math.abs(y1 - y0), h, lift, color,
+});
+
+/** A strip along the deck at an angle, for runway markings. Ends are [x, y] centers; width is a beam fraction. */
+const strip = (x0: number, y0: number, x1: number, y1: number, width: number, h: number, lift: number, color: string): Block => {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const n = Math.hypot(dx, dy) || 1;
+  const px = (-dy / n) * (width / 2);
+  const py = (dx / n) * (width / 2);
+  return {
+    x: 0, len: 0, y: 0, w: 0, h, lift, color,
+    poly: [[x0 + px, y0 + py], [x1 + px, y1 + py], [x1 - px, y1 - py], [x0 - px, y0 - py]],
+  };
+};
+
+/** Above-deck detail per class, in fractions of LOA and beam, so each class reads as its own ship. */
 export function superstructureProfile(hullType: string | undefined): Block[] {
   switch (hullType) {
     case 'CVN':
       return [
-        { x: 0, len: 0.96, y: 0, w: 1.45, h: 1.5 },
-        { x: 0.1, len: 0.12, y: -0.62, w: 0.14, h: 20, lift: 1.5 },
+        // Flight deck markings: angled landing area to port, waist catapults forward, centerline strip.
+        strip(-0.48, 0.08, 0.1, 0.34, 0.09, 0.2, 0.1, DECK_MARK),
+        strip(-0.3, 0.02, 0.44, 0.02, 0.05, 0.2, 0.1, DECK_MARK),
+        strip(0.1, -0.12, 0.46, -0.06, 0.04, 0.2, 0.1, DECK_MARK),
+        // Island on the starboard edge: stepped base, bridge, then the mast and radar tower.
+        { x: 0.04, len: 0.14, y: -0.37, w: 0.16, h: 7, lift: 0, color: GRAY },
+        { x: 0.05, len: 0.1, y: -0.37, w: 0.14, h: 6, lift: 7, color: DARK },
+        { x: 0.02, len: 0.035, y: -0.38, w: 0.07, h: 10, lift: 13, color: GRAY },
+        { x: 0.075, len: 0.02, y: -0.38, w: 0.05, h: 5, lift: 13, color: DARK },
+        // Aircraft on the flight deck, as low blocks.
+        box(-0.4, -0.34, 0.12, 0.2, 4, 0, DARK),
+        box(-0.3, -0.24, 0.2, 0.28, 4, 0, DARK),
+        box(-0.2, -0.14, 0.3, 0.38, 4, 0, DARK),
+        // Elevators and sponsons read as notches in the deck edge.
+        box(-0.12, 0, -0.5, -0.42, 0.4, 0, DECK),
+        box(0.18, 0.28, -0.5, -0.42, 0.4, 0, DECK),
       ];
     case 'LHD':
     case 'LHA':
       return [
-        { x: 0, len: 0.94, y: 0, w: 1.2, h: 1.5 },
-        { x: 0.12, len: 0.14, y: -0.5, w: 0.14, h: 16, lift: 1.5 },
+        // Flat flight deck with spot markings and a starboard island.
+        { x: -0.02, len: 0.96, y: 0, w: 0.98, h: 0.5, lift: 0, color: DECK },
+        strip(-0.46, 0, 0.44, 0, 0.03, 0.2, 0.5, DECK_MARK),
+        box(-0.38, -0.34, -0.14, 0.14, 0.2, 0.5, DECK_MARK),
+        box(-0.22, -0.18, -0.14, 0.14, 0.2, 0.5, DECK_MARK),
+        box(-0.06, -0.02, -0.14, 0.14, 0.2, 0.5, DECK_MARK),
+        box(0.1, 0.14, -0.14, 0.14, 0.2, 0.5, DECK_MARK),
+        box(0.26, 0.3, -0.14, 0.14, 0.2, 0.5, DECK_MARK),
+        // Island: stepped bridge, then mast and the two stacks aft.
+        { x: 0.1, len: 0.14, y: -0.36, w: 0.2, h: 7, lift: 0.5, color: GRAY },
+        { x: 0.1, len: 0.09, y: -0.36, w: 0.16, h: 4, lift: 7.5, color: DARK },
+        { x: 0.12, len: 0.03, y: -0.36, w: 0.06, h: 8, lift: 11.5, color: GRAY },
+        { x: -0.02, len: 0.045, y: -0.36, w: 0.08, h: 6, lift: 0.5, color: DARK },
+        { x: -0.08, len: 0.045, y: -0.36, w: 0.08, h: 6, lift: 0.5, color: DARK },
+        // Deck-edge elevator to port and aircraft parked aft.
+        box(-0.2, -0.1, 0.38, 0.48, 0.3, 0.5, DECK_MARK),
+        box(-0.44, -0.38, 0.2, 0.3, 3, 0.5, DARK),
       ];
     case 'CG':
       return [
-        { x: 0.05, len: 0.3, y: 0, w: 0.62, h: 9 },
-        { x: -0.12, len: 0.08, y: 0, w: 0.3, h: 15 },
-        { x: 0.3, len: 0.07, y: 0, w: 0.3, h: 3 },
+        // Forward gun, forward VLS, then the raked deckhouse with bridge wing level and mast.
+        { x: 0.32, len: 0.035, y: 0, w: 0.12, h: 3, color: DARK },
+        box(0.22, 0.28, -0.12, 0.12, 0.8, 0, DECK),
+        { x: 0, len: 0, y: 0, w: 0, h: 9, color: GRAY, poly: [[0.2, -0.17], [0.2, 0.17], [0.14, 0.3], [-0.04, 0.3], [-0.04, -0.3], [0.14, -0.3]] },
+        { x: 0.11, len: 0.07, y: 0, w: 0.26, h: 4, lift: 9, color: DARK },
+        { x: 0.08, len: 0.025, y: 0, w: 0.06, h: 12, lift: 13, color: GRAY },
+        // Two stacks, aft mast, aft VLS, aft gun and the helicopter deck.
+        { x: -0.07, len: 0.06, y: 0, w: 0.17, h: 5, lift: 9, color: GRAY },
+        { x: -0.13, len: 0.05, y: 0, w: 0.15, h: 4, lift: 9, color: DARK },
+        { x: -0.18, len: 0.025, y: 0, w: 0.05, h: 9, lift: 9, color: GRAY },
+        box(-0.26, -0.2, -0.12, 0.12, 0.8, 0, DECK),
+        { x: -0.31, len: 0.035, y: 0, w: 0.12, h: 3, color: DARK },
+        box(-0.5, -0.36, -0.36, 0.36, 0.3, 0, DECK),
+        { x: -0.43, len: 0.07, y: 0, w: 0.2, h: 0.2, color: DECK_MARK, lift: 0.3 },
       ];
     default:
       return [
-        { x: 0.08, len: 0.28, y: 0, w: 0.62, h: 9 },
-        { x: -0.1, len: 0.07, y: 0, w: 0.28, h: 14 },
-        { x: 0.3, len: 0.06, y: 0, w: 0.3, h: 3 },
+        // Arleigh Burke: gun and VLS forward, a raked deckhouse with the mast, twin stacks, then hangars and helo deck aft.
+        { x: 0.32, len: 0.04, y: 0, w: 0.12, h: 3, color: DARK },
+        box(0.22, 0.29, -0.11, 0.11, 0.8, 0, DECK),
+        { x: 0, len: 0, y: 0, w: 0, h: 8, color: GRAY, poly: [[0.15, -0.17], [0.15, 0.17], [0.09, 0.3], [-0.12, 0.3], [-0.12, -0.3], [0.09, -0.3]] },
+        { x: 0.07, len: 0.07, y: 0, w: 0.24, h: 4, lift: 8, color: DARK },
+        { x: 0.0, len: 0.03, y: 0, w: 0.07, h: 13, lift: 8, color: GRAY },
+        { x: -0.08, len: 0.045, y: 0.2, w: 0.1, h: 5, lift: 8, color: DARK },
+        { x: -0.08, len: 0.045, y: -0.2, w: 0.1, h: 5, lift: 8, color: DARK },
+        { x: -0.17, len: 0.025, y: 0, w: 0.05, h: 7, lift: 8, color: GRAY },
+        box(-0.26, -0.19, -0.11, 0.11, 0.8, 0, DECK),
+        { x: -0.34, len: 0.1, y: 0.18, w: 0.2, h: 5.5, color: GRAY },
+        { x: -0.34, len: 0.1, y: -0.18, w: 0.2, h: 5.5, color: GRAY },
+        box(-0.5, -0.39, -0.35, 0.35, 0.3, 0, DECK),
+        { x: -0.45, len: 0.06, y: 0, w: 0.2, h: 0.2, color: DECK_MARK, lift: 0.3 },
       ];
   }
 }
 
 export function superstructure(ship: ShipClass, pose: Pose, freeboardM: number): SceneEntity[] {
   return superstructureProfile(ship.hull_type).map((b, i) => {
-    const cx = ft(b.x * ship.loa_ft);
-    const cy = ft(b.y * ship.beam_ft);
-    const hl = ft((b.len * ship.loa_ft) / 2);
-    const hw = ft((b.w * ship.beam_ft) / 2);
+    const points: [number, number][] = b.poly
+      ? b.poly.map(([x, y]) => [ft(x * ship.loa_ft), ft(y * ship.beam_ft)])
+      : (() => {
+          const cx = ft(b.x * ship.loa_ft);
+          const cy = ft(b.y * ship.beam_ft);
+          const hl = ft((b.len * ship.loa_ft) / 2);
+          const hw = ft((b.w * ship.beam_ft) / 2);
+          return [
+            [cx - hl, cy - hw],
+            [cx + hl, cy - hw],
+            [cx + hl, cy + hw],
+            [cx - hl, cy + hw],
+          ];
+        })();
     return {
       id: `${IDS.ship}-part:${i}`,
       kind: 'ship-part',
       pose: { ...pose, z: freeboardM + (b.lift ?? 0) },
-      geometry: {
-        type: 'polygon',
-        points: [
-          [cx - hl, cy - hw],
-          [cx + hl, cy - hw],
-          [cx + hl, cy + hw],
-          [cx - hl, cy + hw],
-        ],
-        heightM: b.h,
-      },
-      color: '#7ba3d1',
+      geometry: { type: 'polygon', points, heightM: b.h },
+      color: b.color ?? GRAY,
       selectable: true,
       selectsId: IDS.ship,
     };
@@ -302,7 +402,7 @@ export function shipEntities(
     kind: 'ship',
     label: ship.class_id,
     pose,
-    geometry: { type: 'polygon', points: hullPoints(ship.loa_ft, ship.beam_ft), heightM: freeboard },
+    geometry: { type: 'polygon', points: hullPoints(ship.loa_ft, ship.beam_ft, ship.hull_type), heightM: freeboard },
     color: SHIP_COLOR,
     selectable: true,
     editable: editable
@@ -323,7 +423,7 @@ export function shipEntities(
   };
 
   const sideName = side === 'starboard' ? 'starboard' : 'port';
-  const used = new Map((analysis?.result.ship_fittings ?? []).map((f) => [f.fitting_id, f]));
+  const used = new Map((hasUsableAnalysis(analysis) ? analysis?.result.ship_fittings ?? [] : []).map((f) => [f.fitting_id, f]));
   const fittings = (ship.fittings ?? [])
     .filter((f) => f.kind === 'bitt' && f.side === sideName)
     .map<SceneEntity>((f) => {
@@ -349,7 +449,7 @@ export function shipEntities(
       };
     });
   // On the water: a soft shadow under the hull, and a halo in the plan's overall status color.
-  const outline = hullPoints(ship.loa_ft, ship.beam_ft);
+  const outline = hullPoints(ship.loa_ft, ship.beam_ft, ship.hull_type);
   const grow = (pts: [number, number][], dx: number, dy: number, offX = 0, offY = 0): [number, number][] =>
     pts.map(([x, y]) => [x + Math.sign(x) * dx + offX, y + Math.sign(y) * dy + offY]);
   const away = side === 'starboard' ? 1 : -1; // ship +y points away from the pier when starboard side to
@@ -387,7 +487,7 @@ export function lineLinks(
   missingFittingIds: string[] = [],
 ): SceneLink[] {
   const deckHeight = ft(berth.deck_height_mllw_ft);
-  const results = new Map((analysis?.result.lines ?? []).map((l) => [l.line_number, l]));
+  const results = new Map((hasUsableAnalysis(analysis) ? analysis?.result.lines ?? [] : []).map((l) => [l.line_number, l]));
   const links: SceneLink[] = [];
   for (const line of lines) {
     const sf = ship.fittings?.find((f) => f.fitting_id === line.ship_fitting_id);

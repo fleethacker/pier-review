@@ -19,9 +19,15 @@ class ToolUse(BaseModel):
     arguments: dict[str, Any]
 
 
+class ImageInput(BaseModel):
+    media_type: Literal["image/png", "image/jpeg", "image/webp"]
+    data_base64: str = Field(max_length=12_000_000)
+
+
 class Message(BaseModel):
     role: Literal["system", "user", "assistant", "tool"]
     content: str
+    images: list[ImageInput] = Field(default_factory=list, max_length=4)
     tool_use_id: str | None = Field(default=None, description="role='tool': which ToolUse this answers.")
     tool_uses: list[ToolUse] = Field(default_factory=list, description="role='assistant': tools it asked for.")
 
@@ -63,7 +69,13 @@ class OpenAIResponsesLLM:
                 inputs.append({"type": "function_call_output", "call_id": message.tool_use_id,
                                "output": message.content})
             else:
-                if message.content:
+                if message.images:
+                    inputs.append({"role": message.role, "content": [
+                        {"type": "input_text", "text": message.content},
+                        *({"type": "input_image", "image_url": f"data:{image.media_type};base64,{image.data_base64}"}
+                          for image in message.images),
+                    ]})
+                elif message.content:
                     inputs.append({"role": message.role, "content": message.content})
                 for call in message.tool_uses:
                     inputs.append({"type": "function_call", "call_id": call.id, "name": call.name,
@@ -101,10 +113,14 @@ def get_llm() -> LLM:
     provider = os.environ.get("AGENTS_LLM_PROVIDER", "none").strip().lower()
     if provider in ("none", ""):
         raise LLMNotConfigured("No LLM configured")
-    if provider != "openai":
+    if provider not in ("openai", "anthropic"):
         raise LLMNotConfigured(f"Unsupported AGENTS_LLM_PROVIDER={provider!r}")
     model = os.environ.get("AGENTS_LLM_MODEL", "").strip()
-    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    key_name = "OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY"
+    key = os.environ.get(key_name, "").strip()
     if not model or not key:
-        raise LLMNotConfigured("Set AGENTS_LLM_MODEL and OPENAI_API_KEY to enable narration")
+        raise LLMNotConfigured(f"Set AGENTS_LLM_MODEL and {key_name} to enable narration")
+    if provider == "anthropic":
+        from .anthropic import AnthropicMessagesLLM
+        return AnthropicMessagesLLM(model, key)
     return OpenAIResponsesLLM(model, key)

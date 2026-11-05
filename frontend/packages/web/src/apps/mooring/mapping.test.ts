@@ -80,6 +80,18 @@ describe('ship placement', () => {
     expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(ft(500));
     expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(ft(60));
   });
+
+  it('gives each class its own hull that still spans LOA and beam', () => {
+    const outlines = ['DDG', 'CG', 'LHD', 'CVN'].map((t) => {
+      const pts = hullPoints(800, 100, t);
+      const xs = pts.map((p) => p[0]);
+      const ys = pts.map((p) => p[1]);
+      expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(ft(800));
+      expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(ft(100));
+      return JSON.stringify(pts);
+    });
+    expect(new Set(outlines).size).toBe(4);
+  });
 });
 
 describe('buildScene', () => {
@@ -178,8 +190,9 @@ describe('superstructure', () => {
   it('differs by hull type and stands in for the ship when clicked', () => {
     const ddg = mapping.superstructure({ ...ship, hull_type: 'DDG' } as ShipClass, pose, 6);
     const cvn = mapping.superstructure({ ...ship, hull_type: 'CVN', loa_ft: 1092, beam_ft: 134 } as ShipClass, pose, 6);
-    expect(ddg.length).toBe(3);
-    expect(cvn.length).toBe(2);
+    expect(ddg.length).toBeGreaterThan(8);
+    expect(cvn.length).toBeGreaterThan(8);
+    expect(ddg.length).not.toBe(cvn.length);
     for (const part of [...ddg, ...cvn]) {
       expect(part.selectsId).toBe('ship');
       expect(part.pose.z).toBeGreaterThanOrEqual(6);
@@ -200,9 +213,12 @@ describe('superstructure', () => {
 
   it('puts the carrier island on the starboard side of the ship frame', () => {
     const cvn = mapping.superstructure({ ...ship, hull_type: 'CVN' } as ShipClass, pose, 6);
-    const island = cvn[1];
-    if (island.geometry.type !== 'polygon') throw new Error('expected polygon');
-    expect(island.geometry.points.every((p) => p[1] < 0)).toBe(true);
+    const tall = cvn.filter((e) => e.geometry.type === 'polygon' && e.geometry.heightM >= 5);
+    expect(tall.length).toBeGreaterThan(0);
+    for (const island of tall) {
+      if (island.geometry.type !== 'polygon') throw new Error('expected polygon');
+      expect(island.geometry.points.every((p) => p[1] < 0)).toBe(true);
+    }
   });
 
   it('labels each arrow with the variable name and speed only, in its own color', () => {
@@ -274,4 +290,34 @@ describe('doubled-up lines', () => {
     expect(single.strands).toBe(1);
     expect(doubled.widthPx!).toBeGreaterThan(single.widthPx!);
   });
+});
+
+
+it.each(['invalid', 'unknown', undefined])('does not color lines/fittings from %s analysis as passing', (state) => {
+  const analysis = { status: 'RED', validity: state ? { state } : undefined, result: {
+    lines: [{ line_number: 1, status: 'GREEN', tension_lbf: 0, pct_wll: 0, pct_mbs: 0, length_ft: 1, horiz_angle_deg: 0, vert_angle_deg: 0 }],
+    pier_fittings: [{ fitting_id: 'P1', status: 'GREEN', load_lbf: 0, pct: 0, lines: [1] }],
+    ship_fittings: [{ fitting_id: 'BITT-1S', status: 'GREEN', load_lbf: 0, pct: 0, lines: [1] }],
+  } } as never;
+  const links = lineLinks(berth, ship, [{ line_number: 1, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1', spec_id: 'S', parts: 1 }], analysis);
+  expect(links[0].status).toBeUndefined();
+  expect(links[0].label).not.toContain('%');
+  expect(links[0].props?.some(p => p.label === 'Tension')).toBe(false);
+  const pier = pierEntities(berth, analysis).find(e => e.id === mapping.IDS.pierFitting('P1'))!;
+  const fitting = shipEntities(ship, 'full_load', 'starboard', 650, 12, analysis, true, berth).find(e => e.id === 'sfit:BITT-1S')!;
+  for (const entity of [pier, fitting]) {
+    expect(entity.status).toBeUndefined();
+    expect(entity.props?.some(p => p.label === 'Load')).toBe(false);
+  }
+});
+
+
+it.each(['valid', 'limited'])('retains evaluated line values for %s analysis', (state) => {
+  const analysis = { validity: { state }, result: { lines: [
+    { line_number: 1, status: 'GREEN', tension_lbf: 100, pct_wll: 12, pct_mbs: 4, length_ft: 30, horiz_angle_deg: 25, vert_angle_deg: 15 },
+  ] } } as never;
+  const [link] = lineLinks(berth, ship, [{ line_number: 1, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1', spec_id: 'S', parts: 1 }], analysis);
+  expect(link.status).toBe('GREEN');
+  expect(link.label).toContain('12%');
+  expect(link.props?.find(p => p.label === 'Tension')?.value).toBe('100 lbf');
 });

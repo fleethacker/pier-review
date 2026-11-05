@@ -4,7 +4,7 @@ The reasoning loop. It proposes tug count and horsepower, the line configuration
 and the line sequence, runs the Physics tools, checks results against NSTM 582 limits, and iterates until margins
 are acceptable or it reports that no safe plan exists.
 
-**Status:** `agent.py` implements the guarded adjustment loop with optional LLM proposals. `mock.py` is a compatibility shim sharing the same plan store. Physics capabilities remain mixed/mock; this agent does not qualify those models.
+**Status:** `agent.py` implements the guarded adjustment loop with optional LLM proposals. `mock.py` is a compatibility shim sharing the same plan store. Modeling validity remains authoritative; this agent does not qualify those models.
 
 ## Inputs and outputs
 
@@ -41,7 +41,7 @@ are acceptable or it reports that no safe plan exists.
    - add holding tugs (`hold_tugs`).
 
    Explain each move in a `step` event.
-5. **Stop** when every element is GREEN and the highest utilization ≤ target, or when the iteration budget is
+5. **Stop** when no element is RED and the highest utilization ≤ target (AMBER/limited remains explicitly limited), or when the iteration budget is
    spent. In that case, return the best plan with `status` RED or AMBER and say why in `open_questions`.
 6. **Finish:** `plan_tugs` for berthing, `generate_sequence`, `risk_exceedance` at the design condition, and the
    rationale.
@@ -93,3 +93,13 @@ the existing 1.3 gust multiplier as an assumption. The Safety reviewer re-analyz
 
 `agents/tests/test_planner.py` covers adversarial proposals, incomplete/failed providers, deadlines,
 condition aggregation, best-plan rollback, inventory, scenario resolution, provenance and follow-ups.
+
+The API now queues the real loop on a bounded worker pool. SSE steps/proposals arrive as computed,
+not after an artificial mock delay. Poll plan/job terminal state before requesting review or follow-ups.
+Failure and cancellation emit terminal `done` with `state` and `error`; reconnect with `Last-Event-ID`.
+
+All new plans retain `installed_at_water_level_mllw_ft`, taken from the first intake planning condition (or sole environment snapshot). Search, subsequent condition analyses, holding assistance, draft sequence, risk and what-if requests retain this common installation tide; they do not implicitly retension lines at each later tide. Independent review preserves it, including when a supplemental intake is supplied. Legacy plans without this field retain their old per-condition assumption; regenerate them before relying on multi-tide comparisons.
+
+Holding-tug search returns additional assignments. The planner retains existing assistance and adds those assignments before re-evaluating every condition; a zero-addition response does not release existing tugs. The endpoint’s fresh independent assessment governs feasibility and utilization, including fenders.
+
+Final plans preserve modeling's `AnalyzeResult.resolved_config` when available, including each line's modeled unstretched span and wet/dry condition. Sequence, risk, persistence and subsequent rechecks use those same fields. The agent does not calculate rope geometry; these values reproduce the assessed installation and are not cutting lengths or deck instructions. Legacy modeling responses without the optional field retain the explicit installation-tide path.

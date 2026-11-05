@@ -147,3 +147,14 @@ def test_replay_scenario_through_env_now_serves_the_fixture_from_the_scenario_st
     sid = c.post("/api/v1/env/scenarios", json=body).json()["env_scenario_id"]
     r = c.get(f"/api/v1/env/now?berth_id=NAVSTA-NORFOLK-P12-N&env_scenario_id={sid}")   # replay time = start + time since creation
     assert r.status_code == 200 and r.json()["source"] == "replay" and r.json()["valid_at_utc"].startswith("2026-03-01T12:00")
+
+
+@pytest.mark.parametrize('minute', [0, 5])
+def test_record_time_does_not_invent_provider_issuance(minute):
+    source = ReplaySource([rec(0), rec(10)])
+    sample = source.at(T0+timedelta(minutes=minute))
+    assert sample.metadata.issued_at_utc is None
+    assert sample.valid_at_utc == T0+timedelta(minutes=minute)
+    assert sample.metadata.valid_from_utc == T0
+    assert sample.metadata.valid_to_utc == T0+timedelta(minutes=10 if minute else 0)
+    assert sample.metadata.age_s == minute*60

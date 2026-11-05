@@ -1,5 +1,5 @@
 import { Store } from '../../lib/store';
-import { agents, AGENTS_BASE, modeling, unwrap } from './api';
+import { agents, AGENTS_BASE, modeling, unwrap, describeError } from './api';
 import type { MooringController } from './controller';
 import type {
   AgentPlan,
@@ -60,7 +60,7 @@ const INITIAL: AgentState = {
   sheet: { state: 'idle', error: null, sheet: null, html: null, image: null },
 };
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const message = describeError;
 
 /** The planning agent and safety sheet flow. Reads and writes the mooring plan through the controller. */
 export class AgentSession {
@@ -68,6 +68,7 @@ export class AgentSession {
   private source: EventSource | null = null;
   private disposed = false;
   private context: string | null = null;
+  private sheetRequest = 0;
 
   constructor(private readonly parent: MooringController) {}
 
@@ -77,6 +78,7 @@ export class AgentSession {
 
   dispose(): void {
     this.disposed = true;
+    this.sheetRequest++;
     this.source?.close();
   }
 
@@ -90,6 +92,7 @@ export class AgentSession {
 
   async run(): Promise<void> {
     if (this.s.phase === 'running' || this.s.phase === 'saving') return;
+    this.sheetRequest++;
     this.source?.close();
     this.context = this.parent.contextKey();
     this.state.set({
@@ -104,7 +107,11 @@ export class AgentSession {
       sheet: INITIAL.sheet,
     });
     try {
-      const scenarioId = await this.parent.saveScenario(`Agent run ${new Date().toISOString().slice(11, 19)}Z`);
+      const inputs = this.parent.scenarioKey();
+      const intakeReportId = this.parent.intake.reportId();
+      const scenarioId = await this.parent.ensureScenario(`Agent run ${new Date().toISOString().slice(11, 19)}Z`);
+      if (this.disposed) return;
+      if (inputs !== this.parent.scenarioKey()) throw new Error('Inputs changed while saving. Run a new plan.');
       if (!scenarioId) throw new Error('Choose a ship and berth first.');
       const accepted = unwrap(
         await agents.POST('/api/v1/agent/plans', {
@@ -113,6 +120,7 @@ export class AgentSession {
             objective: this.s.objective,
             target_margin_pct_wll: this.s.targetMarginPct,
             max_iterations: 8,
+            ...(intakeReportId ? { intake_report_id: intakeReportId } : {}),
           },
         }),
       );
@@ -170,13 +178,13 @@ export class AgentSession {
     if (!plan?.config || !this.applicable()) return;
     const { lines, tugAssignments } = this.parent.state.get();
     if (!this.s.undo) this.state.set({ undo: { lines, tugs: tugAssignments } });
-    this.parent.setTugAssignments(plan.tug_plan?.assignments ?? []);
+    this.parent.setTugAssignments(plan.holding_tugs ?? []);
     this.parent.replaceLines(plan.config.lines.map((l) => ({ ...l })));
   }
 
   private applicable(): boolean {
     if (this.context !== null && this.context !== this.parent.contextKey()) {
-      this.state.set({ error: 'Ship, berth or geometry changed. Run a new plan before applying or undoing it.' });
+      this.state.set({ error: 'Ship, berth, geometry or environment changed. Run a new plan before applying or undoing it.' });
       return false;
     }
     return true;
@@ -221,31 +229,42 @@ export class AgentSession {
   async createSheet(): Promise<void> {
     const planId = this.s.planId;
     if (!planId) return;
+    const request = ++this.sheetRequest;
     this.setSheet({ state: 'creating', error: null });
     try {
       const created = unwrap(await agents.POST('/api/v1/safety-sheets', { body: { plan_id: planId } }));
-      await this.loadSheet(created.sheet_id);
+      if (!this.currentSheetRequest(request)) return;
+      await this.loadSheet(created.sheet_id, request);
+      if (!this.currentSheetRequest(request)) return;
       this.parent.openOverlay({ kind: 'sheet', id: created.sheet_id });
     } catch (e) {
-      this.setSheet({ state: 'error', error: message(e) });
+      if (this.currentSheetRequest(request)) this.setSheet({ state: 'error', error: message(e) });
     }
   }
 
-  private async loadSheet(sheetId: string): Promise<void> {
+  private currentSheetRequest(request: number): boolean {
+    return !this.disposed && request === this.sheetRequest;
+  }
+
+  private async loadSheet(sheetId: string, request: number): Promise<void> {
     const sheet = unwrap(await agents.GET('/api/v1/safety-sheets/{sheet_id}', { params: { path: { sheet_id: sheetId } } }));
+    if (!this.currentSheetRequest(request)) return;
     const html = unwrap(
       await agents.GET('/api/v1/safety-sheets/{sheet_id}/render', {
         params: { path: { sheet_id: sheetId }, query: { format: 'html' } },
         parseAs: 'text',
       }),
     ) as unknown as string;
-    const image = this.s.sheet.image ?? this.parent.host.store.capture();
-    this.setSheet({ state: 'ready', error: null, sheet, html, image });
+    if (!this.currentSheetRequest(request)) return;
+    // A live canvas capture is not bound to this immutable plan/review. It may
+    // already contain edited geometry or lines; do not attach it as sheet evidence.
+    this.setSheet({ state: 'ready', error: null, sheet, html, image: null });
   }
 
   async approve(role: Role, name: string, decision: Approval['decision'], comment: string): Promise<void> {
     const sheet = this.s.sheet.sheet;
     if (!sheet) return;
+    const request = ++this.sheetRequest;
     try {
       unwrap(
         await agents.POST('/api/v1/safety-sheets/{sheet_id}/approvals', {
@@ -253,9 +272,10 @@ export class AgentSession {
           body: { role, name, decision, comment: comment || null },
         }),
       );
-      await this.loadSheet(sheet.sheet_id);
+      if (!this.currentSheetRequest(request)) return;
+      await this.loadSheet(sheet.sheet_id, request);
     } catch (e) {
-      this.setSheet({ error: message(e) });
+      if (this.currentSheetRequest(request)) this.setSheet({ error: message(e) });
     }
   }
 

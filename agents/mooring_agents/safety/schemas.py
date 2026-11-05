@@ -17,6 +17,8 @@ from mooring.core.schemas import (
     SideTo,
     Status,
     TugPlanResult,
+    TugAssignment,
+    Validity,
 )
 
 from ..planner.schemas import RationaleItem
@@ -26,7 +28,7 @@ from ..planner.schemas import RationaleItem
 
 class SafetyReviewRequest(Model):
     plan_id: str
-    intake_report_id: str | None = Field(default=None, description="Re-check against this report's conditions.")
+    intake_report_id: str | None = Field(default=None, description="Add this report's conditions to the original intake conditions; neither report is discarded.")
     target_margin_pct_wll: float = Field(default=80, gt=0, le=100)
 
 
@@ -40,13 +42,13 @@ class CheckResult(Model):
 
 
 class Thresholds(Model):
-    """Wind limits for this plan. Breaking is estimated from the working-load limit and the design factor."""
+    """Model-computed gust limits; breaking remains unavailable without a separate validated model."""
 
     wind_rel_deg: float | None = Field(description="Worst relative wind direction from the limit envelope.")
     governing_element: str | None
     limit_wll_gust_kt: float | None = Field(description="Gust at which the first element reaches its working limit.")
     limit_breaking_gust_kt: float | None = Field(
-        description="Estimated gust at line breaking: working-load limit times sqrt(design factor).")
+        description="Unavailable unless a separate validated breaking-limit model establishes it; legacy values were estimates.")
     forecast_max_gust_kt: float
     cites: list[str]
     directions: list["DirectionalThreshold"] = Field(default_factory=list)
@@ -62,6 +64,8 @@ class DirectionalThreshold(Model):
 
 
 class SafetyReview(Model):
+    wire_omitted_defaults = {"validity": None}
+    validity: Validity | None = None
     review_id: str
     plan_id: str
     created_at_utc: datetime
@@ -80,6 +84,10 @@ class SafetyReview(Model):
 class GustWarning(Model):
     """SSE `warning` event on GET /safety/watch/{plan_id}."""
 
+    wire_omitted_defaults = {"requires_recheck": False, "recheck_reasons": []}
+    requires_recheck: bool = False
+    recheck_reasons: list[str] = Field(default_factory=list)
+
     warning_id: str
     plan_id: str
     at_utc: datetime
@@ -90,6 +98,16 @@ class GustWarning(Model):
     pct_of_breaking_limit: float | None
     element_id: str | None
     message: str
+
+
+class SafetyWatchUnavailable(Model):
+    """Terminal SSE source_unavailable event; contains no fabricated measurement."""
+
+    plan_id: str
+    at_utc: datetime
+    severity: Literal["RED"] = "RED"
+    reason: str
+    retryable: bool
 
 
 # ---------- Safety sheet ----------
@@ -153,6 +171,16 @@ class ApprovalCreate(Model):
 
 
 class SafetySheet(Model):
+    wire_omitted_defaults = {"validity": None, "analysis_result_id": None,
+                            "threshold_result_ids": [], "holding_tugs": None, "sequence_result_id": None,
+                            "installed_at_water_level_mllw_ft": None}
+    validity: Validity | None = None
+    analysis_result_id: str | None = None
+    installed_at_water_level_mllw_ft: float | None = None
+    sequence_result_id: str | None = None
+    threshold_result_ids: list[str] = Field(default_factory=list)
+    holding_tugs: list[TugAssignment] | None = Field(default=None,
+        description="Prescribed continuous assistance included in the line/holding assessment; null means not recorded in a legacy sheet.")
     sheet_id: str
     version: int
     plan_id: str

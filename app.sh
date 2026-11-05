@@ -22,6 +22,10 @@ fi
 
 # --- Python services -----------------------------------------------------------------------------------------------
 uv sync --all-packages --frozen
+# Assign after the system shell starts, which may strip outer DYLD_ variables on macOS.
+if [ -n "${PDF_LIBRARY_PATH:-}" ]; then
+  export DYLD_FALLBACK_LIBRARY_PATH="$PDF_LIBRARY_PATH"
+fi
 export MODELING_API_URL="http://127.0.0.1:8000/api/v1"   # how the agents service reaches modeling
 .venv/bin/uvicorn modeling_api.main:app --host 127.0.0.1 --port 8000 &
 .venv/bin/uvicorn mooring_agents.api.main:app --host 127.0.0.1 --port 8001 &

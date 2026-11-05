@@ -16,21 +16,22 @@ mooring/
     units.py
   refdata/         seed YAML (ships, lines, berths, tugs) and loader (M2)
   rules/           NSTM 582 rule registry and checks (real)
-  scenarios.py     saved scenarios (in memory)
+  scenarios.py     saved scenarios (SQLite; in-memory by default)
   examples.py      example requests: API docs, contract/examples/, tests
 
   # Capabilities every phase uses
-  environment/     M1 wind, current, water level            mock.py
+  environment/     M1 providers, replay and labeled synthetic fallback
   loads/           M3 wind and current forces               ufc.py, coefficients.py, service.py; entry point compute_loads
-  tugs/            M6 tug sizing (shared by moored/berthing) mock.py; entry point size_tugs
-  telemetry/       M13 ship sensor ingest                   mock.py
+  tugs/            M6 rated wrench allocation and sizing; entry point size_tugs
+  telemetry/       M13 registered NMEA/load-cell ingest (limited subset)
+  data_simulation/ reusable seeded training series; explicitly not forecasts
 
   # Phases
   moored/          Phase 1: ship alongside, lines fast
-    mock/            solver.py (M4), risk.py (M5), tugs.py (holding tugs), optimizer.py (M7 line plan)
+    solver.py, risk.py, holding.py, search.py, forecast_planning.py
   berthing/        Phases 1c and 2: about two ship lengths off until all lines are fast
     simulator.py     M11 shared RK4 adapter (synthetic body; unqualified)
-    tugs.py, sequence.py  assist tugs, windows and M7 sequence
+    service.py, sequence.py  assist tugs, windows and M7 sequence
   approach/        Phase 3: channel transit to the berth
     mock/            planner.py (route, under-keel clearance), simulator.py (M12)
 
@@ -62,6 +63,10 @@ never import a phase; phases don't import each other.
 - The NSTM 582 rule checks (`GET /rules` shows which are implemented).
 - M3 environmental loads: UFC Chapter 4 wind/current forces and yaw, with source-checked examples and bounded seed calibration.
 
+- Static equilibrium, wind limits, supplied-tide sweeps, rated tug allocation, bounded line-plan search, draft sequence checks and scenario risk sampling.
+- [Advance docking planning](../docs/FORECAST_DOCKING.md) from supplied coincident snapshots, with fixed line installation and source/coverage gates.
+- Optional SQLite persistence and bounded cancellable jobs; NMEA/load-cell ingest is a documented subset.
+
 - M11 batch and interactive berthing use shared RK4 mechanics with an explicitly synthetic, unqualified body. See [simulation semantics and limits](../docs/BERTHING_SIMULATION.md).
 
 The current [build-out ledger](../docs/MODELING_BUILDOUT_STATUS.md) records the other implemented capabilities and outstanding gates. Seed line strengths, berths and tugs remain demonstration data. [Readiness controls](../docs/DEPLOYMENT_READINESS.md) are local safeguards, not live-use approval.
@@ -75,13 +80,13 @@ errors; Figure 4-4 confirms the harmonic. UFC flow-toward angles are converted
 explicitly from the API's clockwise wind-from and current-toward bearings.
 
 Sustained winds are converted from 60 to 30 seconds using approximate synoptic
-curve readings from Figure 3-5 (1.31/1.25). Gust duration is absent from the API;
-supplied gusts are assumed to be 30-second winds at 10 m. This assumption must be
-checked for real data feeds. Shielding scales wind forces and moments equally.
+curve readings from Figure 3-5 (1.31/1.25). Environment metadata can state wind averaging, gust duration and reference height.
+Documented 30-second sustained wind needs no conversion. Unknown basis retains explicit legacy assumptions; unsupported
+durations/heights remain limited, without an invented conversion. Shielding scales wind forces and moments equally.
 
 Missing ship geometry uses documented estimates in response assumptions. Current
 uses salt-water viscosity at 15 C with the requested density. Depth below draft
-is clamped to T/d=1 with an AMBER finding; ground contact is not modeled. Reynolds
+is clamped numerically to T/d=1 but classified invalid/RED for floating-mooring assessment; ground contact is not modeled. Reynolds
 numbers below 10,000 use a numerical floor in the skin-friction expression to
 avoid its singularity; this is an engineering regularization, not a UFC rule.
 Speeds above 1.5 m/s generate a current-model applicability warning. Yaw assumes
@@ -89,14 +94,13 @@ CG at midships and a level keel; LHD uses carrier coefficients by analogy.
 
 The load envelopes and stored results report `backend="real"`. The service-level
 `X-Mooring-Backend` header and `/health` report `mixed` (derived from `BACKENDS`).
-Other modules remain mock even though they now consume UFC loads.
+Approach remains mock; berthing dynamics uses a labeled synthetic body. See the ledger for each capability’s limits.
 
 Load-model validity warnings (`UFC-DEPTH-RANGE`, `UFC-CURRENT-SPEED`,
 `UFC-LOW-REYNOLDS`, from `loads/warnings.py`) are reported by `/loads/*`,
 `/mooring/analyze` (as findings) and `/tugs/berthing-plan`. They are listed in
-`GET /rules`. Modules that run many load evaluations (risk Monte Carlo and
-timeline, berthing windows, holding tugs) don't aggregate them yet; add that when
-those modules become real.
+`GET /rules`. Risk, timeline, berthing windows and holding plans propagate validity; sampled failure counts and bounds remain
+visible. Live alerts preserve installation tide and suppress usable utilization when the assessment is invalid.
 
 Calibration changes only lateral wind area; hull and frontal areas retain their
 original values. DDG uses the extensive-superstructure drag class (C=1.02) specified
@@ -110,7 +114,19 @@ No UFC coefficient was tuned to match the bearings.
 
 ## Known limitations (follow-ups)
 
-- **Gust duration (M1).** Loads treat `wind_gust_kt` as a 30-second wind at 10 m. Station gusts are
-  often measured over different durations; their use is not a verified wind basis or a guarantee of conservative coupled behavior. When M1 ingests real NOAA data, it must state each
-  source's gust definition and normalize gusts to a 30-second basis (UFC Section 3-8.1, Figure 3-5), or add
-  an explicit `gust_duration_s` to `EnvironmentSnapshot` for `compute_loads` to convert.
+- **Wind basis.** Feeds must document duration and reference height. Metadata is supported, but conversion beyond the
+  documented 60-to-30-second ratio is not implemented without a primary-source basis. A short station gust is not assumed
+  conservative for coupled mooring response.
+- **Forecast composition.** NWS wind and CO-OPS observations are separate capabilities; complete public wind/current/tide
+  forecasting remains an integration gap. Supplied snapshots work; missing public components are not synthesized silently.
+- **Operational qualification.** Seed geometry/ratings, synthetic dynamics, unqualified uncertainty and draft handling rules
+  require vessel/pier evidence and subject-matter review. See [DATA_REQUESTS.md](../docs/DATA_REQUESTS.md).
+
+
+Search treats locked assignments as constraints, not exemptions: unavailable/excluded fittings, unknown or duplicate
+locked slots, incompatible ropes/chocks, and insufficient inventory for any locked spec produce no candidate. Duplicate
+inventory entries are rejected instead of silently overwriting counts. `cases_evaluated` counts cases actually assessed;
+a failed solve or invalid depth can stop a candidate early, so only feasible candidates necessarily assess every case.
+Nonpositive actual water depth is an explicit input error, not a load-model crash.
+
+Direct loads, analysis, limit search and line-plan search honor explicit environmental quality. Poor/missing inputs or a snapshot outside its declared interval cannot establish a valid holding limit; suspect/stale inputs stay limited. Archived scenarios are checked against their stated time, not silently expired against the wall clock. Public/sensor inputs with undocumented quality or wind basis stay limited. Legacy manual/scenario wind assumptions remain explicit.

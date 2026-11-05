@@ -108,4 +108,8 @@ def test_shared_capabilities_never_import_phases_and_phases_never_import_each_ot
 
 def test_old_mock_modules_for_replaced_capabilities_are_gone():
     gone = ["moored/mock", "berthing/mock/tugs.py", "berthing/mock/sequence.py"]
-    assert not [g for g in gone if (MODELING / "mooring" / g).exists()]
+    # Bytecode left by an earlier checkout is not a source module.
+    assert not [g for g in gone if (
+        (MODELING / "mooring" / g).is_file()
+        or any((MODELING / "mooring" / g).rglob("*.py"))
+    )]

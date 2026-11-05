@@ -1,6 +1,6 @@
 import * as Cesium from 'cesium';
 import { normalizeDeg, topDownHeadingDeg } from '../../scene/geometry';
-import type { ViewMode } from '../../scene/types';
+import type { CameraPreset, ViewMode } from '../../scene/types';
 import type { FrameTransform } from './frameTransform';
 
 const MIN_WIDTH_M = 15;
@@ -34,7 +34,9 @@ export class ViewController {
    * cancels it so it never fights the user.
    */
   playIntro(): void {
-    this.pendingIntro = true;
+    // People who ask their system for less motion get the framed view straight away.
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    this.pendingIntro = !reduce;
   }
   private pendingIntro = false;
 
@@ -99,6 +101,25 @@ export class ViewController {
 
   setMode(mode: ViewMode): void {
     this.mode = mode;
+    this.apply();
+  }
+
+  /**
+   * Named camera positions. The frame's +x runs along the berth face; the ship lies along it with the pier on the -y
+   * side, so the bearings below are relative to the frame's own axis.
+   */
+  setPreset(name: CameraPreset, target?: { x: number; y: number }): void {
+    this.cancelIntro();
+    if (target) this.target = [target.x, target.y];
+    const x = this.tf?.frame.xBearingTrueDeg ?? 0;
+    if (name === 'top') {
+      this.mode = '2d';
+    } else {
+      this.mode = '3d';
+      this.heading3dDeg = normalizeDeg(x + (name === 'bow' ? 180 : name === 'portQuarter' ? 45 : 90));
+      this.pitch3dDeg = name === 'pierSide' ? -22 : -18;
+      this.range3dM = 220;
+    }
     this.apply();
   }
 

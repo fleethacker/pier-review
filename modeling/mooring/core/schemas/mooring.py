@@ -1,9 +1,9 @@
 """Static mooring analysis schemas (module M4) and the NSTM 582 rule registry."""
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import Envelope, Finding, Model, MooringServiceType, Severity, Status
 from .environment import EnvironmentSnapshot
@@ -41,10 +41,10 @@ class LineResult(Model):
     tension_lbf: float
     pct_mbs: float
     pct_wll: float
-    horiz_angle_deg: float = Field(description="Angle from perpendicular to the ship; breast lines are under 45.")
-    vert_angle_deg: float
+    horiz_angle_deg: float = Field(description="Angle from perpendicular to the ship at the solved pose, including yaw; breast lines are under 45.")
+    vert_angle_deg: float = Field(description="Solved line angle above horizontal at the assessed water level.")
     breast_efficiency: float = Field(description="cos(horizontal angle): share of tension that holds the ship in.")
-    length_ft: float
+    length_ft: float = Field(description="Straight span between lead point and pier fitting at the solved pose; not unstretched paid-out length.")
     status: Status
 
 
@@ -83,6 +83,9 @@ class MinMargin(Model):
 
 
 class AnalyzeResult(Model):
+    wire_omitted_defaults = {"resolved_config": None}
+    resolved_config: MooringConfig | None = Field(default=None,
+        description="Configuration with modeled unstretched spans and wet/dry conditions explicit for reproducible rechecks. Not rope-cutting lengths, a handling instruction or approval.")
     offset: Offset
     lines: list[LineResult]
     pier_fittings: list[PierFittingResult]
@@ -109,12 +112,14 @@ LimitOutcome = Literal["limit_found", "fails_at_zero_wind", "no_failure_in_range
 
 
 class LimitEnvelopePoint(Model):
-    wire_omitted_defaults = {"outcome": None, "bracket_kt": None, "search_max_kt": None, "undetermined_at_kt": None, "nonmonotone_in_bracket": None}
+    wire_omitted_defaults = {"outcome": None, "bracket_kt": None, "search_max_kt": None, "undetermined_at_kt": None, "nonmonotone_in_bracket": None, "limit_gust_kt": None, "advisory_gust_kt": None}
 
     wind_rel_deg: float
     limit_wind_kt: float | None = Field(
         description="Highest wind speed verified within limits (conservative end of the bracket). None unless outcome is "
         "'limit_found' or 'fails_at_zero_wind' (then 0).")
+    limit_gust_kt: float | None = Field(default=None, description="Corresponding gust at limit_wind_kt under the request's held gust/sustained ratio; not a breaking limit.")
+    advisory_gust_kt: float | None = Field(default=None, description="Application advisory at 80% of the computed gust limit; not a physical failure threshold.")
     first_failure_element: str | None
     failure_mode: Literal["WLL", "MBS", "fitting", "fender", "none"]
     outcome: LimitOutcome | None = Field(default=None, description="Absent on legacy responses.")
@@ -143,12 +148,40 @@ class TendingInput(Model):
 
 
 class TideSweepRequest(AnalyzeRequest):
-    wire_omitted_defaults = {**AnalyzeRequest.wire_omitted_defaults, **AnalyzeRequest.wire_omitted_defaults, "tending": []}
+    wire_omitted_defaults = {**AnalyzeRequest.wire_omitted_defaults, "tending": [], "water_level_forecast": None}
 
     from_utc: datetime
     to_utc: datetime
     step_min: int = Field(default=30, ge=5, le=180)
     tending: list[TendingInput] = Field(default_factory=list, description="Explicit tending applied in time order. Nothing is retensioned silently.")
+    water_level_forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=2000,
+        description="Optional supplied snapshots covering the whole sweep; only MLLW water levels vary. Linear interpolation is explicitly limited. Absent uses a labeled synthetic training tide.")
+
+    @model_validator(mode="after")
+    def time_coverage(self):
+        if any(t.tzinfo is None or t.utcoffset() is None for t in (self.from_utc, self.to_utc)):
+            raise ValueError("Tide sweep times require explicit timezones")
+        self.from_utc = self.from_utc.astimezone(UTC)
+        self.to_utc = self.to_utc.astimezone(UTC)
+        if not self.from_utc < self.to_utc <= self.from_utc + timedelta(hours=120):
+            raise ValueError("Tide sweep duration must be positive and no longer than 120 hours")
+        for action in self.tending:
+            if action.at_utc.tzinfo is None or action.at_utc.utcoffset() is None or not self.from_utc <= action.at_utc <= self.to_utc:
+                raise ValueError("Tending timestamps must lie within the sweep and include a timezone")
+        self.tending = [action.model_copy(update={"at_utc": action.at_utc.astimezone(UTC)}) for action in self.tending]
+        if self.water_level_forecast is not None:
+            times = [sample.valid_at_utc for sample in self.water_level_forecast]
+            if any(t.tzinfo is None or t.utcoffset() is None for t in times):
+                raise ValueError("Water-level sample times require explicit timezones")
+            self.water_level_forecast = [sample.model_copy(update={"valid_at_utc": sample.valid_at_utc.astimezone(UTC)})
+                                         for sample in self.water_level_forecast]
+            times = [sample.valid_at_utc for sample in self.water_level_forecast]
+            if any(b <= a for a, b in zip(times, times[1:])):
+                raise ValueError("Water-level sample times must be strictly increasing")
+            if times[0] > self.from_utc or times[-1] < self.to_utc:
+                raise ValueError("Water-level samples must cover the entire sweep; no extrapolation")
+        return self
+
 
 
 class LineTension(Model):

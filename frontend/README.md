@@ -18,6 +18,36 @@ It started from the drone-simulator (Cesium, React, TypeScript, Vite, Tailwind) 
 look. The drone-specific code, models and backends were removed. The demo script is in [DEMO.md](DEMO.md); the build
 plan, decisions and status are in [PLAN.md](PLAN.md).
 
+## What the UI shows
+
+- **Phase 1:** choose a berth on the world map, place the ship, see analyzed colored lines; the planning agent
+  streams its steps, then the safety sheet is created, approved and printed.
+- **Motion view** (button in the sidebar): a plan view of the berthing simulator. It draws only what a frame
+  supplies: hull and pier, fittings and fenders by load, lines by status and tension, tugs with velocity,
+  acceleration and push, wind, current and wave glyphs, and the force breakdown. It handles both legacy frames and
+  `rm0-v1` frames, shows validity and provenance badges at all times, and shows anything the simulator does not
+  supply as *unavailable* or *not simulated*, never as zero. Live sessions have resume, pause, reset, tug and line
+  commands; recordings have play, scrub and speed. The bundled mock recording replays with no backend.
+- **Data sources and capabilities** panel and a standing "all results limited: seed data" banner.
+- **Berth from an image:** upload a picture, get a draft berth with detections and confidence, confirm every flagged
+  item, then use the saved berth. The draft is labeled mock or vision data.
+
+The motion view has two modes. **Plan** is an SVG panel. **Map 2D/3D** draws the same frames in the shared Cesium
+scene (ship hull with deckhouse blocks, tugs, lines colored by status) and leaves the map interactive, with camera
+presets (top, bow, port quarter, pier side). The map draws position, heading and heave only when heave is simulated;
+roll, pitch and a water surface are not drawn, and it lists whatever the frame did not supply.
+
+- **Environment intake:** assesses the selected saved scenario over 24 hours: MST, windows of concern,
+  berthing windows and data quality, with a summary labeled deterministic or model-written. Manual conditions are
+  saved as steady synthetic conditions, not a weather forecast. The next planning run receives the displayed report;
+  changing inputs clears it. A completed report is not reused against a different environment or arrangement.
+- **Resilience:** every panel sits in an error boundary (a broken panel shows a message and Try again, the rest keeps
+  working), API failures read as plain sentences, and decorative motion follows `prefers-reduced-motion`.
+- **Bearer token (optional):** set `VITE_API_BEARER_TOKEN` to send `Authorization: Bearer ...` on REST and job polling
+  for services run with `MOORING_AUTH_REQUIRED=1`. The token is built into the bundle, so use it for local or trusted
+  networks. Browsers cannot attach headers to WebSocket or EventSource, so the live streams, the planner's SSE steps
+  and motion sessions still need a trusted gateway in front of an authenticated deployment.
+
 ## Run it
 
 Prerequisites: Node 20+ and [uv](https://docs.astral.sh/uv/) for the mock services.
@@ -34,10 +64,11 @@ npm run dev          # http://localhost:4000
 
 The browser only talks to its own origin. Vite forwards `api/modeling/*` to the modeling service and `api/agents/*`
 to the agents service (set `MODELING_PROXY_TARGET` and `AGENTS_PROXY_TARGET` in `frontend/.env` to override
-`http://localhost:8000` and `:8001`). REST is under `/api/v1`, WebSockets under `/ws`. Set `VITE_MODELING_URL` or
+`http://127.0.0.1:8000` and `:8001`; use the numeric address, because `localhost` can resolve to IPv6 where the services do not listen). REST is under `/api/v1`, WebSockets under `/ws`. Set `VITE_MODELING_URL` or
 `VITE_AGENTS_URL` to an absolute URL to bypass the proxy.
 
-The default local demo needs no credentials. This UI does not yet implement bearer authentication for HTTP, SSE or WebSockets; authenticated deployments require a separate reviewed integration. The 2D and 3D views are drawn from the berth data itself.
+The default local demo needs no credentials. The optional build-time bearer token covers HTTP only; authenticated
+SSE and WebSockets require a separately reviewed gateway integration. The 2D and 3D views are drawn from the berth data itself.
 
 Optional look-and-feel: set `VITE_MAPBOX_TOKEN` (a public `pk.` token) when building to put Mapbox satellite imagery
 under the scene. Vite bakes it into the bundle, so it must be present at build time (on Domino, as a user or project
@@ -150,7 +181,7 @@ and the shell only deals with the scene model.
    tugs to the canvas (with undo), shows the line sequence, takes follow-up questions.
 4. **Dashboard** (bottom): live, replay and storm-ramp environment streams, the alert feed, a 24 h forecast, a
    limiting-wind chart and gust risk.
-5. **Safety sheet** (overlay): the service's rendered sheet, margins, rationale, a layout image, approvals by pilot,
+5. **Safety sheet** (overlay): the service's rendered sheet, margins, rationale, an explanation when a plan-bound layout image is unavailable, approvals by pilot,
    first lieutenant and CO, and print.
 
 ## Known limits and qualification
@@ -158,12 +189,10 @@ and the shell only deals with the scene model.
 - Backend `real` identifies the implementation, not qualification. Seed data and synthetic uncertainty remain unqualified; inspect result validity and warnings. Do not use this UI operationally.
 - Saving a scenario freezes the displayed weather into a synthetic steady snapshot, including for agent runs; it does not preserve a live forecast or replay timeline.
 - Only the DDG-51 class has fitting data, so other classes show a hull only and line editing is disabled.
-- The mock alert stream does not escalate during a storm ramp. The UI therefore also raises warnings from the plan
-  analysis and labels them as coming from the analysis, not the service.
-- The mock's reported line lengths do not match the contract's geometry; the canvas draws from the contract's frames
-  and the inspector shows the service's numbers.
-- The meaning of `wind_rel_deg` in the wind-limit chart is not defined in the contract; the chart shows it as
-  reported.
+- Alerts and load displays retain validity; invalid or unknown assessments do not supply passing load colors or percentages.
+- Wind-limit bearings use the API wind-from convention; the chart compares sustained wind to sustained limits. See [contract semantics](../docs/CONTRACT_SEMANTICS.md).
+- Explicit Intake and independent Safety-review selection remain absent from the UI. Sheet creation invokes review implicitly; API clients can select those reports explicitly.
+- Motion is a labeled surrogate; the 2D motion panel does not establish a qualified vessel maneuver.
 
 ## Open decisions
 
@@ -178,3 +207,31 @@ server proxies `api/modeling/*` and `api/agents/*` to the two services (`MODELIN
 `AGENTS_PROXY_TARGET`). Requirements: Python 3.12 with `uv`, and Node 20 with npm (the script downloads Node 20 if the
 environment lacks it). Entry script: `app.sh`; branch: `ui/frontend`. A hardware tier with at least 4 GiB of memory
 is enough for the build. This script has not been run on Domino yet; check the first start's logs.
+
+## Check the integrated demo paths
+
+```bash
+make demo-check   # repo root
+```
+
+Starts both services and the built UI on private ports (the way `app.sh` does), then checks through the UI proxy:
+the page and bundled fixtures, health and capabilities, the Phase 1 chain (scenario, agent plan over SSE, safety
+sheet, approval), a berth vision round trip, and a motion session over a WebSocket (resume, command, pause, reset).
+The browser portion requires Playwright and Chromium. Missing Playwright is a failure, not a passing gate.
+Set `DEMO_CHECK_BROWSER_PYTHON` to an interpreter with Playwright; optionally set
+`DEMO_CHECK_BROWSER_EXECUTABLE` to an installed Chrome/Chromium executable. `PLAYWRIGHT_BROWSERS_PATH`
+selects a downloaded browser location. `DEMO_CHECK_SCREEN_DIR` redirects screenshots outside the repository.
+`--skip-build` reuses the built UI; `--no-browser` explicitly reports the browser portion as skipped.
+
+The API check uses the supported-limited named scenario, explicit Intake and independent Safety review,
+and asserts AMBER/limited before sheet approval. The browser checks planning, sheet/print controls, motion,
+units and estimated berth confirmation. These are scoped integration checks: explicit Intake/review UI
+selection and the full four-case browser acceptance flow remain incomplete.
+
+Verified local example without changing project dependencies:
+
+```sh
+DEMO_CHECK_BROWSER_EXECUTABLE="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+DEMO_CHECK_SCREEN_DIR=/tmp/mooring-demo-screens \
+uv run --all-packages --with playwright python scripts/demo_check.py
+```

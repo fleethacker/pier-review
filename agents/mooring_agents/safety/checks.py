@@ -57,7 +57,14 @@ def no_red_findings(reanalysis) -> CheckResult:
 
 
 def gust_threshold(forecast_gust: float, limit_wll: float | None, result_id: str) -> CheckResult:
-    ratio = forecast_gust / limit_wll if limit_wll else 0.0
+    if limit_wll is None:
+        return _check("GUST-THRESHOLD", "Forecast gusts stay below 80% of the plan's limiting gust",
+                      False, "AMBER", "Limiting gust is unavailable or unbounded within the search; threshold is not established.",
+                      [result_id])
+    if limit_wll <= 0:
+        return _check("GUST-THRESHOLD", "Forecast gusts stay below 80% of the plan's limiting gust",
+                      False, "RED", "Plan fails at zero wind; no positive gust allowance is established.", [result_id])
+    ratio = forecast_gust / limit_wll
     return _check("GUST-THRESHOLD", "Forecast gusts stay below 80% of the plan's limiting gust", ratio < 0.8,
                   "RED" if ratio >= 1 else "AMBER",
                   f"Forecast max gust {forecast_gust:.0f} kt vs limit {limit_wll or float('nan'):.0f} kt "
@@ -71,14 +78,49 @@ def tugs_feasible(tug_plan) -> CheckResult:
 
 
 def mst_within_ship(report) -> CheckResult:
-    passed = not (report and report.mst.exceeds_ship_mst)
+    if report is None:
+        return _check("MST-WITHIN-SHIP", "Forecast stays within the ship's Mooring Service Type", False, "AMBER",
+                      "No intake report; forecast MST has not been assessed.")
+    if getattr(report.mst, "ship_mst", None) is None:
+        return _check("MST-WITHIN-SHIP", "Forecast stays within the ship's Mooring Service Type", False, "AMBER",
+                      "Ship MST is unknown; exceedance cannot be assessed. Supply ship-specific intake before approval.")
+    passed = not report.mst.exceeds_ship_mst
     return _check("MST-WITHIN-SHIP", "Forecast stays within the ship's Mooring Service Type", passed, "RED",
                   report.mst.reason if report else "No intake report; MST not assessed against the forecast.")
 
 
+def forecast_coverage(report) -> CheckResult:
+    issues = [q for q in getattr(report, "data_quality", []) if q.severity in ("AMBER", "RED")
+              and q.issue in ("missing", "stale", "out_of_range", "flagged")]
+    return _check("FORECAST-COVERAGE", "Forecast coverage and freshness support the assessment",
+                  report is not None and not issues, "RED" if any(q.severity == "RED" for q in issues) else "AMBER",
+                  "; ".join(q.detail for q in issues) if issues else
+                  "Forecast intake supplied without blocking coverage findings." if report else "No forecast intake supplied.")
+
+
+def all_conditions(checks: list[CheckResult]) -> CheckResult:
+    """Preserve each condition's failures; overall severity is not a substitute for each check."""
+    failed = [check for check in checks if not check.passed]
+    rank = {"INFO": 0, "GREEN": 0, "AMBER": 1, "RED": 2}
+    return checks[0].model_copy(update={
+        "passed": not failed,
+        "severity": max((check.severity for check in failed), key=rank.get) if failed else "INFO",
+        "detail": "; ".join(dict.fromkeys(check.detail for check in (failed or checks))),
+        "cites": list(dict.fromkeys(cite for check in checks for cite in check.cites)),
+    })
+
+
+def plan_not_red(plan) -> CheckResult:
+    status = getattr(plan, "status", None)
+    return _check("PLAN-NOT-RED", "The completed plan has no unresolved RED status", status in ("GREEN", "AMBER"),
+                  "RED" if status == "RED" else "AMBER",
+                  f"Planner status is {status or 'unknown'}; independent review cannot erase unresolved plan failures.",
+                  list(getattr(plan, "condition_analysis_result_ids", None) or []))
+
+
 CHECK_IDS: tuple[str, ...] = (
     "CITES-RESOLVE", "CITES-IN-LEDGER", "REANALYSIS-NOT-RED", "MARGIN",
-    "NO-RED-FINDINGS", "GUST-THRESHOLD", "TUGS-FEASIBLE", "MST-WITHIN-SHIP",
+    "NO-RED-FINDINGS", "GUST-THRESHOLD", "TUGS-FEASIBLE", "MST-WITHIN-SHIP", "FORECAST-COVERAGE", "PLAN-NOT-RED",
 )
 
 

@@ -19,8 +19,9 @@ import math
 import statistics
 from collections.abc import Callable
 from datetime import timedelta
+from typing import NamedTuple
 
-from mooring import environment, refdata
+from mooring import refdata
 from mooring.core.envelopes import envelope, new_id, status_with_validity, utcnow
 from mooring.core.schemas import (
     Alert, AnalyzeRequest, ElementRisk, EnvironmentSnapshot, ExceedanceRequest, ExceedanceResponse, ExceedanceResult, Finding,
@@ -64,18 +65,33 @@ class Tally:
     any_mbs: int = 0
 
 
+class _Demand(NamedTuple):
+    """Compared quantity may be energy; reported load percentiles are always force in lbf."""
+    value: float
+    capacity: float
+    mbs: float | None
+    force_lbf: float
+
+
 def monte_carlo(draw: Callable[[], object], evaluate: Callable[[object], dict | None], n: int, progress: Callable[[int], None] | None = None):
-    """Generic sampler: `evaluate` returns {element: (load, wll_limit, mbs_limit | None)} or None for a failed sample."""
+    """Sample compared demands; _Demand additionally supplies force statistics for an energy comparison.
+
+    Ordinary tuples use (load, wll_limit, mbs_limit | None); None means a failed sample.
+    """
     tally, per = Tally(n=n), {}
     for i in range(n):
+        if progress and i % 50 == 0:
+            progress(i)
         out = evaluate(draw())
         if out is None:
             tally.failed += 1
             continue
         hit_wll = hit_mbs = False
-        for el, (load, wll, mbs) in out.items():
+        for el, demand in out.items():
+            load, wll, mbs = demand[:3]
+            reported_force = demand.force_lbf if isinstance(demand, _Demand) else load
             rec = per.setdefault(el, {"loads": [], "wll": 0, "mbs": 0, "has_mbs": mbs is not None})
-            rec["loads"].append(load)
+            rec["loads"].append(reported_force)
             if load > wll:
                 rec["wll"] += 1
                 hit_wll = True
@@ -84,8 +100,8 @@ def monte_carlo(draw: Callable[[], object], evaluate: Callable[[object], dict | 
                 hit_mbs = True
         tally.any_wll += hit_wll
         tally.any_mbs += hit_mbs
-        if progress and i % 50 == 0:
-            progress(i)
+    if progress:
+        progress(n)
     return tally, per
 
 
@@ -104,15 +120,21 @@ def _eval_env(system: eq.System, warm: Pose, df: float):
         mbs = rec.model.mbs_eff_lbf
         out[f"line-{rec.ln.line_number}"] = (t, mbs / df, mbs)
     acc_p: dict[str, list[float]] = {}
+    acc_s: dict[str, list[float]] = {}
     for rec, st, t in system.line_tensions(sol.pose):
-        v = acc_p.setdefault(rec.ln.pier_fitting_id, [0.0, 0.0, 0.0])
-        v[0] += t * st.ux; v[1] += t * st.uy; v[2] += t * st.uz
+        for acc, fid in ((acc_p, rec.ln.pier_fitting_id), (acc_s, rec.ln.ship_fitting_id)):
+            v = acc.setdefault(fid, [0.0, 0.0, 0.0])
+            v[0] += t * st.ux; v[1] += t * st.uy; v[2] += t * st.uz
     cap = {f.fitting_id: f.capacity_nominal_lbf for f in system.berth.fittings}
     for fid, v in acc_p.items():
         out[fid] = (math.sqrt(sum(c * c for c in v)), cap[fid], None)
+    ship_cap = {f.fitting_id: f.swl_lbf for f in system.ship.fittings}
+    for fid, v in acc_s.items():
+        if ship_cap[fid]:
+            out[fid] = (math.sqrt(sum(c * c for c in v)), ship_cap[fid], None)
     for fr, d, _ in system.fender_loads(sol.pose):
         if fr.model.rated_energy_ftlbf:
-            out[fr.model.fender_id] = (fr.model.energy(d), fr.model.rated_energy_ftlbf, None)
+            out[fr.model.fender_id] = _Demand(fr.model.energy(d), fr.model.rated_energy_ftlbf, None, fr.model.force(d))
     return out
 
 
@@ -154,7 +176,7 @@ def exceedance(req: ExceedanceRequest, ctx=None) -> ExceedanceResponse:
     lo, hi = wilson(tally.any_wll, n_valid)
     horizon = None
     if req.include_horizon:
-        horizon = _horizon(req, system, specs, sol0, model, df)
+        horizon = _horizon(req, system, specs, sol0, model, df, ctx)
         if ctx is not None:
             ctx.progress(0.99, "horizon done")
     result = ExceedanceResult(
@@ -170,12 +192,19 @@ def exceedance(req: ExceedanceRequest, ctx=None) -> ExceedanceResponse:
     if tally.failed:
         reasons.append(ValidityReason(code="FAILED_SAMPLES", affected_components=["sampling"],
                                       message=f"{tally.failed} of {tally.n} samples failed to converge; see p_any_bounds."))
+    if horizon is not None and horizon.n_failed:
+        reasons.append(ValidityReason(code="FAILED_TRAJECTORIES", affected_components=["horizon"],
+                                      message=f"{horizon.n_failed} of {horizon.n_trajectories} trajectories are unresolved; p_event is a lower bound, not a complete probability. See p_event_bounds."))
+    no_valid_samples = n_valid == 0 or (horizon is not None and horizon.n_failed == horizon.n_trajectories)
+    if no_valid_samples:
+        reasons.append(ValidityReason(code="NO_VALID_RISK_SAMPLES", affected_components=["sampling"],
+                                      message="No successful samples in at least one requested risk calculation; zero known exceedances does not establish safety."))
     warnings = []
     if horizon is None:
         warnings.append(Finding(rule_id="RISK-HORIZON-UNSUPPORTED", severity="INFO", element_ids=[], reference="S11",
                                 message=f"Pointwise probability only: no probability over the {req.horizon_hours:g} h horizon was computed (set include_horizon)."))
     base_validity = solver_validity(req, base_req, system, sol0, specs)
-    state = "invalid" if base_validity.state == "invalid" else "limited" if reasons or base_validity.state == "limited" else "valid"
+    state = "invalid" if base_validity.state == "invalid" or no_valid_samples else "limited" if reasons or base_validity.state == "limited" else "valid"
     validity = Validity(state=state, reasons=base_validity.reasons + reasons, diagnostics=base_validity.diagnostics)
     status = "RED" if p_any > 0.10 else "AMBER" if p_any > 0.01 else "GREEN"
     return envelope(ExceedanceResponse, model="mooring.risk.monte_carlo", request=req, result=result, backend="real", model_version="1.0.0",
@@ -184,7 +213,8 @@ def exceedance(req: ExceedanceRequest, ctx=None) -> ExceedanceResponse:
                                                                                          "dynamic_factor": req.gust_dynamic_factor}}).model_copy(
                         update={"rng_seed": req.seed, "rng_model_revision": f"{model.model_id}@{model.revision}"}),
                     assumptions=[f"{tally.n} instantaneous samples of gust factor, direction and current from model '{model.model_id}' r{model.revision}; each solved to equilibrium.",
-                                 "Failed samples are counted, reported and used to bound the probability.", "No dynamic or snatch amplification is modeled; the dynamic factor, if any, scales wind force once.",
+                                 "Failed samples are counted, reported and used to bound the probability.",
+                                 "Fender exceedance compares energy with rated energy; reported load percentiles are reaction force in lbf.", "No dynamic or snatch amplification is modeled; the dynamic factor, if any, scales wind force once.",
                                  *solver.ASSUMPTIONS])
 
 
@@ -194,106 +224,175 @@ def solver_validity(req, base_req, system, sol0, specs) -> Validity:
     return solver._validity(base_req, system, sol0, specs, load_findings, wind_basis(base_req.environment, True))
 
 
-def _horizon(req: ExceedanceRequest, system, specs, sol0, model, df) -> HorizonRisk:
-    steps = max(1, int(req.horizon_hours * 60 / req.horizon_step_min))
+def _horizon(req: ExceedanceRequest, system, specs, sol0, model, df, ctx=None) -> HorizonRisk:
+    intervals = max(1, math.ceil(req.horizon_hours * 60 / req.horizon_step_min))
+    effective_step = req.horizon_hours * 60 / intervals
     sampler = unc.Sampler(model, None if req.seed is None else req.seed + 1)
     hits = failed = 0
-    for _ in range(req.n_trajectories):
+    for i in range(req.n_trajectories):
+        if ctx is not None:
+            ctx.check_cancelled()
+            ctx.progress(0.9 + 0.09 * i / req.n_trajectories, f"trajectory {i} of {req.n_trajectories}")
         hit = False
-        for env in sampler.trajectory(req.environment, steps, req.horizon_step_min):
+        for env in sampler.trajectory(req.environment, intervals + 1, effective_step):
+            if ctx is not None:
+                ctx.check_cancelled()
             out = _eval_env(dataclasses.replace(system, env=_with_dynamic(env, req.gust_dynamic_factor)), sol0.pose, df)
             if out is None:
                 failed += 1
                 hit = None if not hit else hit
                 break
-            if any(load > wll for load, wll, _ in out.values()):
+            if any(demand[0] > demand[1] for demand in out.values()):
                 hit = True
                 break
         hits += bool(hit)
-    n_valid = req.n_trajectories
-    lo, hi = wilson(hits, n_valid)
-    return HorizonRisk(event="any line (WLL), pier fitting (rated capacity) or fender (rated energy) exceeded at any step",
+    n = req.n_trajectories
+    lo, _ = wilson(hits, n)
+    _, hi = wilson(hits + failed, n)
+    return HorizonRisk(event="any line (WLL), ship/pier fitting (rated capacity) or fender (rated energy) exceeded at a sampled step; unresolved trajectories are unknown",
                        n_trajectories=req.n_trajectories, step_min=req.horizon_step_min, horizon_hours=req.horizon_hours,
-                       p_event=hits / n_valid, p_event_ci95=[round(lo, 6), round(hi, 6)], n_failed=failed,
-                       correlation_time_min=model.correlation_time_min)
+                       p_event=hits / n, p_event_ci95=[round(lo, 6), round(hi, 6)], n_failed=failed,
+                       correlation_time_min=model.correlation_time_min,
+                       p_event_bounds=[hits / n, (hits + failed) / n], effective_step_min=effective_step)
 
 
 def timeline(req: TimelineRequest, ctx=None) -> TimelineResponse:
+    from mooring.data_simulation.timeline import sample as training_sample
+
     berth = refdata.berth(req.berth_id)
     stations = (berth.env_station_ids.wind, berth.env_station_ids.current, berth.env_station_ids.water_level)
-    base_req = AnalyzeRequest(**req.model_dump(exclude={"forecast_hours", "step_min", "start_utc", "n_samples_per_step"}))
+    base_req = AnalyzeRequest(**req.model_dump(exclude={"forecast_hours", "step_min", "start_utc", "n_samples_per_step", "forecast"}))
     system, sol0, specs = solver.solve_request(base_req)
     df = design_factor(req.mst)
     start = req.start_utc or utcnow().replace(minute=0, second=0, microsecond=0)
-    n = int(req.forecast_hours * 60 / req.step_min) + 1
+    end = start + timedelta(hours=req.forecast_hours)
+    synthetic = req.forecast is None
+    if synthetic:
+        times = [start + timedelta(minutes=i) for i in range(0, req.forecast_hours * 60, req.step_min)] + [end]
+        forcing = [training_sample(t, stations) for t in times]
+    else:
+        forcing = [s for s in req.forecast if start <= s.valid_at_utc <= end]
     sampler = unc.Sampler(unc.SYNTHETIC_DEMO, 1)
-    steps, first_amber, first_red, actions, warm, failed = [], None, None, [], sol0.pose, []
-    peaks: dict[str, tuple[float, str]] = {}
-    for i in range(n):
-        if ctx is not None:
-            ctx.check_cancelled()
-            ctx.progress(i / n, f"step {i} of {n}")
-        t = start + timedelta(minutes=i * req.step_min)
-        env = environment.synthetic(t, "forecast", stations)
-        sysm = dataclasses.replace(system, env=env)
-        sol = eq.solve(sysm, warm)
-        if not sol.converged:
-            failed.append(t.isoformat())
-            steps.append(TimelineStep(valid_at_utc=t, status="RED", wind_speed_kt=env.wind_speed_kt, wind_gust_kt=env.wind_gust_kt,
-                                      p_any_exceeds_wll=None, governing_element="undetermined", valid=False))
-            continue
-        warm = sol.pose
-        worst_el = max(utilization(sysm, sol.pose, df), key=lambda e: e[1])
-        status = "RED" if worst_el[1] > 100 else "AMBER" if worst_el[1] > 80 else "GREEN"
-        if status != "GREEN" and first_amber is None:
-            first_amber = t
-        if status == "RED" and first_red is None:
-            first_red = t
-        if status == "RED":
-            actions.append(f"{worst_el[0]} reaches {worst_el[1]:.0f}% of its limit at {t:%H:%MZ}; review additional lines, tending or tugs.")
-        p = None
-        if req.n_samples_per_step > 0:
-            tl, _ = monte_carlo(lambda env=env: sampler.instant(env),
-                                lambda e: _eval_env(dataclasses.replace(system, env=e), warm, df), req.n_samples_per_step)
-            nv = tl.n - tl.failed
-            p = round(tl.any_wll / nv, 4) if nv else None
-        steps.append(TimelineStep(valid_at_utc=t, status=status, wind_speed_kt=env.wind_speed_kt, wind_gust_kt=env.wind_gust_kt,
-                                  p_any_exceeds_wll=p, governing_element=worst_el[0], max_pct_wll=round(worst_el[1], 1), valid=True))
+    steps, actions, warm = [], [], sol0.pose
     base_validity = solver_validity(req, base_req, system, sol0, specs)
     reasons = list(base_validity.reasons)
-    if failed:
-        reasons.append(ValidityReason(code="STEP_SOLVE_FAILED", affected_components=["timeline"],
-                                      message=f"Equilibrium failed at {len(failed)} of {n} steps ({', '.join(failed[:3])}{'...' if len(failed) > 3 else ''}); those steps are undetermined."))
+    if synthetic:
+        reasons.append(ValidityReason(code="SYNTHETIC_TIMELINE", affected_components=["timeline"],
+            message="No forecast supplied: this is a synthetic training timeline, independent of the configured provider."))
     if req.n_samples_per_step > 0:
         reasons.append(ValidityReason(code="UNQUALIFIED_UNCERTAINTY_MODEL", affected_components=["synthetic-demo"],
-                                      message="Per-step probabilities use the synthetic model: scenario outputs only."))
-    state = "invalid" if base_validity.state == "invalid" or failed else "limited" if reasons else "valid"
+            message="Per-step probabilities use the synthetic model: scenario outputs only."))
+    common_reasons = list(reasons)
+    for i, env in enumerate(forcing):
+        if ctx is not None:
+            ctx.check_cancelled()
+            ctx.progress(i / len(forcing), f"step {i} of {len(forcing)}")
+        sysm = dataclasses.replace(system, env=env)
+        sol = eq.solve(sysm, warm)
+        condition_req = base_req.model_copy(update={"environment": env})
+        condition_validity = solver_validity(req, condition_req, sysm, sol, specs)
+        condition_reasons = [*common_reasons, *condition_validity.reasons]
+        n_valid = n_failed = p = bounds = None
+        worst_el, pct = "undetermined", None
+        status = "RED"
+        if sol.converged and condition_validity.state != "invalid":
+            warm = sol.pose
+            worst_el, pct, _ = max(utilization(sysm, sol.pose, df), key=lambda e: e[1])
+            status = "RED" if pct > 100 else "AMBER" if pct > 80 else "GREEN"
+            if pct > 100:
+                actions.append(f"{worst_el} reaches {pct:.0f}% of its limit at {env.valid_at_utc:%H:%MZ}; review additional lines, tending or tugs.")
+            if req.n_samples_per_step > 0:
+                def check_sampling(_):
+                    if ctx is not None:
+                        ctx.check_cancelled()
+                tally, _ = monte_carlo(lambda env=env: sampler.instant(env),
+                    lambda e: _eval_env(dataclasses.replace(system, env=e), warm, df), req.n_samples_per_step, check_sampling)
+                n_valid, n_failed = tally.n - tally.failed, tally.failed
+                p = round(tally.any_wll / n_valid, 4) if n_valid else None
+                bounds = [tally.any_wll / tally.n, (tally.any_wll + tally.failed) / tally.n]
+                if n_failed:
+                    condition_reasons.append(ValidityReason(code="FAILED_SAMPLES", affected_components=["timeline"],
+                        message=f"{n_failed} of {tally.n} samples failed at {env.valid_at_utc.isoformat()}; see p_any_bounds."))
+        else:
+            actions.append(f"Condition at {env.valid_at_utc:%H:%MZ} is invalid or undetermined; recheck inputs and the plan.")
+        if not sol.converged:
+            condition_reasons.append(ValidityReason(code="STEP_SOLVE_FAILED", affected_components=["timeline"],
+                message=f"Equilibrium failed at {env.valid_at_utc.isoformat()}; the condition is undetermined."))
+        invalid = base_validity.state == "invalid" or not sol.converged or condition_validity.state == "invalid" or n_valid == 0
+        if n_valid == 0:
+            condition_reasons.append(ValidityReason(code="NO_VALID_RISK_SAMPLES", affected_components=["timeline"],
+                message=f"No successful risk samples at {env.valid_at_utc.isoformat()}; no probability established."))
+        state = "invalid" if invalid else "limited" if synthetic or reasons or condition_reasons else "valid"
+        step_validity = condition_validity.model_copy(update={"state": state, "reasons": condition_reasons})
+        steps.append(TimelineStep(valid_at_utc=env.valid_at_utc, status=status_with_validity(status, step_validity),
+            wind_speed_kt=env.wind_speed_kt, wind_gust_kt=env.wind_gust_kt, p_any_exceeds_wll=p,
+            governing_element=worst_el, max_pct_wll=round(pct, 1) if pct is not None else None,
+            valid=not invalid, environment=env, validity=step_validity, n_valid=n_valid, n_failed=n_failed, p_any_bounds=bounds))
+        reasons.extend(condition_reasons)
+    # Repeated seed/geometry reasons need one entry, while timestamped failures remain distinct.
+    reasons = list({(r.code, r.message, tuple(r.affected_components)): r for r in reasons}.values())
+    state = "invalid" if base_validity.state == "invalid" or any(not s.valid for s in steps) else "limited" if reasons else "valid"
     validity = Validity(state=state, reasons=reasons, diagnostics=base_validity.diagnostics)
-    overall = "RED" if first_red or failed else "AMBER" if first_amber else "GREEN"
+    first_amber = next((s.valid_at_utc for s in steps if s.status != "GREEN"), None)
+    first_red = next((s.valid_at_utc for s in steps if s.status == "RED"), None)
+    overall = "RED" if first_red else "AMBER" if first_amber else "GREEN"
     return envelope(TimelineResponse, model="mooring.risk.timeline", request=req, backend="real", model_version="1.0.0",
-                    result=TimelineResult(steps=steps, first_amber_utc=first_amber, first_red_utc=first_red, recommended_actions=actions),
-                    status=status_with_validity(overall, validity), validity=validity,
-                    manifest=solver.manifest_for(base_req, system, specs, sol0, {"timeline": {"start": start.isoformat(), "step_min": req.step_min}}),
-                    assumptions=["Each step is a deterministic equilibrium at the forecast environment (mock synthetic forecast until providers are enabled).",
-                                 "p_any_exceeds_wll is pointwise per step and present only when n_samples_per_step > 0; it is not a horizon probability.",
-                                 *solver.ASSUMPTIONS])
+        result=TimelineResult(steps=steps, first_amber_utc=first_amber, first_red_utc=first_red, recommended_actions=actions,
+                              forcing_source="synthetic_training" if synthetic else "supplied"),
+        status=status_with_validity(overall, validity), validity=validity,
+        manifest=solver.manifest_for(base_req, system, specs, sol0, {"timeline": {"start": start.isoformat(),
+            "step_min": req.step_min, "forcing": [s.model_dump(mode="json") for s in forcing]}}),
+        assumptions=["Synthetic training conditions; not a forecast and not replaced when providers are enabled." if synthetic else
+                     "Every supplied snapshot in the horizon is evaluated without interpolation or extrapolation; peaks between snapshots remain unresolved.",
+                     "Line installation lengths stay fixed at the request environment's installation water level unless explicitly provided in config.",
+                     "p_any_exceeds_wll is pointwise per step among valid samples, not a horizon probability; failed samples have explicit bounds.",
+                     *solver.ASSUMPTIONS])
 
 
 def alert_for(env: EnvironmentSnapshot, analyze_req: AnalyzeRequest | None) -> Alert:
-    """Live alert from the current environment: deterministic equilibrium, with event time and freshness."""
+    """Current-condition diagnostics; invalid inputs never produce usable utilization."""
+    from mooring.loads.validity import environment_findings
+
     meta = env.metadata
     stale = bool(meta and meta.age_s is not None and meta.age_s > STALE_AFTER_S) or any(q.age_s > STALE_AFTER_S for q in env.quality)
+    findings = environment_findings(env)
+    if stale:
+        findings.append(("limited", ValidityReason(code="ALERT_ENVIRONMENT_STALE",
+            message="Environment data is stale for the live alert freshness policy.", affected_components=["environment"])))
+    reasons = [reason for _, reason in findings]
+    invalid = any(state == "invalid" for state, _ in findings)
+
+    def emit(severity, message, validity, element=None, provenance="deterministic equilibrium at the current environment; no probability"):
+        return Alert(alert_id=new_id("alr"), at_utc=env.valid_at_utc, severity=severity, element_id=element,
+                     env=env, stale=stale, validity=validity, provenance=provenance,
+                     message=message + (" Environment data is stale." if stale else ""))
+
+    if invalid:
+        return emit("RED", "Environmental inputs are invalid; mooring condition is undetermined.",
+                    Validity(state="invalid", reasons=reasons), provenance="input validation; no usable mooring assessment")
     if analyze_req is None:
-        return Alert(alert_id=new_id("alr"), at_utc=env.valid_at_utc, severity="INFO", element_id=None, env=env, stale=stale,
-                     provenance="observation only; no mooring plan to evaluate",
-                     message=f"Wind {env.wind_speed_kt:.0f} kt gusting {env.wind_gust_kt:.0f} kt from {env.wind_from_true_deg:03.0f}.")
-    system, sol, specs = solver.solve_request(analyze_req.model_copy(update={"environment": env}))
+        reasons.append(ValidityReason(code="ALERT_NO_PLAN", message="No mooring plan was supplied; observations do not establish mooring adequacy."))
+        return emit("AMBER" if findings else "INFO",
+                    f"Observation only: wind {env.wind_speed_kt:.0f} kt gusting {env.wind_gust_kt:.0f} kt from {env.wind_from_true_deg:03.0f}; no plan assessed.",
+                    Validity(state="limited", reasons=reasons), provenance="observation only; no mooring plan to evaluate")
+    installation_tide = analyze_req.installed_at_water_level_mllw_ft
+    if installation_tide is None:
+        installation_tide = analyze_req.environment.water_level_mllw_ft
+    current_req = analyze_req.model_copy(update={"environment": env,
+                                                "installed_at_water_level_mllw_ft": installation_tide})
+    try:
+        system, sol, specs = solver.solve_request(current_req)
+    except (refdata.InvalidReference, refdata.NotFound) as exc:
+        return emit("RED", "Plan inputs cannot be evaluated; mooring condition is undetermined.",
+                    Validity(state="invalid", reasons=[*reasons, ValidityReason(code="ALERT_PLAN_INVALID", message=str(exc))]))
+    validity = solver_validity(current_req, current_req, system, sol, specs)
+    if stale:
+        validity = validity.model_copy(update={"state": "invalid" if validity.state == "invalid" else "limited",
+                                               "reasons": [*validity.reasons, reasons[-1]]})
+    if validity.state == "invalid":
+        return emit("RED", "Mooring assessment is invalid; condition undetermined. No usable utilization is reported.", validity)
     df = design_factor(analyze_req.mst)
-    if not sol.converged:
-        return Alert(alert_id=new_id("alr"), at_utc=env.valid_at_utc, severity="RED", element_id=None, env=env, stale=stale,
-                     provenance="deterministic equilibrium (did not converge)", message="Equilibrium solve failed; condition undetermined.")
     el, pct, mode = max(utilization(system, sol.pose, df), key=lambda e: e[1])
-    sev = "RED" if pct > 100 else "AMBER" if pct > 80 else "INFO"
-    return Alert(alert_id=new_id("alr"), at_utc=env.valid_at_utc, severity=sev, element_id=el, env=env, stale=stale,
-                 provenance="deterministic equilibrium at the current environment; no probability",
-                 message=f"Gust {env.wind_gust_kt:.0f} kt: {el} at {pct:.0f}% of its {mode} limit." + (" Environment data is stale." if stale else ""))
+    sev = "RED" if pct > 100 else "AMBER" if pct > 80 or validity.state == "limited" else "INFO"
+    note = " Limited assessment; review validity reasons." if validity.state == "limited" else ""
+    return emit(sev, f"Gust {env.wind_gust_kt:.0f} kt: {el} at {pct:.0f}% of its {mode} limit." + note, validity, el)

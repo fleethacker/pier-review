@@ -118,3 +118,11 @@ that store. Agent responses report `backend="real"` even when narration falls ba
 that describes the intake implementation, not whether modeling data is live.
 Underlying mock/stale quality findings remain visible. The generated contract includes
 the two optional provenance fields; all existing fields and endpoints remain.
+
+Declared per-component quality and validity intervals are checked across current and forecast samples, independently of aggregate quality. Poor/out-of-interval inputs produce RED data-quality findings, suspect AMBER; unknown quality, unknown prediction issue time and source limitations remain INFO. Retrieval time is not an issue time or proof of freshness. Safety review consumes these findings and Safety watch rechecks when component quality changes.
+
+The code-owned headline qualifies blocking input-quality findings even if no physical threshold windows are detected. This qualification is retained with or without model narration. Missing coverage continues to state that future exceedance is unknown.
+
+Intake and advance docking share a temporal availability check. Future observations, future-issued guidance and public forecasts without availability provenance are excluded from the usable series and reported as RED missing-data findings. They cannot drive windows/MST/planning conditions or be selected by optional narration. A temporally unusable current snapshot returns422, just as an unavailable provider cannot supply invented current conditions. `created_at_utc` records the availability cutoff after forecast retrieval. Actual component issuance is preferred; a known retrieval can establish availability when issuance is unknown, which remains an informational limitation.
+
+Intake flags an aggregate validity interval that excludes any supplied snapshot, even when that snapshot is not selected as the peak gust/current condition. The RED out-of-range finding stays in the code-owned headline and blocks forecast coverage in independent review, just like a component interval failure.

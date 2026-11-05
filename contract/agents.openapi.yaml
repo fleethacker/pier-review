@@ -11,9 +11,9 @@ info:
 
     (`/tools`, `/physics/*`), which logs every call; every number in a plan cites a logged `result_id`.
 
-    **Mixed implementation:** Intake and Planner have guarded optional LLM layers; other agent and modeling
+    **Deterministic agents with optional guarded LLM layers.** Real implementation does not establish
 
-    capabilities still include mocks. See `/version` for module status.
+    engineering qualification; inspect result validity and `/version` for module status.
 
     '
   version: 1.1.0
@@ -217,8 +217,7 @@ paths:
     get:
       tags:
       - Planner agent
-      summary: 'SSE: step (AgentStepEvent), proposal (AgentProposalEvent), message (AgentMessageEvent), done (AgentDoneEvent).
-        follow=true keeps the stream open for follow-up answers.'
+      summary: SSE computed step/proposal events and terminal done; follow=true includes subsequent answers.
       operationId: plan_events_api_v1_agent_plans__plan_id__events_get
       parameters:
       - name: plan_id
@@ -234,6 +233,15 @@ paths:
           type: boolean
           default: true
           title: Follow
+      - name: last-event-id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            minimum: 0
+          - type: 'null'
+          title: Last-Event-Id
       responses:
         '200':
           description: Successful Response
@@ -249,7 +257,7 @@ paths:
     post:
       tags:
       - Planner agent
-      summary: Ask a follow-up; the answer streams as a `message` event
+      summary: Ask a follow-up; the answer streams as a message event
       operationId: plan_message_api_v1_agent_plans__plan_id__messages_post
       parameters:
       - name: plan_id
@@ -338,7 +346,7 @@ paths:
     get:
       tags:
       - Safety agent
-      summary: 'SSE `warning` events (GustWarning): live gusts vs the plan''s working-load and breaking limits'
+      summary: SSE warnings and recheck notices; terminal source_unavailable on provider failure
       operationId: watch_api_v1_safety_watch__plan_id__get
       parameters:
       - name: plan_id
@@ -352,6 +360,8 @@ paths:
         required: false
         schema:
           type: number
+          maximum: 3600
+          minimum: 0
           default: 5.0
           title: Interval S
       - name: limit
@@ -359,6 +369,8 @@ paths:
         required: false
         schema:
           type: integer
+          maximum: 1000
+          minimum: 0
           default: 0
           title: Limit
       - name: heartbeat_minutes
@@ -366,6 +378,8 @@ paths:
         required: false
         schema:
           type: number
+          maximum: 1440
+          minimum: 0
           default: 5.0
           title: Heartbeat Minutes
       responses:
@@ -584,6 +598,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - System
+      summary: Cancel Job
+      operationId: cancel_job_api_v1_jobs__job_id__delete
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/jobs/{job_id}/events:
     get:
       tags:
@@ -597,6 +636,15 @@ paths:
         schema:
           type: string
           title: Job Id
+      - name: last-event-id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            minimum: 0
+          - type: 'null'
+          title: Last-Event-Id
       responses:
         '200':
           description: Successful Response
@@ -701,6 +749,17 @@ components:
           anyOf:
           - $ref: '#/components/schemas/SequenceResult'
           - type: 'null'
+        sequence_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sequence Result Id
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Common line-installation tide used across assessed conditions; absent on legacy plans.
         analysis_result_id:
           anyOf:
           - type: string
@@ -892,9 +951,13 @@ components:
           description: True bearing of the berth frame's +x axis.
         origin_lat:
           type: number
+          maximum: 90.0
+          minimum: -90.0
           title: Origin Lat
         origin_lon:
           type: number
+          maximum: 180.0
+          minimum: -180.0
           title: Origin Lon
         face_length_ft:
           type: number
@@ -907,7 +970,9 @@ components:
           items:
             $ref: '#/components/schemas/DepthPoint'
           type: array
+          minItems: 1
           title: Depth Profile
+          description: At least one MLLW depth sample; x_ft stations must be unique. Input ordering is unrestricted.
         fittings:
           items:
             $ref: '#/components/schemas/PierFitting'
@@ -1191,8 +1256,86 @@ components:
       - water_level
       title: EnvStations
       description: NOAA CO-OPS station ids that feed this berth's environment.
+    EnvironmentComponentProvenance:
+      properties:
+        component:
+          type: string
+          enum:
+          - wind
+          - current
+          - water_level
+          title: Component
+        source:
+          type: string
+          minLength: 1
+          title: Source
+          description: Provider, station/bin or grid product that supplied this component.
+        basis:
+          type: string
+          enum:
+          - observation
+          - prediction
+          - scenario
+          title: Basis
+        issued_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Issued At Utc
+          description: Actual provider issuance, when supplied; never substitute retrieval time.
+        retrieved_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Retrieved At Utc
+          description: Recorded retrieval completion. If issuance is unknown, this proves only availability by this time,
+            not forecast age or accuracy.
+        valid_from_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid From Utc
+        valid_to_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid To Utc
+        quality:
+          type: string
+          enum:
+          - good
+          - suspect
+          - poor
+          - unknown
+          title: Quality
+          default: unknown
+        limitations:
+          items:
+            type: string
+          type: array
+          title: Limitations
+      additionalProperties: false
+      type: object
+      required:
+      - component
+      - source
+      - basis
+      title: EnvironmentComponentProvenance
+      description: Provider timing for one forcing component; retrieval is not provider issuance.
     EnvironmentMetadata:
       properties:
+        components:
+          items:
+            $ref: '#/components/schemas/EnvironmentComponentProvenance'
+          type: array
+          maxItems: 3
+          title: Components
+          description: Optional per-component provenance for composed snapshots. Advance public forecasts require wind, current
+            and water level when this is supplied.
         basis:
           type: string
           enum:
@@ -1545,6 +1688,7 @@ components:
           type: string
           format: date-time
           title: Created At Utc
+          description: UTC availability cutoff captured after input retrieval; assessment processing may finish later.
         berth_id:
           type: string
           title: Berth Id
@@ -1786,6 +1930,7 @@ components:
             $ref: '#/components/schemas/MooringLine'
           type: array
           title: Lines
+          description: Lines with unique line_number identifiers; gaps in numbering are permitted.
       additionalProperties: false
       type: object
       required:
@@ -2120,6 +2265,10 @@ components:
       title: RationaleItem
     SafetyReview:
       properties:
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
         review_id:
           type: string
           title: Review Id
@@ -2206,7 +2355,7 @@ components:
           - type: string
           - type: 'null'
           title: Intake Report Id
-          description: Re-check against this report's conditions.
+          description: Add this report's conditions to the original intake conditions; neither report is discarded.
         target_margin_pct_wll:
           type: number
           maximum: 100.0
@@ -2220,6 +2369,39 @@ components:
       title: SafetyReviewRequest
     SafetySheet:
       properties:
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+        analysis_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Analysis Result Id
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+        sequence_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sequence Result Id
+        threshold_result_ids:
+          items:
+            type: string
+          type: array
+          title: Threshold Result Ids
+        holding_tugs:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/TugAssignment'
+            type: array
+          - type: 'null'
+          title: Holding Tugs
+          description: Prescribed continuous assistance included in the line/holding assessment; null means not recorded in
+            a legacy sheet.
         sheet_id:
           type: string
           title: Sheet Id
@@ -2489,6 +2671,7 @@ components:
           title: Station
         crews:
           type: integer
+          minimum: 0.0
           title: Crews
         trigger:
           type: string
@@ -2657,6 +2840,85 @@ components:
       - pct_wll
       - status
       title: SheetLineRow
+    SolverDiagnostics:
+      properties:
+        converged:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Converged
+          description: Null when no iterative solve was performed.
+        iterations:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Iterations
+        residuals:
+          items:
+            $ref: '#/components/schemas/SolverResidual'
+          type: array
+          title: Residuals
+          description: Independent force and moment balances, each in its own unit.
+        active_constraints:
+          items:
+            type: string
+          type: array
+          title: Active Constraints
+          description: Contacts, slack lines and limits that were active at the solution.
+        rank:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Rank
+          description: Numerical rank of the support (stiffness) matrix.
+        degrees_of_freedom:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Degrees Of Freedom
+          description: Rank is full when rank equals this.
+        notes:
+          items:
+            type: string
+          type: array
+          title: Notes
+      additionalProperties: false
+      type: object
+      title: SolverDiagnostics
+      description: Numerical evidence behind a result. Absent values are `null` (not measured), never 0 or NaN.
+    SolverResidual:
+      properties:
+        name:
+          type: string
+          title: Name
+          examples:
+          - surge_force
+        value:
+          type: number
+          title: Value
+        unit:
+          type: string
+          title: Unit
+          examples:
+          - lbf
+          - ftlbf
+        tolerance:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Tolerance
+          description: Same unit as value.
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - value
+      - unit
+      - tolerance
+      title: SolverResidual
+      description: One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
     StationQuality:
       properties:
         station_id:
@@ -2702,7 +2964,7 @@ components:
           - type: number
           - type: 'null'
           title: Limit Breaking Gust Kt
-          description: 'Estimated gust at line breaking: working-load limit times sqrt(design factor).'
+          description: Unavailable unless a separate validated breaking-limit model establishes it; legacy values were estimates.
         forecast_max_gust_kt:
           type: number
           title: Forecast Max Gust Kt
@@ -2726,9 +2988,15 @@ components:
       - forecast_max_gust_kt
       - cites
       title: Thresholds
-      description: Wind limits for this plan. Breaking is estimated from the working-load limit and the design factor.
+      description: Model-computed gust limits; breaking remains unavailable without a separate validated model.
     ToolCall:
       properties:
+        operation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operation Id
+          description: Server-created agent operation budget scope; absent on legacy/direct gateway calls.
         call_id:
           type: string
           title: Call Id
@@ -3012,6 +3280,64 @@ components:
       - msg
       - type
       title: ValidationError
+    Validity:
+      properties:
+        state:
+          type: string
+          enum:
+          - valid
+          - limited
+          - invalid
+          - unknown
+          title: State
+        reasons:
+          items:
+            $ref: '#/components/schemas/ValidityReason'
+          type: array
+          title: Reasons
+        diagnostics:
+          anyOf:
+          - $ref: '#/components/schemas/SolverDiagnostics'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - state
+      title: Validity
+      description: 'Whether the numbers can be relied on, independent of the GREEN/AMBER/RED status.
+
+
+        `valid`: inside the model''s qualified domain. `limited`: usable with the stated caveats, so never an
+
+        unconditional GREEN. `invalid`: do not use the numbers; status is RED. `unknown`: not assessed.
+
+        A numerical failure is not proof that no physical solution exists: report it as `invalid` with a reason.'
+    ValidityReason:
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+          examples:
+          - MISSING_FITTING_RATING
+        message:
+          type: string
+          title: Message
+        affected_components:
+          items:
+            type: string
+          type: array
+          title: Affected Components
+          description: Element ids the reason applies to, e.g. 'line-2', 'P12N-B16'.
+          examples:
+          - - line-2
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - message
+      title: ValidityReason
+      description: Why a result is limited or invalid. Codes are stable UPPER_SNAKE identifiers that clients may switch on.
     VersionInfo:
       properties:
         api_version:
@@ -3071,6 +3397,24 @@ components:
           - RED
           title: Status
           type: string
+        state:
+          anyOf:
+          - enum:
+            - queued
+            - running
+            - succeeded
+            - failed
+            - cancelled
+            type: string
+          - type: 'null'
+          default: null
+          title: State
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Error
       required:
       - plan_id
       - status
@@ -3150,17 +3494,30 @@ components:
           description: Pier fitting kind, 'fender', 'camel', 'pier_face' or 'obstruction'.
           title: Kind
           type: string
+        center_px:
+          anyOf:
+          - maxItems: 2
+            minItems: 2
+            prefixItems:
+            - type: number
+            - type: number
+            type: array
+          - type: 'null'
+          default: null
+          title: Center Px
         bbox_px:
-          description: '[x, y, width, height] in image pixels.'
-          maxItems: 4
-          minItems: 4
-          prefixItems:
-          - type: number
-          - type: number
-          - type: number
-          - type: number
+          anyOf:
+          - maxItems: 4
+            minItems: 4
+            prefixItems:
+            - type: number
+            - type: number
+            - type: number
+            - type: number
+            type: array
+          - type: 'null'
+          description: '[x, y, width, height] in image pixels; null when not measured from the image.'
           title: Bbox Px
-          type: array
         confidence:
           maximum: 1
           minimum: 0
@@ -3226,6 +3583,15 @@ components:
       additionalProperties: false
       description: SSE `warning` event on GET /safety/watch/{plan_id}.
       properties:
+        requires_recheck:
+          default: false
+          title: Requires Recheck
+          type: boolean
+        recheck_reasons:
+          items:
+            type: string
+          title: Recheck Reasons
+          type: array
         warning_id:
           title: Warning Id
           type: string
@@ -3361,152 +3727,69 @@ components:
           title: Rng Model Revision
       title: ResultManifest
       type: object
-    SolverDiagnostics:
+    SafetyWatchUnavailable:
       additionalProperties: false
-      description: Numerical evidence behind a result. Absent values are `null` (not measured), never 0 or NaN.
+      description: Terminal SSE source_unavailable event; contains no fabricated measurement.
       properties:
-        converged:
-          anyOf:
-          - type: boolean
-          - type: 'null'
-          default: null
-          description: Null when no iterative solve was performed.
-          title: Converged
-        iterations:
-          anyOf:
-          - minimum: 0
-            type: integer
-          - type: 'null'
-          default: null
-          title: Iterations
-        residuals:
-          description: Independent force and moment balances, each in its own unit.
-          items:
-            $ref: '#/components/schemas/SolverResidual'
-          title: Residuals
-          type: array
-        active_constraints:
-          description: Contacts, slack lines and limits that were active at the solution.
-          items:
-            type: string
-          title: Active Constraints
-          type: array
-        rank:
-          anyOf:
-          - minimum: 0
-            type: integer
-          - type: 'null'
-          default: null
-          description: Numerical rank of the support (stiffness) matrix.
-          title: Rank
-        degrees_of_freedom:
-          anyOf:
-          - minimum: 0
-            type: integer
-          - type: 'null'
-          default: null
-          description: Rank is full when rank equals this.
-          title: Degrees Of Freedom
-        notes:
-          items:
-            type: string
-          title: Notes
-          type: array
-      title: SolverDiagnostics
-      type: object
-    SolverResidual:
-      additionalProperties: false
-      description: One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
-      properties:
-        name:
-          examples:
-          - surge_force
-          title: Name
+        plan_id:
+          title: Plan Id
           type: string
-        value:
-          title: Value
-          type: number
-        unit:
-          examples:
-          - lbf
-          - ftlbf
-          title: Unit
+        at_utc:
+          format: date-time
+          title: At Utc
           type: string
-        tolerance:
-          description: Same unit as value.
-          exclusiveMinimum: 0
-          title: Tolerance
-          type: number
+        severity:
+          const: RED
+          default: RED
+          title: Severity
+          type: string
+        reason:
+          title: Reason
+          type: string
+        retryable:
+          title: Retryable
+          type: boolean
       required:
-      - name
-      - value
-      - unit
-      - tolerance
-      title: SolverResidual
-      type: object
-    Validity:
-      additionalProperties: false
-      description: 'Whether the numbers can be relied on, independent of the GREEN/AMBER/RED status.
-
-
-        `valid`: inside the model''s qualified domain. `limited`: usable with the stated caveats, so never an
-
-        unconditional GREEN. `invalid`: do not use the numbers; status is RED. `unknown`: not assessed.
-
-        A numerical failure is not proof that no physical solution exists: report it as `invalid` with a reason.'
-      properties:
-        state:
-          enum:
-          - valid
-          - limited
-          - invalid
-          - unknown
-          title: State
-          type: string
-        reasons:
-          items:
-            $ref: '#/components/schemas/ValidityReason'
-          title: Reasons
-          type: array
-        diagnostics:
-          anyOf:
-          - $ref: '#/components/schemas/SolverDiagnostics'
-          - type: 'null'
-          default: null
-      required:
-      - state
-      title: Validity
-      type: object
-    ValidityReason:
-      additionalProperties: false
-      description: Why a result is limited or invalid. Codes are stable UPPER_SNAKE identifiers that clients may switch on.
-      properties:
-        code:
-          examples:
-          - MISSING_FITTING_RATING
-          pattern: ^[A-Z][A-Z0-9_]*$
-          title: Code
-          type: string
-        message:
-          title: Message
-          type: string
-        affected_components:
-          description: Element ids the reason applies to, e.g. 'line-2', 'P12N-B16'.
-          examples:
-          - - line-2
-          items:
-            type: string
-          title: Affected Components
-          type: array
-      required:
-      - code
-      - message
-      title: ValidityReason
+      - plan_id
+      - at_utc
+      - reason
+      - retryable
+      title: SafetyWatchUnavailable
       type: object
     VisionMetadata:
       additionalProperties: false
       description: Sent as the `metadata` form field (a JSON string) next to the `image` file.
       properties:
+        berth_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: Catalog berth supplying surveyed face location and notional fittings; absent uses an explicitly labeled
+            demo template.
+          title: Berth Id
+        pier_face_start_px:
+          anyOf:
+          - maxItems: 2
+            minItems: 2
+            prefixItems:
+            - type: number
+            - type: number
+            type: array
+          - type: 'null'
+          default: null
+          title: Pier Face Start Px
+        pier_face_end_px:
+          anyOf:
+          - maxItems: 2
+            minItems: 2
+            prefixItems:
+            - type: number
+            - type: number
+            type: array
+          - type: 'null'
+          default: null
+          title: Pier Face End Px
         image_kind:
           enum:
           - satellite
@@ -3620,6 +3903,40 @@ components:
     VisionResult:
       additionalProperties: false
       properties:
+        recommendation_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Recommendation Result Id
+        extraction_source:
+          anyOf:
+          - enum:
+            - deterministic
+            - llm
+            - detector
+            type: string
+          - type: 'null'
+          default: null
+          title: Extraction Source
+        extraction_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Extraction Note
+        geometry_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Geometry Result Id
+        image_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Image Sha256
         draft_berth:
           $ref: '#/components/schemas/Berth'
         detections:
@@ -3658,4 +3975,4 @@ tags:
   description: Jobs, health.
 servers:
 - url: http://localhost:8001
-  description: Local mock server
+  description: Local agents service

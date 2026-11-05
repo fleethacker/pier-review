@@ -6,10 +6,14 @@ import type { Role } from '../agent';
 import { fmt, useUnitSystem } from '../units';
 import { useAgent, useController, useMooring } from './context';
 import { ResultLink } from './ResultLink';
+import { MotionView } from '../motion/MotionView';
 
 export function Overlay() {
   useUnitSystem();
+  const c = useController();
   const overlay = useMooring((s) => s.overlay);
+  const motionOpen = c.motion.state.use((s) => s.open);
+  if (motionOpen) return <MotionView controller={c.motion} />;
   if (!overlay) return null;
   return overlay.kind === 'result' ? <ResultViewer id={overlay.id} /> : <SheetViewer />;
 }
@@ -90,8 +94,8 @@ function ResultViewer({ id }: { id: string }) {
           <details>
             <summary className="cursor-pointer text-mil-dim">Assumptions</summary>
             <ul className="mt-1 list-disc pl-4 text-mil-text">
-              {(data.assumptions ?? []).map((a) => (
-                <li key={a}>{a}</li>
+              {(data.assumptions ?? []).map((a, i) => (
+                <li key={`${i}-${a}`}>{a}</li>
               ))}
             </ul>
           </details>
@@ -119,6 +123,7 @@ function SheetViewer() {
   const [comment, setComment] = useState('');
   const s = sheet.sheet;
   if (!s) return null;
+  const usable = s.validity?.state === 'valid' || s.validity?.state === 'limited';
   const approved = s.approvals.filter((a) => a.decision === 'approve');
   const rejected = s.approvals.some((a) => a.decision === 'reject');
 
@@ -146,7 +151,7 @@ function SheetViewer() {
         </div>
 
         <div className="space-y-3 text-[11px]">
-          {sheet.image && (
+          {sheet.image ? (
             <div>
               <div className="mil-label mb-1">Layout</div>
               <img src={sheet.image} alt="Mooring layout at the time the sheet was built" className="w-full rounded-sm border border-mil-border" />
@@ -154,6 +159,8 @@ function SheetViewer() {
                 Download layout image
               </a>
             </div>
+          ) : (
+            <p className="text-mil-dim">No plan-bound layout image is attached. The current map may differ from this sheet; use its recorded line plan and result references.</p>
           )}
 
           {s.warnings.length > 0 && (
@@ -178,7 +185,7 @@ function SheetViewer() {
                     Line {l.line_number} {l.role}
                   </span>
                   <span className="flex items-center gap-2">
-                    {fmt.pct(l.pct_wll)} of WLL <StatusChip status={l.status} label="" />
+                    {usable ? <>{fmt.pct(l.pct_wll)} of WLL <StatusChip status={l.status} label="" /></> : 'Unavailable'}
                   </span>
                 </li>
               ))}
@@ -187,8 +194,8 @@ function SheetViewer() {
 
           <div>
             <div className="mil-label mb-1">Rationale (cited results)</div>
-            {s.rationale.map((r) => (
-              <p key={r.text} className="mb-1 text-white">
+            {s.rationale.map((r, i) => (
+              <p key={`${i}-${r.text}`} className="mb-1 text-white">
                 {r.text}
                 <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
                   {r.cites.map((id) => (

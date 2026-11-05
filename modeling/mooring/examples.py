@@ -32,6 +32,8 @@ def build() -> dict[str, dict]:
     analyze = {"ship_class_id": SHIP, "loading": "full_load", "berth_id": BERTH, "config": cfg, "environment": env,
                "mst": "II", "lines_wet": True}
     return {
+        "berth_draft": {"source_berth_id": BERTH, "name": "Human-confirmation draft"},
+        "berth": refdata.berth(BERTH).model_dump(mode="json"),
         "env_scenario": {"name": "MST II design condition", "kind": "steady", "wind_speed_kt": 64, "wind_gust_kt": 64,
                          "wind_from_true_deg": 195, "current_speed_kt": 2.0, "current_set_true_deg": 15,
                          "water_level_mllw_ft": 0.0},

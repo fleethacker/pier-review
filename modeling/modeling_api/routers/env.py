@@ -58,4 +58,7 @@ def env_scenario_get(env_scenario_id: str):
 
 @router.get("/env/gust-model", response_model=GustModel, summary="Fitted gust factor and current residual model")
 def env_gust_model(station: str = "8638614"):
-    return impl.gust_model(station)
+    try:
+        return impl.gust_model(station)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from None

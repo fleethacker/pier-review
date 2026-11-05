@@ -2,6 +2,8 @@
 
 ## Log
 
+- 20:51 EST: integrated colleague branch ws-a/dc8-data-requests into the modeling branch, retaining its detailed asset/sensor inventory and adding our procedure, forecast-basis, propulsion and abort/replan requirements. Provider plumbing branch remains pending the stale-age review request. Jobs packet: 1179 Python and 81 UI tests pass.
+
 - 20:48 EST: provider/intake PR #30 published with 1175 passing tests. Real agent task queue and live planner events implemented; 64 focused tests pass including gated work, saturation, cancellation, failure, and SSE resume. Persistence/authentication still separate work, not claimed.
 
 - 20:43 EST: vision PR #29 CI green and merged. Intake now refuses to extrapolate ramp/replay snapshots as steady; missing scenario-series capability is explicit. Partial/malformed forecast coverage and future-sample quality flags propagate into safety findings. 204 focused tests pass.

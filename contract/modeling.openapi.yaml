@@ -3945,7 +3945,6 @@ components:
           - supplied
           - scenario
           title: Source
-          default: supplied
         source_id:
           anyOf:
           - type: string
@@ -4061,7 +4060,6 @@ components:
           minimum: 10.0
           title: Forecast Step Min
           description: Sampling interval only for an explicitly selected environment scenario.
-          default: 30
         max_gap_min:
           type: integer
           maximum: 180.0
@@ -4184,14 +4182,12 @@ components:
           maximum: 180.0
           minimum: 1.0
           title: Max Gap Min
-          default: 60
         step_min:
           type: integer
           maximum: 180.0
           minimum: 10.0
           title: Step Min
           description: Sampling interval for an explicitly selected scenario; supplied series retain every knot.
-          default: 30
         forecast:
           anyOf:
           - items:
@@ -10212,13 +10208,11 @@ components:
           anyOf:
           - $ref: '#/components/schemas/ForecastResolutionManifest'
           - type: 'null'
-          default: null
         result_hash:
           anyOf:
           - pattern: ^sha256:[0-9a-f]{64}$
             type: string
           - type: 'null'
-          default: null
           description: Hash of the semantic assessment, excluding newly allocated result IDs and execution timestamps.
           title: Result Hash
         selected_config:

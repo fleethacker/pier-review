@@ -2,6 +2,9 @@
 
 ## Requests
 
+- B 01:12 EST: MooringConfig now rejects duplicate line_number IDs with422; empty layouts and numbering gaps remain allowed. Reproduced analysis previously returned duplicate rows [1,2,3,4,5,6,1], making commands/results ambiguous. No automatic renumbering. Shared schema/contract/type update in progress; ensure imported/duplicated line objects get distinct IDs.
+
+
 - B 01:08 EST: Shared catalog audit found POST /berths could overwrite seed/runtime geometry behind other scenarios. Registration now accepts identical retries but returns409 for changed data under an existing ID; revisions need a new ID. Vision first-confirm behavior is unchanged; edits after confirmation need a new draft. Writes/reads are locked and copied; no role/admin system or persistence claimed. Generated contract/type update underway; do not retry a conflicting overwrite.
 
 

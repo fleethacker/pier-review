@@ -81,3 +81,5 @@ Ship selection already labels classes without fittings as “hull only.” Prese
 On macOS with installed Homebrew Pango libraries, the verified stack launch is `make mock PDF_LIBRARY_PATH=/opt/homebrew/lib` (Intel Homebrew: `/usr/local/lib`). Setting `DYLD_FALLBACK_LIBRARY_PATH` outside system `make` can lose the variable. Keep the explicit PDF501→HTML/browser-print fallback on hosts without renderer libraries.
 
 Berth registration now rejects changed data under an existing ID with HTTP409; identical retries remain accepted. Preserve the saved reference and request a new draft/revision ID for edits. Do not retry a conflicting overwrite or imply that an existing scenario automatically uses edited geometry. Vision's first confirmation is unchanged; a revised confirmed draft requires a new vision job.
+
+Keep `line_number` unique when adding, duplicating or importing lines. Duplicate IDs now return422 rather than producing ambiguous result/sequence references. Gaps are allowed, and the backend does not silently renumber user lines.

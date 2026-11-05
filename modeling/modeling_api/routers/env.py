@@ -3,7 +3,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
-from mooring.core.schemas import EnvironmentSnapshot, EnvScenario, EnvScenarioCreate, ForecastSeries, GustModel, HistorySeries
+from mooring.core.schemas import (
+    EnvironmentAvailability,
+    EnvironmentSnapshot,
+    EnvScenario,
+    EnvScenarioCreate,
+    ForecastSeries,
+    GustModel,
+    HistorySeries,
+)
 from mooring.examples import ex
 
 from mooring.environment.coops import ProviderError
@@ -30,6 +38,19 @@ def env_now(
     env_scenario_id: Annotated[str | None, Query(description="Serve a synthetic scenario instead.")] = None,
 ):
     return guarded(impl.now, berth_id, heading_true_deg, env_scenario_id)
+
+
+@router.get(
+    "/env/availability",
+    response_model=EnvironmentAvailability,
+    summary="Independent source and availability status for environment components",
+)
+def env_availability(berth_id: str):
+    """Report partial status without weakening the complete `/env/now` contract."""
+    from mooring import refdata
+
+    refdata.berth(berth_id)
+    return guarded(impl.availability, berth_id)
 
 
 @router.get("/env/forecast", response_model=ForecastSeries, summary="Forecast series at a berth")

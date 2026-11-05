@@ -3,11 +3,14 @@
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, ConfigDict, Field, model_validator
 
 from .common import Model, Provenance
 
 EnvSourceKind = Literal["live", "replay", "forecast", "scenario", "ship_sensor", "mock"]
+EnvSourceMode = Literal["mock", "coops", "replay", "auto"]
+EnvironmentComponentKind = Literal["wind", "current", "water_level", "forecast", "waves"]
+EnvironmentComponentState = Literal["live", "replay", "prediction", "mock", "unavailable"]
 
 
 def _now() -> datetime:
@@ -123,6 +126,96 @@ class EnvironmentSnapshot(Model):
     )
 
 
+class EnvironmentComponentAvailability(Model):
+    """Availability and provenance for one independently acquired component.
+
+    This carries no environmental measurement. Missing values stay unavailable here
+    instead of being represented as numeric zero in an ``EnvironmentSnapshot``.
+    """
+
+    component: EnvironmentComponentKind
+    state: EnvironmentComponentState = Field(
+        description="Active source state. Stale or missing data is unavailable, never silently relabeled as a prediction."
+    )
+    source: str | None = Field(
+        default=None, description="Provider plus station/bin or grid product when known."
+    )
+    basis: Literal["observation", "prediction", "scenario"] | None = None
+    age_s: float | None = Field(
+        default=None, ge=0,
+        description="Age according to age_basis. Retrieval time is never substituted for issue or valid time."
+    )
+    age_basis: Literal["valid_time", "issued_time"] | None = None
+    issued_at_utc: AwareDatetime | None = None
+    retrieved_at_utc: AwareDatetime | None = None
+    valid_from_utc: AwareDatetime | None = None
+    valid_to_utc: AwareDatetime | None = None
+    quality: Literal["good", "suspect", "poor", "unknown"] = "unknown"
+    limitations: list[str] = Field(default_factory=list)
+    station_id: str | None = None
+    grid_cell: str | None = None
+    current_depth_ft: float | None = Field(default=None, ge=0)
+    current_bin: str | None = None
+    vertical_datum: Literal["MLLW", "MSL", "NAVD88", "other"] | None = None
+    wind_averaging_s: float | None = Field(default=None, gt=0)
+    gust_duration_s: float | None = Field(default=None, gt=0)
+    wind_reference_height_m: float | None = Field(default=None, gt=0)
+    reason: str | None = Field(
+        default=None, description="Why this component is unavailable; required when state is unavailable."
+    )
+
+    @model_validator(mode="after")
+    def _consistent(self):
+        if self.state == "unavailable" and not self.reason:
+            raise ValueError("an unavailable component needs a reason")
+        if self.state != "unavailable" and (not self.source or self.basis is None):
+            raise ValueError("an available component needs source and basis")
+        if (self.age_s is None) != (self.age_basis is None):
+            raise ValueError("age_s and age_basis must be supplied together")
+        if self.valid_from_utc and self.valid_to_utc and self.valid_to_utc.astimezone(UTC) < self.valid_from_utc.astimezone(UTC):
+            raise ValueError("component valid_to_utc is before valid_from_utc")
+        if self.issued_at_utc and self.retrieved_at_utc and self.issued_at_utc.astimezone(UTC) > self.retrieved_at_utc.astimezone(UTC):
+            raise ValueError("component issuance is after its recorded retrieval")
+        if self.wind_averaging_s and self.gust_duration_s and self.gust_duration_s >= self.wind_averaging_s:
+            raise ValueError("gust_duration_s must be shorter than wind_averaging_s")
+        return self
+
+
+class EnvironmentAvailability(Model):
+    """Per-component status; the complete snapshot endpoint remains unchanged."""
+
+    model_config = ConfigDict(json_schema_extra={"examples": [{
+        "berth_id": "NAVSTA-NORFOLK-P12-N",
+        "checked_at_utc": "2026-11-05T12:00:00Z",
+        "complete_snapshot_available": False,
+        "components": [
+            {"component": "wind", "state": "live", "source": "NOAA CO-OPS 8638614", "basis": "observation", "age_s": 360, "age_basis": "valid_time", "quality": "good", "limitations": [], "reason": None},
+            {"component": "current", "state": "unavailable", "source": "NOAA CO-OPS cb0402 bin 4", "basis": "observation", "age_s": 2400, "age_basis": "valid_time", "quality": "unknown", "limitations": [], "reason": "latest observation is stale"},
+            {"component": "water_level", "state": "live", "source": "NOAA CO-OPS 8638610", "basis": "observation", "age_s": 360, "age_basis": "valid_time", "quality": "good", "limitations": [], "reason": None},
+            {"component": "forecast", "state": "unavailable", "source": None, "basis": None, "quality": "unknown", "limitations": [], "reason": "no composed forecast configured"},
+            {"component": "waves", "state": "unavailable", "source": None, "basis": None, "quality": "unknown", "limitations": [], "reason": "no wave provider configured"},
+        ],
+    }]})
+
+    berth_id: str
+    checked_at_utc: AwareDatetime
+    complete_snapshot_available: bool = Field(
+        description="True only when aligned wind, current and water level can form the existing complete snapshot."
+    )
+    components: list[EnvironmentComponentAvailability] = Field(min_length=5, max_length=5)
+
+    @model_validator(mode="after")
+    def _complete_and_unique(self):
+        by_component = {item.component: item for item in self.components}
+        expected = {"wind", "current", "water_level", "forecast", "waves"}
+        if set(by_component) != expected or len(by_component) != len(self.components):
+            raise ValueError("availability needs exactly one row for wind, current, water_level, forecast and waves")
+        complete = all(by_component[name].state != "unavailable" for name in ("wind", "current", "water_level"))
+        if self.complete_snapshot_available != complete:
+            raise ValueError("complete_snapshot_available must match wind/current/water-level availability")
+        return self
+
+
 class ForecastSeries(Model):
     berth_id: str
     step_min: int
@@ -151,10 +244,11 @@ class EnvScenarioCreate(Model):
     ramp_minutes: float | None = Field(default=None, gt=0)
     replay_start_utc: AwareDatetime | None = Field(default=None, description="kind='replay': historical window start.")
     replay_end_utc: AwareDatetime | None = None
-    replay_source: Literal["synthetic", "recorded_fixture"] = Field(
+    replay_source: Literal["synthetic", "recorded_fixture", "recorded_real"] = Field(
         default="synthetic",
         description="kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled "
-        "recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never looped or synthesized.")
+        "synthetic recorded-format sample (2026-03-01 12:00-13:00Z); 'recorded_real' selects the manifest-backed NOAA observation package. "
+        "Recorded sources are unavailable outside their declared coverage: they are never looped or synthesized.")
 
     wire_omitted_defaults = {"replay_source": "synthetic"}
 

@@ -21,6 +21,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/env/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Independent source and availability status for environment components
+         * @description Report partial status without weakening the complete `/env/now` contract.
+         */
+        get: operations["env_availability_api_v1_env_availability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/env/forecast": {
         parameters: {
             query?: never;
@@ -1547,11 +1567,11 @@ export interface components {
             replay_end_utc?: string | null;
             /**
              * Replay Source
-             * @description kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never looped or synthesized.
+             * @description kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled synthetic recorded-format sample (2026-03-01 12:00-13:00Z); 'recorded_real' selects the manifest-backed NOAA observation package. Recorded sources are unavailable outside their declared coverage: they are never looped or synthesized.
              * @default synthetic
              * @enum {string}
              */
-            replay_source: "synthetic" | "recorded_fixture";
+            replay_source: "synthetic" | "recorded_fixture" | "recorded_real";
             /** Env Scenario Id */
             env_scenario_id: string;
             /**
@@ -1621,11 +1641,11 @@ export interface components {
             replay_end_utc?: string | null;
             /**
              * Replay Source
-             * @description kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never looped or synthesized.
+             * @description kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled synthetic recorded-format sample (2026-03-01 12:00-13:00Z); 'recorded_real' selects the manifest-backed NOAA observation package. Recorded sources are unavailable outside their declared coverage: they are never looped or synthesized.
              * @default synthetic
              * @enum {string}
              */
-            replay_source: "synthetic" | "recorded_fixture";
+            replay_source: "synthetic" | "recorded_fixture" | "recorded_real";
         };
         /** EnvSource */
         EnvSource: {
@@ -1664,6 +1684,149 @@ export interface components {
              * @example 8638610
              */
             water_level: string;
+        };
+        /**
+         * EnvironmentAvailability
+         * @description Per-component status; the complete snapshot endpoint remains unchanged.
+         * @example {
+         *       "berth_id": "NAVSTA-NORFOLK-P12-N",
+         *       "checked_at_utc": "2026-11-05T12:00:00Z",
+         *       "complete_snapshot_available": false,
+         *       "components": [
+         *         {
+         *           "age_basis": "valid_time",
+         *           "age_s": 360,
+         *           "basis": "observation",
+         *           "component": "wind",
+         *           "limitations": [],
+         *           "quality": "good",
+         *           "source": "NOAA CO-OPS 8638614",
+         *           "state": "live"
+         *         },
+         *         {
+         *           "age_basis": "valid_time",
+         *           "age_s": 2400,
+         *           "basis": "observation",
+         *           "component": "current",
+         *           "limitations": [],
+         *           "quality": "unknown",
+         *           "reason": "latest observation is stale",
+         *           "source": "NOAA CO-OPS cb0402 bin 4",
+         *           "state": "unavailable"
+         *         },
+         *         {
+         *           "age_basis": "valid_time",
+         *           "age_s": 360,
+         *           "basis": "observation",
+         *           "component": "water_level",
+         *           "limitations": [],
+         *           "quality": "good",
+         *           "source": "NOAA CO-OPS 8638610",
+         *           "state": "live"
+         *         },
+         *         {
+         *           "component": "forecast",
+         *           "limitations": [],
+         *           "quality": "unknown",
+         *           "reason": "no composed forecast configured",
+         *           "state": "unavailable"
+         *         },
+         *         {
+         *           "component": "waves",
+         *           "limitations": [],
+         *           "quality": "unknown",
+         *           "reason": "no wave provider configured",
+         *           "state": "unavailable"
+         *         }
+         *       ]
+         *     }
+         */
+        EnvironmentAvailability: {
+            /** Berth Id */
+            berth_id: string;
+            /**
+             * Checked At Utc
+             * Format: date-time
+             */
+            checked_at_utc: string;
+            /**
+             * Complete Snapshot Available
+             * @description True only when aligned wind, current and water level can form the existing complete snapshot.
+             */
+            complete_snapshot_available: boolean;
+            /** Components */
+            components: components["schemas"]["EnvironmentComponentAvailability"][];
+        };
+        /**
+         * EnvironmentComponentAvailability
+         * @description Availability and provenance for one independently acquired component.
+         *
+         *     This carries no environmental measurement. Missing values stay unavailable here
+         *     instead of being represented as numeric zero in an ``EnvironmentSnapshot``.
+         */
+        EnvironmentComponentAvailability: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "wind" | "current" | "water_level" | "forecast" | "waves";
+            /**
+             * State
+             * @description Active source state. Stale or missing data is unavailable, never silently relabeled as a prediction.
+             * @enum {string}
+             */
+            state: "live" | "replay" | "prediction" | "mock" | "unavailable";
+            /**
+             * Source
+             * @description Provider plus station/bin or grid product when known.
+             */
+            source?: string | null;
+            /** Basis */
+            basis?: ("observation" | "prediction" | "scenario") | null;
+            /**
+             * Age S
+             * @description Age according to age_basis. Retrieval time is never substituted for issue or valid time.
+             */
+            age_s?: number | null;
+            /** Age Basis */
+            age_basis?: ("valid_time" | "issued_time") | null;
+            /** Issued At Utc */
+            issued_at_utc?: string | null;
+            /** Retrieved At Utc */
+            retrieved_at_utc?: string | null;
+            /** Valid From Utc */
+            valid_from_utc?: string | null;
+            /** Valid To Utc */
+            valid_to_utc?: string | null;
+            /**
+             * Quality
+             * @default unknown
+             * @enum {string}
+             */
+            quality: "good" | "suspect" | "poor" | "unknown";
+            /** Limitations */
+            limitations?: string[];
+            /** Station Id */
+            station_id?: string | null;
+            /** Grid Cell */
+            grid_cell?: string | null;
+            /** Current Depth Ft */
+            current_depth_ft?: number | null;
+            /** Current Bin */
+            current_bin?: string | null;
+            /** Vertical Datum */
+            vertical_datum?: ("MLLW" | "MSL" | "NAVD88" | "other") | null;
+            /** Wind Averaging S */
+            wind_averaging_s?: number | null;
+            /** Gust Duration S */
+            gust_duration_s?: number | null;
+            /** Wind Reference Height M */
+            wind_reference_height_m?: number | null;
+            /**
+             * Reason
+             * @description Why this component is unavailable; required when state is unavailable.
+             */
+            reason?: string | null;
         };
         /**
          * EnvironmentComponentProvenance
@@ -6534,6 +6697,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EnvironmentSnapshot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    env_availability_api_v1_env_availability_get: {
+        parameters: {
+            query: {
+                berth_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentAvailability"];
                 };
             };
             /** @description Validation Error */

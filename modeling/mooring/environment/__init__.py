@@ -26,6 +26,15 @@ def source_mode() -> str:
     return os.environ.get("MOORING_ENV_SOURCE", "mock")
 
 
+def availability(berth_id):
+    """D1 contract-first endpoint; provider acquisition lands in the implementation PR."""
+    from .coops import ProviderError
+    raise ProviderError(
+        "unavailable",
+        f"component availability acquisition is not enabled yet for berth {berth_id!r}",
+    )
+
+
 def _replay_snapshot(sc, t):
     """Replay-scenario snapshot from the recorded fixture; unavailable (never looped or synthesized) outside the window."""
     from datetime import timedelta  # noqa: F401
@@ -43,6 +52,10 @@ def _replay_snapshot(sc, t):
 def create_scenario(req):
     from mooring import refdata
     from .replay import recorded_fixture_source
+    if req.replay_source == "recorded_real":
+        raise refdata.InvalidReference(
+            "recorded-real replay is published in the D1 contract but its manifest-backed package is not installed yet"
+        )
     if req.replay_source == "recorded_fixture":
         cov = recorded_fixture_source().coverage
         if req.replay_start_utc < cov[0] or req.replay_end_utc > cov[1]:

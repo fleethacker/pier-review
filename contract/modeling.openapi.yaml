@@ -69,6 +69,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/env/availability:
+    get:
+      tags:
+      - M1 Environment
+      summary: Independent source and availability status for environment components
+      description: Report partial status without weakening the complete `/env/now` contract.
+      operationId: env_availability_api_v1_env_availability_get
+      parameters:
+      - name: berth_id
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Berth Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentAvailability'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/env/forecast:
     get:
       tags:
@@ -3159,10 +3186,12 @@ components:
           enum:
           - synthetic
           - recorded_fixture
+          - recorded_real
           title: Replay Source
           description: 'kind=''replay'': ''synthetic'' generates the deterministic mock for the window (legacy); ''recorded_fixture''
-            replays the bundled recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never
-            looped or synthesized.'
+            replays the bundled synthetic recorded-format sample (2026-03-01 12:00-13:00Z); ''recorded_real'' selects the
+            manifest-backed NOAA observation package. Recorded sources are unavailable outside their declared coverage: they
+            are never looped or synthesized.'
           default: synthetic
         env_scenario_id:
           type: string
@@ -3256,10 +3285,12 @@ components:
           enum:
           - synthetic
           - recorded_fixture
+          - recorded_real
           title: Replay Source
           description: 'kind=''replay'': ''synthetic'' generates the deterministic mock for the window (legacy); ''recorded_fixture''
-            replays the bundled recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never
-            looped or synthesized.'
+            replays the bundled synthetic recorded-format sample (2026-03-01 12:00-13:00Z); ''recorded_real'' selects the
+            manifest-backed NOAA observation package. Recorded sources are unavailable outside their declared coverage: they
+            are never looped or synthesized.'
           default: synthetic
       additionalProperties: false
       type: object
@@ -3325,6 +3356,231 @@ components:
       - water_level
       title: EnvStations
       description: NOAA CO-OPS station ids that feed this berth's environment.
+    EnvironmentAvailability:
+      properties:
+        berth_id:
+          type: string
+          title: Berth Id
+        checked_at_utc:
+          type: string
+          format: date-time
+          title: Checked At Utc
+        complete_snapshot_available:
+          type: boolean
+          title: Complete Snapshot Available
+          description: True only when aligned wind, current and water level can form the existing complete snapshot.
+        components:
+          items:
+            $ref: '#/components/schemas/EnvironmentComponentAvailability'
+          type: array
+          maxItems: 5
+          minItems: 5
+          title: Components
+      additionalProperties: false
+      type: object
+      required:
+      - berth_id
+      - checked_at_utc
+      - complete_snapshot_available
+      - components
+      title: EnvironmentAvailability
+      description: Per-component status; the complete snapshot endpoint remains unchanged.
+      examples:
+      - berth_id: NAVSTA-NORFOLK-P12-N
+        checked_at_utc: '2026-11-05T12:00:00Z'
+        complete_snapshot_available: false
+        components:
+        - age_basis: valid_time
+          age_s: 360
+          basis: observation
+          component: wind
+          limitations: []
+          quality: good
+          source: NOAA CO-OPS 8638614
+          state: live
+        - age_basis: valid_time
+          age_s: 2400
+          basis: observation
+          component: current
+          limitations: []
+          quality: unknown
+          reason: latest observation is stale
+          source: NOAA CO-OPS cb0402 bin 4
+          state: unavailable
+        - age_basis: valid_time
+          age_s: 360
+          basis: observation
+          component: water_level
+          limitations: []
+          quality: good
+          source: NOAA CO-OPS 8638610
+          state: live
+        - component: forecast
+          limitations: []
+          quality: unknown
+          reason: no composed forecast configured
+          state: unavailable
+        - component: waves
+          limitations: []
+          quality: unknown
+          reason: no wave provider configured
+          state: unavailable
+    EnvironmentComponentAvailability:
+      properties:
+        component:
+          type: string
+          enum:
+          - wind
+          - current
+          - water_level
+          - forecast
+          - waves
+          title: Component
+        state:
+          type: string
+          enum:
+          - live
+          - replay
+          - prediction
+          - mock
+          - unavailable
+          title: State
+          description: Active source state. Stale or missing data is unavailable, never silently relabeled as a prediction.
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+          description: Provider plus station/bin or grid product when known.
+        basis:
+          anyOf:
+          - type: string
+            enum:
+            - observation
+            - prediction
+            - scenario
+          - type: 'null'
+          title: Basis
+        age_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Age S
+          description: Age according to age_basis. Retrieval time is never substituted for issue or valid time.
+        age_basis:
+          anyOf:
+          - type: string
+            enum:
+            - valid_time
+            - issued_time
+          - type: 'null'
+          title: Age Basis
+        issued_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Issued At Utc
+        retrieved_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Retrieved At Utc
+        valid_from_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid From Utc
+        valid_to_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid To Utc
+        quality:
+          type: string
+          enum:
+          - good
+          - suspect
+          - poor
+          - unknown
+          title: Quality
+          default: unknown
+        limitations:
+          items:
+            type: string
+          type: array
+          title: Limitations
+        station_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Station Id
+        grid_cell:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Grid Cell
+        current_depth_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Current Depth Ft
+        current_bin:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Bin
+        vertical_datum:
+          anyOf:
+          - type: string
+            enum:
+            - MLLW
+            - MSL
+            - NAVD88
+            - other
+          - type: 'null'
+          title: Vertical Datum
+        wind_averaging_s:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Wind Averaging S
+        gust_duration_s:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Gust Duration S
+        wind_reference_height_m:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Wind Reference Height M
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+          description: Why this component is unavailable; required when state is unavailable.
+      additionalProperties: false
+      type: object
+      required:
+      - component
+      - state
+      title: EnvironmentComponentAvailability
+      description: 'Availability and provenance for one independently acquired component.
+
+
+        This carries no environmental measurement. Missing values stay unavailable here
+
+        instead of being represented as numeric zero in an ``EnvironmentSnapshot``.'
     EnvironmentComponentProvenance:
       properties:
         component:

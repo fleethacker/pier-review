@@ -12,7 +12,7 @@ from mooring.core import store
 from mooring.core.schemas import AnalyzeRequest, RecommendRequest, Validity, ValidityReason, ResultManifest, ManifestRecord
 from mooring.core.schemas.forecast_planning import (
     DockingArrivalWindow, DockingConditionResult, ForecastDockingRequest, ForecastDockingResponse, ForecastDockingResult,
-    ForecastResolutionManifest,
+    ForecastBinding, ForecastResolutionManifest,
 )
 from mooring.tugs.validation import assignment_errors
 from mooring.mechanics import equilibrium as eq
@@ -182,8 +182,13 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
                                   if any(s.source in ('scenario', 'mock') for s in req.forecast) else []))
     # Random result IDs remain audit references, never part of reproducible input identity.
     request_snapshot = original_request.model_dump(mode='json')
+    # Hash effective selection rather than optional request syntax or validation pins.
+    request_snapshot['forecast_binding'] = ForecastBinding(
+        source=resolved.source, source_id=resolved.source_id, env_scenario_id=resolved.env_scenario_id,
+        revision=resolved.revision, expected_content_hash=resolved.content_hash).model_dump(mode='json')
     if original_request.forecast is not None:
         request_snapshot['forecast'] = [s.model_dump(mode='json') for s in req.forecast]
+        request_snapshot.pop('forecast_step_min', None)  # Supplied samples are never resampled.
     analysis_ids = [c.analysis_result_id for c in conditions if c.analysis_result_id]
     assets = {'ship': ship.model_dump(mode='json'), 'berth': berth.model_dump(mode='json'),
               'lines': ({spec.spec_id: spec.model_dump(mode='json') for spec in refdata.lines()}

@@ -65,6 +65,24 @@ def test_repeated_planning_keeps_hashes_but_allocates_separate_audit_results():
     assert {r.id for r in second.manifest.records if r.kind == 'analysis_result'} == second_ids
 
 
+@pytest.mark.parametrize('selection', ['pin', 'explicit_default', 'unused_step'])
+def test_request_only_selection_syntax_does_not_change_resolved_result(selection):
+    req = _request()
+    first = assess(req)
+    changed = req.model_copy(deep=True)
+    if selection == 'pin':
+        changed.forecast_binding = ForecastBinding(expected_content_hash=first.result.forecast_manifest.content_hash)
+    elif selection == 'explicit_default':
+        changed.forecast_binding = ForecastBinding()
+    else:
+        changed.forecast_step_min = 60
+    second = assess(changed)
+    assert first.inputs_hash != second.inputs_hash  # Preserve the request as actually sent.
+    assert first.result.forecast_manifest == second.result.forecast_manifest
+    assert first.manifest.resolved_inputs_hash == second.manifest.resolved_inputs_hash
+    assert first.result.result_hash == second.result.result_hash
+
+
 def test_equivalent_timezone_representation_keeps_assessment_identity():
     req = _request()
     zone = timezone(timedelta(hours=-5))

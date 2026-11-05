@@ -14,7 +14,9 @@ from fastapi.testclient import TestClient
 
 os.environ.update(AGENTS_LLM_PROVIDER="none", MOORING_ENV_SOURCE="mock",
                   MOORING_RATE_PER_MINUTE="0", AGENTS_RATE_PER_MINUTE="0",
-                  AGENTS_PERSIST="0", MOORING_PERSIST="0")
+                  AGENTS_PERSIST="0", MOORING_DB=":memory:",
+                  MOORING_AUTH_REQUIRED="0", AGENTS_AUTH_REQUIRED="0",
+                  MOORING_API_KEYS="", AGENTS_API_KEYS="")
 
 from modeling_api.main import app as modeling_app  # noqa: E402
 from mooring_agents.api.main import app as agents_app, get_client  # noqa: E402

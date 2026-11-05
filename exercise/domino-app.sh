@@ -13,7 +13,19 @@ cd "$(dirname "$0")"
 
 export PORT="${PORT:-8888}"
 export EXERCISE_PORT="${EXERCISE_PORT:-8200}"
-export EXERCISE_DATA_DIR="${EXERCISE_DATA_DIR:-/mnt/data/exercise}"
+
+# Where the shared scenario library lives. /mnt/data itself is root-owned, but a Domino project's own dataset directory
+# under it is writable and survives a restart, so prefer that; fall back to a directory beside the app, which is lost
+# when the container goes. Set EXERCISE_DATA_DIR on the app to override.
+if [ -z "${EXERCISE_DATA_DIR:-}" ]; then
+  for candidate in "/mnt/data/${DOMINO_PROJECT_NAME:-}/exercise" "/mnt/data/exercise" "$PWD/.exercise-data"; do
+    if mkdir -p "$candidate" 2>/dev/null && [ -w "$candidate" ]; then
+      EXERCISE_DATA_DIR="$candidate"
+      break
+    fi
+  done
+fi
+export EXERCISE_DATA_DIR
 export EXERCISE_PROXY_TARGET="http://127.0.0.1:${EXERCISE_PORT}"
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=3072}"
 

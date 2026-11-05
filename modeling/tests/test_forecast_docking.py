@@ -196,3 +196,71 @@ def test_unsupported_arrivals_do_not_publish_a_selected_installation():
     assert result.selected_config is None and result.installed_at_water_level_mllw_ft is None
     assert 'selected_config' not in result.model_dump(mode='json')
     assert all(window.installed_at_water_level_mllw_ft is None for window in result.windows)
+
+
+
+@pytest.mark.parametrize('basis', [None, 'scenario', 'observation', 'prediction_missing_issue'])
+def test_future_replay_requires_archived_forecast_provenance(basis):
+    req = request(optimize_lines=True)
+    metadata = None if basis is None else EnvironmentMetadata(
+        basis='prediction' if basis == 'prediction_missing_issue' else basis,
+        issued_at_utc=None if basis == 'prediction_missing_issue' else req.as_of_utc,
+        quality='good')
+    series = [snapshot.model_copy(update={'source':'replay', 'metadata':metadata}) for snapshot in req.forecast]
+    response = assess(req.model_copy(update={'forecast':series}))
+    assert response.result.recommendation_result_id is None and response.result.evaluations == 0
+    assert response.result.selected_arrival_utc is None
+    assert response.validity.state == 'invalid' and response.status == 'RED'
+    assert all(window.outcome == 'unavailable' for window in response.result.windows)
+
+
+def test_archived_forecast_replay_with_known_issue_time_remains_usable():
+    req = request()
+    series = [snapshot.model_copy(update={'source':'replay', 'metadata':EnvironmentMetadata(
+        basis='prediction', issued_at_utc=req.as_of_utc, quality='good', source='synthetic archived-forecast test')})
+              for snapshot in req.forecast]
+    response = assess(req.model_copy(update={'forecast':series}))
+    assert response.result.selected_arrival_utc and response.validity.state == 'limited'
+    later = [snapshot.model_copy(update={'metadata':snapshot.metadata.model_copy(
+        update={'issued_at_utc':req.as_of_utc+timedelta(minutes=1)})}) for snapshot in series]
+    rejected = assess(req.model_copy(update={'forecast':later}))
+    assert rejected.validity.state == 'invalid' and rejected.result.evaluations == 0
+
+
+@pytest.mark.parametrize('kind', ['coverage', 'budget', 'depth'])
+def test_no_usable_arrival_is_invalid_without_claiming_infeasibility(kind):
+    req = request()
+    if kind == 'coverage':
+        req = req.model_copy(update={'forecast':req.forecast[:25]})
+    elif kind == 'budget':
+        req = req.model_copy(update={'max_evaluations':1})
+    else:
+        req = req.model_copy(update={'forecast':[s.model_copy(update={'water_level_mllw_ft':-20}) for s in req.forecast]})
+    response = assess(req)
+    assert response.validity.state == 'invalid' and response.status == 'RED'
+    reason = next(r for r in response.validity.reasons if r.code == 'NO_USABLE_ARRIVAL_ASSESSMENT')
+    assert 'does not prove physical infeasibility' in reason.message
+    assert response.result.selected_config is None
+
+
+def test_overloaded_but_assessable_windows_remain_limited_not_invalid():
+    req = request()
+    req = req.model_copy(update={'forecast':[s.model_copy(update={'wind_speed_kt':75,'wind_gust_kt':100}) for s in req.forecast]})
+    response = assess(req)
+    assert all(w.outcome == 'overloaded' for w in response.result.windows)
+    assert response.status == 'RED' and response.validity.state == 'limited'
+
+
+
+@pytest.mark.parametrize("optimize", [False, True])
+def test_invalid_depth_snapshot_does_not_abort_other_arrival_assessments(optimize):
+    req = request(optimize_lines=optimize)
+    bad_at = req.as_of_utc + timedelta(hours=25)
+    series = [s.model_copy(update={'water_level_mllw_ft':-100}) if s.valid_at_utc == bad_at else s for s in req.forecast]
+    response = assess(req.model_copy(update={'forecast':series}))
+    assert response.result.selected_arrival_utc == req.as_of_utc + timedelta(hours=26)
+    assert response.result.windows[0].outcome == 'invalid'
+    bad = next(c for c in response.result.conditions if c.valid_at_utc == bad_at)
+    assert bad.analysis_result_id is None and bad.max_pct_wll is None and bad.validity.state == 'invalid'
+    assert bad.validity.reasons[0].code == 'FORECAST_CONDITION_INPUT_INVALID'
+    assert response.validity.state == 'limited' and response.status == 'AMBER'

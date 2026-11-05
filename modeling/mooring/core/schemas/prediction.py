@@ -91,7 +91,7 @@ class HazardSettings(Model):
 
 
 class PredictionRequest(Model):
-    wire_omitted_defaults = {"environment": None, "as_of_utc": None, "forcing": None, "engine": "transit"}
+    wire_omitted_defaults = {"environment": None, "as_of_utc": None, "forcing": None, "engine": None}
     vessel: ObservedShipState
     environment: EnvironmentSnapshot | None = Field(default=None,
         description="Conditions held over the horizon. Null means explicitly calm (labeled), not unknown.")
@@ -101,7 +101,7 @@ class PredictionRequest(Model):
         "the S2 resolver around `environment` (null = calm base). Absent = fixed environment, unchanged behavior. A replay "
         "series that ends before the horizon is rejected (on_uncovered 'stop') or the horizon is truncated, with a validity "
         "reason ('invalidate'); it is never extrapolated."))
-    engine: Literal["transit", "berthing"] = Field(default="transit", description=(
+    engine: Literal["transit", "berthing"] | None = Field(default=None, description=(
         "Requested engine. Never switched automatically. 'berthing' (S1-S3) has no validated state/parameter handoff and is "
         "answered 501 unsupported."))
     horizon_s: float = Field(default=300, gt=0, le=900)

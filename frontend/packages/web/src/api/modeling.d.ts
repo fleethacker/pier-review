@@ -5334,10 +5334,8 @@ export interface components {
             /**
              * Engine
              * @description Requested engine. Never switched automatically. 'berthing' (S1-S3) has no validated state/parameter handoff and is answered 501 unsupported.
-             * @default transit
-             * @enum {string}
              */
-            engine: "transit" | "berthing";
+            engine?: ("transit" | "berthing") | null;
             /**
              * Horizon S
              * @default 300

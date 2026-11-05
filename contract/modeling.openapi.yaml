@@ -9533,14 +9533,15 @@ components:
             A replay series that ends before the horizon is rejected (on_uncovered ''stop'') or the horizon is truncated,
             with a validity reason (''invalidate''); it is never extrapolated.'
         engine:
-          type: string
-          enum:
-          - transit
-          - berthing
+          anyOf:
+          - type: string
+            enum:
+            - transit
+            - berthing
+          - type: 'null'
           title: Engine
           description: Requested engine. Never switched automatically. 'berthing' (S1-S3) has no validated state/parameter
             handoff and is answered 501 unsupported.
-          default: transit
         horizon_s:
           type: number
           maximum: 900.0

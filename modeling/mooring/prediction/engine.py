@@ -288,7 +288,7 @@ def predict(req: PredictionRequest) -> PredictionResponse:
     # The prediction works on a private deep copy: nothing in the caller's request (which may be built from a live
     # session or replay state) is ever mutated, and nothing here writes to any store.
     req = req.model_copy(deep=True)
-    if req.engine != "transit":
+    if req.engine not in (None, "transit"):
         raise Unsupported("ENGINE_UNSUPPORTED: only the 'transit' (S6) engine is supported for prediction. The berthing engine (S1-S3) "
                           "has no validated handoff (frame, unit, state and parameter mapping, operating domain); the engine is never "
                           "switched automatically, including near a pier.")

@@ -80,9 +80,6 @@ def test_ws_frames_carry_forcing_revision_and_time_stamped_environment(client):
         state.SESSIONS.pop(created["session_id"], None)
 
 
-@pytest.mark.xfail(strict=True, reason="BUG: rich rm0-v1 frames (mooring/berthing/rich.py rich_frame, `env = model.env`) build "
-                   "`environment` from the frozen scenario env, overriding the forcing-aware legacy environment: a ramp to 30 kt "
-                   "still streams wind 12.8 kt at every t_s over the real WebSocket.")
 def test_ws_environment_changes_over_simulation_time(client):
     created = create(client, RAMP, duration_s=4)
     try:

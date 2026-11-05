@@ -1,0 +1,74 @@
+{
+  "vessel": {
+    "vessel_id": "DDG-51-demo",
+    "ship_class_id": "DDG-51-FIIA",
+    "loading": "full_load",
+    "observed_utc": "2026-11-05T14:59:58Z",
+    "position": {
+      "lat": 36.956,
+      "lon": -76.326
+    },
+    "heading_true_deg": 200.0,
+    "surge_kt": 6.0,
+    "sway_kt": 0.0,
+    "yaw_rate_degps": 0.0,
+    "rudder_deg": 5.0,
+    "engine_order": 0.25,
+    "tugs": [],
+    "uncertainty": {
+      "position_sd_ft": 15.0,
+      "heading_sd_deg": 1.0,
+      "speed_sd_kt": 0.2
+    },
+    "source": "gps+gyro"
+  },
+  "as_of_utc": "2026-11-05T15:00:00Z",
+  "horizon_s": 300.0,
+  "tick_s": 10.0,
+  "dt_s": 0.2,
+  "propulsion": {
+    "astern_thrust_fraction": 0.6,
+    "engine_time_constant_s": 20.0,
+    "max_rudder_deg": 35.0,
+    "rudder_rate_degps": 2.33
+  },
+  "alternatives": [
+    {
+      "alt_id": "more-rudder",
+      "label": "Rudder 15 to port now",
+      "helm_commands": [
+        {
+          "t_s": 0.0,
+          "rudder_deg": 15.0
+        }
+      ],
+      "tug_commands": []
+    },
+    {
+      "alt_id": "tug-push",
+      "label": "Tug pushes to starboard at the port shoulder",
+      "helm_commands": [],
+      "tug_commands": [
+        {
+          "t_s": 0.0,
+          "tug_id": "T1",
+          "point": "port_shoulder",
+          "force_lbf": 30000.0,
+          "direction_rel_deg": 90.0
+        }
+      ]
+    }
+  ],
+  "others": [],
+  "uncertainty": {
+    "samples": 32,
+    "seed": 7,
+    "model": "s10_gust_current",
+    "percentile": 90.0
+  },
+  "hazards": {
+    "berth_id": "NAVSTA-NORFOLK-P12-N",
+    "coastline": true,
+    "min_clearance_ft": 50.0
+  }
+}

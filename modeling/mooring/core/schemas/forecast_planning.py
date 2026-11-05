@@ -89,7 +89,11 @@ class ForecastResolvedResponse(Envelope[ForecastResolvedResult]):
 
 class ForecastDockingRequest(Model):
     wire_omitted_defaults = {"allow_short_lead": False, "forecast_binding": None,
-                            "forecast_step_min": 30, "forecast": None}
+                            "forecast_step_min": 30, "forecast": None,
+                            "installed_at_water_level_mllw_ft": None}
+
+    installed_at_water_level_mllw_ft: float | None = Field(default=None,
+        description="Preserve an existing installation tide during explicit reassessment; omitted means install at each candidate arrival's tide.")
 
     allow_short_lead: bool = Field(default=False,
         description="Explicitly permit reassessment less than 24 hours before arrival. Arrival cannot precede as_of_utc; all forecast provenance/coverage gates remain. Default retains the advance-planning lead requirement.")
@@ -205,4 +209,41 @@ class ForecastDockingResult(Model):
 
 
 class ForecastDockingResponse(Envelope[ForecastDockingResult]):
+    pass
+
+
+class ForecastRecheckRequest(Model):
+    wire_omitted_defaults = {"forecast": None, "forecast_binding": None}
+    prior_result_id: str = Field(min_length=1)
+    as_of_utc: AwareDatetime
+    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721)
+    forecast_binding: ForecastBinding | None = None
+
+    @field_validator('as_of_utc')
+    @classmethod
+    def utc_cutoff(cls, value):
+        return value.astimezone(UTC)
+
+    @model_validator(mode='after')
+    def selection(self):
+        scenario = self.forecast_binding is not None and self.forecast_binding.source == 'scenario'
+        if scenario == (self.forecast is not None):
+            raise ValueError('Supply exactly one forecast series or a scenario binding')
+        return self
+
+
+class ForecastRecheckResult(Model):
+    wire_omitted_defaults = {"previous_forecast_manifest": None, "current_forecast_manifest": None,
+                            "reassessment_request": None, "installed_at_water_level_mllw_ft": None}
+    state: Literal['unchanged', 'recheck_required', 'unavailable']
+    prior_result_id: str
+    previous_forecast_manifest: ForecastResolutionManifest | None = None
+    current_forecast_manifest: ForecastResolutionManifest | None = None
+    reasons: list[str]
+    reassessment_request: ForecastDockingRequest | None = Field(default=None,
+        description="Suggested explicit new calculation preserving the installation. This comparison neither runs it nor transfers approval.")
+    installed_at_water_level_mllw_ft: float | None = None
+
+
+class ForecastRecheckResponse(Envelope[ForecastRecheckResult]):
     pass

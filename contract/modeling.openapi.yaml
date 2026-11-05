@@ -2796,10 +2796,12 @@ components:
           type: string
           format: date-time
           title: From Utc
+          description: Timezone-aware window start; normalized to UTC for elapsed-time sampling.
         to_utc:
           type: string
           format: date-time
           title: To Utc
+          description: Timezone-aware window end, at or after start; normalized to UTC.
         max_current_kt:
           type: number
           minimum: 0.0

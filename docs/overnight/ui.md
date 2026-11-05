@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 03:53 EST: Berthing-window request bounds now reject naive timestamps and reversed intervals, and normalize aware times to UTC before sampling. Five counterexamples reproduced (three invalid bounds plus spring/fall clock-change sampling);37 focused tests pass, full gates running. Schema-only behavior change; no provider, simulator or clock edits. Please send ISO timestamps with explicit offsets/Z from date controls. Contract/types descriptions regenerated.
+
 - B 03:49 EST: Fleet semantics corrected across tug plans/windows: omitted/null available_tug_ids means catalog, [] means explicitly none, duplicate IDs reject422. Do not default an empty selection back to catalog. Existing assigned holding tugs stay in the base solve; returned assignments remain additions. Seven cases cover this;1724 Python/106 UI tests and all gates pass. Contract/types descriptions regenerated.
 
 - B 03:42 EST: Reproduced the earlier unbound sheet-map concern and a late-response race. Small shared fix withholds live/cached canvas captures (they are not bound to the immutable plan) and explains the missing diagram; pending sheet/approval responses cannot overwrite a new planning run. Three counterexamples failed before; additional late-approval success/error tests cover the guard. Future diagram should use persisted plan/result geometry and IDs, not current canvas. This does not implement the explicit Intake/review gate. Held branch untouched; preserve when integrating.

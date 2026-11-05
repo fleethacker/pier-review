@@ -1321,11 +1321,13 @@ export interface components {
             /**
              * From Utc
              * Format: date-time
+             * @description Timezone-aware window start; normalized to UTC for elapsed-time sampling.
              */
             from_utc: string;
             /**
              * To Utc
              * Format: date-time
+             * @description Timezone-aware window end, at or after start; normalized to UTC.
              */
             to_utc: string;
             /**

@@ -30,6 +30,8 @@ from mooring.core.schemas import (
 )
 
 from mooring.core.schemas.berth_drafts import BerthDraftResponse
+from mooring.core.schemas.forecast_planning import ForecastResolvedResponse
+from mooring.core.schemas.prediction import PredictionResponse
 
 from .client import ModelingClient, ModelingError
 from .ledger import LEDGER, calls_for, reserve_call, update_call  # noqa: F401 (public compatibility)
@@ -186,6 +188,21 @@ class PhysicsToolkit:
     async def forecast(self, berth_id: str, hours: int = 24, step_min: int = 30) -> ForecastSeries:
         req = {"berth_id": berth_id, "hours": hours, "step_min": step_min}
         return await self._typed("get_forecast", req, ForecastSeries)
+
+    async def resolve_forecast(self, body: dict) -> ForecastResolvedResponse:
+        return await self._typed("resolve_forecast", body, ForecastResolvedResponse)
+
+    async def predict_trajectory(self, body: dict) -> PredictionResponse:
+        return await self._typed("predict_trajectory", body, PredictionResponse)
+
+    async def prediction(self, result_id: str) -> PredictionResponse:
+        result = await self._typed("get_prediction", {"result_id": result_id}, PredictionResponse)
+        if result.result_id != result_id or result.model != "mooring.prediction.trajectory":
+            detail = "Modeling returned a different prediction identity or model"
+            self.last_call = self.last_call.model_copy(update={"error": detail})
+            update_call(self.last_call)
+            raise ModelingError(502, detail)
+        return result
 
     async def analyze(self, body: dict) -> AnalyzeResponse:
         return await self._typed("analyze_mooring", body, AnalyzeResponse)

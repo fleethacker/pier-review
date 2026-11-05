@@ -4,7 +4,6 @@ import type { Objective } from '../agent';
 import { fmt, useUnitSystem } from '../units';
 import { useAgent, useController, useMooring } from './context';
 import { ResultLink } from './ResultLink';
-import { ReviewSection } from './ReviewSection';
 
 const OBJECTIVES: { value: Objective; label: string }[] = [
   { value: 'moor_for_forecast', label: 'Moor for the forecast' },
@@ -137,14 +136,7 @@ export function AgentPanel() {
             </ul>
           </details>
 
-          <ReviewSection />
-
-          <Button
-            size="sm"
-            onClick={() => void c.agent.createSheet()}
-            disabled={a.sheet.state === 'creating' || a.review.state !== 'ready' || a.phase !== 'done'}
-            title={a.review.state !== 'ready' ? 'Run the independent safety review first' : undefined}
-          >
+          <Button size="sm" onClick={() => void c.agent.createSheet()} disabled={a.sheet.state === 'creating'}>
             {a.sheet.state === 'creating' ? 'Building sheet…' : a.sheet.sheet ? 'Rebuild safety sheet' : 'Create safety sheet'}
           </Button>
           {a.sheet.sheet && (

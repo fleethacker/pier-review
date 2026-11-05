@@ -18,13 +18,6 @@ export interface Pose {
   y: number;
   z: number;
   headingDeg: number;
-  /**
-   * Attitude, degrees. Right-hand rotations about the entity's own +x (roll) and +y (pitch) axes, applied as
-   * heading * pitch * roll about the pose origin (so +roll raises the entity's +y side, +pitch lowers its +x end).
-   * Absent means "not supplied" and is drawn level; set only from values a source actually provided.
-   */
-  rollDeg?: number;
-  pitchDeg?: number;
 }
 
 export type Geometry =
@@ -34,8 +27,6 @@ export type Geometry =
       points: [number, number][];
       /** Extrusion height above the pose z. 0 renders a flat polygon. */
       heightM: number;
-      /** Local z of the polygon base above the pose origin (rotates with roll and pitch). Default 0. */
-      baseM?: number;
     }
   | { type: 'point'; sizePx: number };
 
@@ -59,8 +50,6 @@ export interface SceneEntity {
   label?: string;
   /** Draw the label all the time, not only on hover or selection (point entities). */
   labelAlways?: boolean;
-  /** Leave out of camera fitting (large decoration such as a water plane). */
-  excludeFromFit?: boolean;
   /** Skip the dark outline; for translucent decoration such as shadows, halos and wakes. */
   noOutline?: boolean;
   pose: Pose;

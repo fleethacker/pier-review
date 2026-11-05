@@ -11,8 +11,7 @@ export interface StreamHandle {
  * reported as 'closed' and not reopened.
  */
 export function openJsonStream<T>(
-  /** A function is re-evaluated on every reconnect, e.g. to resume after the last sequence received. */
-  url: string | (() => string),
+  url: string,
   onMessage: (message: T) => void,
   onStatus: (status: StreamStatus) => void,
 ): StreamHandle {
@@ -23,7 +22,7 @@ export function openJsonStream<T>(
 
   const connect = () => {
     onStatus('connecting');
-    socket = new WebSocket(typeof url === 'function' ? url() : url);
+    socket = new WebSocket(url);
     socket.onopen = () => {
       if (closedByUs) return;
       attempt = 0;

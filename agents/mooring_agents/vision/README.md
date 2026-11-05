@@ -47,13 +47,6 @@ AGENTS_PERSIST=1. Stored berths are shared references, not private assets or eng
 Image payload follows [OpenAI Responses image inputs](https://developers.openai.com/api/docs/guides/images-vision).
 No real model-perception accuracy is established; tests use a generated fixture and fake model transport.
 
-The fixture also exercises the HTTP job and confirmation flow: image proposals are projected by modeling,
-remain AMBER/limited, and are not registered until explicit confirmation. Empty proposals, duplicate fitting
-identifiers, oversized detector output and unusable provider replies retain catalog geometry with
-`extraction_source=deterministic`, zero image confidence and no claimed pixel locations. An empty detector
-result can fall through to the optional LLM before the catalog fallback. These checks establish transport,
-validation and provenance behavior, not detection accuracy on real berth imagery.
-
 ## Trained bollard detector (optional)
 
 `detector.py` runs a YOLO model for pixel locations of bollards; `extraction_source` is then `detector` and `bbox_px`

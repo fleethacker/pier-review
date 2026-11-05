@@ -76,3 +76,37 @@ def test_undocumented_public_quality_is_limited_and_low_gust_is_disclosed():
     reasons = environment_findings(env)
     assert all(state == 'limited' for state, _ in reasons)
     assert {r.code for _,r in reasons} == {'ENVIRONMENT_QUALITY_UNVERIFIED','WIND_GUST_BELOW_SUSTAINED','WIND_BASIS_UNVERIFIED'}
+
+
+@pytest.mark.parametrize('edge', ['valid_from_utc', 'valid_to_utc'])
+def test_naive_snapshot_with_component_interval_is_invalid_instead_of_crashing(edge):
+    from mooring.core.schemas import EnvironmentComponentProvenance
+    env = modified_env('naive')
+    reference = docking_cases()[0].analysis_request.environment.valid_at_utc
+    env.metadata = metadata().model_copy(update={'components': [EnvironmentComponentProvenance(
+        component='current', source='fixture', basis='prediction', quality='poor', **{edge: reference})]})
+    reasons = environment_findings(env)
+    codes = {reason.code for _, reason in reasons}
+    assert 'ENVIRONMENT_TIME_UNSPECIFIED' in codes
+    assert 'ENVIRONMENT_COMPONENT_POOR_QUALITY' in codes
+    req = docking_cases()[0].analysis_request.model_copy(update={'environment': env})
+    result = solver.analyze(req)
+    assert result.status == 'RED' and result.validity.state == 'invalid'
+    limits = solver.limit_envelope(LimitEnvelopeRequest(**req.model_dump(), step_deg=90))
+    assert limits.status == 'RED' and limits.validity.state == 'invalid'
+    assert all(point.outcome == 'invalid_inputs' and point.limit_gust_kt is None for point in limits.result.points)
+
+
+def test_api_naive_component_timing_returns_invalid_assessment_without_server_error():
+    from fastapi.testclient import TestClient
+    from modeling_api.main import app
+    body = docking_cases()[0].analysis_request.model_dump(mode='json')
+    body['environment']['valid_at_utc'] = '2026-11-05T12:00:00'
+    body['environment']['metadata'] = {'basis':'prediction', 'components':[
+        {'component':'wind', 'source':'fixture', 'basis':'prediction',
+         'valid_from_utc':'2026-11-05T11:00:00Z', 'valid_to_utc':'2026-11-05T13:00:00Z'}]}
+    response = TestClient(app).post('/api/v1/mooring/analyze', json=body)
+    assert response.status_code == 200
+    result = response.json()
+    assert result['status'] == 'RED' and result['validity']['state'] == 'invalid'
+    assert any(reason['code'] == 'ENVIRONMENT_TIME_UNSPECIFIED' for reason in result['validity']['reasons'])

@@ -108,14 +108,15 @@ def environment_findings(env: EnvironmentSnapshot, use_gust: bool = True) -> lis
                                        affected_components=components or ["environment"])))
 
     meta = env.metadata
-    if env.valid_at_utc.tzinfo is None:
+    time_specified = env.valid_at_utc.tzinfo is not None and env.valid_at_utc.utcoffset() is not None
+    if not time_specified:
         add("invalid", "ENVIRONMENT_TIME_UNSPECIFIED", "Environment validity time has no timezone.")
     elif meta:
         if ((meta.valid_from_utc and env.valid_at_utc < meta.valid_from_utc)
                 or (meta.valid_to_utc and env.valid_at_utc > meta.valid_to_utc)):
             add("invalid", "ENVIRONMENT_OUTSIDE_VALID_INTERVAL", "Snapshot time lies outside its declared validity interval.")
     for item in meta.components if meta else []:
-        if ((item.valid_from_utc and env.valid_at_utc < item.valid_from_utc)
+        if time_specified and ((item.valid_from_utc and env.valid_at_utc < item.valid_from_utc)
                 or (item.valid_to_utc and env.valid_at_utc > item.valid_to_utc)):
             add("invalid", "ENVIRONMENT_COMPONENT_OUTSIDE_VALID_INTERVAL",
                 f"{item.component} snapshot lies outside the source validity interval.", [item.component])

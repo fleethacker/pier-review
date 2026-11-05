@@ -6,7 +6,7 @@ import { fmt, useUnitSystem } from '../units';
 import { DEFAULT_FACE_BEARING } from './frames';
 import type { Badge, ValidityState, ViewFrame } from './frames';
 import type { MotionController, MotionState } from './controller';
-import { REPLAY_SPEEDS } from './controller';
+import { LIVE_SPEEDS, REPLAY_SPEEDS } from './controller';
 import { EnvironmentGlyph, MotionCanvas } from './MotionCanvas';
 
 const VALIDITY_COLOR: Record<ValidityState, string> = {
@@ -218,10 +218,17 @@ function LiveControls({ c, s, tugIds, lineNumbers }: { c: MotionController; s: M
         <Button size="sm" onClick={() => c.resume()} disabled={!connected} aria-keyshortcuts="Space">Resume</Button>
         <Button size="sm" variant="secondary" onClick={() => c.pause()} disabled={!connected}>Pause</Button>
         <Button size="sm" variant="secondary" onClick={() => c.reset()} disabled={!connected}>Reset</Button>
-        <label className="flex items-center gap-1 text-[10px] text-mil-dim" title="The session protocol has pause, resume and reset only; speed cannot be changed on a live session.">
+        <label className="flex items-center gap-1 text-[10px] text-mil-dim" title="Simulated seconds per wall second. The physics time step never changes.">
           Speed
-          <select className={cn(inputClass, 'h-8 w-28')} disabled aria-label="Speed (fixed for live sessions)">
-            <option>1× fixed</option>
+          <select
+            className={cn(inputClass, 'h-8 w-20')}
+            value={s.speed}
+            disabled={!connected}
+            aria-label="Session speed"
+            onChange={(e) => c.setSpeed(Number(e.target.value))}
+          >
+            {(LIVE_SPEEDS as readonly number[]).includes(s.speed) ? null : <option value={s.speed}>{s.speed}×</option>}
+            {LIVE_SPEEDS.map((v) => <option key={v} value={v}>{v}×</option>)}
           </select>
         </label>
         <ChipText tone={s.link === 'open' ? undefined : 'warn'}>link: {s.link}</ChipText>
@@ -335,6 +342,22 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
             ft
           </label>
           <Button size="sm" variant="secondary" onClick={() => void c.loadRecording()} disabled={s.busy}>Replay recording</Button>
+          {s.sessionRecordings.length > 0 && (
+            <select
+              className={cn(inputClass, 'h-8 w-48')}
+              aria-label="Session recordings"
+              value=""
+              disabled={s.busy}
+              onChange={(e) => e.target.value && void c.loadSessionRecording(e.target.value)}
+            >
+              <option value="">Session recordings…</option>
+              {s.sessionRecordings.map((r) => (
+                <option key={r.sessionId} value={r.sessionId}>
+                  {r.startedAt.slice(11, 19)}Z · {r.sessionId}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div role="group" aria-label="View" className="flex">

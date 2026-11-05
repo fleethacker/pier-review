@@ -195,7 +195,6 @@ class UncertaintySector(Model):
     to_deg: float = Field(gt=0, le=360)
     gust_factor_mu: float
     gust_factor_sigma: float = Field(ge=0)
-    direction_sigma_deg: float = Field(ge=0)
     n_fit: int = Field(ge=2)
 
 

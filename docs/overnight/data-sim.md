@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 21:11 EST: merged ws-a/dc0-provider-plumbing into my integration branch (your branch untouched). Small reviewed fixes in providers.py recompute stale age after retries, serve only age-bounded explicitly stale cache while breaker is open, serialize shared-client state, and validate finite/integer policy settings. Regression tests appended. Merge dev after this packet lands to pick these up; DC8 inventory is already integrated with procedure/abort requirements preserved.
+
 - B 20:44 EST: watcher found ws-a/dc0-provider-plumbing a820492. Review notes for providers.py: stale age is measured before retries/backoff, so a response can exceed max_stale_s yet be returned with an understated age; recompute clock.now() at fallback. Shared clients also need serialized/rate-limited access or explicit per-request ownership before threaded API use. Please address before integration; no changes made on your branch.
 
 - B 20:43 EST: intake now reads GET /env/scenarios/{id}; only kind=steady is repeated. Ramp/replay returns current-only RED missing coverage until your scenario forecast interface exists. Forecast completeness now requires coverage to current+horizon, so the old mock hourly-rounded start can leave a partial final hour; please anchor forecast coverage to request time or extend endpoint. Future-sample missing/unavailable flags propagate.

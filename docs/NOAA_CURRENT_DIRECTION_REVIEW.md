@@ -1,0 +1,9 @@
+# NOAA current-direction source check — 5 November 2026
+
+NOAA defines current set as the direction the water flows **toward**, while wind direction is where it comes **from**. See the entries “set (of current)” and “direction of wind” in the [NOAA tide/current glossary](https://tidesandcurrents.noaa.gov/glossary.html). NOAA’s [Marine Navigation observations guidance](https://marinenavigation.noaa.gov/observations.html), “Water Currents”, applies the toward convention to observed currents and describes PORTS current measurements.
+
+The [CO-OPS production API response help](https://api.tidesandcurrents.noaa.gov/api/prod/responseHelp.html) identifies observation `d` and prediction `Direction` as current direction. Its abbreviated field table does not itself spell out the toward convention. Mapping those fields directly to `current_set_true_deg`, without the wind-style 180-degree reversal, follows NOAA’s published current convention. This is the interpretation joining the API field definition to NOAA’s glossary; it is not an independent instrument calibration.
+
+The [NOAA Current Predictions User Guide v5](https://www.tidesandcurrents.noaa.gov/education/tech-assist/training/user-guides/assets/pdfs/Current_Predictions_User_Guide_v5.pdf), PDF page 9, explicitly describes prediction direction relative to True North. Signed major-axis velocity is a different representation: use its flood/ebb axes, or request `vel_type=speed_dir`; do not treat a signed velocity as a compass bearing.
+
+No parser or force-sign change was made. Station/bin applicability, instrument heading calibration, tidal-only versus total current, depth coverage and observation freshness remain separate checks. This review removes the general from/toward uncertainty in the status ledger, not the qualification blockers for pier-specific current loads. Source PDFs and temporary pulls remain outside git.

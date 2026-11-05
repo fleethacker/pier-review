@@ -77,7 +77,8 @@ def _build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
     sheet = SafetySheet(
         sheet_id=new_id("sheet"), version=version, plan_id=plan.plan_id, review_id=review.review_id if review else None,
         locked=False, status=status, validity=validity,
-        analysis_result_id=a.result_id, threshold_result_ids=review.thresholds.cites if review else [],
+        analysis_result_id=a.result_id, sequence_result_id=plan.sequence_result_id,
+        threshold_result_ids=review.thresholds.cites if review else [],
         holding_tugs=getattr(rec, "holding_tugs", []) or [],
         header=SheetHeader(ship_class_id=rec.scenario.ship_class_id, berth_id=rec.scenario.berth_id,
                            side_to=rec.scenario.side_to, evolution="moor", planned_utc=utcnow()),
@@ -90,7 +91,7 @@ def _build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
         brief=review.brief if review else None,
         directional_thresholds=review.thresholds.directions if review else [],
         warnings=[f for f in [*a.result.findings, *a.warnings, *validity_findings] if f.severity != "INFO"], rationale=plan.rationale,
-        assumptions=plan.assumptions, cited_result_ids=sorted(set(cited + [a.result_id])),
+        assumptions=plan.assumptions, cited_result_ids=sorted(set(cited + [a.result_id] + ([plan.sequence_result_id] if plan.sequence_result_id else []))),
         sources=[Provenance(source="NSTM 582 (paragraph references only)", confidence="published"),
                  Provenance(source="UFC 4-159-03 Chapter 4", confidence="published"),
                  Provenance(source=f"{a.model} ({a.backend}); reference data qualification is reported in validity", confidence="estimated")],
@@ -115,7 +116,9 @@ def render_html(s: SafetySheet) -> str:
                     f"<td>{e(r.ship_fitting_id)}</td><td>{e(r.pier_fitting_id)}</td><td>{r.tension_lbf:,.0f}</td>"
                     f"<td>{r.pct_wll:.0f}%</td><td>{r.status}</td></tr>" for r in s.line_plan)
     steps = "".join(f"<li>{e(st.action.replace('_', ' '))} line {st.line_number or '-'} ({e(st.station)}): "
-                    f"{e(st.trigger)}{(' <em>' + e(st.caution) + '</em>') if st.caution else ''}</li>" for st in s.sequence)
+                    f"{e(st.trigger)}{(' <em>' + e(st.caution) + '</em>') if st.caution else ''}"
+                    + (f" <strong>Static check: {'within limits (draft)' if st.state_ok is True else 'blocking' if st.state_ok is False else 'undetermined'}.</strong> {e(st.state_note or '')}" if st.state_ok is not None or st.state_note else "")
+                    + "</li>" for st in s.sequence)
     validity_banner = (f"<p><strong>Validity: {e(s.validity.state)}. "
         "Seed or estimated reference data is not qualified for operational use.</strong></p>" if s.validity
         else "<p><strong>Validity unknown; qualification is not established.</strong></p>")
@@ -123,6 +126,8 @@ def render_html(s: SafetySheet) -> str:
     if s.sequence_review_status and s.sequence_review_status != "reviewed":
         seq_banner = (f"<p><b>DRAFT, not reviewed by a deck officer or pilot ({e(s.sequence_review_status)}).</b> "
                       + " ".join(e(x) for x in s.sequence_limitations) + "</p>")
+    if s.sequence_result_id:
+        seq_banner += f"<p>Sequence assessment: <code>{e(s.sequence_result_id)}</code>.</p>"
     gng = "".join(f"<li><b>{e(g.condition)}</b>: {e(g.action)}</li>" for g in s.go_no_go)
     warn = "".join(f"<li>[{w.severity}] {e(w.message)} <small>({e(w.reference)})</small></li>" for w in s.warnings)
     why = "".join(f"<li>{e(r.text)} <small>[{e(', '.join(r.cites))}]</small></li>" for r in s.rationale)

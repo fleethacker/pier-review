@@ -31,6 +31,7 @@ class RationaleItem(Model):
 
 
 class AgentPlan(Model):
+    wire_omitted_defaults = {"sequence_result_id": None}
     plan_id: str
     scenario_id: str
     intake_report_id: str | None = None
@@ -39,6 +40,7 @@ class AgentPlan(Model):
     config: MooringConfig | None = None
     tug_plan: TugPlanResult | None = None
     sequence: SequenceResult | None = None
+    sequence_result_id: str | None = None
     analysis_result_id: str | None = None
     risk_result_id: str | None = None
     rationale: list[RationaleItem] = Field(default_factory=list)

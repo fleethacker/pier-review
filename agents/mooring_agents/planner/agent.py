@@ -423,10 +423,17 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None 
     tug_plan = tug_plans[tug_index]
     for result in tug_plans:
         step("Computed the berthing tug plan for a required condition.", "plan_tugs", result.result_id)
+    sequence_tug_id = tug_plan.result_id
+    invalid_assistance_note = None
+    if tug_plan.validity is not None and tug_plan.validity.state == "invalid":
+        sequence_tug_id = None
+        invalid_assistance_note = "Invalid berthing-tug assessment was not used as assistance in the draft sequence; the plan remains blocked."
+        step(invalid_assistance_note, "plan_tugs", tug_plan.result_id)
     sequence = await tk.sequence({"ship_class_id": sc.ship_class_id, "berth_id": sc.berth_id,
+        "loading": sc.loading, "mst": ship.mst_class,
         "config": cfg.model_dump(mode="json", exclude_none=True),
         "environment": environments[tug_index].model_dump(mode="json"),
-        "tug_plan_result_id": tug_plan.result_id})
+        "tug_plan_result_id": sequence_tug_id})
     step("Generated the line-handling sequence.", "generate_sequence", sequence.result_id)
     risks = [await tk.exceedance({**_analyze_body(sc, cfg, condition, ship.mst_class, tugs),
                                  "n_samples": 200, "seed": 1}) for condition in environments]
@@ -470,8 +477,11 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None 
                    "Forecast-only planning checks the supplied conditions; it does not establish MST design-condition compliance."]
     assumptions.extend(dict.fromkeys(a for result in [*checks, *tug_plans, sequence, *risks]
                                      for a in result.assumptions))
+    if invalid_assistance_note:
+        assumptions.append(invalid_assistance_note)
     plan = AgentPlan(plan_id=plan_id, scenario_id=sc.scenario_id, intake_report_id=req.intake_report_id,
         state="succeeded", status=status, config=cfg, tug_plan=tug_plan.result, sequence=sequence.result,
+        sequence_result_id=sequence.result_id,
         analysis_result_id=analysis.result_id, risk_result_id=risk.result_id, rationale=rationale,
         assumptions=assumptions, open_questions=open_questions,
         holding_tugs=tugs, condition_analysis_result_ids=[check.result_id for check in checks])

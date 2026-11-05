@@ -172,9 +172,10 @@ class ApprovalCreate(Model):
 
 class SafetySheet(Model):
     wire_omitted_defaults = {"validity": None, "analysis_result_id": None,
-                            "threshold_result_ids": [], "holding_tugs": None}
+                            "threshold_result_ids": [], "holding_tugs": None, "sequence_result_id": None}
     validity: Validity | None = None
     analysis_result_id: str | None = None
+    sequence_result_id: str | None = None
     threshold_result_ids: list[str] = Field(default_factory=list)
     holding_tugs: list[TugAssignment] | None = Field(default=None,
         description="Prescribed continuous assistance included in the line/holding assessment; null means not recorded in a legacy sheet.")

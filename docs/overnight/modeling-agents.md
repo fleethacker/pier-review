@@ -2,6 +2,8 @@
 
 ## Log
 
+- 22:49 EST: S13 review fixes loading/MST hard-coding, pre-double-up part overcount, unassessed tug release, invalid environment/depth/rating assistance and recursive timing paths. Planner omits invalid tug assistance but still completes a blocked plan. Four real API cases retain expected outcomes (3.08–4.11 s); sheets expose intermediate notes and sequence references. Removed a vacuous unsafe-lead assertion by giving its fixture an explicit breast role. Full suite 1395 passed, no skips/xfails; UI typecheck/lint/81 tests/build pass and contract regenerated.
+
 - 22:38 EST: reviewed DC6 locally against a real NOAA US5ORFCC base+5 updates (temporary files only). Fixed combined/prefixed DSID metadata, distinct VDAT/SDAT, explicit WGS84/metres/MLLW subset, CRS/local-datum guards and malformed geometry/depth rejection. 24 focused tests and full suite 1384 pass (no skips/xfails); UI typecheck/lint/81 tests/build and contract generation pass. Actual reader accepts metadata and 141 polygons. DEPARE-only limitations remain explicit; no clearance qualification.
 
 - 22:33 EST: real bounded agent-job burst, no external network/LLM: 40 requests, 18 accepted, 22 rejected with HTTP 429 and Retry-After; cancelled one queued job, remaining 17 completed AMBER with unique plan ids. Elapsed 31.85 s on this machine; this is local saturation evidence, not deployment qualification.

@@ -2,6 +2,8 @@
 
 ## Log
 
+- 21:08 EST: direct static tug assistance now invalidates unknown/duplicate/overrated assignments; invalid assistance produces no numeric wind limit, and tug records enter result manifests. Tide sweep accepts supplied water-level snapshots, evaluates their knots, and isolates/labels its legacy training fallback. Source and interpolation remain explicitly limited.
+
 - 21:00 EST: auth packet PR #32 published, 1189 tests pass. Job client now enforces elapsed-time deadlines including submission/poll HTTP, handles cancelled remote jobs immediately, cancels accepted remote work on caller stop, and refuses untrusted status paths before forwarding credentials.
 
 - 20:55 EST: agents auth integration implemented: caller credentials forwarded to modeling through worker context; plans/reports/reviews/sheets/vision jobs/ledger owner-scoped, body and per-principal rate caps. Authenticated real chain and adversarial cross-owner attempts pass. Shared confirmed berth catalog and unverified approval roles remain deployment blockers.

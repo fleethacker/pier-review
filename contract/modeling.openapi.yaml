@@ -524,6 +524,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/demo/docking-cases:
+    get:
+      tags:
+      - M2 Reference data
+      summary: Named offline demo requests (seed data; not operational plans)
+      operationId: demo_docking_cases_api_v1_demo_docking_cases_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/DockingDemoCase'
+                type: array
+                title: Response Demo Docking Cases Api V1 Demo Docking Cases Get
   /api/v1/qualification:
     get:
       tags:
@@ -2756,6 +2772,46 @@ components:
       - dist
       - params
       title: Distribution
+    DockingDemoCase:
+      properties:
+        case_id:
+          type: string
+          title: Case Id
+        name:
+          type: string
+          title: Name
+        expected_outcome:
+          type: string
+          enum:
+          - supported_limited
+          - overloaded
+          - invalid_data
+          - undetermined
+          title: Expected Outcome
+        explanation:
+          type: string
+          title: Explanation
+        environment_request:
+          $ref: '#/components/schemas/EnvScenarioCreate'
+        scenario_request:
+          $ref: '#/components/schemas/ScenarioCreate'
+        analysis_request:
+          $ref: '#/components/schemas/AnalyzeRequest'
+        envelope_request:
+          anyOf:
+          - $ref: '#/components/schemas/LimitEnvelopeRequest'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - case_id
+      - name
+      - expected_outcome
+      - explanation
+      - environment_request
+      - scenario_request
+      - analysis_request
+      title: DockingDemoCase
     EnvScenario:
       properties:
         name:

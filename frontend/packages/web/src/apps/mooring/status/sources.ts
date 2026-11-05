@@ -1,4 +1,4 @@
-import type { Environment } from '../types';
+import type { Environment, EnvironmentAvailability } from '../types';
 
 /** One backend capability as /capabilities reports it. */
 export interface Capability {
@@ -29,6 +29,7 @@ export interface SourceRow {
 
 export interface SourceInput {
   env: Environment | null;
+  availability?: EnvironmentAvailability | null;
   envMode: { kind: 'manual' | 'live' | 'replay' | 'storm'; status: string; detail: string | null };
   capabilities: Capability[] | null;
   /** The last environment request failed (e.g. an unsupported or misconfigured source). Shown as an error, never as current data. */
@@ -43,7 +44,7 @@ const BASIS_STATE: Record<Component['basis'], SourceState> = { observation: 'liv
 /** One component's own provenance: its provider, basis, quality and age from its actual issue time (never retrieval time). */
 function componentRow(base: SourceRow, comp: Component, nowMs: number): SourceRow {
   const issued = comp.issued_at_utc ? Date.parse(comp.issued_at_utc) : NaN;
-  const notes: string[] = [];
+  const notes: string[] = base.reason ? [base.reason] : [];
   if (Number.isNaN(issued)) {
     notes.push(comp.retrieved_at_utc
       ? `Issue time unknown; retrieved ${comp.retrieved_at_utc.slice(0, 16).replace('T', ' ')}Z, so freshness is unknown.`
@@ -56,11 +57,42 @@ function componentRow(base: SourceRow, comp: Component, nowMs: number): SourceRo
   return {
     ...base,
     provider: comp.source,
-    state: BASIS_STATE[comp.basis] ?? 'unavailable',
+    state: base.state === 'replay' || base.state === 'manual' ? base.state : (BASIS_STATE[comp.basis] ?? 'unavailable'),
     ageS: Number.isNaN(issued) ? null : Math.max(0, (nowMs - issued) / 1000),
     reason: notes.length ? notes.join(' ') : null,
     basis: comp.basis,
     quality: comp.quality,
+  };
+}
+
+function forecastRow(availability: EnvironmentAvailability | null | undefined): SourceRow {
+  const component = availability?.components.find((item) => item.component === 'forecast');
+  if (!component) {
+    return {
+      id: 'forecast', label: 'Forecast', provider: 'none', state: 'unavailable', ageS: null,
+      reason: 'Forecast availability has not been reported.',
+    };
+  }
+  const notes = [component.reason, ...(component.limitations ?? [])].filter((item): item is string => Boolean(item));
+  let state: SourceState = component.state;
+  if (state === 'live') {
+    if (component.basis === 'prediction') state = 'prediction';
+    else {
+      state = 'unavailable';
+      notes.push('Forecast status did not identify a prediction basis, so it is not shown as live.');
+    }
+  }
+  if (state === 'prediction' && !notes.length) notes.push('Predicted values, not observations.');
+  if (state === 'unavailable' && !notes.length) notes.push('No forecast source is available.');
+  return {
+    id: 'forecast',
+    label: 'Forecast',
+    provider: component.source ?? 'none',
+    state,
+    ageS: component.age_s ?? null,
+    reason: notes.length ? notes.join(' ') : null,
+    basis: component.basis ?? null,
+    quality: component.quality,
   };
 }
 
@@ -75,7 +107,7 @@ function ageOf(env: Environment | null): number | null {
  * What each data stream is actually backed by right now. Nothing here is guessed: a stream is `live` only when the
  * service says its snapshot did not come from the mock, and a missing stream is `unavailable` with the reason, never zero.
  */
-export function deriveSources({ env, envMode, capabilities, envError = null, nowMs = Date.now() }: SourceInput): SourceRow[] {
+export function deriveSources({ env, availability, envMode, capabilities, envError = null, nowMs = Date.now() }: SourceInput): SourceRow[] {
   const providers = find(capabilities, 'live providers');
   const telemetry = find(capabilities, 'telemetry');
   const replay = find(capabilities, 'deterministic replay');
@@ -101,7 +133,7 @@ export function deriveSources({ env, envMode, capabilities, envError = null, now
     } else if (src === 'scenario') {
       core = { provider: 'saved or typed values', state: 'manual', reason: 'Entered by hand or saved in a scenario; not an observation.' };
     } else if (src === 'forecast') {
-      core = { provider: 'forecast', state: 'live', reason: 'Forecast values, not observations.' };
+      core = { provider: 'forecast', state: 'prediction', reason: 'Forecast values, not observations.' };
     } else {
       core = { provider: src === 'ship_sensor' ? "ship's own sensors" : 'live feed', state: 'live', reason: null };
     }
@@ -125,14 +157,7 @@ export function deriveSources({ env, envMode, capabilities, envError = null, now
     return comp ? componentRow(base, comp, nowMs) : base;
   };
 
-  const forecast: SourceRow = {
-    id: 'forecast',
-    label: 'Forecast',
-    provider: providers && providers.backend !== 'real' ? 'deterministic mock' : (env ? core.provider : 'none'),
-    state: providers && providers.backend !== 'real' ? 'mock' : env ? (core.state === 'live' ? 'live' : 'mock') : 'unavailable',
-    ageS: null,
-    reason: providers?.blockers[0] ?? 'The forecast follows the environment source.',
-  };
+  const forecast = forecastRow(availability);
 
   return [
     row('wind', 'Wind', 'wind'),

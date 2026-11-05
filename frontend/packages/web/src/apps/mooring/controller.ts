@@ -32,6 +32,7 @@ import type {
   BerthSummary,
   Alert,
   Environment,
+  EnvironmentAvailability,
   LineSpec,
   MooringLine,
   MooringConfig,
@@ -140,6 +141,8 @@ export interface MooringState {
   ship: ShipClass | null;
   lines: MooringLine[];
   env: Environment | null;
+  /** Independent per-component status; unlike env, this can report partial availability without invented values. */
+  envAvailability: EnvironmentAvailability | null;
   analysis: { state: 'idle' | 'pending' | 'ok' | 'error'; response: AnalyzeResponse | null; error: string | null };
   recommend: { state: 'idle' | 'running' | 'error'; progress: number; candidates: Candidate[]; error: string | null };
   addLine: { active: boolean; shipFittingId: string | null; specId: string; parts: 1 | 2 | 3 };
@@ -188,6 +191,7 @@ const INITIAL: MooringState = {
   ship: null,
   lines: [],
   env: null,
+  envAvailability: null,
   analysis: { state: 'idle', response: null, error: null },
   recommend: { state: 'idle', progress: 0, candidates: [], error: null },
   addLine: { active: false, shipFittingId: null, specId: '', parts: 1 },
@@ -385,7 +389,7 @@ export class MooringController {
     this.state.set({ recommend: { state: 'idle', progress: 0, candidates: [], error: null }, tugAssignments: [] });
     this.recommendAbort?.abort();
     const { berthId, shipClassId } = this.s;
-    const [berth, ship, env] = await Promise.all([
+    const [berth, ship, env, envAvailability] = await Promise.all([
       modeling.GET('/api/v1/berths/{berth_id}', { params: { path: { berth_id: berthId } } }).then(unwrap),
       shipClassId
         ? modeling.GET('/api/v1/ships/{class_id}', { params: { path: { class_id: shipClassId } } }).then(unwrap)
@@ -395,11 +399,12 @@ export class MooringController {
         (e) => { if (seq === this.selectionSeq) this.state.set({ envError: null }); return e; },
         (e) => { if (seq === this.selectionSeq) this.state.set({ envError: message(e) }); return null; },
       ),
+      this.fetchEnvAvailability(berthId).catch(() => null),
     ]);
     if (this.disposed || seq !== this.selectionSeq) return;
     const loading = ship?.loading_conditions.find((c) => c.name === this.s.loading)?.name ?? ship?.loading_conditions[0]?.name ?? '';
     const shipXFt = this.s.shipXFt > 0 && this.s.shipXFt < berth.face_length_ft ? this.s.shipXFt : Math.round(berth.face_length_ft / 2 / 5) * 5;
-    this.state.set({ berth, ship, env, loading, shipXFt, lines: [], scenarioId: null });
+    this.state.set({ berth, ship, env, envAvailability, loading, shipXFt, lines: [], scenarioId: null });
     this.resetAnalysis();
     this.pushScene('full');
     if (opts.recommend && ship && (ship.fittings?.length ?? 0) > 0) void this.recommend({ apply: true });
@@ -409,10 +414,17 @@ export class MooringController {
     return unwrap(await modeling.GET('/api/v1/env/now', { params: { query: { berth_id: berthId } } }));
   }
 
+  private async fetchEnvAvailability(berthId: string): Promise<EnvironmentAvailability> {
+    return unwrap(await modeling.GET('/api/v1/env/availability', { params: { query: { berth_id: berthId } } }));
+  }
+
   async refreshEnv(): Promise<void> {
     try {
-      const env = await this.fetchEnv(this.s.berthId);
-      this.state.set({ env, envError: null });
+      const [env, envAvailability] = await Promise.all([
+        this.fetchEnv(this.s.berthId),
+        this.fetchEnvAvailability(this.s.berthId).catch(() => null),
+      ]);
+      this.state.set({ env, envAvailability, envError: null });
       this.pushScene('update');
       this.scheduleAnalyze();
     } catch (e) {
@@ -434,7 +446,7 @@ export class MooringController {
   async setBerth(berthId: string): Promise<void> {
     await this.setEnvMode('manual');
     this.alertStream?.close();
-    this.state.set({ berthId, env: null });
+    this.state.set({ berthId, env: null, envAvailability: null });
     await this.guarded(() => this.loadSelection({ recommend: true }));
     await this.setEnvMode('manual');
     this.startAlerts();

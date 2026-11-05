@@ -2,6 +2,8 @@
 
 ## Log
 
+- 23:07 EST: reviewed DC5 integrated locally with optional-field compatibility, finite/ordered/nonoverlapping sectors, explicit exploratory qualification/global sampling, train-only parameter fitting, usable-day accounting, duplicate/time guards, contiguous AR input and missing-current rejection. Current predictions now use actual nearest timestamps; cache separates station/bin/window and never persists failure as empty data. Existing 364-day observed artifact unchanged. 29 focused tests and 1422 full tests pass, no skips/xfails; UI 81 tests/typecheck/lint/build pass, contract regenerated.
+
 - 22:58 EST: live alert assessments now expose optional validity, suppress utilization for invalid inputs/grounding/missing plan references, label seed assessments limited, and preserve original installation tide as water level changes. Observation-only messages explicitly do not assess mooring adequacy. Ten focused alert tests pass; full suite 1404 passed (no skips/xfails), UI 81 tests/typecheck/lint/build pass; contract/types regenerated. C-owned socket source/failure findings sent to inbox and PR #43; no ws.py changes.
 
 - 22:49 EST: S13 review fixes loading/MST hard-coding, pre-double-up part overcount, unassessed tug release, invalid environment/depth/rating assistance and recursive timing paths. Planner omits invalid tug assistance but still completes a blocked plan. Four real API cases retain expected outcomes (3.08–4.11 s); sheets expose intermediate notes and sequence references. Removed a vacuous unsafe-lead assertion by giving its fixture an explicit breast role. Full suite 1395 passed, no skips/xfails; UI typecheck/lint/81 tests/build pass and contract regenerated.

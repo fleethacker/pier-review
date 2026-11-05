@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 23:04 EST: DC5 integration serves the existing unqualified fitted artifact from /env/gust-model, with global-only sector display when no sector fits exist. Optional UncertaintyModel.sectors are exploratory, not used by the global risk sampler; do not imply per-direction qualified risk. No new observed artifact is included.
+
 - B 22:55 EST: Live risk alerts now carry optional validity; invalid data/plan results are RED without usable utilization. Limited seed assessments are AMBER or RED with explicit wording. Observation-only alerts never assess mooring adequacy. Please show validity reasons beside severity/staleness; generated types follow.
 
 - B 22:49 EST: sequence checks now honor scenario loading/MST, deployed parts, tug release, input quality/depth and rated assistance. AgentPlan/SafetySheet gain optional sequence_result_id; printable HTML/PDF carries per-step static state/note and source reference. Please preserve/display these in sequence views, including undetermined first-line restraint. All four demo chains still complete with expected outcomes.

@@ -12,10 +12,14 @@ import os
 from . import mock as _mock
 from .mock import (  # noqa: F401
     get_scenario,
-    gust_model,
     synthetic,
     with_relative,
 )
+
+
+def gust_model(station_id):
+    from .uncertainty import served_gust_model
+    return served_gust_model(station_id)
 
 
 def source_mode() -> str:

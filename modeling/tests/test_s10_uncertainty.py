@@ -33,6 +33,11 @@ def test_lognormal_fit_recovers_parameters_and_rejects_bad_input():
         u.fit_lognormal([1.0])
 
 
+def test_direction_sector_fit_keeps_359_and_1_in_distinct_declared_bins():
+    sectors = u.fit_gust_sectors([(1, 1.1), (2, 1.2), (359, 1.3), (358, 1.4)], width_deg=45)
+    assert [(s.from_deg, s.to_deg, s.n_fit) for s in sectors] == [(0, 45, 2), (315, 360, 2)]
+
+
 def test_ar1_fit_recovers_correlation_time():
     rng = random.Random(11)
     phi_true, x, series = 0.9, 0.0, []
@@ -121,6 +126,16 @@ def test_committed_fitted_artifact_is_valid_calibrated_and_honestly_unqualified(
     for bad in ("../etc/passwd", "nope", "a/b"):
         with pytest.raises(KeyError):
             u.load_model(bad)
+
+
+def test_gust_endpoint_serves_fitted_artifact_with_honest_limitations():
+    served = u.served_gust_model("8638614")
+    assert served.provenance.confidence == "estimated" and "coops-8638614-2025" in served.provenance.source
+    assert "qualification=unqualified" in served.provenance.notes
+    assert len(served.sectors) == 1  # legacy artifact has no sector fits; do not manufacture eight
+    assert served.sectors[0].gust_factor.params["mu"] == pytest.approx(u.load_model("coops-8638614-2025").gust_factor_mu)
+    with pytest.raises(ValueError, match="was not fitted"):
+        u.served_gust_model("not-this-station")
     assert u.available_models()[:2] == ["synthetic-demo", "coops-8638614-2025"]
 
 
@@ -137,3 +152,33 @@ def test_risk_accepts_the_fitted_model_and_stays_limited_with_its_reasons():
     r = st["result"]
     assert r["result"]["uncertainty_model"]["model_id"] == "coops-8638614-2025" and r["validity"]["state"] == "limited"
     assert r["manifest"]["rng_model_revision"] == "coops-8638614-2025@1"
+
+
+@pytest.mark.parametrize("width", [0, -1, 7, 2.5, True])
+def test_sector_fit_rejects_invalid_width(width):
+    with pytest.raises(ValueError, match="sector width"):
+        u.fit_gust_sectors([(0, 1.1), (1, 1.2)], width)
+
+
+@pytest.mark.parametrize("record", [(float("nan"), 1.1), (0, float("inf")), (0, 0), (0, -1)])
+def test_sector_fit_rejects_nonfinite_or_nonpositive_data(record):
+    with pytest.raises(ValueError, match="finite"):
+        u.fit_gust_sectors([record, (0, 1.1)])
+
+
+def test_sector_artifacts_are_exploratory_and_global_sampler_is_explicit():
+    from mooring.core.schemas import UncertaintyModel, UncertaintySector
+    legacy = u.load_model("coops-8638614-2025")
+    assert "sectors" not in legacy.model_dump(mode="json")
+    sector = UncertaintySector(from_deg=0, to_deg=45, gust_factor_mu=0.7, gust_factor_sigma=0.2, n_fit=20)
+    exploratory = legacy.model_copy(update={"sectors": [sector], "n_days": 400, "n_events": 400})
+    qualified = u.qualify(exploratory)
+    assert qualified.qualification == "unqualified"
+    assert any("global parameters only" in reason for reason in qualified.qualification_reasons)
+    assert u.Sampler(exploratory, 1)._gust_factor(0) == u.Sampler(legacy, 1)._gust_factor(0)
+    with pytest.raises(ValueError, match="increase"):
+        UncertaintySector(from_deg=45, to_deg=10, gust_factor_mu=0, gust_factor_sigma=0.1, n_fit=2)
+    body = exploratory.model_dump(mode="json")
+    body["sectors"].append({**body["sectors"][0], "from_deg": 20, "to_deg": 60})
+    with pytest.raises(ValueError, match="overlap"):
+        UncertaintyModel.model_validate(body)

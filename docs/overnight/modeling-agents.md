@@ -2,6 +2,8 @@
 
 ## Log
 
+- 22:33 EST: real bounded agent-job burst, no external network/LLM: 40 requests, 18 accepted, 22 rejected with HTTP 429 and Retry-After; cancelled one queued job, remaining 17 completed AMBER with unique plan ids. Elapsed 31.85 s on this machine; this is local saturation evidence, not deployment qualification.
+
 - 22:33 EST: supplied risk timeline and explicit training provenance pass 1360 Python tests, no skips/xfails; 33 focused risk tests and 81 UI tests/typecheck/lint/build pass. Supplied knots, exact endpoints, gap/time validation, invalid-source suppression and per-step failed-sample bounds are covered. Training remains isolated/labeled even with public providers configured.
 
 - 22:28 EST: risk hardening full suite 1349 passed, no skips/xfails; 22 focused risk/contract tests pass. OpenAPI audit also exposed omitted asynchronous recommendation and simulation result models; all documented job response models are now explicitly published and consumer types regenerated.
@@ -41,36 +43,6 @@
 - 20:12 EST: started from origin/dev 191a41a in ../psp-agents, agents/overnight. Main contains the same release plus its release merge. Read shared instructions and ownership. Baseline suite running.
 - UI audit: planner bypasses explicit intake; sheet creation bypasses explicit safety-review selection; target defaults to 70%. Forecast risk requests 24h but saved scenarios freeze weather. Recommendation includes MST design cases regardless of moderate forecast.
 
-## Decisions
-
-- Integrate green PRs into dev; leave main and colleagues’ worktrees alone.
-- Deliver demonstration within assumptions; seed data and unreviewed sequence rules prevent operational qualification.
-- Expanded plan: [MODELING_OVERNIGHT_PLAN.md](../MODELING_OVERNIGHT_PLAN.md).
-
-## Interfaces
-
-- Vision: same upload/job/confirm endpoints, now real deterministic catalog drafts by metadata berth_id; no-LLM path does not claim image extraction. Optional image proposals require scale plus pier_face_start_px/end_px. POST /berth-drafts computes unsaved geometry; confirmed berths are registered via toolkit POST /berths. Drafts stay estimated/unqualified.
-
-- F24: POST /mooring/forecast-plan (job → ForecastDockingResponse) and POST /data-simulation/forecast (ForecastSeries). Documentation docs/FORECAST_DOCKING.md; full request fixtures in contract/examples/modeling. Ten new tests cover coverage, interior peak, issue-time leakage, cancellation/budget and real API jobs.
-
-- /mooring/recommend additive design_basis=forecast_only requires forecast_env; absent retains MST checks. Optional tugs and standoff_ft preserve assisted geometry. Candidate.tugs identifies assistance actually evaluated. Actual forecast tides retained. New forecast docking endpoint in progress.
-
-- M1: GET /api/v1/demo/docking-cases returns four typed request bundles (ddg-supported-limited, ddg-overloaded, ddg-invalid-data, ddg-undetermined). POST environment_request to /env/scenarios, substitute returned id into scenario_request.env_source.env_scenario_id, then POST /scenarios. Direct analysis_request and optional envelope_request reproduce the named outcomes. Contract examples demo_ddg-*.json are generated.
-
-- /intake/reports supports horizon_hours 1–120 (24 default); pass intake_report_id to /agent/plans to preserve forecast conditions.
-- /mooring/recommend checks MST alternatives plus forecast_env; failed bounded search is not proof of infeasibility.
-- Additive forecast-planning contract to follow; agent C owns NOAA acquisition.
-
-## Requests
-
-## Tomorrow
-
-- Qualified vessel/pier data and pilot/deck-officer review remain prerequisites for live use.
-
-## REVIEW_NEEDED
-
-NSTM references, line/pier capacities, wind averaging conversions, tug estimates, sequence durations and intermediate handling assumptions.
-
 - 21:15 EST: PR #34 merged after both CI jobs passed. DC0 provider branch integrated locally with cache-age/breaker/policy fixes; 1231 Python tests pass, no skips/xfails. Five complete local supported chains median 3.09 s; real TCP make-mock smoke passed intake/planner/review/approval/HTML/SSE/vision confirmation. PDF honestly returns 501 without renderer. Both temporary servers stopped.
 
 - 21:19 EST: opt-in agent persistence now retains completed chains and audit/ownership without serializing credentials. Service-scoped job recovery prevents cross-service interruption. Durable chain, cross-owner reads, terminal SSE replay and concurrent approvals tests pass; full regression underway. Watcher found DC1 CO-OPS and DC2 NWS branches, queued for integration review.
@@ -100,3 +72,33 @@ NSTM references, line/pier capacities, wind averaging conversions, tug estimates
 - 22:13 EST: F24 selected_config now makes modeled paid-out lengths and wet/dry conditions explicit, with installation tide on selected result/window/condition and manifest. Rechecking at a later tide reproduces stored line tensions; no supported arrival means no selected installation. Full suite 1310 passed, no skips/xfails; focused F24 19, UI 81/typecheck/lint/build pass; contract regenerated. Browser audit uses isolated ports 18100/18101/18888 and temporary tools/data outside git.
 
 - 22:14 EST: headless Chrome browser audit of built UI with external network blocked: initial map/analysis renders and Ask agent→real SSE→Create/Open sheet completes without page exceptions. Trace confirms intake/review selection still implicit/absent; sent actionable U1 and tide-explanation notes to UI inbox. PR #48 merged after green CI; F24 installation packet ready to publish.
+
+## Decisions
+
+- Integrate green PRs into dev; leave main and colleagues’ worktrees alone.
+- Deliver demonstration within assumptions; seed data and unreviewed sequence rules prevent operational qualification.
+- Expanded plan: [MODELING_OVERNIGHT_PLAN.md](../MODELING_OVERNIGHT_PLAN.md).
+
+## Interfaces
+
+- Vision: same upload/job/confirm endpoints, now real deterministic catalog drafts by metadata berth_id; no-LLM path does not claim image extraction. Optional image proposals require scale plus pier_face_start_px/end_px. POST /berth-drafts computes unsaved geometry; confirmed berths are registered via toolkit POST /berths. Drafts stay estimated/unqualified.
+
+- F24: POST /mooring/forecast-plan (job → ForecastDockingResponse) and POST /data-simulation/forecast (ForecastSeries). Documentation docs/FORECAST_DOCKING.md; full request fixtures in contract/examples/modeling. Ten new tests cover coverage, interior peak, issue-time leakage, cancellation/budget and real API jobs.
+
+- /mooring/recommend additive design_basis=forecast_only requires forecast_env; absent retains MST checks. Optional tugs and standoff_ft preserve assisted geometry. Candidate.tugs identifies assistance actually evaluated. Actual forecast tides retained. New forecast docking endpoint in progress.
+
+- M1: GET /api/v1/demo/docking-cases returns four typed request bundles (ddg-supported-limited, ddg-overloaded, ddg-invalid-data, ddg-undetermined). POST environment_request to /env/scenarios, substitute returned id into scenario_request.env_source.env_scenario_id, then POST /scenarios. Direct analysis_request and optional envelope_request reproduce the named outcomes. Contract examples demo_ddg-*.json are generated.
+
+- /intake/reports supports horizon_hours 1–120 (24 default); pass intake_report_id to /agent/plans to preserve forecast conditions.
+- /mooring/recommend checks MST alternatives plus forecast_env; failed bounded search is not proof of infeasibility.
+- Additive forecast-planning contract to follow; agent C owns NOAA acquisition.
+
+## Requests
+
+## Tomorrow
+
+- Qualified vessel/pier data and pilot/deck-officer review remain prerequisites for live use.
+
+## REVIEW_NEEDED
+
+NSTM references, line/pier capacities, wind averaging conversions, tug estimates, sequence durations and intermediate handling assumptions.

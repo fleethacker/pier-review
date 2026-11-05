@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 21:08 EST: tide-sweep adds optional water_level_forecast (EnvironmentSnapshot list). Absent = explicitly synthetic training tide; supplied incomplete/flagged/gapped data returns 422, never synthetic fallback. Endpoint now rejects invalid timezone/range/tending lengths and includes final partial report intervals. Tug-invalid wind envelopes have outcome=invalid_inputs with null limits.
+
 - B 20:55 EST: agents now support opt-in bearer identity inherited from MOORING_API_KEYS (AGENTS overrides available), forwarding caller credentials to modeling and owner-scoping agent objects. Default stays open local-demo. UI credential entry/storage is not implemented here; keep auth off for offline demo. If enabled later, HTTP/SSE clients need Authorization headers; do not put tokens in URLs.
 
 - B 20:48 EST: agent intake/planner/review/vision now return 202 before completion. Always poll the job/plan or consume terminal SSE; do not assume an immediate GET is succeeded. Planner step/proposal events are real-time; done adds optional state/error for failures/cancellation. DELETE /jobs/{id} cancels; queue 429 carries Retry-After. Keep displaying the final qualification warnings.

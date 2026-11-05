@@ -8121,6 +8121,17 @@ components:
           type: array
           title: Tending
           description: Explicit tending applied in time order. Nothing is retensioned silently.
+        water_level_forecast:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/EnvironmentSnapshot'
+            type: array
+            maxItems: 2000
+            minItems: 2
+          - type: 'null'
+          title: Water Level Forecast
+          description: Optional supplied snapshots covering the whole sweep; only MLLW water levels vary. Linear interpolation
+            is explicitly limited. Absent uses a labeled synthetic training tide.
       additionalProperties: false
       type: object
       required:

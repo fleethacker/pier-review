@@ -296,3 +296,19 @@ def test_recorded_availability_age_uses_observation_time_not_alignment_bounds(mo
     current = next(row for row in status.components if row.component == "current")
     assert current.valid_to_utc == datetime(2026, 1, 1, 0, 56, tzinfo=UTC)
     assert current.age_s == (checked - current.valid_to_utc).total_seconds()
+
+
+@pytest.mark.parametrize("bad_component,override", [
+    ("wind", {"data": [None]}),
+    ("current", {"data": [{"t": "2026-01-01 00:50", "s": "0.3", "d": "90", "b": "1"}]}),
+])
+def test_malformed_or_wrong_bin_component_preserves_other_availability(bad_component, override):
+    product = "currents" if bad_component == "current" else bad_component
+    live.configure(Fetcher(recorded_transport(overrides={product: override}), clock=lambda: NOW,
+                           sleep=lambda _: None, retries=0, min_interval_s=0), clock=lambda: NOW)
+    status = live.component_availability(BERTH, NOW)
+    for row in status.components[:3]:
+        assert row.state == ("unavailable" if row.component == bad_component else "live")
+    assert not status.complete_snapshot_available
+    with pytest.raises(ProviderError):
+        live.latest(BERTH)

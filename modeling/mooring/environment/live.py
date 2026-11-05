@@ -121,7 +121,7 @@ def _component_specs(berth_id, begin, checked):
             current_station,
             f"NOAA CO-OPS station {current_station} bin {DEFAULT_BIN}",
             coops.request_params("currents", current_station, begin, checked, bin=DEFAULT_BIN),
-            coops.parse_currents,
+            lambda doc: coops.parse_currents(doc, expected_bin=DEFAULT_BIN),
             ("current_speed_kt", "current_set_true_deg"),
             {
                 "current_depth_ft": 20.6 if current_station == "cb0402" else None,

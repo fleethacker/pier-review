@@ -414,6 +414,11 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None 
         raise RuntimeError("planner exhausted without an analysis")
 
     cfg, tugs, analysis, worst_index, checks = best
+    if analysis.result.resolved_config is not None:
+        cfg = analysis.result.resolved_config
+        rationale.append(RationaleItem(
+            text="Preserved modeling-resolved unstretched line spans for subsequent rechecks; these are not rope-cutting lengths or handling instructions.",
+            cites=[analysis.result_id]))
     env = environments[worst_index]
     for check in checks:
         rationale.append(RationaleItem(text="Checked the final configuration at a required planning condition.",

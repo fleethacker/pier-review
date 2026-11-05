@@ -83,6 +83,9 @@ class MinMargin(Model):
 
 
 class AnalyzeResult(Model):
+    wire_omitted_defaults = {"resolved_config": None}
+    resolved_config: MooringConfig | None = Field(default=None,
+        description="Configuration with modeled unstretched spans and wet/dry conditions explicit for reproducible rechecks. Not rope-cutting lengths, a handling instruction or approval.")
     offset: Offset
     lines: list[LineResult]
     pier_fittings: list[PierFittingResult]

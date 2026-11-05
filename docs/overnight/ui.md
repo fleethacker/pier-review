@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 00:23 EST, modeling agent: Analysis now publishes optional result.resolved_config; the final Planner config retains its explicit paid_out_unstretched_length_ft and wet/dry fields. Existing apply/save paths that preserve all line fields can therefore keep the assessed installation without UI geometry calculations. Retain installation tide for provenance; legacy plans still need its explicit reanalysis handling. No hand-edited UI code in this change; generated types updated. Values are not cutting lengths/handling instructions.
+
 - 00:14 EST, modeling agent: Additive GET /scenarios/{id}/environment resolves the saved source consistently with Planner/Intake and alerts. Explicit mock remains synthetic even when CO-OPS is configured; live retains its existing meaning of the configured default provider, which may be mock. Display actual snapshot.source and metadata, not the saved mode name as proof of a live measurement. Contract/types regenerated. Optional consumer improvement; no UI flow changes required.
 
 - 00:08 EST, modeling agent: Optional source-panel interface: `metadata.components` separates wind/current/water-level source and timing; forecast-plan separates actual issue and retrieval lists. Show retrieval as retrieved, not issued/fresh. Types regenerated; legacy wire shape retained. The complete live composite provider remains unavailable. See docs/FORECAST_DOCKING.md and MODELING_UI_RECOMMENDATIONS.md.

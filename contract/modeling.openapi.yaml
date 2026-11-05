@@ -2137,6 +2137,12 @@ components:
       title: AnalyzeResponse
     AnalyzeResult:
       properties:
+        resolved_config:
+          anyOf:
+          - $ref: '#/components/schemas/MooringConfig'
+          - type: 'null'
+          description: Configuration with modeled unstretched spans and wet/dry conditions explicit for reproducible rechecks.
+            Not rope-cutting lengths, a handling instruction or approval.
         offset:
           $ref: '#/components/schemas/Offset'
         lines:

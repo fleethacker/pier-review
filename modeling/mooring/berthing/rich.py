@@ -23,6 +23,7 @@ import math
 from mooring.core.geometry import PIER_FITTING_HEIGHT_FT
 from mooring.core.schemas import SimFrame, SimScene
 from mooring.mechanics.dynamics import _deriv
+from .s3_vertical import vertical_state
 from mooring.mechanics.pose import force_wrench, force_wrench_at
 
 SCHEMA_VERSION = "rm0-v1"
@@ -254,12 +255,17 @@ def rich_frame(model, *, session_id: str, run_id: str, sequence: int, scene: Sim
     #   a = nu_dot + r*J*nu  ->  a_surge = du/dt - v*r,  a_sway = dv/dt + u*r;  yaw accel = dr/dt.
     du, dv, dr = _deriv(model.params, s, model.forces(t, s))[3:]
     accel = (du - s[4] * s[5], dv + s[3] * s[5], dr)
+    # S3: heave is prescribed from the S2 forcing water level only when a tide series is present; else unavailable.
+    tide = model.forcing_env.water_level_mllw_ft if (
+        model.forcing is not None and "water_level_mllw_ft" in model.forcing.supplied
+        and model.forcing_env is not None) else None
+    vert = vertical_state(tide, t_s=t)
     motion = {**_live("ship"),
-        "pose": {"x_ft": s[0], "y_ft": s[1], "yaw_deg": math.degrees(s[2])},
+        "pose": {"x_ft": s[0], "y_ft": s[1], "yaw_deg": math.degrees(s[2]), "heave_mllw_ft": vert.heave_mllw_ft},
         "velocity": {"surge_fps": s[3], "sway_fps": s[4], "yaw_degps": math.degrees(s[5])},
         "acceleration": {"surge_fps2": accel[0], "sway_fps2": accel[1], "yaw_degps2": math.degrees(accel[2])},
         "dofs": {"surge": "simulated", "sway": "simulated", "yaw": "simulated",
-                 "heave": "not_simulated", "roll": "not_simulated", "pitch": "not_simulated"}}
+                 "heave": vert.heave_dof, "roll": vert.roll_dof, "pitch": vert.pitch_dof}}
 
     meta = env.metadata
     environment = {

@@ -26,6 +26,7 @@ from mooring.core.schemas import (
 )
 from mooring.examples import ex
 
+from mooring.core.schemas.sequence_search import SequenceSearchRequest, SequenceSearchResult
 from ..backend import berthing_sim, berthing_tugs, sequence as sequence_impl
 from ..state import API_PREFIX, JOBS, SESSIONS
 
@@ -60,6 +61,15 @@ def sequence_validate(req: SequenceValidateRequest):
     return sequence_impl.validate_sequence(req)
 
 
+@router.post("/mooring/sequence/search", response_model=SequenceSearchResult, tags=["M7 Planning"],
+             summary="S8: bounded search over line orders with intermediate static checks (draft, unreviewed)")
+def sequence_search(req: SequenceSearchRequest):
+    try:
+        return sequence_impl.propose_sequences(req)
+    except (refdata.NotFound, refdata.InvalidReference) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
 # ---- M11 Berthing simulator ----
 
 @router.post("/berthing/simulate", response_model=JobAccepted, status_code=202, tags=["M11 Berthing simulator"],
@@ -88,13 +98,16 @@ def create_session(req: Annotated[SimSessionCreate, Body(openapi_examples=ex("be
     from ..sim_sessions import create
     try:
         session = create(SESSIONS, sid, berthing_sim.initial_model(req.scenario_id, req.initial_state,
-                                                      dt=req.dt_s or 0.1, duration=req.duration_s or 900),
+                                                      dt=req.dt_s or 0.1, duration=req.duration_s or 900,
+                                                      forcing=req.forcing),
                          record_interval_s=req.record_interval_s or 1.0)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
     base = f"{API_PREFIX}/berthing/sessions/{sid}"
     return SimSessionCreated(session_id=sid, ws_url=f"/ws/sim/{sid}", validity=session.model.validity(),
-                             scene_url=f"{base}/scene", protocol="rm0-v1", recording_url=f"{base}/recording")
+                             scene_url=f"{base}/scene", protocol="rm0-v1", recording_url=f"{base}/recording",
+                             forcing_revision=session.model.forcing_revision,
+                             forcing_synthetic=session.model.forcing.synthetic if session.model.forcing else None)
 
 
 def _owned_session(session_id):

@@ -26,7 +26,8 @@ def test_csv_fixture_reports_each_bad_row_with_line_numbers():
     r = parsers.parse_csv(fx("track.csv"), utc_offset_min=0)
     # rows: 2..9 in the file; lat 95 (line 7), 'abc' (line 8) rejected; the epoch row (line 9) is valid
     assert [f.t_utc for f in r.fixes][:3] == [t(12, 0), t(12, 1), t(12, 0, 30)]
-    assert len(r.fixes) == 6 and r.rejected == 2
+    # the fixture's one same-timestamp row is dropped at parse time (first kept) and counted, not stored twice
+    assert len(r.fixes) == 5 and r.duplicates == 1 and r.rejected == 2
     assert r.errors[0].startswith("line 7:") and "out of range" in r.errors[0]
     assert r.errors[1].startswith("line 8:") and "lat is not a number" in r.errors[1]
     assert r.fixes[-1].t_utc == datetime(2025, 6, 1, 13, 0, 0, tzinfo=UTC)  # epoch 1748782800

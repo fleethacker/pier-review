@@ -99,7 +99,8 @@ def list_missions() -> list[Mission]:
 
 # ---------------------------------------------------------------- track
 
-def ingest(mission_id: str, fixes: list[TrackFix], rejected: int, errors: list[str], fmt: str) -> TrackIngestResult:
+def ingest(mission_id: str, fixes: list[TrackFix], rejected: int, errors: list[str], fmt: str,
+           parse_duplicates: int = 0) -> TrackIngestResult:
     """Merge parsed fixes into the mission. Duplicates (same timestamp, already present or earlier in the batch) are
     dropped keeping the first; `reordered` counts fixes earlier in time than the one received just before."""
     require(mission_id)
@@ -126,7 +127,7 @@ def ingest(mission_id: str, fixes: list[TrackFix], rejected: int, errors: list[s
             raise
     m = get_mission(mission_id)
     return TrackIngestResult(mission_id=mission_id, format=fmt, accepted=accepted, rejected=rejected,
-                             duplicates=len(rows) - accepted, reordered=reordered, errors=errors[:50],
+                             duplicates=len(rows) - accepted + parse_duplicates, reordered=reordered, errors=errors[:50],
                              fix_count=m.fix_count, start_utc=m.start_utc, end_utc=m.end_utc)
 
 

@@ -9,6 +9,8 @@ from mooring.core.schemas import (
     AnalyzeResponse,
     ExceedanceRequest,
     HoldTugRequest,
+    HorsepowerPlan,
+    HorsepowerRequest,
     JobAccepted,
     LimitEnvelopeRequest,
     LimitEnvelopeResponse,
@@ -18,8 +20,14 @@ from mooring.core.schemas import (
     TideSweepResponse,
     TimelineRequest,
     TugPlanResponse,
+    UltimateGustRequest,
+    UltimateGustResponse,
 )
 from mooring.examples import ex
+
+from mooring import refdata
+from mooring.moored.ultimate import ultimate_gust as _ultimate_gust
+from mooring.tugs.horsepower import minimize_horsepower
 
 from ..inputs import check_analyze
 from ..backend import moored_tugs, optimizer, risk, solver
@@ -80,6 +88,30 @@ def timeline(req: Annotated[TimelineRequest, Body(openapi_examples=ex("risk_time
 def hold_plan(req: Annotated[HoldTugRequest, Body(openapi_examples=ex("tugs_hold_plan"))]):
     check_analyze(req)
     return moored_tugs.hold_plan(req)
+
+
+@router.post("/tugs/horsepower-plan", response_model=HorsepowerPlan, tags=["M6 Tugs"],
+             summary="Minimum-total-horsepower tug assignment for a required wrench (catalog data, validity limited)")
+def horsepower_plan(req: HorsepowerRequest):
+    ship = refdata.ship(req.ship_class_id)  # unknown ship -> 404 via the shared handler
+    if req.available_tug_ids is None:
+        fleet = refdata.tugs()
+    else:
+        try:
+            fleet = [refdata.tug(i) for i in req.available_tug_ids]
+        except refdata.NotFound as e:
+            raise refdata.InvalidReference(str(e)) from None
+    w = req.required_wrench
+    return minimize_horsepower(ship, (w.fx_lbf, w.fy_lbf, w.mz_ftlbf), fleet, efficiency=req.efficiency, margin=req.margin)
+
+
+# ---- M5 Risk: ultimate gust ----
+
+@router.post("/risk/ultimate-gust", response_model=UltimateGustResponse, tags=["M5 Risk"],
+             summary="Modeled ultimate-load gust threshold; 'unavailable' envelope (200) without a supplied capacity basis")
+def ultimate_gust(req: UltimateGustRequest):
+    check_analyze(req)
+    return _ultimate_gust(req)
 
 
 # ---- M7 Optimizer ----

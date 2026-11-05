@@ -57,6 +57,16 @@
         "affected_components": []
       },
       {
+        "code": "HAZARD_COVERAGE_INCOMPLETE",
+        "message": "Hazard kinds not checked: coastline, vessel. Checked: pier, fender. Unchecked kinds are unknown, not clear.",
+        "affected_components": []
+      },
+      {
+        "code": "SWEPT_HULL_CHECK",
+        "message": "Clearance is checked on the swept hull between samples (at most 2 s apart centrally, 5 s for samples; the convex hull of consecutive footprints), including the initial footprint. Other vessels are swept over the same interval, which is conservative.",
+        "affected_components": []
+      },
+      {
         "code": "UNCERTAINTY_ILLUSTRATIVE",
         "message": "Illustrative spread of simple seeded perturbations; the S10 uncertainty model is not yet wired. Breach probability is a sample share, not calibrated. Samples use dt 1 s.",
         "affected_components": []
@@ -65,7 +75,7 @@
     "diagnostics": null
   },
   "manifest": {
-    "resolved_inputs_hash": "sha256:fc42ee15adb050ff7e52057c5a4eed1943975af8b296357c1e0446f100041de5",
+    "resolved_inputs_hash": "sha256:becc861f951f6aef6ca7e244f08d1d20e6ad8a74e1fc2c0feef8633f4f66b6bf",
     "code_version": "prediction-v1+transit-surrogate-v1",
     "records": [],
     "environment_hash": null,
@@ -4939,13 +4949,13 @@
           }
         ],
         "closest_approach": {
-          "t_s": 330.0,
+          "t_s": 328.0,
           "kind": "pier",
           "element_id": "NAVSTA-NORFOLK-P12-N:face",
-          "clearance_ft": 732.9,
+          "clearance_ft": 732.8,
           "position": {
-            "lat": 36.95857384388391,
-            "lon": -76.32555912030618
+            "lat": 36.95859305537922,
+            "lon": -76.32559625085526
           },
           "probability": 0.0
         }
@@ -7330,13 +7340,13 @@
           }
         ],
         "closest_approach": {
-          "t_s": 340.0,
+          "t_s": 338.0,
           "kind": "pier",
           "element_id": "NAVSTA-NORFOLK-P12-N:face",
-          "clearance_ft": 817.9,
+          "clearance_ft": 817.5,
           "position": {
-            "lat": 36.95855248582119,
-            "lon": -76.3250571560334
+            "lat": 36.95859583123014,
+            "lon": -76.32511948967807
           },
           "probability": 0.0
         }

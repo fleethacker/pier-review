@@ -123,3 +123,43 @@ class BerthingWindowsResult(Model):
 
 class BerthingWindowsResponse(Envelope[BerthingWindowsResult]):
     pass
+
+
+class HorsepowerPlacement(Model):
+    tug_id: str
+    push_point_id: str
+    mode: Literal["push", "pull"]
+    force_lbf: float
+    capacity_lbf: float = Field(description="min(catalog bollard pull in this mode x efficiency, push-point rating).")
+    utilization: float = Field(description="force_lbf / capacity_lbf.")
+    power_hp: float = Field(description="Catalog horsepower (seed/synthetic unless published); never converted to force.")
+
+
+class HorsepowerPlan(Model):
+    """P5: minimum-total-horsepower, placement-feasible tug assignment for a required ship-frame wrench."""
+
+    objective: str = "minimize_total_horsepower"
+    feasible: bool
+    total_power_hp: float = 0.0
+    tug_count: int = 0
+    placements: list[HorsepowerPlacement] = Field(default_factory=list)
+    required_wrench: WrenchLbf
+    delivered_wrench: WrenchLbf | None = None
+    residual_wrench: WrenchLbf | None = None
+    load_scale_margin: float | None = Field(default=None, description="Largest factor s such that s x required wrench is still placement-feasible with the chosen tugs; >=1 when feasible.")
+    fleet_scale_margin: float | None = Field(default=None, description="Same factor for the whole available fleet (best case); <1 explains infeasibility.")
+    candidates_evaluated: int = 0
+    infeasibility_reasons: list[str] = Field(default_factory=list)
+    tie_break: str = "lowest total hp, then fewest tugs, then lowest total force, then lexicographic (tug_id, push_point_id)"
+    validity: str = Field(default="limited", description="Validity limited where fleet horsepower/bollard-pull data are assumed (seed/synthetic).")
+    assumptions: list[str] = Field(default_factory=list)
+
+
+class HorsepowerRequest(Model):
+    """P5 request: minimum-horsepower tug assignment for a required ship-frame wrench."""
+
+    ship_class_id: str = Field(examples=["DDG-51-FIIA"])
+    required_wrench: WrenchLbf
+    available_tug_ids: AvailableTugIds = Field(default=None, max_length=8, description=FLEET_DESCRIPTION + " At most 8 tugs (exhaustive search).")
+    efficiency: float = Field(default=1.0, gt=0, le=1.0, description="Multiplier on catalog bollard pull.")
+    margin: float = Field(default=0.0, ge=0, le=1, description="Added to the required wrench.")

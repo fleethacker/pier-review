@@ -11033,6 +11033,12 @@ components:
           minimum: 0
           title: Gust Factor Sigma
           type: number
+        sectors:
+          description: Exploratory direction-sector gust fits; not used by the global risk sampler or independently qualified.
+          items:
+            $ref: '#/components/schemas/UncertaintySector'
+          title: Sectors
+          type: array
         direction_sigma_deg:
           description: Circular standard deviation of wind direction scatter.
           minimum: 0
@@ -11095,6 +11101,39 @@ components:
       - n_days
       - qualification
       title: UncertaintyModel
+      type: object
+    UncertaintySector:
+      additionalProperties: false
+      description: Direction-sector gust fit; boundaries are true directions wind comes from.
+      properties:
+        from_deg:
+          exclusiveMaximum: 360
+          minimum: 0
+          title: From Deg
+          type: number
+        to_deg:
+          exclusiveMinimum: 0
+          maximum: 360
+          title: To Deg
+          type: number
+        gust_factor_mu:
+          title: Gust Factor Mu
+          type: number
+        gust_factor_sigma:
+          minimum: 0
+          title: Gust Factor Sigma
+          type: number
+        n_fit:
+          minimum: 2
+          title: N Fit
+          type: integer
+      required:
+      - from_deg
+      - to_deg
+      - gust_factor_mu
+      - gust_factor_sigma
+      - n_fit
+      title: UncertaintySector
       type: object
 tags:
 - name: M1 Environment

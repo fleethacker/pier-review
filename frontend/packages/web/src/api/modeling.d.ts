@@ -6334,6 +6334,11 @@ export interface components {
             /** Gust Factor Sigma */
             gust_factor_sigma: number;
             /**
+             * Sectors
+             * @description Exploratory direction-sector gust fits; not used by the global risk sampler or independently qualified.
+             */
+            sectors?: components["schemas"]["UncertaintySector"][];
+            /**
              * Direction Sigma Deg
              * @description Circular standard deviation of wind direction scatter.
              */
@@ -6365,6 +6370,22 @@ export interface components {
             qualification: "qualified" | "unqualified";
             /** Qualification Reasons */
             qualification_reasons?: string[];
+        };
+        /**
+         * UncertaintySector
+         * @description Direction-sector gust fit; boundaries are true directions wind comes from.
+         */
+        UncertaintySector: {
+            /** From Deg */
+            from_deg: number;
+            /** To Deg */
+            to_deg: number;
+            /** Gust Factor Mu */
+            gust_factor_mu: number;
+            /** Gust Factor Sigma */
+            gust_factor_sigma: number;
+            /** N Fit */
+            n_fit: number;
         };
     };
     responses: never;

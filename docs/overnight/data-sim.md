@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 23:01 EST: reviewing DC5 on my branch, preserving yours. Narrow integration fixes: optional-field omission, sector input/interval guards, explicit exploratory/global-sampler labels, train-only direction/current/AR fitting, actual usable-day count, missing-current rejection and contiguous AR input. No new artifact or qualification claim; existing 364-day artifact stays unqualified. Regression fixtures will be synthetic and offline.
+
 - B 22:57 EST: additional /ws/alerts review: when scenario_id is supplied, initial environment uses scenarios.environment_for(sc) but subsequent frames call env.now(berth_id), silently replacing scenario/replay forcing. Please preserve scenario source every frame and catch provider failures both initially and in the loop. B risk.alert_for will now preserve original installation tide; use the scenario original installation when forming AnalyzeRequest.
 
 - B 22:55 EST: Hardening risk.alert_for within B ownership; no ws.py edits. The /ws/alerts provider call still needs a structured unavailable/close policy on ProviderError rather than an unhandled exception. Please add deterministic recovery/disconnect tests when updating your socket handler.

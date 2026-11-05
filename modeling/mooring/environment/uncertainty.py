@@ -58,8 +58,10 @@ def fit_lognormal(xs: Sequence[float]) -> tuple[float, float]:
 
 def fit_gust_sectors(records: Sequence[tuple[float, float]], width_deg: int = 45) -> list[UncertaintySector]:
     """Fit gust factor by true-direction sector, omitting sectors with fewer than two samples."""
-    if width_deg <= 0 or 360 % width_deg:
+    if isinstance(width_deg, bool) or not isinstance(width_deg, int) or width_deg <= 0 or 360 % width_deg:
         raise ValueError("sector width must divide 360")
+    if any(not math.isfinite(direction) or not math.isfinite(factor) or factor <= 0 for direction, factor in records):
+        raise ValueError("sector fitting requires finite directions and positive finite gust factors")
     result = []
     for start in range(0, 360, width_deg):
         values = [(direction % 360, factor) for direction, factor in records if start <= direction % 360 < start + width_deg and factor > 0]
@@ -107,6 +109,8 @@ def coverage(model: UncertaintyModel, heldout_gust_factors: Sequence[float], nom
 def qualify(model: UncertaintyModel) -> UncertaintyModel:
     """Apply the minimum-data policy and held-out calibration; returns a copy with qualification and reasons set."""
     reasons = []
+    if model.sectors:
+        reasons.append("Direction-sector fits are exploratory and lack per-sector held-out validation; risk sampling uses global parameters only.")
     if model.kind == "synthetic":
         reasons.append("Synthetic distribution: validates algorithms only.")
     if model.n_events < MIN_EVENTS:
@@ -203,8 +207,9 @@ def served_gust_model(station_id: str, model_id: str = "coops-8638614-2025") -> 
         sectors = [GustSector(from_deg=0, to_deg=360,
                               gust_factor=Distribution(dist="lognormal", params={"mu": model.gust_factor_mu, "sigma": model.gust_factor_sigma}),
                               dir_sigma_deg=model.direction_sigma_deg)]
-    assert model.fit_start_utc is not None and model.fit_end_utc is not None
-    notes = "; ".join([f"qualification={model.qualification}", *model.qualification_reasons, *model.limitations])
+    if model.fit_start_utc is None or model.fit_end_utc is None:
+        raise ValueError("fitted artifact has no documented fitting window")
+    notes = "; ".join([f"qualification={model.qualification}", "Direction scatter is global, not independently fitted per sector; fitted_on.n counts independent events, not raw samples", *model.qualification_reasons, *model.limitations])
     return GustModel(
         station_id=station_id, sectors=sectors, current_residual_sigma_kt=model.current_sigma_kt,
         fitted_on=FitWindow(start_utc=model.fit_start_utc, end_utc=model.fit_end_utc, n=model.n_events),

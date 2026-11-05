@@ -197,6 +197,12 @@ class UncertaintySector(Model):
     gust_factor_sigma: float = Field(ge=0)
     n_fit: int = Field(ge=2)
 
+    @model_validator(mode="after")
+    def ordered_bounds(self):
+        if self.from_deg >= self.to_deg:
+            raise ValueError("sector boundaries must increase; split wraparound sectors at zero")
+        return self
+
 
 class UncertaintyModel(Model):
     """A versioned description of what is random in the environment and how it was obtained.
@@ -204,6 +210,8 @@ class UncertaintyModel(Model):
     `qualification` is 'qualified' only when the minimum-data policy and held-out calibration pass. A synthetic or
     underfit model validates algorithms only: probabilities computed from it are scenario outputs, not risk estimates.
     """
+
+    wire_omitted_defaults = {"sectors": []}
 
     model_id: str
     revision: str
@@ -214,7 +222,7 @@ class UncertaintyModel(Model):
     filters: list[str] = Field(default_factory=list, description="Quality filters applied to the fitting data.")
     gust_factor_mu: float = Field(description="Log-mean of gust / sustained wind.")
     gust_factor_sigma: float = Field(ge=0)
-    sectors: list[UncertaintySector] = Field(default_factory=list, description="Optional direction-sector fits; empty for legacy artifacts.")
+    sectors: list[UncertaintySector] = Field(default_factory=list, description="Exploratory direction-sector gust fits; not used by the global risk sampler or independently qualified.")
     direction_sigma_deg: float = Field(ge=0, description="Circular standard deviation of wind direction scatter.")
     current_sigma_kt: float = Field(ge=0, description="Std. dev. of observed minus predicted current speed.")
     correlation_time_min: float = Field(gt=0, description="e-folding time of the AR(1) wind and current deviations.")
@@ -225,3 +233,10 @@ class UncertaintyModel(Model):
     limitations: list[str] = Field(default_factory=list)
     qualification: Literal["qualified", "unqualified"]
     qualification_reasons: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def nonoverlapping_sectors(self):
+        ordered = sorted(self.sectors, key=lambda sector: sector.from_deg)
+        if any(a.to_deg > b.from_deg for a, b in zip(ordered, ordered[1:])):
+            raise ValueError("uncertainty sectors must not overlap")
+        return self

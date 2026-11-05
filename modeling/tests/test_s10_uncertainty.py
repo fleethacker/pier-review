@@ -152,3 +152,33 @@ def test_risk_accepts_the_fitted_model_and_stays_limited_with_its_reasons():
     r = st["result"]
     assert r["result"]["uncertainty_model"]["model_id"] == "coops-8638614-2025" and r["validity"]["state"] == "limited"
     assert r["manifest"]["rng_model_revision"] == "coops-8638614-2025@1"
+
+
+@pytest.mark.parametrize("width", [0, -1, 7, 2.5, True])
+def test_sector_fit_rejects_invalid_width(width):
+    with pytest.raises(ValueError, match="sector width"):
+        u.fit_gust_sectors([(0, 1.1), (1, 1.2)], width)
+
+
+@pytest.mark.parametrize("record", [(float("nan"), 1.1), (0, float("inf")), (0, 0), (0, -1)])
+def test_sector_fit_rejects_nonfinite_or_nonpositive_data(record):
+    with pytest.raises(ValueError, match="finite"):
+        u.fit_gust_sectors([record, (0, 1.1)])
+
+
+def test_sector_artifacts_are_exploratory_and_global_sampler_is_explicit():
+    from mooring.core.schemas import UncertaintyModel, UncertaintySector
+    legacy = u.load_model("coops-8638614-2025")
+    assert "sectors" not in legacy.model_dump(mode="json")
+    sector = UncertaintySector(from_deg=0, to_deg=45, gust_factor_mu=0.7, gust_factor_sigma=0.2, n_fit=20)
+    exploratory = legacy.model_copy(update={"sectors": [sector], "n_days": 400, "n_events": 400})
+    qualified = u.qualify(exploratory)
+    assert qualified.qualification == "unqualified"
+    assert any("global parameters only" in reason for reason in qualified.qualification_reasons)
+    assert u.Sampler(exploratory, 1)._gust_factor(0) == u.Sampler(legacy, 1)._gust_factor(0)
+    with pytest.raises(ValueError, match="increase"):
+        UncertaintySector(from_deg=45, to_deg=10, gust_factor_mu=0, gust_factor_sigma=0.1, n_fit=2)
+    body = exploratory.model_dump(mode="json")
+    body["sectors"].append({**body["sectors"][0], "from_deg": 20, "to_deg": 60})
+    with pytest.raises(ValueError, match="overlap"):
+        UncertaintyModel.model_validate(body)

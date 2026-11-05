@@ -188,6 +188,17 @@ class HeldOutValidation(Model):
     observed_coverage: float | None = Field(default=None, ge=0, le=1)
 
 
+class UncertaintySector(Model):
+    """Direction-sector gust fit; boundaries are true directions wind comes from."""
+
+    from_deg: float = Field(ge=0, lt=360)
+    to_deg: float = Field(gt=0, le=360)
+    gust_factor_mu: float
+    gust_factor_sigma: float = Field(ge=0)
+    direction_sigma_deg: float = Field(ge=0)
+    n_fit: int = Field(ge=2)
+
+
 class UncertaintyModel(Model):
     """A versioned description of what is random in the environment and how it was obtained.
 
@@ -204,6 +215,7 @@ class UncertaintyModel(Model):
     filters: list[str] = Field(default_factory=list, description="Quality filters applied to the fitting data.")
     gust_factor_mu: float = Field(description="Log-mean of gust / sustained wind.")
     gust_factor_sigma: float = Field(ge=0)
+    sectors: list[UncertaintySector] = Field(default_factory=list, description="Optional direction-sector fits; empty for legacy artifacts.")
     direction_sigma_deg: float = Field(ge=0, description="Circular standard deviation of wind direction scatter.")
     current_sigma_kt: float = Field(ge=0, description="Std. dev. of observed minus predicted current speed.")
     correlation_time_min: float = Field(gt=0, description="e-folding time of the AR(1) wind and current deviations.")

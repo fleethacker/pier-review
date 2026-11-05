@@ -73,6 +73,11 @@ def fit(wind, current, cpred, args) -> UncertaintyModel:
     items = [(r["t"], d, r["wind_gust_kt"] / r["wind_speed_kt"]) for d, v in days.items() for r in v]
     fit_gf, held_gf = unc.split_by_event(items, 0.3)
     mu, sigma = unc.fit_lognormal(fit_gf)
+    fit_events = {d for d in sorted(days)[:max(1, int(round(len(days) * .7)))]}
+    sectors = unc.fit_gust_sectors([
+        (r["wind_from_true_deg"], r["wind_gust_kt"] / r["wind_speed_kt"])
+        for day, rows in days.items() if day in fit_events for r in rows
+    ])
     # direction scatter about each hour's circular mean
     devs = []
     hours: dict[str, list] = {}
@@ -108,7 +113,7 @@ def fit(wind, current, cpred, args) -> UncertaintyModel:
         model_id=args.name, revision="1", kind="fitted", station_ids=[args.wind, args.current], fit_start_utc=args.start, fit_end_utc=args.end,
         filters=["wind speed >= 5 kt", "wind flags clean (X, R = 0)", "gust >= sustained", "UTC days with >= 20 usable samples count as events",
                  "current residual: observed minus predicted, nearest sample within 6 min"],
-        gust_factor_mu=mu, gust_factor_sigma=sigma, direction_sigma_deg=dir_sigma, current_sigma_kt=cur_sigma, correlation_time_min=tau,
+        gust_factor_mu=mu, gust_factor_sigma=sigma, sectors=sectors, direction_sigma_deg=dir_sigma, current_sigma_kt=cur_sigma, correlation_time_min=tau,
         n_events=len(days), n_days=(args.end - args.start).total_seconds() / 86400.0, validation=unc.coverage(
             UncertaintyModel(model_id="tmp", revision="0", kind="fitted", gust_factor_mu=mu, gust_factor_sigma=sigma, direction_sigma_deg=1, current_sigma_kt=0,
                              correlation_time_min=1, n_events=0, n_days=0, qualification="unqualified"), held_gf, 0.9),

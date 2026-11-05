@@ -16,7 +16,7 @@ import statistics
 from collections.abc import Sequence
 from datetime import datetime
 
-from mooring.core.schemas import EnvironmentSnapshot, HeldOutValidation, UncertaintyModel
+from mooring.core.schemas import EnvironmentSnapshot, HeldOutValidation, UncertaintyModel, UncertaintySector
 
 MIN_EVENTS = 30            # independent events (storm episodes / days) required
 MIN_DAYS = 365.0           # span of fitting data
@@ -51,6 +51,21 @@ def fit_lognormal(xs: Sequence[float]) -> tuple[float, float]:
     if len(logs) < 2:
         raise ValueError("need at least two positive values to fit a lognormal")
     return statistics.fmean(logs), statistics.stdev(logs)
+
+
+def fit_gust_sectors(records: Sequence[tuple[float, float]], width_deg: int = 45) -> list[UncertaintySector]:
+    """Fit gust factor by true-direction sector, omitting sectors with fewer than two samples."""
+    if width_deg <= 0 or 360 % width_deg:
+        raise ValueError("sector width must divide 360")
+    result = []
+    for start in range(0, 360, width_deg):
+        values = [(direction % 360, factor) for direction, factor in records if start <= direction % 360 < start + width_deg and factor > 0]
+        if len(values) < 2:
+            continue
+        mu, sigma = fit_lognormal([factor for _, factor in values])
+        result.append(UncertaintySector(from_deg=start, to_deg=start + width_deg, gust_factor_mu=mu, gust_factor_sigma=sigma,
+                                        direction_sigma_deg=circular_std_deg([direction for direction, _ in values]), n_fit=len(values)))
+    return result
 
 
 def fit_ar1(series: Sequence[float], dt_min: float) -> tuple[float, float, float]:

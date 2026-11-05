@@ -33,6 +33,11 @@ def test_lognormal_fit_recovers_parameters_and_rejects_bad_input():
         u.fit_lognormal([1.0])
 
 
+def test_direction_sector_fit_keeps_359_and_1_in_distinct_declared_bins():
+    sectors = u.fit_gust_sectors([(1, 1.1), (2, 1.2), (359, 1.3), (358, 1.4)], width_deg=45)
+    assert [(s.from_deg, s.to_deg, s.n_fit) for s in sectors] == [(0, 45, 2), (315, 360, 2)]
+
+
 def test_ar1_fit_recovers_correlation_time():
     rng = random.Random(11)
     phi_true, x, series = 0.9, 0.0, []

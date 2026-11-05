@@ -1,9 +1,11 @@
 # Modeling build-out: status, evidence and blockers
 
+> Priorities and owners for remaining work: [MASTER_PLAN.md](MASTER_PLAN.md). This file is the capability ledger.
 
-Morning evidence (5 November 2026): 1,734 Python tests and 191 UI tests pass; contract/typecheck/lint/build pass. The four-case API chain and targeted real-browser probes pass, but the full explicit UI acceptance gate remains incomplete; the integrated UI supplies a scoped `make demo-check`. Public forecast composition is unavailable; supplied-series advance planning works. See the [final modeling report](overnight/modeling-agents.md#final-report) for source-specific soak evidence, commands, qualification limits and next priorities.
 
-Current integrated and pending-review status during the 4–5 November modeling work. See `docs/overnight/modeling-agents.md` for exact PRs and test evidence. Tests and code review are not validation against real ships, piers, ropes or tugs; seed data remains placeholder data.
+Morning evidence (5 November 2026): 1,734 Python tests and 191 UI tests pass; contract/typecheck/lint/build pass. The four-case API chain and targeted real-browser probes pass, but the full explicit UI acceptance gate remains incomplete; the integrated UI supplies a scoped `make demo-check`. Public forecast composition is unavailable; supplied-series advance planning works. See the [final modeling report](archive/2026-11-05-overnight/modeling-agents.md#final-report) for source-specific soak evidence, commands, qualification limits and next priorities.
+
+Current integrated and pending-review status during the 4–5 November modeling work. See [the archived overnight log](archive/2026-11-05-overnight/modeling-agents.md) for exact PRs and test evidence. Tests and code review are not validation against real ships, piers, ropes or tugs; seed data remains placeholder data.
 
 ## Packet ledger
 

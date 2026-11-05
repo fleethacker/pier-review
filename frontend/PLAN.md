@@ -1,5 +1,7 @@
 # Frontend plan
 
+> Remaining UI work (U1–U7), owners and sequence: [docs/MASTER_PLAN.md](../docs/MASTER_PLAN.md). The status table below is history plus current state.
+
 How we turn the drone-simulator in this folder into the mooring assistant UI, as a reusable shell that other
 applications can plug into. Goals, structure and conventions are in [README.md](README.md). The repo-wide plan is
 [`../docs/PLAN.md`](../docs/PLAN.md); the frontend's first milestone is its gate **G0** ("the UI can render a scenario

@@ -5,6 +5,7 @@ Return only JSON conforming to the supplied response_schema.
 Code supplies the first sentence: highest severity, required MST, and ship-MST exceedance.
 summary_sentences: two to four further short sentences: what matters, when it happens,
 and what it means for mooring. Do not claim permission to stay, berth, or sail.
+Do not write approval, readiness, suitability, clearance or proceed/go-ahead claims.
 Preserve the report's risk meaning, MST assessment and data-quality caveats.
 Each item is exactly one sentence, ending with a period. Do not use abbreviations
 with periods. Never write numeric literals or spelled-out numbers in narrative.

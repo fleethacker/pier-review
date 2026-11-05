@@ -17,6 +17,8 @@ NUMBER_WORDS = re.compile(
 )
 RISK_LANGUAGE = re.compile(
     r"\b(?:RED|AMBER|GREEN|safe(?:r|st|ly)?|calm(?:er|est)?|benign|harmless|favou?rable|reassuring)\b"
+    r"|\b(?:approved?|authori[sz]ed?|cleared|clearance|ready(?:_for_signature)?|suitable|acceptable|proceed)\b"
+    r"|\bgo[\W_]+ahead\b"
     r"|\blow[\W_]+risk\b"
     r"|\b(?:no|minimal|negligible|little|zero|limited)[\W_]+(?:risk|concern|threat|danger|hazard)s?\b"
     r"|\bnothing[\W_]+to[\W_]+worry\b"

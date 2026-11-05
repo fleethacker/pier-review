@@ -30,20 +30,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from .errors import ProviderError
+
 BASE_URL = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter"
 APPLICATION = "mooring-assistant"
 DAYS = {"wind": 31, "water_level": 31, "currents": 31, "predictions": 365, "currents_predictions": 31}
 ASSUMED_CURRENT_DIRECTION = "current direction d assumed to be the direction the current flows toward (to be confirmed with CO-OPS)"
 ALIGN_TOLERANCE_S = 180.0
-
-
-class ProviderError(Exception):
-    """kind: invalid_request (our validation, 422) | bad_request (the provider rejected the request, 502) | no_data, unavailable,
-    stale (503) | malformed (502). Documented service errors; never hidden and never replaced by synthetic data."""
-
-    def __init__(self, kind: str, message: str):
-        super().__init__(message)
-        self.kind = kind
 
 
 # ---------- request building ----------

@@ -94,6 +94,49 @@ def merge_reasons(reasons: list[ValidityReason]) -> list[ValidityReason]:
     return list(merged.values())
 
 
+def environment_findings(env: EnvironmentSnapshot, use_gust: bool = True) -> list[tuple[str, ValidityReason]]:
+    """Honor explicit input quality without applying a wall-clock expiry to archived scenarios.
+
+    No age threshold is invented here: providers own freshness policy and flag stale data.
+    Forecast as-of/coverage checks belong to the planning service. Missing/bad inputs cannot
+    establish a physical limit; suspect/stale inputs retain diagnostic values but stay limited.
+    """
+    out = []
+
+    def add(state, code, message, components=None):
+        out.append((state, ValidityReason(code=code, message=message,
+                                       affected_components=components or ["environment"])))
+
+    meta = env.metadata
+    if env.valid_at_utc.tzinfo is None:
+        add("invalid", "ENVIRONMENT_TIME_UNSPECIFIED", "Environment validity time has no timezone.")
+    elif meta:
+        if ((meta.valid_from_utc and env.valid_at_utc < meta.valid_from_utc)
+                or (meta.valid_to_utc and env.valid_at_utc > meta.valid_to_utc)):
+            add("invalid", "ENVIRONMENT_OUTSIDE_VALID_INTERVAL", "Snapshot time lies outside its declared validity interval.")
+    if meta and meta.quality == "poor":
+        add("invalid", "ENVIRONMENT_POOR_QUALITY", "Provider marks required environmental inputs as poor quality.")
+    elif meta and meta.quality == "suspect":
+        add("limited", "ENVIRONMENT_SUSPECT", "Provider marks environmental inputs as suspect; values are diagnostic, not qualified.")
+    if env.source in ("live", "forecast", "replay", "ship_sensor"):
+        basis = wind_basis(env, use_gust)
+        if not basis.verified and not basis.reasons:
+            add("limited", "WIND_BASIS_UNVERIFIED", "Public/sensor wind duration or reference height is undocumented.", ["wind"])
+        if meta is None or meta.quality == "unknown":
+            add("limited", "ENVIRONMENT_QUALITY_UNVERIFIED", "Public/sensor input quality is undocumented.")
+    for quality in env.quality:
+        flags = " ".join(quality.flags).lower()
+        if any(word in flags for word in ("missing", "unavailable", "invalid", "poor", "gap")):
+            add("invalid", "ENVIRONMENT_COMPONENT_UNAVAILABLE",
+                f"Source {quality.station_id} reports unusable input: {', '.join(quality.flags)}.", [quality.station_id])
+        elif any(word in flags for word in ("stale", "suspect")):
+            add("limited", "ENVIRONMENT_COMPONENT_FLAGGED",
+                f"Source {quality.station_id} requires review: {', '.join(quality.flags)}.", [quality.station_id])
+    if env.wind_gust_kt < env.wind_speed_kt:
+        add("limited", "WIND_GUST_BELOW_SUSTAINED", "Supplied gust is below sustained wind; duration/alignment needs review.", ["wind"])
+    return out
+
+
 def aggregate_findings(per_context: list[tuple[str, list[Finding]]], max_listed: int = 5) -> list[Finding]:
     """Collapse the same finding repeated across times/samples into one, naming where it occurred."""
     groups: dict[tuple[str, str], list[str]] = {}

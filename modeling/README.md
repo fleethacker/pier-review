@@ -120,3 +120,5 @@ locked slots, incompatible ropes/chocks, and insufficient inventory for any lock
 inventory entries are rejected instead of silently overwriting counts. `cases_evaluated` counts cases actually assessed;
 a failed solve or invalid depth can stop a candidate early, so only feasible candidates necessarily assess every case.
 Nonpositive actual water depth is an explicit input error, not a load-model crash.
+
+Direct loads, analysis, limit search and line-plan search honor explicit environmental quality. Poor/missing inputs or a snapshot outside its declared interval cannot establish a valid holding limit; suspect/stale inputs stay limited. Archived scenarios are checked against their stated time, not silently expired against the wall clock. Public/sensor inputs with undocumented quality or wind basis stay limited. Legacy manual/scenario wind assumptions remain explicit.

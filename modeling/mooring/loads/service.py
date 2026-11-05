@@ -9,7 +9,7 @@ from mooring.core.schemas import (
 from mooring.core.schemas import Validity, ValidityReason
 from . import coefficients as c
 from .helpers import off_pier
-from .validity import classify_findings, merge_reasons, wind_basis
+from .validity import classify_findings, environment_findings, merge_reasons, wind_basis
 from .ufc import compute_loads, ship_inputs
 from .warnings import range_findings
 
@@ -18,8 +18,7 @@ def _metadata(ship, loading, depth, water_density, use_gust, current_speed, resu
     draft, *_ = ship_inputs(ship, loading, water_density)
     assumptions = [
         "UFC 4-159-03 (2020), Chapter 4; Eq. 4-3 harmonic and symmetric angle folding restored from the earlier UFC edition.",
-        "Wind uses the supplied gust speed, assumed to be a 10 m, 30-second gust; the API does not specify gust duration."
-        if use_gust else f"Wind uses 10 m, 1-minute sustained speed converted to 30 seconds by {c.SUSTAINED_TO_30S:.3f} (UFC Figure 3-5 synoptic curve, approximate readings 1.31/1.25).",
+        "Wind basis follows supplied metadata; unsupported conversions and any legacy assumptions are listed below.",
         "Wind shielding scales all wind forces and moments equally; current is unshielded.",
         "Water depth is actual depth at the ship; water level is not added again.",
         "Current model assumes a wide harbor/channel, level keel, and 15 C salt-water viscosity (Table 4-1); density uses the request.",
@@ -44,6 +43,9 @@ def _metadata(ship, loading, depth, water_density, use_gust, current_speed, resu
         basis = wind_basis(env, use_gust)
         assumptions.extend(basis.notes)
         reasons += basis.reasons
+        for state, reason in environment_findings(env, use_gust):
+            reasons.append(reason)
+            invalid = invalid or state == "invalid"
         if require_basis and not basis.verified and not basis.reasons:
             reasons.append(ValidityReason(code="WIND_BASIS_UNVERIFIED", affected_components=["wind"],
                                           message="Wind averaging/gust duration/height are not documented; the legacy assumption was used."))
@@ -108,6 +110,7 @@ def polar(req: PolarRequest) -> PolarResponse:
         points.append(PolarPoint(rel_deg=rel, **result.total.model_dump()))
     assumptions, warnings, validity = _metadata(ship, req.loading, req.water_depth_ft, env.water_density_kgm3, False,
                                                 env.current_speed_kt, results)
+    assumptions.append(f"Polar wind uses 10 m, 60 s sustained speed converted to 30 s by {c.SUSTAINED_TO_30S:.3f}; no wind metadata is accepted by this endpoint.")
     assumptions.append("rel_deg is the direction the wind comes from; current flows the same way as the wind.")
     return _response(PolarResponse, req, PolarResult(points=points), assumptions, warnings, validity, _manifest(req, ship))
 

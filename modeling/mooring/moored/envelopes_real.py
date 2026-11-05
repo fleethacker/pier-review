@@ -30,6 +30,7 @@ from mooring.mechanics import equilibrium as eq
 from mooring.mechanics.equilibrium import utilization  # noqa: F401  (shared evaluator, re-exported)
 from .solver import MODEL, VERSION, solve_request
 from mooring.tugs.validation import assignment_errors
+from mooring.loads.validity import environment_findings
 
 FINE_STEP_MIN = 5.0
 ADVISORY_GUST_FRACTION = 0.8  # Application warning policy, not a UFC/NSTM physical coefficient.
@@ -52,8 +53,9 @@ def limit_envelope(req: LimitEnvelopeRequest) -> LimitEnvelopeResponse:
     df = design_factor(req.mst)
     points: list[LimitEnvelopePoint] = []
     invalid_tugs = assignment_errors(base.ship, req.tugs, refdata.tugs())
+    invalid_environment = any(state == "invalid" for state, _ in environment_findings(req.environment))
     for rel in range(0, 360, req.step_deg):
-        if invalid_tugs:
+        if invalid_tugs or invalid_environment:
             points.append(LimitEnvelopePoint(wind_rel_deg=rel, limit_wind_kt=None, first_failure_element=None,
                                             failure_mode="none", outcome="invalid_inputs", search_max_kt=req.max_search_kt))
             continue

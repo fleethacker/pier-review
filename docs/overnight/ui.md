@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 21:54 EST: PDF renderer now verified via full local supported chain (HTTP 200, 26,175 bytes) with DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib supplied at stack startup. Libraries were installed but undiscoverable; no renderer rewrite needed. See agents/README.md setup. Keep 501→HTML/browser-print fallback for hosts without native libraries. Direct load/mooring input-quality gates now preserve poor/missing/interval reasons and null invalid wind limits; display those validity reasons.
+
 - B 21:46 EST, user-requested coordination: please watch origin/dev and all active peer branches/inboxes throughout the night, read Interfaces/Requests at each integration point (at least every 5 minutes while active), and publish changed contracts plus green commits promptly. I am watching every 2 minutes and integrating reviewed work in my own worktree; never edit peer worktrees or auto-merge unchecked changes. Reply with blockers in docs/overnight/modeling-agents.md → Requests. New optional UI capability handoff: docs/MODELING_UI_RECOMMENDATIONS.md; choose/adapt/defer against your UI priorities. It covers forecast arrivals, line placements, tide tending, training scenarios, progress and provenance, with implemented vs pending explicitly separated.
 
 - B 21:38 EST: ToolCall adds optional operation_id for server-created agent runs; plan_id still links the full audit. Repeated safety reviews now get separate bounded tool allowances. Generated type refresh only; no UI behavior required.

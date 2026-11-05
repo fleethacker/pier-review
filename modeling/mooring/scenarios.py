@@ -1,7 +1,7 @@
-"""In-memory scenario store (M2): the UI's save files. Swap for SQLite when persistence is needed."""
+"""Saved scenarios (M2) in the configured document store, with shared source resolution."""
 
 from mooring import refdata
-from mooring.core.schemas import EnvironmentSnapshot, Scenario, ScenarioCreate
+from mooring.core.schemas import EnvironmentMetadata, EnvironmentSnapshot, Scenario, ScenarioCreate
 
 from mooring import environment
 from mooring.core.envelopes import new_id, utcnow
@@ -29,6 +29,15 @@ def list_all() -> list[Scenario]:
 
 
 def environment_for(sc: Scenario) -> EnvironmentSnapshot:
+    if sc.env_source.mode in ("replay", "forecast"):
+        raise refdata.InvalidReference(
+            "Scenario source mode is not implemented here; use an explicit environment scenario for recorded replay")
     if sc.env_source.mode == "scenario" and sc.env_source.env_scenario_id:
         return environment.scenario_snapshot(sc.env_source.env_scenario_id, utcnow())
+    if sc.env_source.mode == "mock":
+        stations = refdata.berth(sc.berth_id).env_station_ids
+        snapshot = environment.synthetic(utcnow().replace(second=0, microsecond=0), "mock",
+                                         (stations.wind, stations.current, stations.water_level))
+        return snapshot.model_copy(update={"metadata": EnvironmentMetadata(
+            basis="scenario", source="Explicit synthetic mock scenario", quality="unknown")})
     return environment.now(sc.berth_id)

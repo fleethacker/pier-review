@@ -14,9 +14,12 @@ from mooring import refdata
 from mooring.core.jobs import JobQueueFull
 from mooring.core.schemas import (
     Alert,
+    ApproachSimResponse,
+    BerthingSimResponse,
     EnvironmentSnapshot,
     JobDoneEvent,
     JobProgressEvent,
+    RecommendResponse,
     SimControlMessage,
     SimFrame,
     SimLineEventMessage,
@@ -27,6 +30,9 @@ from mooring.core.schemas import (
     TelemetryAccepted,
     TelemetryRecord,
 )
+
+from mooring.core.schemas.forecast_planning import ForecastDockingResponse
+from mooring.core.schemas.risk import ExceedanceResponse, TimelineResponse
 
 from .routers import approach, berthing, env, loads, moored, qualification, refdata as refdata_router, system, telemetry
 from .backend import overall_backend
@@ -49,9 +55,10 @@ TAGS = [
 ]
 
 DESCRIPTION = """
-Physics and ML modeling service for the mooring assistant. **Most modules still run on mock backends.**
-Environmental loads (M3, UFC 4-159-03) and reference data are real; `GET /version` lists each module's status.
-Check `backend` in every response envelope; the `X-Mooring-Backend` header is `mixed` while some modules are mock.
+Physics and planning service for the mooring assistant. `GET /version` reports implementation status;
+`GET /capabilities` reports scope and qualification blockers. A `real` backend is not operational certification.
+Inspect each result's validity, reasons and source provenance: seed assets, synthetic forcing and unqualified
+models remain limited or invalid. The offline default environment is synthetic; public providers are opt-in.
 
 Conventions: unit-suffixed field names (`_kt`, `_ft`, `_lbf`, `_deg`, `_utc`); wind direction is where it blows
 FROM, current direction is where it flows TOWARD; long-running endpoints return `202` with a job (poll
@@ -61,13 +68,18 @@ FROM, current direction is where it flows TOWARD; long-running endpoints return 
 WEBSOCKETS = {
     "/ws/env": {"query": "berth_id, mode=live|replay|scenario, env_scenario_id, replay_start_utc, speed, interval_s, limit",
                 "server_messages": "EnvironmentSnapshot"},
-    "/ws/alerts": {"query": "berth_id, scenario_id, interval_s, limit", "server_messages": "Alert"},
+    "/ws/alerts": {"query": "berth_id, scenario_id, interval_s, limit", "server_messages": "Alert",
+                   "terminal_close_codes": {"1013": "Environment source unavailable; no replacement snapshot is emitted",
+                                            "4404": "Scenario/source/reference not found or not owned",
+                                            "4400": "Invalid interval, limit or reference"}},
     "/ws/sim/{session_id}": {"query": "limit",
                              "client_messages": "SimTugCommandMessage | SimLineEventMessage | SimControlMessage",
                              "server_messages": "SimFrame (latest state; nominal 10 Hz at default dt)"},
     "/ws/telemetry": {"client_messages": "TelemetryRecord", "server_messages": "TelemetryAccepted"},
 }
-STREAM_MODELS = [EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, SimLineEventMessage, SimControlMessage,
+JOB_RESULT_MODELS = [ForecastDockingResponse, ExceedanceResponse, TimelineResponse, RecommendResponse,
+                     BerthingSimResponse, ApproachSimResponse]
+STREAM_MODELS = [*JOB_RESULT_MODELS, EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, SimLineEventMessage, SimControlMessage,
                  TelemetryRecord, TelemetryAccepted, JobProgressEvent, JobDoneEvent, SimScene, SimLifecycle,
                  SimRecording]
 
@@ -98,6 +110,13 @@ def _finite(value):
 @app.exception_handler(RequestValidationError)
 async def invalid_body(_: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": _finite(jsonable_encoder(exc.errors()))})
+
+
+@app.exception_handler(OverflowError)
+async def numerical_range(_: Request, exc: OverflowError):
+    return JSONResponse(status_code=422, content={
+        "detail": "Inputs exceed the supported numerical range; no result is available."
+    })
 
 
 @app.exception_handler(JobQueueFull)

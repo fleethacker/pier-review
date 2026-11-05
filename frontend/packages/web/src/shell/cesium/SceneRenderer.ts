@@ -68,8 +68,10 @@ export class SceneRenderer {
     this.configureScene();
     this.installInput();
     this.store.capture = () => {
-      this.viewer.render();
-      return this.viewer.scene.canvas.toDataURL('image/jpeg', 0.92);
+      // The normal render loop owns frame sizing; capture its preserved frame without forcing another render.
+      const canvas = this.viewer.scene.canvas;
+      if (!canvas.width || !canvas.height) return null;
+      return canvas.toDataURL('image/jpeg', 0.92);
     };
     this.unsubscribe = this.store.subscribe(() => this.sync());
     this.sync();

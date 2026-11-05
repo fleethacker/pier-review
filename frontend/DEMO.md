@@ -31,7 +31,7 @@ cd frontend/packages/web && npm install && npm run dev      # http://localhost:4
    Wind and gust climb on the chart, the arrows grow, lines recolor, and the **Alerts** tab lists the warnings with
    their NSTM references. Open **Wind limits** and **Gust risk** and run them for the limiting wind and the chance of
    exceeding working load.
-7. **Safety sheet.** Back in the agent panel click **Create safety sheet**. Review the margins, rationale and layout
+7. **Safety sheet.** Back in the agent panel click **Create safety sheet**. Review the margins, rationale and the explanation for any unavailable plan-bound layout
    image, press **Print**, then approve as pilot, first lieutenant and CO. The sheet locks after the first approval.
 
 8. **Motion.** Close the sheet and press **Open motion view**. Press **Replay recording**, then **Play**: a recorded mock
@@ -41,12 +41,14 @@ cd frontend/packages/web && npm install && npm run dev      # http://localhost:4
 9. **Where the data comes from.** In the sidebar open *Data sources and capabilities*: every stream says whether it is
    mock, replay, typed or live, why, and the capability list says what each module is qualified for (today: none).
 10. **Berth from an image.** In *Berth from an image* choose any picture, press **Analyze image**, tick each amber
-    item, then **Confirm and use this berth**. The header changes to *berth data: vision*. Say it is a mock draft.
+    item, then **Confirm and use this berth**. The header reflects the returned provenance (estimated for a catalog draft). Without an LLM,
+    this is a deterministic metadata/catalog draft, not extraction from the uploaded pixels. Review the source note.
 
 ## Things to say
 
 - Units: the header toggle switches the whole UI between Navy and Metric (the printed sheet stays Navy).
-- Numbers are placeholders. Line geometry and the NSTM rule checks are real; loads and the agent are mock.
+- The load/geometry solvers and agent workflow are implemented. Seed asset data, draft sequences and
+  surrogate motion remain unqualified; real implementation does not establish operational readiness.
 - Every number the agent cites links to a stored result; nothing on the sheet is typed in by a model.
 - The same screen can drive another application. The shell does not know about mooring; the mooring adapter lives in
   one folder.
@@ -54,5 +56,5 @@ cd frontend/packages/web && npm install && npm run dev      # http://localhost:4
 ## If something goes wrong
 
 - *Could not reach the modeling service*: start `make mock`, then press **Retry**.
-- Only DDG 51 has fittings in the mock data; other classes show a hull so you can show the berth size.
+- Only DDG 51 has fittings in the seed data; other classes show a hull so you can show the berth size.
 - The first render after a long idle can take a moment on machines without a GPU.

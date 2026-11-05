@@ -142,7 +142,7 @@ def qualify_tug(tug: TugSpec) -> AssetQualification:
                      "Bollard pull is not a certified rating on file; do not treat it as one.", [tug.tug_id])]
     return AssetQualification(
         asset_kind="tug", asset_id=tug.tug_id,
-        level="demonstration" if tug.provenance.confidence not in QUALIFYING_CONFIDENCE else "qualified",
+        level=_level(issues, tug.provenance.confidence),
         provenance_confidence=tug.provenance.confidence, issues=issues, capabilities={"tug_allocation": "limited"})
 
 
@@ -212,13 +212,14 @@ def capability_matrix() -> list[CapabilityRow]:
     mock = "mock"
     return [
         CapabilityRow(capability="Environmental loads", module="M3", backend="real", qualification="demonstration",
-                      limitations=["UFC 4-159-03 Chapter 4 formulas; seed ship geometry is estimated or mock data.", "Wind basis documented only when the snapshot carries metadata."]),
+                      limitations=["UFC 4-159-03 Chapter 4 formulas; seed ship geometry is estimated or mock data.", "Wind basis documented only when the snapshot carries metadata.",
+                                   "Static wind and current only; wave and wake loads are not evaluated."]),
         CapabilityRow(capability="Static mooring equilibrium, limiting wind, tide sweep", module="M4", backend="real", qualification="demonstration",
                       limitations=["Rigid-body 3-DOF quasi-static; no heave/roll/pitch or dynamics.", "NSTM rule subset: see GET /rules coverage; paragraph references not re-verified.",
                                    "Fitting heights not corrected for loading; fenders linear and parallel-body only."],
                       blockers=["Published fitting layouts, line strengths and fender curves are not on file."]),
         CapabilityRow(capability="Gust risk (exceedance, timeline, alerts)", module="M5", backend="real", qualification="unqualified",
-                      limitations=["Probabilities come from a synthetic uncertainty model: scenario outputs only.", "No forecast error, tide error or storm winds."],
+                      limitations=["Synthetic and fitted artifacts remain unqualified: probabilities are scenario outputs only.", "No forecast error, tide error or storm winds."],
                       blockers=["Fitted and held-out-validated station data (minimum-data policy not met)."]),
         CapabilityRow(capability="Tug allocation, holding plans, berthing windows", module="M6", backend="real", qualification="demonstration",
                       limitations=["Catalog bollard pulls are estimates, not certified.", "Normal push-point forces only; surge cannot be supplied.", "No transient or approach maneuvering."],
@@ -226,16 +227,23 @@ def capability_matrix() -> list[CapabilityRow]:
         CapabilityRow(capability="Line-plan search and line-handling sequence", module="M7", backend="real", qualification="demonstration",
                       limitations=["Bounded search; no feasible plan found is not proof none exists.", "Sequence is a draft_unreviewed static check; transients need M11."],
                       blockers=["Subject-matter review of sequence rules (deck officer or pilot)."]),
+        CapabilityRow(capability="Advance forecast docking assessment", module="M4/F24", backend="real", qualification="demonstration",
+                      limitations=["Supplied coincident snapshots, at least 24-hour lead, static fixed-installation checks only.",
+                                   "Complete public forecast composition is not wired; unresolved inputs cannot support an arrival.",
+                                   "A supported-limited window is not maneuvering or line-handling approval."],
+                      blockers=["Qualified vessel/pier assets, applicable forecast/current depth evidence, and pilot/deck-officer review."]),
         CapabilityRow(capability="Berthing dynamics integrator", module="M11", backend="real", qualification="unqualified",
                       limitations=["RK4 batch and interactive simulation with explicit synthetic body parameters; real vessel dynamics are unqualified.", "Quasi-static M3 loads; no relative-velocity effects."],
                       blockers=["Mass, added mass, damping and maneuvering coefficients for a real hull.", "Independently sourced contact benchmark.", "Subject-matter review and certified tug response data."]),
         CapabilityRow(capability="Approach planner", module="M12", backend=mock, qualification=mock,
                       blockers=["Chart source/edition, datum transformation and sourced squat formulation (S18/S19)."]),
         CapabilityRow(capability="Environment: deterministic replay", module="M1", backend="real", qualification="demonstration",
-                      limitations=["Library with fixtures; not yet wired to /env endpoints or WebSockets, which still serve the deterministic mock."]),
-        CapabilityRow(capability="Environment: live providers (CO-OPS, NWS, CBOFS)", module="M1", backend=mock, qualification=mock,
-                      blockers=["Provider verification against live documentation and network access (S04b/c); opt-in smoke checks."]),
+                      limitations=["Explicit recorded-fixture scenarios and /ws/env replay are wired; the bundled fixture is labeled synthetic, not observed data."]),
+        CapabilityRow(capability="Environment: live providers (CO-OPS, NWS, CBOFS)", module="M1", backend="real", qualification="demonstration",
+                      limitations=["CO-OPS observations are opt-in; default operation remains labeled mock.",
+                                   "NWS and CBOFS readers exist, but a complete composed forecast is unavailable."],
+                      blockers=["Pier applicability, current-layer selection, forecast composition and publication-time evidence."]),
         CapabilityRow(capability="Telemetry ingest", module="M13", backend="real", qualification="demonstration",
-                      limitations=["NMEA 0183 MWV and HDT only; no AIS, NMEA 2000 or proprietary sentences.", "Sensor registry must be configured; optional shared-key auth only."],
+                      limitations=["NMEA 0183 MWV/HDT/VTG/GGA/DPT subset plus registered load cells; no AIS or NMEA 2000.", "Sensor registry must be configured; optional shared-key auth only."],
                       blockers=["Deployment controls (S21) before connecting real feeds."]),
     ]

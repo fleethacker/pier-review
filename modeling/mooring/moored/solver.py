@@ -11,17 +11,19 @@ Separation of concerns (S06): *numerical validity* (convergence, residual, rank,
 
 import math
 from collections import defaultdict
+from dataclasses import replace
 
 from mooring import qualification, refdata
 from mooring.core import store
 from mooring.core.envelopes import envelope, resolved_inputs_hash, status_from_pct, worst
-from mooring.core.geometry import depth_at, line_geometry, ship_heading_true, ship_to_berth
+from mooring.core.geometry import classify_role, depth_at, line_geometry, ship_heading_true, ship_to_berth
 from mooring.core.schemas import (
     AnalyzeRequest, AnalyzeResponse, AnalyzeResult, FenderResult, Finding, LineResult, ManifestRecord, MinMargin, Offset,
     PierFittingResult, ResultManifest, Rule, ShipFittingResult, SolverDiagnostics, SolverResidual, Validity, ValidityReason,
 )
 from mooring.loads import mean_draft_ft, off_pier, range_findings
-from mooring.loads.validity import classify_findings, merge_reasons, wind_basis
+from mooring.loads.validity import classify_findings, environment_findings, merge_reasons, wind_basis
+from mooring.tugs.validation import assignment_errors
 from mooring.mechanics import Pose
 from mooring.rules.nstm582 import RULES, CheckContext, check_all, design_factor
 
@@ -31,6 +33,7 @@ MODEL = "mooring.solver.equilibrium"
 VERSION = "1.0.0"
 ASSUMPTIONS = [
     "Quasi-static 3-DOF equilibrium (surge, sway, yaw) of a rigid hull; heave, roll, pitch and dynamics are not modeled.",
+    "Applied environmental loads include wind and current only; wave and wake loads are not evaluated.",
     "Lines are tension-only; tension = parts x effective MBS x curve(strain) with the catalog stretch curve scaled by the effective (wet/dry) MBS.",
     "Fenders are unilateral springs (catalog linear stiffness) in contact over a parallel body of +/- half the waterline length.",
     "Pier-fitting loads are the 3-D vector sum of attached lines compared with the nominal capacity.",
@@ -59,7 +62,13 @@ def solve_request(req: AnalyzeRequest, *, start: Pose = Pose(), force_rel_tol: f
     except eq.SystemError as e:
         raise refdata.InvalidReference(str(e)) from None
     refdata.loading(ship, req.loading)
-    return system, eq.solve(system, start, force_rel_tol=force_rel_tol), specs
+    if system.depth_ft(start) <= 0:
+        raise refdata.InvalidReference("Actual water depth must be positive; berth depth plus water level is nonpositive")
+    try:
+        solution = eq.solve(system, start, force_rel_tol=force_rel_tol)
+    except ValueError as exc:
+        raise refdata.InvalidReference(f"Invalid equilibrium inputs: {exc}") from None
+    return system, solution, specs
 
 
 def _validity(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs, load_findings, basis) -> Validity:
@@ -79,6 +88,8 @@ def _validity(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs, l
     for state, reason in classify_findings(load_findings):
         (invalid if state == "invalid" else limited).append(reason)
     limited += basis.reasons
+    for state, reason in environment_findings(req.environment):
+        (invalid if state == "invalid" else limited).append(reason)
     # data qualification (S01)
     for i in qualification.analysis_issues(system.ship, system.berth, req.config, specs):
         (invalid if i.blocking else limited).append(
@@ -90,9 +101,20 @@ def _validity(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs, l
         if rec.ln.parts == 2:
             limited.append(ValidityReason(code="REEVING_ASSUMED_PARALLEL", affected_components=[f"line-{rec.ln.line_number}"],
                                           message="Two-part (tanker moor) arrangement modeled as identical parallel strands without chock friction."))
+    for error in assignment_errors(system.ship, req.tugs, refdata.tugs()):
+        invalid.append(ValidityReason(code="TUG_ASSIGNMENT_INVALID", message=error,
+                                      affected_components=[t.tug_id for t in req.tugs]))
+    fleet = {t.tug_id: t for t in refdata.tugs()}
     for t in system.tugs:
+        catalog = fleet.get(t.tug.tug_id)
+        if catalog and catalog.provenance.confidence != "published":
+            limited.append(ValidityReason(code="TUG_DATA_UNQUALIFIED", message="Tug ratings are catalog estimates, not qualified fleet evidence.",
+                                          affected_components=[t.tug.tug_id]))
+        if t.tug.direction_true_deg is not None:
+            limited.append(ValidityReason(code="TUG_DIRECTIONAL_CAPACITY_UNQUALIFIED", message="A true-direction force is prescribed without a qualified directional tug performance envelope.",
+                                          affected_components=[t.tug.tug_id]))
         if t.tug.force_lbf > t.max_force_lbf:
-            limited.append(ValidityReason(code="TUG_FORCE_EXCEEDS_PUSH_POINT_LIMIT", affected_components=[t.tug.push_point_id],
+            invalid.append(ValidityReason(code="TUG_FORCE_EXCEEDS_PUSH_POINT_LIMIT", affected_components=[t.tug.push_point_id],
                                           message=f"Tug force {t.tug.force_lbf:.0f} lbf exceeds the {t.max_force_lbf:.0f} lbf push point limit."))
     if not req.config.lines:
         invalid.append(ValidityReason(code="NO_LINES", message="No mooring lines: nothing restrains the ship.", affected_components=["config"]))
@@ -116,17 +138,26 @@ def build_result(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs
     pose = sol.pose
     df = design_factor(req.mst)
     heading0 = ship_heading_true(berth, cfg.side_to)
-    geoms = [line_geometry(rec.ln, ship, berth, cfg, req.installed_at_water_level_mllw_ft
-                           if req.installed_at_water_level_mllw_ft is not None else env.water_level_mllw_ft) for rec in system.lines]
+    nominal_geoms = [line_geometry(rec.ln, ship, berth, cfg, env.water_level_mllw_ft) for rec in system.lines]
     tens = system.line_tensions(pose)
-    line_results, states = [], {}
-    for (rec, st, t), g in zip(tens, geoms):
+    forward = system.frame.vector_to_berth(1, 0, pose)
+    port = system.frame.vector_to_berth(0, 1, pose)
+    line_results, states, geoms = [], {}, []
+    for (rec, st, t), g in zip(tens, nominal_geoms):
         n = rec.ln.line_number
         mbs = rec.model.mbs_eff_lbf
         wll = mbs / df
         horiz = math.hypot(st.ux, st.uy)
-        horiz_angle = math.degrees(math.atan2(abs(st.ux), abs(st.uy))) if horiz > 0 else 90.0  # from perpendicular to the face
+        along_ship = st.ux * forward[0] + st.uy * forward[1]
+        across_ship = st.ux * port[0] + st.uy * port[1]
+        horiz_angle = math.degrees(math.atan2(abs(along_ship), abs(across_ship))) if horiz > 0 else 90.0
         vert = math.degrees(math.atan2(abs(st.uz), horiz))
+        # Rules and displayed line geometry must describe the same solved pose/tide.
+        # Installation tide defines rest lengths, not the current line lead or span.
+        g = replace(g, length_ft=st.length_ft, horiz_length_ft=st.length_ft*horiz,
+                    horiz_angle_deg=horiz_angle, vert_angle_deg=vert, leads_forward=along_ship > 0,
+                    role=rec.ln.role or classify_role(ship, g.lead_point.x_ft, horiz_angle, along_ship > 0))
+        geoms.append(g)
         pct_wll = 100 * t / wll
         states[n] = (st, t)
         line_results.append(LineResult(
@@ -183,7 +214,12 @@ def build_result(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs
     range_f, _ = range_findings(depth, mean_draft_ft(ship, req.loading), env.current_speed_kt, reynolds)
     findings += range_f
     front = 1 if cfg.side_to == "starboard" else -1
+    resolved_config = cfg.model_copy(update={"lines": [line.ln.model_copy(update={
+        "paid_out_unstretched_length_ft": line.model.rest_length_ft,
+        "pretension_lbf": None, "slack_ft": None, "condition": "wet" if line.wet else "dry",
+    }) for line in system.lines]})
     result = AnalyzeResult(
+        resolved_config=resolved_config,
         offset=Offset(surge_ft=round(pose.dx_ft * front, 2), sway_ft=round(pose.dy_ft, 2), yaw_deg=round(math.degrees(pose.dyaw_rad), 3)),
         lines=line_results, pier_fittings=pier_results, ship_fittings=ship_results, fenders=fender_results,
         min_margin=MinMargin(element_id=top[0], pct_wll=round(top[1], 1)), findings=findings)
@@ -193,7 +229,10 @@ def build_result(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs
 
 
 def manifest_for(req: AnalyzeRequest, system: eq.System, specs, sol: eq.Solution, extra: dict | None = None) -> ResultManifest:
-    snapshot = {"request": req.model_dump(mode="json"), "ship": system.ship.model_dump(mode="json"),
+    fleet = {t.tug_id: t for t in refdata.tugs()}
+    resolved_tugs = {t.tug_id: fleet[t.tug_id].model_dump(mode="json") for t in req.tugs if t.tug_id in fleet}
+    snapshot = {"tug_specs": resolved_tugs, "unresolved_tug_ids": sorted({t.tug_id for t in req.tugs if t.tug_id not in fleet}),
+                "request": req.model_dump(mode="json"), "ship": system.ship.model_dump(mode="json"),
                 "berth": system.berth.model_dump(mode="json"), "line_specs": {k: v.model_dump(mode="json") for k, v in specs.items()},
                 "settings": {"max_iter": eq.MAX_ITER, "rel_tol": eq.REL_TOL, "bound_xy_ft": eq.BOUND_XY_FT,
                              "bound_yaw_rad": eq.BOUND_YAW_RAD}, **(extra or {})}
@@ -202,6 +241,7 @@ def manifest_for(req: AnalyzeRequest, system: eq.System, specs, sol: eq.Solution
     records = [ManifestRecord(kind="ship", id=system.ship.class_id, revision=_record_rev(snapshot["ship"])),
                ManifestRecord(kind="berth", id=system.berth.berth_id, revision=_record_rev(snapshot["berth"]))]
     records += [ManifestRecord(kind="line_spec", id=k, revision=_record_rev(v)) for k, v in snapshot["line_specs"].items()]
+    records += [ManifestRecord(kind="tug", id=k, revision=_record_rev(v)) for k, v in resolved_tugs.items()]
     return ResultManifest(resolved_inputs_hash=h, code_version=f"{MODEL}@{VERSION}", records=records,
                           environment_hash=resolved_inputs_hash(req.environment),
                           numerical_settings=snapshot["settings"])

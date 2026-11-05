@@ -2,11 +2,15 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body
+import httpx
+
+from fastapi import APIRouter, Body, Query, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from mooring import refdata
+from mooring.core import access
 from mooring.core.jobs import sse
+from mooring.core.envelopes import utcnow
 from mooring.core.schemas import JobAccepted
 
 from ...backend import safety, sheet
@@ -17,8 +21,11 @@ from ...safety.schemas import (
     SafetySheet,
     SafetySheetCreate,
     SafetySheetCreated,
+    SafetyWatchUnavailable,
 )
+from ...physics.client import ModelingError
 from ..state import JOBS, Client, SafetyTools
+from ..execution import submit_async
 from .planner import plan_record
 
 router = APIRouter(tags=["Safety agent"])
@@ -31,26 +38,38 @@ async def create_review(tk: SafetyTools, req: Annotated[SafetyReviewRequest, Bod
     _, job = plan_record(req.plan_id)
     if job.state != "succeeded":
         return JSONResponse(status_code=409, content={"detail": "Plan is still running"})
-    return JOBS.submit("safety.review", await safety.review(req, tk))
+    return submit_async(JOBS, "safety.review", tk, lambda ctx: safety.review(req, tk))
 
 
 @router.get("/safety/reviews/{review_id}", response_model=SafetyReview)
 def get_review(review_id: str):
-    if review_id not in safety.REVIEWS:
+    if not access.allowed("agent_review", review_id) or review_id not in safety.REVIEWS:
         raise refdata.NotFound(f"Review '{review_id}' not found")
     return safety.REVIEWS[review_id]
 
 
 @router.get("/safety/watch/{plan_id}", response_class=StreamingResponse,
             responses={200: {"content": {"text/event-stream": {}}}},
-            summary="SSE `warning` events (GustWarning): live gusts vs the plan's working-load and breaking limits")
-def watch(plan_id: str, client: Client, interval_s: float = 5.0, limit: int = 0,
-          heartbeat_minutes: float = 5.0):
-    plan_record(plan_id)
+            summary="SSE warnings and recheck notices; terminal source_unavailable on provider failure")
+def watch(plan_id: str, client: Client, interval_s: Annotated[float, Query(ge=0, le=3600)] = 5.0,
+          limit: Annotated[int, Query(ge=0, le=1000)] = 0,
+          heartbeat_minutes: Annotated[float, Query(ge=0, le=1440)] = 5.0):
+    _, job = plan_record(plan_id)
+    if job.state != "succeeded":
+        raise HTTPException(409, "Plan is still running or did not succeed")
+    if interval_s == 0 and limit == 0:
+        raise HTTPException(422, "An unbounded watch requires a positive polling interval")
 
     async def gen():
-        async for w in safety.watch(plan_id, client, interval_s, limit, heartbeat_minutes):
-            yield sse("warning", w.model_dump(mode="json"))
+        try:
+            async for w in safety.watch(plan_id, client, interval_s, limit, heartbeat_minutes):
+                yield sse("warning", w.model_dump(mode="json"))
+        except (ModelingError, httpx.HTTPError) as exc:
+            status = exc.status if isinstance(exc, ModelingError) else None
+            event = SafetyWatchUnavailable(plan_id=plan_id, at_utc=utcnow(),
+                reason="Modeling/environment service unavailable during safety watch; no current limit assessment is available.",
+                retryable=status is None or status in (408, 429) or status >= 500)
+            yield sse("source_unavailable", event.model_dump(mode="json"))
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 
@@ -63,17 +82,21 @@ async def create_sheet(req: SafetySheetCreate, tk: SafetyTools):
         return JSONResponse(status_code=409, content={"detail": "Plan is still running"})
     if req.review_id:
         rv = safety.REVIEWS.get(req.review_id)
-        if rv is None or rv.plan_id != req.plan_id:
+        if not access.allowed("agent_review", req.review_id) or rv is None or rv.plan_id != req.plan_id:
             raise refdata.NotFound(f"Review '{req.review_id}' not found for plan '{req.plan_id}'")
     else:
         rv = await safety.review(SafetyReviewRequest(plan_id=req.plan_id), tk)
     s = sheet.build(rec, rv)
-    rec.plan.safety_sheet_id = s.sheet_id
+    from ...planner.agent import PLANS
+    with PLANS.atomic():
+        current = PLANS[req.plan_id]
+        current.plan.safety_sheet_id = s.sheet_id
+        PLANS[req.plan_id] = current
     return SafetySheetCreated(sheet_id=s.sheet_id, version=s.version)
 
 
 def _sheet(sheet_id: str) -> SafetySheet:
-    if sheet_id not in sheet.SHEETS:
+    if not access.allowed("agent_sheet", sheet_id) or sheet_id not in sheet.SHEETS:
         raise refdata.NotFound(f"Safety sheet '{sheet_id}' not found")
     return sheet.SHEETS[sheet_id]
 

@@ -1,0 +1,208 @@
+{
+  "case_id": "ddg-supported-limited",
+  "name": "DDG moderate weather — limited demonstration",
+  "expected_outcome": "supported_limited",
+  "explanation": "Real equilibrium within capacity, using unqualified seed data. AMBER/limited is expected, never unconditional GREEN.",
+  "environment_request": {
+    "name": "DDG moderate weather — limited demonstration",
+    "kind": "steady",
+    "wind_speed_kt": 4.0,
+    "wind_gust_kt": 5.0,
+    "wind_from_true_deg": 200.0,
+    "current_speed_kt": 0.1,
+    "current_set_true_deg": 10.0,
+    "water_level_mllw_ft": 1.8,
+    "ramp_to_wind_kt": null,
+    "ramp_minutes": null,
+    "replay_start_utc": null,
+    "replay_end_utc": null
+  },
+  "scenario_request": {
+    "name": "DDG moderate weather — limited demonstration",
+    "ship_class_id": "DDG-51-FIIA",
+    "loading": "full_load",
+    "berth_id": "NAVSTA-NORFOLK-P12-N",
+    "side_to": "starboard",
+    "env_source": {
+      "mode": "scenario",
+      "env_scenario_id": "<id returned by POST /env/scenarios>",
+      "replay_start_utc": null,
+      "replay_speed": 1.0
+    },
+    "config": {
+      "config_id": null,
+      "side_to": "starboard",
+      "ship_x_ft": 650.0,
+      "standoff_ft": null,
+      "lines": [
+        {
+          "line_number": 1,
+          "role": "bow",
+          "spec_id": "NYLON-DB-7IN",
+          "parts": 1,
+          "ship_fitting_id": "BITT-1S",
+          "chock_id": null,
+          "pier_fitting_id": "P12N-B17",
+          "pretension_lbf": null,
+          "slack_ft": null
+        },
+        {
+          "line_number": 2,
+          "role": "spring_aft",
+          "spec_id": "NYLON-DB-7IN",
+          "parts": 1,
+          "ship_fitting_id": "BITT-2S",
+          "chock_id": null,
+          "pier_fitting_id": "P12N-B12",
+          "pretension_lbf": null,
+          "slack_ft": null
+        },
+        {
+          "line_number": 3,
+          "role": "breast",
+          "spec_id": "NYLON-DB-7IN",
+          "parts": 1,
+          "ship_fitting_id": "BITT-3S",
+          "chock_id": null,
+          "pier_fitting_id": "P12N-M06",
+          "pretension_lbf": null,
+          "slack_ft": null
+        },
+        {
+          "line_number": 4,
+          "role": "breast",
+          "spec_id": "NYLON-DB-7IN",
+          "parts": 1,
+          "ship_fitting_id": "BITT-4S",
+          "chock_id": null,
+          "pier_fitting_id": "P12N-M05",
+          "pretension_lbf": null,
+          "slack_ft": null
+        },
+        {
+          "line_number": 5,
+          "role": "spring_fwd",
+          "spec_id": "NYLON-DB-7IN",
+          "parts": 1,
+          "ship_fitting_id": "BITT-5S",
+          "chock_id": null,
+          "pier_fitting_id": "P12N-B10",
+          "pretension_lbf": null,
+          "slack_ft": null
+        },
+        {
+          "line_number": 6,
+          "role": "stern",
+          "spec_id": "NYLON-DB-7IN",
+          "parts": 1,
+          "ship_fitting_id": "BITT-6S",
+          "chock_id": null,
+          "pier_fitting_id": "P12N-B06",
+          "pretension_lbf": null,
+          "slack_ft": null
+        }
+      ]
+    },
+    "tugs": []
+  },
+  "analysis_request": {
+    "scenario_id": null,
+    "ship_class_id": "DDG-51-FIIA",
+    "loading": "full_load",
+    "berth_id": "NAVSTA-NORFOLK-P12-N",
+    "config": {
+      "config_id": null,
+      "side_to": "starboard",
+      "ship_x_ft": 650.0,
+      "standoff_ft": null,
+      "lines": [
+        {
+          "line_number": 1,
+          "role": "bow",
+          "spec_id": "NYLON-DB-7IN",
+          "parts": 1,
+          "ship_fitting_id": "BITT-1S",
+          "chock_id": null,
+          "pier_fitting_id": "P12N-B17",
+          "pretension_lbf": null,
+          "slack_ft": null
+        },
+        {
+          "line_number": 2,
+          "role": "spring_aft",
+          "spec_id": "NYLON-DB-7IN",
+          "parts": 1,
+          "ship_fitting_id": "BITT-2S",
+          "chock_id": null,
+          "pier_fitting_id": "P12N-B12",
+          "pretension_lbf": null,
+          "slack_ft": null
+        },
+        {
+          "line_number": 3,
+          "role": "breast",
+          "spec_id": "NYLON-DB-7IN",
+          "parts": 1,
+          "ship_fitting_id": "BITT-3S",
+          "chock_id": null,
+          "pier_fitting_id": "P12N-M06",
+          "pretension_lbf": null,
+          "slack_ft": null
+        },
+        {
+          "line_number": 4,
+          "role": "breast",
+          "spec_id": "NYLON-DB-7IN",
+          "parts": 1,
+          "ship_fitting_id": "BITT-4S",
+          "chock_id": null,
+          "pier_fitting_id": "P12N-M05",
+          "pretension_lbf": null,
+          "slack_ft": null
+        },
+        {
+          "line_number": 5,
+          "role": "spring_fwd",
+          "spec_id": "NYLON-DB-7IN",
+          "parts": 1,
+          "ship_fitting_id": "BITT-5S",
+          "chock_id": null,
+          "pier_fitting_id": "P12N-B10",
+          "pretension_lbf": null,
+          "slack_ft": null
+        },
+        {
+          "line_number": 6,
+          "role": "stern",
+          "spec_id": "NYLON-DB-7IN",
+          "parts": 1,
+          "ship_fitting_id": "BITT-6S",
+          "chock_id": null,
+          "pier_fitting_id": "P12N-B06",
+          "pretension_lbf": null,
+          "slack_ft": null
+        }
+      ]
+    },
+    "environment": {
+      "valid_at_utc": "2026-11-04T15:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 5.0,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": []
+    },
+    "tugs": [],
+    "mst": "II",
+    "lines_wet": true
+  },
+  "envelope_request": null
+}

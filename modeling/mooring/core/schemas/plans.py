@@ -58,7 +58,14 @@ class MooringConfig(Model):
     side_to: SideTo
     ship_x_ft: float = Field(description="Berth-frame x of the ship's midships.")
     standoff_ft: float | None = Field(default=None, ge=0, description="Defaults to the berth's camel standoff.")
-    lines: list[MooringLine]
+    lines: list[MooringLine] = Field(description="Lines with unique line_number identifiers; gaps in numbering are permitted.")
+
+    @model_validator(mode="after")
+    def _unique_line_numbers(self):
+        numbers = [line.line_number for line in self.lines]
+        if len(numbers) != len(set(numbers)):
+            raise ValueError("line_number must be unique within a mooring configuration")
+        return self
 
 
 class TugAssignment(Model):

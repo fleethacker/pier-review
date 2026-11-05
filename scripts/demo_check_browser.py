@@ -8,6 +8,7 @@ Prints one line per check: `PASS|FAIL|SKIP <name> | <detail>`. Needs Playwright 
 from __future__ import annotations
 
 import re
+import os
 import sys
 from pathlib import Path
 
@@ -52,7 +53,7 @@ def shot(page: Page, name: str) -> None:
 def main() -> int:
     errors: list[str] = []
     with sync_playwright() as p:
-        browser = p.chromium.launch(args=["--use-gl=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])
+        browser = p.chromium.launch(executable_path=os.environ.get("DEMO_CHECK_BROWSER_EXECUTABLE"), args=["--enable-unsafe-swiftshader"])
         page = browser.new_page(viewport={"width": 1600, "height": 1000})
         page.set_default_timeout(45_000)
         PAGE.append(page)
@@ -61,10 +62,10 @@ def main() -> int:
             if m.type != "error":
                 return
             try:  # the format string alone ("%s ...") hides what React is complaining about
-                text = " | ".join(str(a.json_value())[:200] for a in m.args)
+                text = " | ".join(str(a.json_value())[:200] for a in m.args) or m.text
             except Exception:  # noqa: BLE001
                 text = m.text
-            errors.append(f"console: {text[:500]}")
+            errors.append(f"console: {text[:500]} at {m.location}")
 
         page.on("console", on_console)
 
@@ -72,6 +73,9 @@ def main() -> int:
             page.goto(URL, wait_until="load")
             expect(page.get_by_text("All results limited: seed data")).to_be_visible()
             expect(page.get_by_role("button", name="Ask the agent to plan")).to_be_enabled()
+            saved = page.locator("select").filter(has=page.locator("option", has_text="demo-check supported-limited"))
+            saved.select_option(label="demo-check supported-limited")
+            expect(page.get_by_text("Overall AMBER", exact=True).first).to_be_visible()
             shot(page, "01-loaded")
             return "app loaded against the services; seed-data banner visible"
 
@@ -203,8 +207,8 @@ def main() -> int:
             expect(page.get_by_role("status").filter(has_text="Saved")).to_be_visible()
             page.wait_for_timeout(2000)
             shot(page, "09-vision-saved")
-            expect(page.get_by_text("BERTH DATA: VISION", exact=False)).to_be_visible()
-            return "image analyzed, flagged items gated the confirm button, berth saved and selected, labeled as vision data"
+            expect(page.get_by_text(re.compile("berth data: estimated", re.I))).to_be_visible()
+            return "image analyzed, flagged items gated the confirm button, berth saved and selected, labeled with estimated catalog provenance (no pixel extraction claimed)"
 
         step("Load the app and see the standing seed-data banner", load)
         step("Data-source panel is honest", sources)

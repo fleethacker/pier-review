@@ -184,7 +184,7 @@ export interface paths {
         /** List Berths */
         get: operations["list_berths_api_v1_berths_get"];
         put?: never;
-        /** Add or replace a berth (from the canvas or a confirmed vision draft) */
+        /** Register an immutable berth; identical retries are accepted, changed data requires a new ID */
         post: operations["create_berth_api_v1_berths_post"];
         delete?: never;
         options?: never;
@@ -255,6 +255,74 @@ export interface paths {
         get: operations["get_scenario_api_v1_scenarios__scenario_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/scenarios/{scenario_id}/environment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve the saved scenario source; explicit mock stays synthetic */
+        get: operations["scenario_environment_api_v1_scenarios__scenario_id__environment_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/demo/docking-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Named offline demo requests (seed data; not operational plans) */
+        get: operations["demo_docking_cases_api_v1_demo_docking_cases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-simulation/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate labeled, seeded training conditions; not a weather forecast */
+        post: operations["synthetic_forecast_api_v1_data_simulation_forecast_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/berth-drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build an unsaved berth draft from catalog geometry and optional image anchors */
+        post: operations["berth_draft_api_v1_berth_drafts_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -459,6 +527,23 @@ export interface paths {
         put?: never;
         /** Recommend line configurations (job; result is a RecommendResponse) */
         post: operations["recommend_api_v1_mooring_recommend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mooring/forecast-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assess arrivals at least 24 hours ahead (job result: ForecastDockingResponse) */
+        post: operations["forecast_plan_api_v1_mooring_forecast_plan_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -871,6 +956,8 @@ export interface components {
         };
         /** AnalyzeResult */
         AnalyzeResult: {
+            /** @description Configuration with modeled unstretched spans and wet/dry conditions explicit for reproducible rechecks. Not rope-cutting lengths, a handling instruction or approval. */
+            resolved_config?: components["schemas"]["MooringConfig"] | null;
             offset: components["schemas"]["Offset"];
             /** Lines */
             lines: components["schemas"]["LineResult"][];
@@ -971,7 +1058,10 @@ export interface components {
             face_length_ft: number;
             /** Deck Height Mllw Ft */
             deck_height_mllw_ft: number;
-            /** Depth Profile */
+            /**
+             * Depth Profile
+             * @description At least one MLLW depth sample; x_ft stations must be unique. Input ordering is unrestricted.
+             */
             depth_profile: components["schemas"]["DepthPoint"][];
             /** Fittings */
             fittings: components["schemas"]["PierFitting"][];
@@ -999,6 +1089,82 @@ export interface components {
         BerthCreated: {
             /** Berth Id */
             berth_id: string;
+        };
+        /** BerthDraftRequest */
+        BerthDraftRequest: {
+            /** Source Berth Id */
+            source_berth_id: string;
+            /** Name */
+            name?: string | null;
+            /** Image Fittings */
+            image_fittings?: components["schemas"]["ImageFitting"][];
+            /** Scale Ft Per Px */
+            scale_ft_per_px?: number | null;
+            /** Pier Face Start Px */
+            pier_face_start_px?: [
+                number,
+                number
+            ] | null;
+            /** Pier Face End Px */
+            pier_face_end_px?: [
+                number,
+                number
+            ] | null;
+        };
+        /** BerthDraftResponse */
+        BerthDraftResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /** @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes. */
+            manifest?: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["BerthDraftResult"];
+        };
+        /** BerthDraftResult */
+        BerthDraftResult: {
+            draft_berth: components["schemas"]["Berth"];
+            /** Geometry Source */
+            geometry_source: string;
+            /** Needs Confirmation */
+            needs_confirmation: string[];
+            /** Notes */
+            notes: string[];
         };
         /** BerthForce */
         BerthForce: {
@@ -1110,7 +1276,7 @@ export interface components {
             margin: number;
             /**
              * Available Tug Ids
-             * @description Defaults to the whole fleet.
+             * @description Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
              */
             available_tug_ids?: string[] | null;
         };
@@ -1155,11 +1321,13 @@ export interface components {
             /**
              * From Utc
              * Format: date-time
+             * @description Timezone-aware window start; normalized to UTC for elapsed-time sampling.
              */
             from_utc: string;
             /**
              * To Utc
              * Format: date-time
+             * @description Timezone-aware window end, at or after start; normalized to UTC.
              */
             to_utc: string;
             /**
@@ -1171,7 +1339,7 @@ export interface components {
             max_gust_kt?: number | null;
             /**
              * Available Tug Ids
-             * @description Fleet requested for the berthing; defaults to the whole catalog fleet.
+             * @description Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
              */
             available_tug_ids?: string[] | null;
             /**
@@ -1302,6 +1470,24 @@ export interface components {
             params: {
                 [key: string]: number;
             };
+        };
+        /** DockingDemoCase */
+        DockingDemoCase: {
+            /** Case Id */
+            case_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Expected Outcome
+             * @enum {string}
+             */
+            expected_outcome: "supported_limited" | "overloaded" | "invalid_data" | "undetermined";
+            /** Explanation */
+            explanation: string;
+            environment_request: components["schemas"]["EnvScenarioCreate"];
+            scenario_request: components["schemas"]["ScenarioCreate"];
+            analysis_request: components["schemas"]["AnalyzeRequest"];
+            envelope_request?: components["schemas"]["LimitEnvelopeRequest"] | null;
         };
         /** EnvScenario */
         EnvScenario: {
@@ -1480,6 +1666,49 @@ export interface components {
             water_level: string;
         };
         /**
+         * EnvironmentComponentProvenance
+         * @description Provider timing for one forcing component; retrieval is not provider issuance.
+         */
+        EnvironmentComponentProvenance: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "wind" | "current" | "water_level";
+            /**
+             * Source
+             * @description Provider, station/bin or grid product that supplied this component.
+             */
+            source: string;
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "observation" | "prediction" | "scenario";
+            /**
+             * Issued At Utc
+             * @description Actual provider issuance, when supplied; never substitute retrieval time.
+             */
+            issued_at_utc?: string | null;
+            /**
+             * Retrieved At Utc
+             * @description Recorded retrieval completion. If issuance is unknown, this proves only availability by this time, not forecast age or accuracy.
+             */
+            retrieved_at_utc?: string | null;
+            /** Valid From Utc */
+            valid_from_utc?: string | null;
+            /** Valid To Utc */
+            valid_to_utc?: string | null;
+            /**
+             * Quality
+             * @default unknown
+             * @enum {string}
+             */
+            quality: "good" | "suspect" | "poor" | "unknown";
+            /** Limitations */
+            limitations?: string[];
+        };
+        /**
          * EnvironmentMetadata
          * @description Where an environment snapshot came from and how to read its numbers (S00a).
          *
@@ -1487,6 +1716,11 @@ export interface components {
          *     sustained speed; the gust is assumed to be 30 s). Supplying metadata never changes the numerical values.
          */
         EnvironmentMetadata: {
+            /**
+             * Components
+             * @description Optional per-component provenance for composed snapshots. Advance public forecasts require wind, current and water level when this is supplied.
+             */
+            components?: components["schemas"]["EnvironmentComponentProvenance"][];
             /**
              * Basis
              * @description Measured, forecast/model output, or synthetic what-if input.
@@ -1622,7 +1856,10 @@ export interface components {
             /** @description Basis, timing, averaging and datum. Absent means undocumented (legacy). */
             metadata?: components["schemas"]["EnvironmentMetadata"] | null;
         };
-        /** ExceedanceRequest */
+        /**
+         * ExceedanceRequest
+         * @description At most 25,000 combined baseline, instantaneous and trajectory equilibrium solves per job.
+         */
         ExceedanceRequest: {
             /**
              * Scenario Id
@@ -1826,6 +2063,92 @@ export interface components {
             /** Mz Ftlbf */
             mz_ftlbf: number;
         };
+        /** ForecastDockingRequest */
+        ForecastDockingRequest: {
+            /**
+             * Allow Short Lead
+             * @description Explicitly permit reassessment less than 24 hours before arrival. Arrival cannot precede as_of_utc; all forecast provenance/coverage gates remain. Default retains the advance-planning lead requirement.
+             * @default false
+             */
+            allow_short_lead: boolean;
+            /** Ship Class Id */
+            ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /** Berth Id */
+            berth_id: string;
+            config: components["schemas"]["MooringConfig"];
+            /** Tugs */
+            tugs?: components["schemas"]["TugAssignment"][];
+            /**
+             * Mst
+             * @default II
+             * @enum {string}
+             */
+            mst: "I" | "II" | "IIA" | "III";
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /**
+             * Arrival From Utc
+             * Format: date-time
+             */
+            arrival_from_utc: string;
+            /**
+             * Arrival To Utc
+             * Format: date-time
+             */
+            arrival_to_utc: string;
+            /**
+             * Arrival Step Min
+             * @default 60
+             */
+            arrival_step_min: number;
+            /**
+             * Operation Hours
+             * @default 2
+             */
+            operation_hours: number;
+            /**
+             * Holding Hours
+             * @default 6
+             */
+            holding_hours: number;
+            /** Forecast */
+            forecast: components["schemas"]["EnvironmentSnapshot"][];
+            /**
+             * Max Gap Min
+             * @description Maximum covered interval between snapshots; this is a sampling assumption, not a guarantee against sub-sample peaks.
+             * @default 60
+             */
+            max_gap_min: number;
+            /**
+             * Target Pct Wll
+             * @default 80
+             */
+            target_pct_wll: number;
+            /**
+             * Max Evaluations
+             * @default 500
+             */
+            max_evaluations: number;
+            /**
+             * Optimize Lines
+             * @description Search a common line plan across supplied conditions before assessing arrival windows.
+             * @default false
+             */
+            optimize_lines: boolean;
+            /**
+             * Search Budget
+             * @default 100
+             */
+            search_budget: number;
+        };
         /** ForecastSeries */
         ForecastSeries: {
             /** Berth Id */
@@ -1947,8 +2270,25 @@ export interface components {
              * @default 0.25
              */
             margin: number;
-            /** Available Tug Ids */
+            /**
+             * Available Tug Ids
+             * @description Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
+             */
             available_tug_ids?: string[] | null;
+        };
+        /** ImageFitting */
+        ImageFitting: {
+            /** Item Id */
+            item_id: string;
+            /** Kind */
+            kind: string;
+            /** Center Px */
+            center_px: [
+                number,
+                number
+            ];
+            /** Confidence */
+            confidence: number;
         };
         /**
          * JobAccepted
@@ -2016,6 +2356,16 @@ export interface components {
              * @description Highest wind speed verified within limits (conservative end of the bracket). None unless outcome is 'limit_found' or 'fails_at_zero_wind' (then 0).
              */
             limit_wind_kt: number | null;
+            /**
+             * Limit Gust Kt
+             * @description Corresponding gust at limit_wind_kt under the request's held gust/sustained ratio; not a breaking limit.
+             */
+            limit_gust_kt?: number | null;
+            /**
+             * Advisory Gust Kt
+             * @description Application advisory at 80% of the computed gust limit; not a physical failure threshold.
+             */
+            advisory_gust_kt?: number | null;
             /** First Failure Element */
             first_failure_element: string | null;
             /**
@@ -2225,17 +2575,23 @@ export interface components {
             pct_wll: number;
             /**
              * Horiz Angle Deg
-             * @description Angle from perpendicular to the ship; breast lines are under 45.
+             * @description Angle from perpendicular to the ship at the solved pose, including yaw; breast lines are under 45.
              */
             horiz_angle_deg: number;
-            /** Vert Angle Deg */
+            /**
+             * Vert Angle Deg
+             * @description Solved line angle above horizontal at the assessed water level.
+             */
             vert_angle_deg: number;
             /**
              * Breast Efficiency
              * @description cos(horizontal angle): share of tension that holds the ship in.
              */
             breast_efficiency: number;
-            /** Length Ft */
+            /**
+             * Length Ft
+             * @description Straight span between lead point and pier fitting at the solved pose; not unstretched paid-out length.
+             */
             length_ft: number;
             /**
              * Status
@@ -2467,7 +2823,10 @@ export interface components {
              * @description Defaults to the berth's camel standoff.
              */
             standoff_ft?: number | null;
-            /** Lines */
+            /**
+             * Lines
+             * @description Lines with unique line_number identifiers; gaps in numbering are permitted.
+             */
             lines: components["schemas"]["MooringLine"][];
         };
         /**
@@ -3198,6 +3557,18 @@ export interface components {
              */
             design_mst: "I" | "II" | "IIA" | "III";
             /**
+             * Design Basis
+             * @description Absent means mst_and_forecast. forecast_only checks supplied conditions, not MST design compliance. Strength factors still use design_mst.
+             */
+            design_basis?: ("mst_and_forecast" | "forecast_only") | null;
+            /**
+             * Tugs
+             * @description Fixed holding assistance evaluated in every case; not an autonomous tug schedule.
+             */
+            tugs?: components["schemas"]["TugAssignment"][];
+            /** Standoff Ft */
+            standoff_ft?: number | null;
+            /**
              * Forecast Env
              * @description Extra conditions to check besides the MST design condition.
              */
@@ -3449,12 +3820,28 @@ export interface components {
         SequenceRequest: {
             /** Ship Class Id */
             ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /**
+             * Mst
+             * @default II
+             * @enum {string}
+             */
+            mst: "I" | "II" | "IIA" | "III";
             /** Berth Id */
             berth_id: string;
             config: components["schemas"]["MooringConfig"];
             environment: components["schemas"]["EnvironmentSnapshot"];
             /** Tug Plan Result Id */
             tug_plan_result_id?: string | null;
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Common installation tide for draft static checks; defaults to the evaluated water level.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
             /**
              * Line Handling Crews
              * @default 6
@@ -3587,12 +3974,28 @@ export interface components {
         SequenceValidateRequest: {
             /** Ship Class Id */
             ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /**
+             * Mst
+             * @default II
+             * @enum {string}
+             */
+            mst: "I" | "II" | "IIA" | "III";
             /** Berth Id */
             berth_id: string;
             config: components["schemas"]["MooringConfig"];
             environment: components["schemas"]["EnvironmentSnapshot"];
             /** Tug Plan Result Id */
             tug_plan_result_id?: string | null;
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Common installation tide for draft static checks; defaults to the evaluated water level.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
             /**
              * Line Handling Crews
              * @default 6
@@ -3994,6 +4397,54 @@ export interface components {
             /** Flags */
             flags?: string[];
         };
+        /** SyntheticForecastRequest */
+        SyntheticForecastRequest: {
+            /** Berth Id */
+            berth_id: string;
+            /**
+             * Start Utc
+             * Format: date-time
+             */
+            start_utc: string;
+            baseline: components["schemas"]["EnvironmentSnapshot"];
+            /**
+             * Duration Hours
+             * @default 48
+             */
+            duration_hours: number;
+            /**
+             * Step Min
+             * @default 60
+             */
+            step_min: number;
+            /**
+             * Seed
+             * @default 0
+             */
+            seed: number;
+            /**
+             * Gust Peak Kt
+             * @description User-specified synthetic triangular gust peak at midpoint.
+             * @default 30
+             */
+            gust_peak_kt: number;
+            /**
+             * Gust Noise Sigma Kt
+             * @default 0
+             */
+            gust_noise_sigma_kt: number;
+            /**
+             * Water Level Amplitude Ft
+             * @default 0
+             */
+            water_level_amplitude_ft: number;
+            /**
+             * Water Level Period Hours
+             * @description Scenario oscillation period, not a fitted tidal constituent.
+             * @default 12
+             */
+            water_level_period_hours: number;
+        };
         /** TelemetryAccepted */
         TelemetryAccepted: {
             /** Accepted */
@@ -4207,6 +4658,11 @@ export interface components {
              * @description Explicit tending applied in time order. Nothing is retensioned silently.
              */
             tending?: components["schemas"]["TendingInput"][];
+            /**
+             * Water Level Forecast
+             * @description Optional supplied snapshots covering the whole sweep; only MLLW water levels vary. Linear interpolation is explicitly limited. Absent uses a labeled synthetic training tide.
+             */
+            water_level_forecast?: components["schemas"]["EnvironmentSnapshot"][] | null;
         };
         /** TideSweepResponse */
         TideSweepResponse: {
@@ -4288,7 +4744,10 @@ export interface components {
              */
             latest_utc: string;
         };
-        /** TimelineRequest */
+        /**
+         * TimelineRequest
+         * @description At most 25,000 baseline, per-knot and Monte Carlo equilibrium solves per job.
+         */
         TimelineRequest: {
             /**
              * Scenario Id
@@ -4353,6 +4812,11 @@ export interface components {
              * @default 0
              */
             n_samples_per_step: number;
+            /**
+             * Forecast
+             * @description Exact supplied snapshots; all knots in the requested window are evaluated. Requires start_utc, both horizon endpoints and gaps <=60 minutes. No interpolation or provider fallback. Omitted means synthetic training forcing.
+             */
+            forecast?: components["schemas"]["EnvironmentSnapshot"][] | null;
         };
         /** TrackPoint */
         TrackPoint: {
@@ -4705,6 +5169,11 @@ export interface components {
          * @description Message on WS /ws/alerts.
          */
         Alert: {
+            /**
+             * @description Input and model validity; observations without a plan do not establish mooring adequacy.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
             /** Alert Id */
             alert_id: string;
             /**
@@ -4739,6 +5208,565 @@ export interface components {
              * @default null
              */
             provenance: string | null;
+        };
+        /** ApproachSimResponse */
+        ApproachSimResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["ApproachSimResult"];
+        };
+        /** ApproachSimResult */
+        ApproachSimResult: {
+            /** Track Url */
+            track_url: string;
+            /** Max Cross Track Ft */
+            max_cross_track_ft: number;
+            /** Min Ukc Ft */
+            min_ukc_ft: number;
+            /** Events */
+            events: components["schemas"]["SimEvent"][];
+        };
+        /** BerthingSimResponse */
+        BerthingSimResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["BerthingSimResult"];
+        };
+        /** BerthingSimResult */
+        BerthingSimResult: {
+            /**
+             * Transitions
+             * @default null
+             */
+            transitions: components["schemas"]["SimulationTransition"][] | null;
+            /** @default null */
+            diagnostics: components["schemas"]["SimulationDiagnostics"] | null;
+            /** Series Url */
+            series_url: string;
+            /** Events */
+            events: components["schemas"]["SimEvent"][];
+            contact: components["schemas"]["ContactSummary"] | null;
+            /** Max Line Tension Lbf */
+            max_line_tension_lbf: number;
+        };
+        /** Candidate */
+        Candidate: {
+            config: components["schemas"]["MooringConfig"];
+            /**
+             * @description Assessed installation with explicit unstretched spans and wet/dry condition, when available. Use for fixed-installation rechecks; config retains assignment-only search semantics.
+             * @default null
+             */
+            resolved_config: components["schemas"]["MooringConfig"] | null;
+            /**
+             * Min Margin Pct Wll
+             * @description Highest utilization over every evaluated case (lower is better).
+             */
+            min_margin_pct_wll: number;
+            /** Limit Wind Kt Worst */
+            limit_wind_kt_worst: number | null;
+            /** Line Count */
+            line_count: number;
+            /** Analysis Result Id */
+            analysis_result_id: string;
+            /** Why */
+            why: string[];
+            /**
+             * Tugs
+             * @description Holding assistance used in every candidate evaluation.
+             */
+            tugs?: components["schemas"]["TugAssignment"][];
+            /**
+             * Feasible
+             * @description True when every case solved and stayed within every line, fitting and fender limit.
+             * @default null
+             */
+            feasible: boolean | null;
+            /**
+             * Worst Case
+             * @default null
+             */
+            worst_case: string | null;
+            /**
+             * Cases Evaluated
+             * @default null
+             */
+            cases_evaluated: number | null;
+        };
+        /** ContactSummary */
+        ContactSummary: {
+            /** Lateral Speed Fps */
+            lateral_speed_fps: number;
+            /** Energy Ftlbf */
+            energy_ftlbf: number;
+            /** Fender Id */
+            fender_id: string;
+            /** Pct Rated */
+            pct_rated: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+        };
+        /** DockingArrivalWindow */
+        DockingArrivalWindow: {
+            /**
+             * Installed At Water Level Mllw Ft
+             * @default null
+             */
+            installed_at_water_level_mllw_ft: number | null;
+            /**
+             * Arrival Utc
+             * Format: date-time
+             */
+            arrival_utc: string;
+            /**
+             * Operation End Utc
+             * Format: date-time
+             */
+            operation_end_utc: string;
+            /**
+             * Holding End Utc
+             * Format: date-time
+             */
+            holding_end_utc: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "supported_limited" | "within_target" | "overloaded" | "invalid" | "undetermined" | "unavailable";
+            /** Max Pct Wll */
+            max_pct_wll: number | null;
+            /** Governing At Utc */
+            governing_at_utc: string | null;
+            /** Governing Element */
+            governing_element: string | null;
+            /** Analysis Result Ids */
+            analysis_result_ids: string[];
+            /** Reasons */
+            reasons?: string[];
+        };
+        /** DockingConditionResult */
+        DockingConditionResult: {
+            /**
+             * Installed At Water Level Mllw Ft
+             * @default null
+             */
+            installed_at_water_level_mllw_ft: number | null;
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /** Analysis Result Id */
+            analysis_result_id: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "within_target" | "overloaded" | "invalid" | "undetermined" | "unavailable";
+            /** Max Pct Wll */
+            max_pct_wll: number | null;
+            /** Governing Element */
+            governing_element: string | null;
+            validity: components["schemas"]["Validity"] | null;
+            /** Reasons */
+            reasons?: string[];
+        };
+        /** ElementRisk */
+        ElementRisk: {
+            /** Element Id */
+            element_id: string;
+            /**
+             * P Exceed Wll
+             * @description Probability the element's limit (WLL, rated capacity for fittings, or rated energy for fenders) is exceeded, among valid samples.
+             */
+            p_exceed_wll: number;
+            /**
+             * P Exceed Mbs
+             * @description Lines only; null for fittings and fenders, which have no MBS.
+             * @default null
+             */
+            p_exceed_mbs: number | null;
+            /**
+             * Tension P50 Lbf
+             * @description Force (lbf) median among valid samples; fenders report reaction force, while their exceedance compares energy.
+             */
+            tension_p50_lbf: number;
+            /** Tension P95 Lbf */
+            tension_p95_lbf: number;
+            /**
+             * P Exceed Wll Ci95
+             * @description 95% Wilson interval on p_exceed_wll.
+             * @default null
+             */
+            p_exceed_wll_ci95: number[] | null;
+        };
+        /** ExceedanceResponse */
+        ExceedanceResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["ExceedanceResult"];
+        };
+        /** ExceedanceResult */
+        ExceedanceResult: {
+            /**
+             * N Samples
+             * @description Samples requested and run; never silently capped.
+             */
+            n_samples: number;
+            /**
+             * P Any Exceeds Wll
+             * @description Instantaneous probability (pointwise), among valid samples.
+             */
+            p_any_exceeds_wll: number;
+            /** P Any Exceeds Mbs */
+            p_any_exceeds_mbs: number;
+            /** Elements */
+            elements: components["schemas"]["ElementRisk"][];
+            /** Governing Element */
+            governing_element: string;
+            /**
+             * N Valid
+             * @default null
+             */
+            n_valid: number | null;
+            /**
+             * N Failed
+             * @description Samples whose equilibrium solve failed; never dropped from the accounting.
+             * @default null
+             */
+            n_failed: number | null;
+            /**
+             * P Any Ci95
+             * @description 95% Wilson interval on p_any_exceeds_wll (valid samples).
+             * @default null
+             */
+            p_any_ci95: number[] | null;
+            /**
+             * P Any Bounds
+             * @description [exceedances / n, (exceedances + failed) / n]: bounds if every failed sample were safe / exceeding.
+             * @default null
+             */
+            p_any_bounds: number[] | null;
+            /**
+             * Seed
+             * @default null
+             */
+            seed: number | null;
+            /** @default null */
+            uncertainty_model: components["schemas"]["UncertaintyModel"] | null;
+            /**
+             * Pointwise Only
+             * @description True when no horizon probability was computed.
+             * @default null
+             */
+            pointwise_only: boolean | null;
+            /** @default null */
+            horizon: components["schemas"]["HorizonRisk"] | null;
+            /**
+             * Error Criterion
+             * @default null
+             */
+            error_criterion: string | null;
+        };
+        /** ForecastDockingResponse */
+        ForecastDockingResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["ForecastDockingResult"];
+        };
+        /** ForecastDockingResult */
+        ForecastDockingResult: {
+            /**
+             * @description Selected arrival's configuration with modeled unstretched paid-out lengths made explicit. Reproduces the static installation assumption; not a deck-handling instruction.
+             * @default null
+             */
+            selected_config: components["schemas"]["MooringConfig"] | null;
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Installation water level for selected_config; unknown/absent when no supported arrival was selected.
+             * @default null
+             */
+            installed_at_water_level_mllw_ft: number | null;
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /**
+             * Forecast Start Utc
+             * Format: date-time
+             */
+            forecast_start_utc: string;
+            /**
+             * Forecast End Utc
+             * Format: date-time
+             */
+            forecast_end_utc: string;
+            /** Issued At Utc */
+            issued_at_utc: string[];
+            /**
+             * Retrieved At Utc
+             * @description Recorded component retrieval times, separate from actual provider issuance.
+             */
+            retrieved_at_utc?: string[];
+            /** Sources */
+            sources: string[];
+            config: components["schemas"]["MooringConfig"];
+            /** Tugs */
+            tugs: components["schemas"]["TugAssignment"][];
+            /** Recommendation Result Id */
+            recommendation_result_id: string | null;
+            /** Selected Arrival Utc */
+            selected_arrival_utc: string | null;
+            /** Windows */
+            windows: components["schemas"]["DockingArrivalWindow"][];
+            /** Conditions */
+            conditions: components["schemas"]["DockingConditionResult"][];
+            /** Evaluations */
+            evaluations: number;
+            /** Complete */
+            complete: boolean;
+            /** Recheck Triggers */
+            recheck_triggers: string[];
+            /** Limitations */
+            limitations: string[];
+        };
+        /**
+         * HeldOutValidation
+         * @description Calibration check on data not used for fitting.
+         */
+        HeldOutValidation: {
+            /** N Heldout */
+            n_heldout: number;
+            /** Nominal Coverage */
+            nominal_coverage: number;
+            /**
+             * Observed Coverage
+             * @default null
+             */
+            observed_coverage: number | null;
+        };
+        /**
+         * HorizonRisk
+         * @description Probability of the event over the horizon, from correlated trajectories (not a combination of pointwise values).
+         */
+        HorizonRisk: {
+            /** Event */
+            event: string;
+            /** N Trajectories */
+            n_trajectories: number;
+            /** Step Min */
+            step_min: number;
+            /** Horizon Hours */
+            horizon_hours: number;
+            /**
+             * P Event
+             * @description Known exceedances / all trajectories; a lower bound when solves fail. Consult p_event_bounds.
+             */
+            p_event: number;
+            /**
+             * P Event Ci95
+             * @description 95% Wilson interval widened over both possible outcomes of failed trajectories.
+             */
+            p_event_ci95: number[];
+            /** N Failed */
+            n_failed: number;
+            /** Correlation Time Min */
+            correlation_time_min: number;
+            /**
+             * P Event Bounds
+             * @description [known exceedances / n, (known exceedances + failed) / n]. Failed trajectories are unknown, never safe.
+             * @default null
+             */
+            p_event_bounds: number[] | null;
+            /**
+             * Effective Step Min
+             * @description Actual uniform sampling interval, no larger than step_min, including both horizon endpoints.
+             * @default null
+             */
+            effective_step_min: number | null;
         };
         /**
          * JobDoneEvent
@@ -4874,6 +5902,94 @@ export interface components {
              */
             capacity_lbf: number | null;
         };
+        /** RecommendResponse */
+        RecommendResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["RecommendResult"];
+        };
+        /** RecommendResult */
+        RecommendResult: {
+            /** Candidates */
+            candidates: components["schemas"]["Candidate"][];
+            design_environment: components["schemas"]["EnvironmentSnapshot"];
+            /**
+             * Cases
+             * @description Every environment case each candidate was evaluated against.
+             * @default null
+             */
+            cases: string[] | null;
+            /** @default null */
+            search: components["schemas"]["SearchDiagnostics"] | null;
+        };
+        /** SearchDiagnostics */
+        SearchDiagnostics: {
+            /**
+             * Strategy
+             * @enum {string}
+             */
+            strategy: "exhaustive" | "bounded_descent" | "none";
+            /**
+             * Complete
+             * @description True only when the whole candidate space was evaluated.
+             */
+            complete: boolean;
+            /** Space Size */
+            space_size: number;
+            /** Evaluated */
+            evaluated: number;
+            /** Budget */
+            budget: number;
+            /** Feasible Found */
+            feasible_found: number;
+            /** Notes */
+            notes?: string[];
+        };
         /** ShipPoint */
         ShipPoint: {
             /**
@@ -4902,6 +6018,18 @@ export interface components {
              * @enum {string}
              */
             type: "pause" | "resume" | "reset";
+        };
+        /** SimEvent */
+        SimEvent: {
+            /** T S */
+            t_s: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "fender_contact" | "line_overload" | "speed_exceeded" | "all_fast";
+            /** Detail */
+            detail: string;
         };
         /**
          * SimLifecycle
@@ -5146,6 +6274,234 @@ export interface components {
             force_lbf: number;
             /** Direction Rel Deg */
             direction_rel_deg: number;
+        };
+        /** SimulationTransition */
+        SimulationTransition: {
+            /** T S */
+            t_s: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "contact_start" | "contact_end" | "line_taut" | "line_slack" | "secured" | "tensioned" | "released";
+            /** Element Id */
+            element_id: string;
+        };
+        /** TimelineResponse */
+        TimelineResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["TimelineResult"];
+        };
+        /** TimelineResult */
+        TimelineResult: {
+            /**
+             * Forcing Source
+             * @default null
+             */
+            forcing_source: ("synthetic_training" | "supplied") | null;
+            /** Steps */
+            steps: components["schemas"]["TimelineStep"][];
+            /** First Amber Utc */
+            first_amber_utc: string | null;
+            /** First Red Utc */
+            first_red_utc: string | null;
+            /** Recommended Actions */
+            recommended_actions: string[];
+        };
+        /** TimelineStep */
+        TimelineStep: {
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Wind Speed Kt */
+            wind_speed_kt: number;
+            /** Wind Gust Kt */
+            wind_gust_kt: number;
+            /**
+             * P Any Exceeds Wll
+             * @description Null unless n_samples_per_step > 0; pointwise, not a horizon probability.
+             * @default null
+             */
+            p_any_exceeds_wll: number | null;
+            /** Governing Element */
+            governing_element: string;
+            /**
+             * Max Pct Wll
+             * @default null
+             */
+            max_pct_wll: number | null;
+            /**
+             * Valid
+             * @default null
+             */
+            valid: boolean | null;
+            /** @default null */
+            environment: components["schemas"]["EnvironmentSnapshot"] | null;
+            /** @default null */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * N Valid
+             * @default null
+             */
+            n_valid: number | null;
+            /**
+             * N Failed
+             * @default null
+             */
+            n_failed: number | null;
+            /**
+             * P Any Bounds
+             * @default null
+             */
+            p_any_bounds: number[] | null;
+        };
+        /**
+         * UncertaintyModel
+         * @description A versioned description of what is random in the environment and how it was obtained.
+         *
+         *     `qualification` is 'qualified' only when the minimum-data policy and held-out calibration pass. A synthetic or
+         *     underfit model validates algorithms only: probabilities computed from it are scenario outputs, not risk estimates.
+         */
+        UncertaintyModel: {
+            /** Model Id */
+            model_id: string;
+            /** Revision */
+            revision: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "synthetic" | "fitted";
+            /** Station Ids */
+            station_ids?: string[];
+            /**
+             * Fit Start Utc
+             * @default null
+             */
+            fit_start_utc: string | null;
+            /**
+             * Fit End Utc
+             * @default null
+             */
+            fit_end_utc: string | null;
+            /**
+             * Filters
+             * @description Quality filters applied to the fitting data.
+             */
+            filters?: string[];
+            /**
+             * Gust Factor Mu
+             * @description Log-mean of gust / sustained wind.
+             */
+            gust_factor_mu: number;
+            /** Gust Factor Sigma */
+            gust_factor_sigma: number;
+            /**
+             * Sectors
+             * @description Exploratory direction-sector gust fits; not used by the global risk sampler or independently qualified.
+             */
+            sectors?: components["schemas"]["UncertaintySector"][];
+            /**
+             * Direction Sigma Deg
+             * @description Circular standard deviation of wind direction scatter.
+             */
+            direction_sigma_deg: number;
+            /**
+             * Current Sigma Kt
+             * @description Std. dev. of observed minus predicted current speed.
+             */
+            current_sigma_kt: number;
+            /**
+             * Correlation Time Min
+             * @description e-folding time of the AR(1) wind and current deviations.
+             */
+            correlation_time_min: number;
+            /** N Events */
+            n_events: number;
+            /** N Days */
+            n_days: number;
+            /** @default null */
+            validation: components["schemas"]["HeldOutValidation"] | null;
+            /** Applicability */
+            applicability?: string[];
+            /** Limitations */
+            limitations?: string[];
+            /**
+             * Qualification
+             * @enum {string}
+             */
+            qualification: "qualified" | "unqualified";
+            /** Qualification Reasons */
+            qualification_reasons?: string[];
+        };
+        /**
+         * UncertaintySector
+         * @description Direction-sector gust fit; boundaries are true directions wind comes from.
+         */
+        UncertaintySector: {
+            /** From Deg */
+            from_deg: number;
+            /** To Deg */
+            to_deg: number;
+            /** Gust Factor Mu */
+            gust_factor_mu: number;
+            /** Gust Factor Sigma */
+            gust_factor_sigma: number;
+            /** N Fit */
+            n_fit: number;
         };
     };
     responses: never;
@@ -5496,6 +6852,13 @@ export interface operations {
                     "application/json": components["schemas"]["BerthCreated"];
                 };
             };
+            /** @description Existing berth ID has different data; register a new revision ID */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -5629,6 +6992,123 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Scenario"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scenario_environment_api_v1_scenarios__scenario_id__environment_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentSnapshot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    demo_docking_cases_api_v1_demo_docking_cases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DockingDemoCase"][];
+                };
+            };
+        };
+    };
+    synthetic_forecast_api_v1_data_simulation_forecast_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyntheticForecastRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastSeries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    berth_draft_api_v1_berth_drafts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BerthDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BerthDraftResponse"];
                 };
             };
             /** @description Validation Error */
@@ -5976,6 +7456,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RecommendRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forecast_plan_api_v1_mooring_forecast_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForecastDockingRequest"];
             };
         };
         responses: {

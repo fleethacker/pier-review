@@ -31,6 +31,7 @@ import type {
   Environment,
   LineSpec,
   MooringLine,
+  MooringConfig,
   Scenario,
   ShipClass,
   ShipClassSummary,
@@ -42,6 +43,8 @@ import { ft, subscribeUnits, toFt } from './units';
 import type { BerthSite } from './world';
 
 export interface Candidate {
+  resolved_config?: MooringConfig | null;
+  tugs?: TugAssignment[];
   config: { lines: MooringLine[]; ship_x_ft: number };
   min_margin_pct_wll: number;
   limit_wind_kt_worst: number | null;
@@ -59,6 +62,7 @@ export interface TimelineStep {
   governing_element: string | null;
 }
 export interface TimelineResult {
+  forcing_source?: 'supplied' | 'synthetic_training';
   steps: TimelineStep[];
   first_amber_utc: string | null;
   first_red_utc: string | null;
@@ -75,13 +79,18 @@ export interface EnvelopeResult {
   worst: EnvelopePoint | null;
 }
 export interface ExceedanceResult {
+  n_valid?: number | null;
+  n_failed?: number | null;
+  pointwise_only?: boolean | null;
+  uncertainty_model?: { qualification: string } | null;
   n_samples: number;
   p_any_exceeds_wll: number;
   p_any_exceeds_mbs: number;
   governing_element: string | null;
-  elements: { element_id: string; p_exceed_wll: number; p_exceed_mbs: number; tension_p50_lbf: number; tension_p95_lbf: number }[];
+  elements: { element_id: string; p_exceed_wll: number; p_exceed_mbs: number | null; tension_p50_lbf: number; tension_p95_lbf: number }[];
 }
 export interface Enveloped<R> {
+  validity?: AnalyzeResponse['validity'];
   result_id: string;
   backend: string;
   status: 'GREEN' | 'AMBER' | 'RED';
@@ -202,6 +211,7 @@ export class MooringController {
   readonly agent: AgentSession = new AgentSession(this);
   /** While true the Cesium scene belongs to the motion view, and layout redraws are held back. */
   private motionHoldsScene = false;
+  private savedScenarioKey: string | null = null;
   readonly motion: MotionController = new MotionController({
     map: {
       enter: () => {
@@ -232,8 +242,10 @@ export class MooringController {
     // A tug can hold several push points and a layout can repeat a line number while it is being edited: list each once.
     tugIds: () => [...new Set(this.s.tugAssignments.map((t) => t.tug_id))],
     lineNumbers: () => [...new Set(this.s.lines.map((l) => l.line_number))],
-    layoutKey: () => JSON.stringify([this.contextKey(), this.s.lines, this.s.tugAssignments]),
-    ensureScenario: async () => this.s.scenarioId ?? this.saveScenario(`Motion session ${new Date().toISOString().slice(11, 16)}Z`),
+    layoutKey: () => this.scenarioKey(),
+    ensureScenario: async () => this.s.scenarioId && this.savedScenarioKey === this.scenarioKey()
+      ? this.s.scenarioId
+      : this.saveScenario(`Motion session ${new Date().toISOString().slice(11, 16)}Z`),
     initialState: (offsetFt) => {
       const { berth, ship, side, shipXFt, standoffOverrideFt } = this.s;
       if (!berth || !ship) return null;
@@ -255,6 +267,7 @@ export class MooringController {
   private selectionSeq = 0;
   private analyzeAbort: AbortController | null = null;
   private recommendAbort: AbortController | null = null;
+  private readonly candidateContexts = new WeakMap<Candidate, string>();
   private unsubscribeScene: () => void;
   private unsubscribeUnits: () => void;
   private disposed = false;
@@ -540,6 +553,7 @@ export class MooringController {
 
   onEdit(edit: SceneEdit): void {
     if (edit.type !== 'move' || edit.entityId !== IDS.ship) return;
+    if (this.s.analysis.state !== 'idle') this.resetAnalysis();
     this.state.set({ shipXFt: Math.round(toFt(edit.pose.x)) });
     this.pushScene('ship');
     if (edit.final) this.scheduleAnalyze();
@@ -554,6 +568,7 @@ export class MooringController {
     clearTimeout(this.analyzeTimer);
     this.analyzeAbort?.abort();
     this.state.set({ analysis: { state: 'idle', response: null, error: null } });
+    this.pushScene('update');
   }
 
   private scheduleAnalyze(): void {
@@ -609,11 +624,12 @@ export class MooringController {
   // ---- recommend -------------------------------------------------------------------------------------------
 
   async recommend(opts: { apply: boolean }): Promise<void> {
-    const { ship, berth, side, shipXFt, loading } = this.s;
+    const { ship, berth, side, shipXFt, loading, standoffOverrideFt, tugAssignments } = this.s;
     if (!ship || !berth) return;
     this.recommendAbort?.abort();
     const abort = (this.recommendAbort = new AbortController());
     const context = this.contextKey();
+    const assistance = JSON.stringify(tugAssignments);
     this.state.set({ recommend: { state: 'running', progress: 0, candidates: [], error: null } });
     try {
       const accepted = unwrap(
@@ -624,6 +640,8 @@ export class MooringController {
             berth_id: berth.berth_id,
             side_to: side,
             ship_x_ft: shipXFt,
+            ...(standoffOverrideFt != null ? { standoff_ft: standoffOverrideFt } : {}),
+            tugs: tugAssignments,
             design_mst: ship.mst_class as 'I' | 'II' | 'IIA' | 'III',
             max_candidates: 3,
             max_evaluations: 1500,
@@ -639,11 +657,12 @@ export class MooringController {
         abort.signal,
       );
       if (this.disposed || abort.signal.aborted || this.recommendAbort !== abort) return;
-      if (context !== this.contextKey()) {
+      if (context !== this.contextKey() || assistance !== JSON.stringify(this.s.tugAssignments)) {
         this.state.set({ recommend: { state: 'idle', progress: 0, candidates: [], error: null } });
         return;
       }
       const candidates = [...envelope.result.candidates].sort((a, b) => a.min_margin_pct_wll - b.min_margin_pct_wll);
+      for (const candidate of candidates) this.candidateContexts.set(candidate, context);
       this.state.set({ recommend: { state: 'idle', progress: 1, candidates, error: null } });
       if (opts.apply && candidates[0]) this.applyCandidate(candidates[0]);
     } catch (e) {
@@ -659,7 +678,14 @@ export class MooringController {
   }
 
   applyCandidate(candidate: Candidate): void {
-    this.setLines(candidate.config.lines.map((l) => ({ ...l })));
+    const context = this.candidateContexts.get(candidate);
+    if (context !== undefined && context !== this.contextKey()) {
+      this.state.set({ recommend: { state: 'error', progress: 0, candidates: [],
+        error: 'Ship, berth or geometry changed. Run a new recommendation before applying it.' } });
+      return;
+    }
+    this.setTugAssignments(candidate.tugs ?? []);
+    this.setLines((candidate.resolved_config ?? candidate.config).lines.map((l) => ({ ...l })));
   }
 
   // ---- scenarios -------------------------------------------------------------------------------------------
@@ -669,7 +695,13 @@ export class MooringController {
     this.state.set({ scenarios });
   }
 
+  private scenarioKey(): string {
+    return JSON.stringify([this.contextKey(), this.s.lines, this.s.tugAssignments, this.s.env]);
+  }
+
   async saveScenario(name: string): Promise<string | null> {
+    const savedKey = this.scenarioKey();
+    const tugs = this.s.tugAssignments;
     const { ship, berth, side, shipXFt, lines, loading, standoffOverrideFt } = this.s;
     if (!ship || !berth || !this.s.env) return null;
     const env = this.s.env;
@@ -688,7 +720,7 @@ export class MooringController {
           berth_id: berth.berth_id,
           side_to: side,
           env_source: { mode: 'scenario', env_scenario_id: snapshot.env_scenario_id, replay_speed: 1 },
-          tugs: this.s.tugAssignments,
+          tugs,
           config: {
             side_to: side,
             ship_x_ft: shipXFt,
@@ -698,7 +730,10 @@ export class MooringController {
         },
       }),
     );
-    this.state.set({ scenarioId: saved.scenario_id, notice: `Saved scenario “${saved.name}”` });
+    if (savedKey === this.scenarioKey()) {
+      this.savedScenarioKey = savedKey;
+      this.state.set({ scenarioId: saved.scenario_id, notice: `Saved scenario “${saved.name}”` });
+    }
     await this.refreshScenarioList();
     return saved.scenario_id;
   }
@@ -707,7 +742,7 @@ export class MooringController {
     await this.guarded(async () => {
       const sc = unwrap(await modeling.GET('/api/v1/scenarios/{scenario_id}', { params: { path: { scenario_id: id } } }));
       await this.setEnvMode('manual');
-      const env = unwrap(await modeling.GET('/api/v1/env/now', { params: { query: { berth_id: sc.berth_id, env_scenario_id: sc.env_source.env_scenario_id ?? undefined } } }));
+      const env = unwrap(await modeling.GET('/api/v1/scenarios/{scenario_id}/environment', { params: { path: { scenario_id: id } } }));
       this.state.set({
         berthId: sc.berth_id,
         shipClassId: sc.ship_class_id,
@@ -720,6 +755,7 @@ export class MooringController {
       });
       await this.loadSelection({ recommend: false });
       this.state.set({ lines: sc.config?.lines ?? [], tugAssignments: sc.tugs ?? [], scenarioId: sc.scenario_id });
+      this.savedScenarioKey = this.scenarioKey();
       this.pushScene('update');
       this.scheduleAnalyze();
     });

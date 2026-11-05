@@ -5,7 +5,7 @@ geometry and bollard strain come from the modeling service (`modeling/`), which 
 makes those calculations safe for agents to call and auditable afterwards.
 
 **Status:** validated gateway, tool schemas, budgets, summaries and optional persistent ledger are implemented.
-Modeling now has real environmental loads alongside mock downstream capabilities; responses report their backend.
+Modeling responses report their backend and qualification separately; real implementations can remain limited or invalid.
 
 ## What it provides
 
@@ -65,14 +65,14 @@ summarized using their explicitly labeled first item.
 
 | Environment variable | Default | Meaning |
 | --- | --- | --- |
-| `AGENTS_MAX_TOOL_CALLS` | `40` | Nonnegative maximum attempts per plan. Zero rejects every attempt. |
+| `AGENTS_MAX_TOOL_CALLS` | `40` | Nonnegative maximum attempts per server-created agent operation (legacy gateway: per plan/caller). Zero rejects every attempt. |
 | `AGENTS_TOOL_TIMEOUT_S` | `30` | Finite positive seconds for the HTTP operation, including job polling. |
 | `AGENTS_LEDGER_DB` | unset | Optional SQLite file path; its parent directory must exist. `:memory:` is not supported. |
 
-Budgets are per `plan_id` and per caller: shared by all toolkit instances of the same caller for that plan, but the Planner's spending never consumes the Safety review's allowance (the budget exists to stop a runaway LLM loop, not the deterministic independent check). The Planner caps its iterations so its finishing calls fit, and over-budget requests surface as HTTP 429 (timeouts as 504). Invalid inputs and failed
+Direct gateway budgets without an operation id remain per `plan_id` and per caller: shared by all toolkit instances of the same caller for that plan, but the Planner's spending never consumes the Safety review's allowance (the budget exists to stop a runaway LLM loop, not the deterministic independent check). The Planner caps its iterations so its finishing calls fit, and over-budget requests surface as HTTP 429 (timeouts as 504). Invalid inputs and failed
 calls consume the budget, and over-budget attempts are also logged. A call reserves its ledger entry before
 HTTP, so concurrent calls cannot bypass the limit. With `plan_id=None`, the budget belongs to that toolkit
-instance. A local timeout stops requests and polling; it does not cancel a job already running in modeling.
+instance. A local timeout/cancellation stops polling and attempts to cancel an acknowledged modeling job; submission without an acknowledged job id cannot be cancelled remotely.
 Limits are read at toolkit construction. Keep the ledger path fixed while the service is running.
 
 Without `AGENTS_LEDGER_DB`, the ledger is held in memory for the process. With SQLite enabled, audit entries
@@ -95,3 +95,9 @@ using the same file. `calls_for(plan_id)` filters the active store; `calls_for()
 - Timeouts cover the full call, including job polling.
 - Summaries contain only numbers present in the tool output.
 - Ledger entries survive a restart when persistence is on.
+
+API agent operations receive a server-created `operation_id`, retained on tool-call audit entries. Repeated safety
+reviews and follow-up requests each get a fresh bounded allowance, while concurrent calls within one operation
+share it atomically. The LLM and HTTP tool caller cannot choose/reset this scope. All entries remain linked to the
+same plan for citations and ownership. Queue/rate limits still apply to incoming operations. With AGENTS_PERSIST=1,
+the ledger defaults to MOORING_DB unless AGENTS_LEDGER_DB overrides it.

@@ -17,7 +17,7 @@ def batch(req: Annotated[TelemetryBatch, Body(openapi_examples=ex("telemetry_bat
           x_telemetry_key: Annotated[str | None, Header()] = None):
     """When MOORING_TELEMETRY_KEY is set the key is required (constant-time compare). Unset means local demo only."""
     key = os.environ.get("MOORING_TELEMETRY_KEY")
-    if key and not (x_telemetry_key and hmac.compare_digest(key, x_telemetry_key)):
+    if key and not (x_telemetry_key and hmac.compare_digest(key.encode(), x_telemetry_key.encode())):
         raise HTTPException(status_code=401, detail="telemetry key required")
     try:
         return impl.ingest(req)

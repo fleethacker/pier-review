@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from mooring.core import access
 from mooring.core.envelopes import new_id
 from mooring.core.schemas import AnalyzeResponse, EnvironmentSnapshot, MooringConfig, MooringLine, Scenario
 
@@ -41,13 +42,39 @@ class PlanRecord:
     holding_tugs: list = field(default_factory=list)
 
 
-PLANS: dict[str, PlanRecord] = {}
+from pydantic import BaseModel, Field
+from ..shared.storage import AgentStore
 
 
-def _analyze_body(sc: Scenario, cfg: MooringConfig, env: EnvironmentSnapshot, mst: str, tugs: list | None = None) -> dict:
+class SavedPlan(BaseModel):
+    """Explicit persistence schema: never serialize the live toolkit/HTTP credentials."""
+    plan: AgentPlan
+    scenario: Scenario
+    env: EnvironmentSnapshot
+    analysis: AnalyzeResponse | None
+    mst: str = "II"
+    events: list[tuple[str, dict]] = Field(default_factory=list)
+    messages: list[tuple[str, dict]] = Field(default_factory=list)
+    holding_tugs: list = Field(default_factory=list)
+
+
+def _save_record(rec):
+    return SavedPlan(**{name: getattr(rec, name) for name in SavedPlan.model_fields})
+
+
+def _load_record(saved):
+    return PlanRecord(**{name: getattr(saved, name) for name in SavedPlan.model_fields})
+
+
+PLANS = AgentStore("agent_plan", SavedPlan, encode=_save_record, decode=_load_record)
+
+
+def _analyze_body(sc: Scenario, cfg: MooringConfig, env: EnvironmentSnapshot, mst: str, tugs: list | None = None,
+                  installed_at_water_level_mllw_ft: float | None = None) -> dict:
     return {"scenario_id": sc.scenario_id, "ship_class_id": sc.ship_class_id, "loading": sc.loading,
             "berth_id": sc.berth_id, "config": cfg.model_dump(mode="json", exclude_none=True),
-            "environment": env.model_dump(mode="json"), "mst": mst, "tugs": tugs or []}
+            "environment": env.model_dump(mode="json"), "mst": mst, "tugs": tugs or [],
+            "installed_at_water_level_mllw_ft": installed_at_water_level_mllw_ft}
 
 
 def _move_definitions() -> list[dict[str, Any]]:
@@ -114,7 +141,7 @@ def _line(cfg: MooringConfig, number: int) -> MooringLine | None:
 
 
 async def _apply_move(call: ToolUse, cfg: MooringConfig, *, tk: PhysicsToolkit, sc: Scenario, env,
-                      mst: str, berth, ship, tugs: list) -> tuple[MooringConfig, list, str | None, str | None]:
+                      mst: str, berth, ship, tugs: list, installation_tide: float | None = None) -> tuple[MooringConfig, list, str | None, str | None]:
     """Return config, tugs, result id, refusal reason. All model arguments are validated here."""
     if call.name not in MOVE_NAMES:
         return cfg, tugs, None, "Disallowed or unknown adjustment was refused."
@@ -165,10 +192,11 @@ async def _apply_move(call: ToolUse, cfg: MooringConfig, *, tk: PhysicsToolkit, 
             added = source.model_copy(update={"line_number": max(x.line_number for x in cfg.lines) + 1,
                                                "role": "breast", "pier_fitting_id": fitting})
             return cfg.model_copy(update={"lines": [*cfg.lines, added]}), tugs, None, None
-        result = await tk.hold_tugs(_analyze_body(sc, cfg, env, mst, tugs))
+        result = await tk.hold_tugs(_analyze_body(sc, cfg, env, mst, tugs, installation_tide))
         if not result.result.feasible or result.status == "RED":
             raise ValueError("the holding-tug plan is infeasible")
-        assignments = [x.model_dump(mode="json") for x in result.result.assignments]
+        # Holding search returns additions to the assistance already in the request.
+        assignments = [*tugs, *(x.model_dump(mode="json") for x in result.result.assignments)]
         return cfg, assignments, result.result_id, None
     except (KeyError, TypeError, ValueError) as exc:
         return cfg, tugs, None, f"Invalid {call.name} request was refused: {exc}."
@@ -189,19 +217,34 @@ def _score(analysis: AnalyzeResponse) -> tuple[int, float]:
 
 
 async def _conditions(tk, sc, cfg, environments, mst, tugs):
-    checks = [await tk.analyze(_analyze_body(sc, cfg, env, mst, tugs)) for env in environments]
+    checks = [await tk.analyze(_analyze_body(sc, cfg, env, mst, tugs, environments[0].water_level_mllw_ft))
+              for env in environments]
     return checks, max(range(len(checks)), key=lambda i: _score(checks[i]))
 
 
-async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
+class EventLog(list):
+    """Keep the replay record and publish each event when it is computed."""
+    def __init__(self, callback=None):
+        super().__init__()
+        self.callback = callback
+
+    def append(self, event):
+        if self.callback:
+            self.callback(*event)
+        super().append(event)
+
+
+async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None = None,
+              scenario: Scenario | None = None, on_event=None) -> PlanRecord:
     if req.constraints:
         raise ModelingError(422, "Planner constraints are not implemented; refusing to ignore them")
     if req.objective != "moor_for_forecast":
         raise ModelingError(422, "Only moor_for_forecast is currently supported")
-    plan_id = new_id("plan")
+    plan_id = plan_id or new_id("plan")
+    access.claim("agent_plan", plan_id)
     tk.plan_id = plan_id
     llm, model_id = _safe()
-    events: list[tuple[str, dict]] = []
+    events: list[tuple[str, dict]] = EventLog(on_event)
     rationale: list[RationaleItem] = []
     open_questions: list[str] = []
     event_no = 0
@@ -212,14 +255,14 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
         events.append(("step", AgentStepEvent(iteration=event_no, thought_summary=summary, tool=tool,
                                                result_id=result_id).model_dump(mode="json")))
 
-    sc = await tk.scenario(req.scenario_id)
+    sc = scenario or await tk.scenario(req.scenario_id)
     ship = await tk.ship(sc.ship_class_id)
     berth = await tk.berth(sc.berth_id)
     other_conditions: list[Any] = []
     if req.intake_report_id:
         try:
             from ..intake.agent import REPORTS
-            report = REPORTS.get(req.intake_report_id)
+            report = REPORTS.get(req.intake_report_id) if access.allowed("agent_report", req.intake_report_id) else None
         except ImportError:
             report = None
         if report is None:
@@ -238,14 +281,19 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
             raise ModelingError(422, "Planner environment source is unsupported")
         if sc.env_source.mode == "scenario" and not sc.env_source.env_scenario_id:
             raise ModelingError(422, "Scenario environment requires env_scenario_id")
-        env = await tk.env_now(sc.berth_id, env_scenario_id=sc.env_source.env_scenario_id)
+        env = await tk.scenario_environment(sc.scenario_id)
     environments = [env, *(condition.environment for condition in other_conditions)]
+    installation_tide = environments[0].water_level_mllw_ft
     step(f"Gathered the design environment ({env.wind_speed_kt:.0f} kt wind).", "get_environment")
 
     recommendation = await tk.recommend({"ship_class_id": sc.ship_class_id, "loading": sc.loading,
         "berth_id": sc.berth_id, "side_to": sc.side_to,
         "ship_x_ft": sc.config.ship_x_ft if sc.config else None, "design_mst": ship.mst_class,
-        "max_candidates": 3})
+        "max_candidates": 3, "design_basis": "forecast_only",
+        "forecast_env": [e.model_dump(mode="json") for e in environments],
+        "tide_levels_ft": [environments[0].water_level_mllw_ft],
+        "standoff_ft": sc.config.standoff_ft if sc.config else None,
+        "tugs": [assignment.model_dump(mode="json") for assignment in sc.tugs]})
     if not recommendation.result.candidates:
         raise ModelingError(422, "recommend_config returned no candidates")
     cfg = recommendation.result.candidates[0].config
@@ -258,6 +306,8 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
     tugs: list = [assignment.model_dump(mode="json") for assignment in sc.tugs]
     stopped_safely = False
     best = None
+    holding_attempted = False
+    no_improvement = 0
     llm_requested = llm is not None
     fallback_reason = None
     # Keep the essential finishing calls (tugs, risk for every condition, sequence) inside the Planner's tool budget:
@@ -285,14 +335,22 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
             step("Evaluated a required planning condition.", "analyze_mooring", check.result_id)
         if best is None or _score(analysis) < _score(best[2]):
             best = (cfg, list(tugs), analysis, worst_index, checks)
+            no_improvement = 0
+        else:
+            no_improvement += 1
         env = environments[worst_index]
         events.append(("proposal", AgentProposalEvent(config=cfg, status=_analysis_status(analysis)).model_dump(mode="json")))
-        if _analysis_status(analysis) == "GREEN" and analysis.result.min_margin.pct_wll <= req.target_margin_pct_wll:
+        if (_analysis_status(analysis) != "RED"
+                and analysis.result.min_margin.pct_wll <= req.target_margin_pct_wll
+                and all(check.validity is None or check.validity.state != "invalid" for check in checks)):
             stopped_safely = True
             step("The evaluated plan meets the target and has no RED finding.", "analyze_mooring",
                  analysis.result_id)
             break
         if iteration == iterations - 1:
+            break
+        if no_improvement >= 2:
+            open_questions.append("Stopped after repeated evaluated adjustments did not improve the governing result; this is not proof of infeasibility.")
             break
 
         call = None
@@ -310,7 +368,7 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
                     llm, fallback_reason = None, "model response refused"
         if call is not None:
             cfg2, tugs2, move_rid, refusal = await _apply_move(call, cfg, tk=tk, sc=sc, env=env,
-                                                               mst=ship.mst_class, berth=berth, ship=ship, tugs=tugs)
+                                                               mst=ship.mst_class, berth=berth, ship=ship, tugs=tugs, installation_tide=installation_tide)
             if refusal:
                 step(refusal, "llm_refusal", analysis.result_id)
                 open_questions.append(refusal)
@@ -322,14 +380,25 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
             number = int(match.group(1)) if match else -1
             line = _line(cfg, number)
             if line is None or line.parts == 3:
-                open_questions.append(f"No deterministic adjustment can resolve governing element {top.element_id}.")
+                if not holding_attempted:
+                    holding_attempted = True
+                    call = ToolUse(id=f"holding-{iteration}", name="hold_tugs", arguments={})
+                    cfg2, tugs2, move_rid, refusal = await _apply_move(call, cfg, tk=tk, sc=sc, env=env,
+                        mst=ship.mst_class, berth=berth, ship=ship, tugs=tugs, installation_tide=installation_tide)
+                    if not refusal and tugs2 != tugs:
+                        step("Proposed holding assistance; every required condition will be re-evaluated.", "hold_tugs", move_rid)
+                        cfg, tugs = cfg2, tugs2
+                        continue
+                    if refusal:
+                        open_questions.append(refusal)
+                open_questions.append(f"No evaluated deterministic adjustment resolved governing element {top.element_id}; no safe plan was found within this search.")
                 break
             call = ToolUse(id=f"fallback-{iteration}", name="double_up",
                            arguments={"line_number": number,
                                       "summary": f"Double up governing line {number}.",
                                       "rationale": f"Line {number} governed the preceding analysis."})
             cfg2, tugs2, move_rid, refusal = await _apply_move(call, cfg, tk=tk, sc=sc, env=env,
-                                                               mst=ship.mst_class, berth=berth, ship=ship, tugs=tugs)
+                                                               mst=ship.mst_class, berth=berth, ship=ship, tugs=tugs, installation_tide=installation_tide)
             if refusal:
                 step(refusal, "deterministic_refusal", analysis.result_id)
                 open_questions.append(refusal)
@@ -345,6 +414,11 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
         raise RuntimeError("planner exhausted without an analysis")
 
     cfg, tugs, analysis, worst_index, checks = best
+    if analysis.result.resolved_config is not None:
+        cfg = analysis.result.resolved_config
+        rationale.append(RationaleItem(
+            text="Preserved modeling-resolved unstretched line spans for subsequent rechecks; these are not rope-cutting lengths or handling instructions.",
+            cites=[analysis.result_id]))
     env = environments[worst_index]
     for check in checks:
         rationale.append(RationaleItem(text="Checked the final configuration at a required planning condition.",
@@ -359,12 +433,20 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
     tug_plan = tug_plans[tug_index]
     for result in tug_plans:
         step("Computed the berthing tug plan for a required condition.", "plan_tugs", result.result_id)
+    sequence_tug_id = tug_plan.result_id
+    invalid_assistance_note = None
+    if tug_plan.validity is not None and tug_plan.validity.state == "invalid":
+        sequence_tug_id = None
+        invalid_assistance_note = "Invalid berthing-tug assessment was not used as assistance in the draft sequence; the plan remains blocked."
+        step(invalid_assistance_note, "plan_tugs", tug_plan.result_id)
     sequence = await tk.sequence({"ship_class_id": sc.ship_class_id, "berth_id": sc.berth_id,
+        "loading": sc.loading, "mst": ship.mst_class,
+        "installed_at_water_level_mllw_ft": installation_tide,
         "config": cfg.model_dump(mode="json", exclude_none=True),
         "environment": environments[tug_index].model_dump(mode="json"),
-        "tug_plan_result_id": tug_plan.result_id})
+        "tug_plan_result_id": sequence_tug_id})
     step("Generated the line-handling sequence.", "generate_sequence", sequence.result_id)
-    risks = [await tk.exceedance({**_analyze_body(sc, cfg, condition, ship.mst_class, tugs),
+    risks = [await tk.exceedance({**_analyze_body(sc, cfg, condition, ship.mst_class, tugs, installation_tide),
                                  "n_samples": 200, "seed": 1}) for condition in environments]
     risk = max(risks, key=lambda r: (SEVERITY[r.status], r.result.p_any_exceeds_wll))
     for result in risks:
@@ -402,14 +484,19 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
     rationale = [item for item in rationale if item.cites and set(item.cites) <= ledger_ids]
     mode = ("LLM" if llm else f"LLM, then deterministic after {fallback_reason}") if llm_requested else "deterministic"
     assumptions = [f"Configured model: {model_id}; adjustment mode: {mode}.", *([budget_note] if budget_note else []),
-                   "Model text is not used as factual rationale; physics results govern status."]
+                   "Model text is not used as factual rationale; physics results govern status.",
+                   f"Line installation is fixed at the first planning condition water level ({installation_tide:g} ft MLLW); no implicit tending between conditions.",
+                   "Forecast-only planning checks the supplied conditions; it does not establish MST design-condition compliance. Intake selects representative snapshots, not every forecast sample; use the forecast-plan endpoint for an arrival/holding interval assessment."]
     assumptions.extend(dict.fromkeys(a for result in [*checks, *tug_plans, sequence, *risks]
                                      for a in result.assumptions))
+    if invalid_assistance_note:
+        assumptions.append(invalid_assistance_note)
     plan = AgentPlan(plan_id=plan_id, scenario_id=sc.scenario_id, intake_report_id=req.intake_report_id,
         state="succeeded", status=status, config=cfg, tug_plan=tug_plan.result, sequence=sequence.result,
+        sequence_result_id=sequence.result_id,
         analysis_result_id=analysis.result_id, risk_result_id=risk.result_id, rationale=rationale,
         assumptions=assumptions, open_questions=open_questions,
-        holding_tugs=tugs, condition_analysis_result_ids=[check.result_id for check in checks])
+        holding_tugs=tugs, installed_at_water_level_mllw_ft=installation_tide, condition_analysis_result_ids=[check.result_id for check in checks])
     events.append(("done", AgentDoneEvent(plan_id=plan_id, status=status).model_dump(mode="json")))
     record = PlanRecord(plan=plan, scenario=sc, env=env, analysis=analysis, mst=ship.mst_class,
                         events=events, toolkit=tk, holding_tugs=tugs)
@@ -433,11 +520,15 @@ async def answer(rec: PlanRecord, text: str, tk: PhysicsToolkit) -> AgentMessage
         gust = speed * 1.3 if speed_match else env.wind_gust_kt
         changed = env.model_copy(update={"wind_speed_kt": speed, "wind_gust_kt": gust,
             "wind_from_true_deg": COMPASS[direction_match.group(1)] if direction_match else env.wind_from_true_deg})
-        result = await tk.analyze(_analyze_body(rec.scenario, rec.plan.config, changed, rec.mst, rec.holding_tugs))
+        result = await tk.analyze(_analyze_body(rec.scenario, rec.plan.config, changed, rec.mst, rec.holding_tugs,
+            rec.plan.installed_at_water_level_mllw_ft))
         top = result.result.min_margin
         msg = AgentMessageEvent(message_id=new_id("msg"), cites=[result.result_id],
             text=f"At {speed:.0f} kt, gusting {gust:.0f} kt ({'assumed 1.3 times sustained' if speed_match else 'unchanged gust'}), "
                  f"from {changed.wind_from_true_deg:03.0f}, the plan is {_analysis_status(result)}; "
                  f"the governing utilization is {top.pct_wll:.0f}% on {top.element_id}.")
-    rec.messages.append(("message", msg.model_dump(mode="json")))
+    with PLANS.atomic():
+        current = PLANS.get(rec.plan.plan_id, rec)
+        current.messages.append(("message", msg.model_dump(mode="json")))
+        PLANS[rec.plan.plan_id] = current
     return msg

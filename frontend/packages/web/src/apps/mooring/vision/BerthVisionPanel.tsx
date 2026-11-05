@@ -106,7 +106,7 @@ export function BerthVisionPanel() {
           <Field label="Image of the berth">
             <input
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
+              accept="image/png,image/jpeg,image/webp"
               aria-label="Berth image"
               className="block w-full text-[11px] text-mil-dim file:mr-2 file:rounded-sm file:border file:border-mil-border file:bg-mil-panel file:px-2 file:py-1 file:text-mil-text"
               onChange={(e) => {
@@ -163,6 +163,7 @@ export function BerthVisionPanel() {
               {natural && (
                 <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 ${natural.w} ${natural.h}`} preserveAspectRatio="none" role="img" aria-label="Detections on the image">
                   {result.detections.map((d) => {
+                    if (!d.bbox_px) return null;
                     const [x, y, w, h] = d.bbox_px;
                     const color = d.needs_confirmation ? STATUS_COLOR.AMBER : BAND_COLOR[confidenceBand(d.confidence)];
                     return <rect key={d.item_id} x={x} y={y} width={w} height={h} fill="none" stroke={color} strokeWidth={Math.max(natural.w, natural.h) / (d.needs_confirmation ? 160 : 400)} />;
@@ -172,7 +173,7 @@ export function BerthVisionPanel() {
             </div>
           )}
           <p className="text-[10px] text-mil-dim">
-            {result.detections.length} detections. Amber boxes need confirmation; others are green (80% or more), amber or red by confidence.
+            Draft source: {result.extraction_source ?? 'unknown'}. {result.extraction_note} {result.detections.length} proposed items. Amber boxes need confirmation; box colors reflect heuristic confidence scores, not safety or calibrated probabilities.
           </p>
 
           <div className="grid grid-cols-2 gap-2">
@@ -201,7 +202,7 @@ export function BerthVisionPanel() {
                     <label className="flex cursor-pointer items-center gap-2">
                       <input type="checkbox" checked={confirmed.has(d.item_id)} onChange={() => toggle(d.item_id)} />
                       <span className={cn(confirmed.has(d.item_id) ? 'text-white' : 'text-mil-amber')}>
-                        {d.item_id} · {d.kind.replace(/_/g, ' ')} · {Math.round(d.confidence * 100)}% sure
+                        {d.item_id} · {d.kind.replace(/_/g, ' ')} · confidence score {d.confidence.toFixed(2)} (uncalibrated)
                       </span>
                     </label>
                   </li>
@@ -230,7 +231,7 @@ export function BerthVisionPanel() {
 
       {phase === 'done' && (
         <div role="status" className="space-y-2 text-[11px]">
-          <p className="text-mil-green">Saved “{name}” and selected it. Its data source is “vision”: check every fitting against the real pier before relying on it.</p>
+          <p className="text-mil-green">Saved “{name}” and selected it. Check its recorded provenance and every fitting against the real pier before relying on it.</p>
           <Button size="sm" variant="secondary" onClick={() => { setFile(null); reset(); }}>
             Analyze another image
           </Button>

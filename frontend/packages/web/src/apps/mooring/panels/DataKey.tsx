@@ -3,7 +3,7 @@ import type { Selection } from '../../../scene/types';
 import { Panel, StatusChip } from '../../../shell/ui';
 import { STATUS_COLOR } from '../../../shell/theme';
 import { describeComponents, compass, shipComponents } from '../conditions';
-import { ENV_COLORS, IDS } from '../mapping';
+import { ENV_COLORS, hasUsableAnalysis, IDS } from '../mapping';
 import { fmt, useUnitSystem } from '../units';
 import { useController, useMooring } from './context';
 
@@ -74,7 +74,7 @@ export function DataKey() {
   const windTo = (env.wind_from_true_deg + 180) % 360;
   const windParts = berth ? describeComponents(shipComponents(windTo, env.wind_speed_kt, berth, side)) : null;
   const curParts = berth ? describeComponents(shipComponents(env.current_set_true_deg, env.current_speed_kt, berth, side)) : null;
-  const results = new Map((analysis?.result.lines ?? []).map((l) => [l.line_number, l]));
+  const results = new Map((hasUsableAnalysis(analysis) ? analysis?.result.lines ?? [] : []).map((l) => [l.line_number, l]));
   const level = env.water_level_mllw_ft;
 
   return (
@@ -118,7 +118,7 @@ export function DataKey() {
           ['Tide', env.tide_stage ?? 'not given'],
           ['Source', env.source],
         ]}
-        description="Height of the water above mean lower low water. It sets how steeply the lines lead up to the pier deck: a falling tide tightens them and a rising tide slackens them."
+        description="Height of the water above mean lower low water. It changes line length and lead. Whether a line tightens or slackens depends on attachment heights and installed length; recheck the assessed installation."
       />
 
       <section className="border-l-2 pl-3" style={{ borderColor: '#c9d6e6' }} aria-label="LINES">
@@ -150,7 +150,7 @@ export function DataKey() {
           })}
         </div>
         <p className="mt-2 text-[10px] leading-relaxed text-mil-text">
-          Each line is tagged with its number and its load as a share of working load (WLL). Green is under 80%, amber 80 to 100%, red over 100%. Select a row to find the line on the canvas.
+          Each line is tagged with its number and its load as a share of working load (WLL). Green is under 80%, amber 80 to 100%, red over 100%. A dash means no usable assessment is available. Select a row to find the line on the canvas.
         </p>
       </section>
 

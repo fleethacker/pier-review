@@ -3,10 +3,11 @@
 Tugs are sized by re-solving the real equilibrium with candidate tug forces applied and checking every line, fitting and
 fender against its limit at the *solved* pose. There is no scalar sum of overloads: a tug that cures sway but worsens yaw
 fails the check. Candidates are tugs on water-side push points acting against the dominant lateral load, at a uniform
-fraction of each tug's rating (ratings from the catalog, not certified). The smallest plan that passes is chosen: fewest
-tugs, then least total force. Every reported assisted utilization comes from a fresh solve whose envelope is stored and
+fraction of each tug's rating (ratings from the catalog, not certified). Smaller tug sets are tried first and search
+stops at the first passing candidate; minimum total force is not established. Every reported assisted utilization comes from a fresh solve whose envelope is stored and
 referenced by `assisted_result_id`. If no candidate passes, the best attempt is returned as infeasible: that says the
-search found no plan, not that none exists.
+search found no plan, not that none exists. Returned assignments are additions to the request tugs; the cited assisted
+result includes both existing and additional assistance.
 """
 
 import dataclasses
@@ -39,7 +40,7 @@ def hold_plan(req: HoldTugRequest) -> TugPlanResponse:
     target = 100.0 / (1.0 + req.margin)
     ship = system.ship
     try:
-        fleet = [refdata.tug(t) for t in req.available_tug_ids] if req.available_tug_ids else refdata.tugs()
+        fleet = [refdata.tug(t) for t in req.available_tug_ids] if req.available_tug_ids is not None else refdata.tugs()
     except refdata.NotFound as e:
         raise refdata.InvalidReference(str(e)) from None
     used_tugs = {t.tug_id for t in req.tugs}
@@ -96,8 +97,11 @@ def hold_plan(req: HoldTugRequest) -> TugPlanResponse:
         assigns, total, worst_el = chosen
         final_req = base_req.model_copy(update={"tugs": list(req.tugs) + assigns})
         final = solver.analyze(final_req)  # fresh solve; stored and cited
-        feasible = True
-        rationale.append(f"Assisted worst element {worst_el[0]} at {worst_el[1]:.0f}% from a fresh equilibrium solve" + (f" with {len(assigns)} tug(s)." if assigns else "."))
+        feasible = (final.validity is not None and final.validity.state not in ("invalid", "unknown")
+                    and final.status != "RED" and final.result.min_margin.pct_wll <= target)
+        if not feasible:
+            rationale.append("The fresh independent solve did not establish the target; the candidate is not feasible.")
+        rationale.append(f"Assisted worst element {final.result.min_margin.element_id} at {final.result.min_margin.pct_wll:.0f}% from a fresh equilibrium solve" + (f" with {len(assigns)} tug(s)." if assigns else "."))
     else:
         assigns, total, worst_el = (best[0], best[1], best[2]) if sol.converged and best_try else ([], 0.0, base_worst)
         final = solver.analyze(base_req.model_copy(update={"tugs": list(req.tugs) + assigns}))
@@ -106,10 +110,11 @@ def hold_plan(req: HoldTugRequest) -> TugPlanResponse:
                          "the best attempt is shown. This is a search result, not proof that no plan exists.")
     by_point = [PushPointForce(push_point_id=a.push_point_id, force_lbf=a.force_lbf, mode=a.mode) for a in assigns]
     tug_by = {t.tug_id: t for t in fleet}
-    pct = max([l.pct_wll for l in final.result.lines] + [p.pct for p in final.result.pier_fittings] + [s.pct or 0 for s in final.result.ship_fittings])
+    # The authoritative governing result includes fenders as well as lines and fittings.
+    pct = final.result.min_margin.pct_wll
     result = TugPlanResult(required_lateral_lbf=round(total), required_by_point=by_point, assignments=assigns, total_bollard_pull_lbf=round(total),
                            total_power_hp=round(sum(tug_by[a.tug_id].power_hp for a in assigns)), recommended_tug_count=len(assigns),
-                           feasible=feasible, rationale=rationale, binding_constraints=[] if feasible else [f"{worst_el[0]} ({worst_el[2]}) still above target"],
+                           feasible=feasible, rationale=rationale, binding_constraints=[] if feasible else [f"Fresh assessment {final.result.min_margin.element_id} does not establish the target; inspect its validity and findings"],
                            ratings_basis="Catalog bollard pull (seed/estimated), not certified ratings; uniform fraction of rating per tug.",
                            assisted_max_pct_wll=round(pct, 1), assisted_result_id=final.result_id)
     validity = final.validity
@@ -120,9 +125,11 @@ def hold_plan(req: HoldTugRequest) -> TugPlanResponse:
     if not feasible:
         reasons.append(ValidityReason(code="NO_TESTED_PLAN_MEETS_TARGET", affected_components=["fleet"],
                                       message="No candidate in the search met the utilization target; undetermined, not proven infeasible."))
-    state = "invalid" if validity.state == "invalid" else "limited" if reasons else "valid"
+    state = "invalid" if validity.state in ("invalid", "unknown") else "limited" if reasons else "valid"
     v = Validity(state=state, reasons=merge_reasons(reasons), diagnostics=validity.diagnostics)
     return envelope(TugPlanResponse, model="mooring.tugs.hold", request=req, result=result, backend="real", model_version="1.0.0",
                     status=status_with_validity("GREEN" if feasible else "RED", v), validity=v, manifest=final.manifest,
-                    assumptions=["Candidates re-solved with the real equilibrium; utilization checked for every line, fitting and fender.",
+                    assumptions=["Returned tug assignments are additional to existing request assistance; the cited assisted result includes both.",
+                                 "Candidates re-solved with the real equilibrium; utilization checked for every line, fitting and fender.",
+                                 "Smaller additional tug sets are tried first; search stops at the first passing candidate, not the minimum total force.",
                                  f"Utilization target {target:.0f}% = 100% / (1 + margin {req.margin:.0%}).", *solver.ASSUMPTIONS])

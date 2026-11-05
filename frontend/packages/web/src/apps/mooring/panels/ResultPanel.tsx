@@ -1,4 +1,5 @@
 import { BackendBadge, Citation, Panel, StatusChip, toStatus } from '../../../shell/ui';
+import { hasUsableAnalysis } from '../mapping';
 import { fmt } from '../units';
 import { useMooring } from './context';
 
@@ -6,6 +7,7 @@ export function ResultPanel() {
   const analysis = useMooring((s) => s.analysis);
   const lines = useMooring((s) => s.lines);
   const res = analysis.response;
+  const usable = hasUsableAnalysis(res);
   if (lines.length === 0) return null;
 
   return (
@@ -20,10 +22,10 @@ export function ResultPanel() {
           </div>
           <p className="text-xs text-mil-amber">Validity: {res.validity?.state ?? 'unknown'}. {res.validity?.reasons?.map((r) => r.message).join(' ')}</p>
           <div className="grid grid-cols-2 gap-2 text-[11px]">
-            <Metric label="Tightest line" value={`${res.result.min_margin.element_id} · ${fmt.pct(res.result.min_margin.pct_wll)} WLL`} />
+            <Metric label="Highest utilization" value={usable ? `${res.result.min_margin.element_id} · ${fmt.pct(res.result.min_margin.pct_wll)} WLL` : 'Unavailable'} />
             <Metric
               label="Ship drift"
-              value={`${res.result.offset.sway_ft.toFixed(1)} ft sway · ${res.result.offset.surge_ft.toFixed(1)} ft surge`}
+              value={usable ? `${res.result.offset.sway_ft.toFixed(1)} ft sway · ${res.result.offset.surge_ft.toFixed(1)} ft surge` : 'Unavailable'}
             />
           </div>
           <ul className="space-y-1.5">

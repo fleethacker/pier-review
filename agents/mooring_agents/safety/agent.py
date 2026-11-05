@@ -8,26 +8,31 @@ import logging
 import math
 import time
 from collections.abc import AsyncIterator
+from datetime import UTC
 from importlib.resources import files
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
+from mooring.core import access
 from mooring.core.envelopes import new_id, utcnow
-from mooring.core.schemas import LimitEnvelopePoint
-from mooring.rules.nstm582 import design_factor
+from mooring.core.forecast_provenance import availability_problem
+from mooring.core.schemas import LimitEnvelopePoint, Validity
 
 from ..intake.mock import REPORTS
 from ..physics.client import ModelingClient, ModelingError
 from ..physics.toolkit import PhysicsToolkit
 from ..planner.mock import PLANS, PlanRecord, _analyze_body
 from ..shared import llm
+from ..shared.environment_quality import component_issues
 from ..shared.narration import GuardrailError, format_fact, render
 from . import checks
 from .schemas import (DirectionalThreshold, GustWarning, SafetyReview, SafetyReviewRequest, Thresholds)
 
-REVIEWS: dict[str, SafetyReview] = {}
-ENVELOPES: dict[str, list[LimitEnvelopePoint]] = {}
+from ..shared.storage import AgentStore
+
+REVIEWS = AgentStore("agent_review", SafetyReview)
+ENVELOPES = AgentStore("agent_envelope", list[LimitEnvelopePoint], owner_kind="agent_review")
 LLM_TIMEOUT_S = 30
 logger = logging.getLogger(__name__)
 
@@ -41,7 +46,7 @@ class BriefProposal(_ProposalModel):
 
 
 def plan_record(plan_id: str) -> PlanRecord:
-    if plan_id not in PLANS:
+    if not access.allowed("agent_plan", plan_id) or plan_id not in PLANS:
         raise ModelingError(404, f"Plan '{plan_id}' not found")
     return PLANS[plan_id]
 
@@ -116,9 +121,8 @@ async def _narrate(review: SafetyReview) -> SafetyReview:
 def _directional(points: list[LimitEnvelopePoint], factor: float) -> list[DirectionalThreshold]:
     return [DirectionalThreshold(
         wind_rel_deg=point.wind_rel_deg, governing_element=point.first_failure_element,
-        limit_wll_gust_kt=point.limit_wind_kt,
-        estimated_breaking_gust_kt=round(point.limit_wind_kt * math.sqrt(factor), 1)
-        if point.limit_wind_kt else None,
+        limit_wll_gust_kt=_gust_limit(point),
+        estimated_breaking_gust_kt=None,
     ) for point in points]
 
 
@@ -129,80 +133,178 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
     cites = sorted({cite for item in plan.rationale for cite in item.cites})
     results = [await checks.cites_resolve(tk, cites), checks.cites_in_ledger(req.plan_id, cites)]
 
-    report = REPORTS.get(req.intake_report_id) if req.intake_report_id else None
+    original_id = getattr(plan, "intake_report_id", None)
+    intake_id = req.intake_report_id or original_id
+    report_ids = list(dict.fromkeys(value for value in (original_id, intake_id) if value))
+    reports = []
+    for report_id in report_ids:
+        report = REPORTS.get(report_id) if access.allowed("agent_report", report_id) else None
+        if report is None:
+            raise ModelingError(404, f"Intake report '{report_id}' not found")
+        for name, expected in (("berth_id", rec.scenario.berth_id),
+                               ("ship_class_id", rec.scenario.ship_class_id),
+                               ("side_to", getattr(rec.scenario, "side_to", None))):
+            if getattr(report, name, None) not in (None, expected):
+                raise ModelingError(422, "Intake report does not match the plan ship, berth or side")
+        if not report.planning_conditions:
+            raise ModelingError(422, "Intake report has no planning conditions")
+        reports.append(report)
     if plan.config is None:
         raise ModelingError(422, "Plan has no configuration to review")
-    # Independent re-analysis at every intake planning condition (at least as thorough as the Planner),
-    # with the same holding-tug assistance the plan relies on. The worst condition governs the checks.
-    environments = [condition.environment for condition in report.planning_conditions] if report else [rec.env]
+    # A supplemental intake adds conditions; it cannot erase the plan's original design conditions.
+    environments = [condition.environment for report in reports for condition in report.planning_conditions] or [rec.env]
+    environments = list({json.dumps(env.model_dump(mode="json"), sort_keys=True): env for env in environments}.values())
     holding = getattr(rec, "holding_tugs", None) or []
-    reanalyses = [await tk.analyze(_analyze_body(rec.scenario, plan.config, condition, rec.mst, holding))
+    installation_tide = getattr(plan, "installed_at_water_level_mllw_ft", None)
+    reanalyses = [await tk.analyze(_analyze_body(rec.scenario, plan.config, condition, rec.mst, holding, installation_tide))
                   for condition in environments]
     rank = {"GREEN": 0, "INFO": 0, "AMBER": 1, "RED": 2}
-    worst_index = max(range(len(reanalyses)),
-                      key=lambda i: (rank[reanalyses[i].status], reanalyses[i].result.min_margin.pct_wll))
-    reanalysis, env = reanalyses[worst_index], environments[worst_index]
-    body = _analyze_body(rec.scenario, plan.config, env, rec.mst, holding)
-    reanalysis_checks = [checks.reanalysis_not_red(reanalysis, env),
-                         checks.margin(reanalysis, req.target_margin_pct_wll), checks.no_red_findings(reanalysis)]
-    for check in reanalysis_checks:
-        check.cites = [r.result_id for r in reanalyses]
+    reanalysis_checks = [
+        checks.all_conditions([checks.reanalysis_not_red(result, condition) for result, condition in zip(reanalyses, environments)]),
+        checks.all_conditions([checks.margin(result, req.target_margin_pct_wll) for result in reanalyses]),
+        checks.all_conditions([checks.no_red_findings(result) for result in reanalyses]),
+    ]
     results.extend(reanalysis_checks)
 
-    envelope = await tk.envelope({**body, "step_deg": 15})
-    worst = envelope.result.worst
-    factor = design_factor(rec.mst)
-    limit_wll = worst.limit_wind_kt
-    estimate = limit_wll * math.sqrt(factor) if limit_wll else None
-    forecast_gust = max([condition.environment.wind_gust_kt for condition in report.planning_conditions]
-                        if report else [env.wind_gust_kt])
-    results.extend([checks.gust_threshold(forecast_gust, limit_wll, envelope.result_id),
-                    checks.tugs_feasible(plan.tug_plan), checks.mst_within_ship(report)])
+    envelopes = [await tk.envelope({**_analyze_body(rec.scenario, plan.config, condition, rec.mst, holding, installation_tide), "step_deg": 15})
+                 for condition in environments]
+    points = _conservative_points(envelopes)
+    worst = min(points, key=lambda point: (0, 0) if _gust_limit(point) is None else (1, _gust_limit(point)))
+    factor = 1.0  # Legacy helper parameter; breaking estimates are deliberately unavailable.
+    limit_wll = _gust_limit(worst)
+    estimate = None
+    forecast_gust = max(condition.wind_gust_kt for condition in environments)
+    gust_check = checks.gust_threshold(forecast_gust, limit_wll, envelopes[0].result_id)
+    gust_check.cites = [item.result_id for item in envelopes]
+    results.extend([gust_check, checks.tugs_feasible(plan.tug_plan),
+                    checks.all_conditions([checks.mst_within_ship(report) for report in reports or [None]]),
+                    checks.all_conditions([checks.forecast_coverage(report) for report in reports or [None]]),
+                    checks.plan_not_red(plan)])
     checks.validate_check_set(results)
 
     failed = [result for result in results if not result.passed]
-    mst_ok = results[-1].passed
-    verdict = "reject" if not mst_ok else ("revise" if any(result.severity == "RED" for result in failed)
-                                           else "ready_for_signature")
+    mst_check = next(check for check in results if check.check_id == "MST-WITHIN-SHIP")
+    verdict = "reject" if not mst_check.passed and mst_check.severity == "RED" else ("revise" if failed else "ready_for_signature")
     status = "RED" if any(result.severity == "RED" for result in failed) else "AMBER" if failed else "GREEN"
+    # A review must not erase the validity floor imposed by the physics results.
+    status = max([status, *(r.status for r in reanalyses), *(getattr(item, "status", "GREEN") for item in envelopes),
+                  getattr(plan, "status", None) or "AMBER"], key=rank.get)
     threshold = Thresholds(
         wind_rel_deg=worst.wind_rel_deg, governing_element=worst.first_failure_element,
         limit_wll_gust_kt=limit_wll, forecast_max_gust_kt=forecast_gust,
-        limit_breaking_gust_kt=round(estimate, 1) if estimate else None, cites=[envelope.result_id],
-        directions=_directional(envelope.result.points, factor),
+        limit_breaking_gust_kt=round(estimate, 1) if estimate else None, cites=[item.result_id for item in envelopes],
+        directions=_directional(points, factor),
     )
+    validities = [v for item in [*reanalyses, *envelopes] if (v := getattr(item, "validity", None)) is not None]
+    review_validity = None
+    if validities:
+        state_rank = {"valid": 0, "limited": 1, "unknown": 2, "invalid": 3}
+        review_validity = Validity(state=max((v.state for v in validities), key=state_rank.get),
+            reasons=list({r.code: r for v in validities for r in v.reasons}.values()))
     headline = _headline(verdict, len(results) - len(failed), len(results), limit_wll)
     result = SafetyReview(
-        review_id=new_id("review"), plan_id=req.plan_id, intake_report_id=req.intake_report_id,
+        review_id=new_id("review"), plan_id=req.plan_id, intake_report_id=intake_id,
         created_at_utc=utcnow(), verdict=verdict, status=status, checks=results, thresholds=threshold,
-        summary=headline, summary_source="deterministic", narration_note=None, backend="real",
+        validity=review_validity, summary=headline, summary_source="deterministic", narration_note=None, backend="real",
     )
     result = await _narrate(result)
+    access.claim("agent_review", result.review_id)
     REVIEWS[result.review_id] = result
-    ENVELOPES[result.review_id] = envelope.result.points
+    ENVELOPES[result.review_id] = points
     return result
 
 
+def _conservative_points(envelopes):
+    """Choose the least established/lowest solver limit in each direction across conditions."""
+    angles = sorted({point.wind_rel_deg for item in envelopes for point in item.result.points})
+    if not angles:
+        raise ModelingError(502, "Modeling returned an empty limit envelope")
+    out = []
+    for angle in angles:
+        candidates = [next((point for point in item.result.points if point.wind_rel_deg == angle), None)
+                      for item in envelopes]
+        if any(point is None for point in candidates):
+            raise ModelingError(502, "Modeling returned inconsistent limit-envelope directions")
+        out.append(min(candidates, key=lambda point: (0, 0) if _gust_limit(point) is None else (1, _gust_limit(point))))
+    return out
+
+
+def _gust_limit(point):
+    # Legacy fixtures with no explicit search outcome used a gust-labeled limit.
+    # Current modeling responses must provide the explicit gust basis.
+    gust = getattr(point, "limit_gust_kt", None)
+    if gust is not None:
+        return gust
+    return point.limit_wind_kt if getattr(point, "outcome", None) is None else None
+
+
 def _limit_for(points: list[LimitEnvelopePoint], rel_deg: float) -> LimitEnvelopePoint | None:
-    usable = [point for point in points if point.limit_wind_kt is not None]
-    if not usable:
+    if not points:
         return None
-    return min(usable, key=lambda point: abs((point.wind_rel_deg - rel_deg + 180) % 360 - 180))
+    # Do not substitute a distant known sector when the nearest sector is unknown.
+    nearest = min(points, key=lambda point: abs((point.wind_rel_deg - rel_deg + 180) % 360 - 180))
+    return nearest if _gust_limit(nearest) is not None else None
 
 
-def _warning(plan_id: str, env, point: LimitEnvelopePoint | None, factor: float, *, prefix: str = "") -> GustWarning:
-    pct_wll = 100 * env.wind_gust_kt / point.limit_wind_kt if point else None
-    pct_break = 100 * env.wind_gust_kt / (point.limit_wind_kt * math.sqrt(factor)) if point else None
+def _warning(plan_id: str, env, point: LimitEnvelopePoint | None, factor: float, *, prefix: str = "",
+             recheck_reasons: list[str] | None = None, invalid_input: bool = False) -> GustWarning:
+    limit = _gust_limit(point) if point is not None else None
+    positive_limit = limit is not None and limit > 0
+    pct_wll = 100 * env.wind_gust_kt / limit if positive_limit else None
+    pct_break = None
     severity = "RED" if pct_wll and pct_wll >= 100 else "AMBER" if pct_wll and pct_wll >= 80 else "INFO"
+    if not positive_limit:
+        severity = "RED" if limit == 0 else "AMBER"
     message = (f"{prefix}Gust {env.wind_gust_kt:.0f} kt from {env.wind_from_true_deg:03.0f}: " +
-               (f"{pct_wll:.0f}% of the {point.limit_wind_kt:.0f} kt working-load limit, "
-                f"{pct_break:.0f}% of estimated breaking ({point.first_failure_element} governs)."
-                if point else "wind from this side loads the fenders only."))
+               (f"{pct_wll:.0f}% of the {limit:.0f} kt working-load gust limit "
+                f"({point.first_failure_element} governs); breaking threshold is unavailable."
+                if positive_limit else "gust threshold is unavailable; do not infer safe conditions."))
+    reasons = list(recheck_reasons or [])
+    if not positive_limit:
+        reasons.append("No positive assessed gust limit is available.")
+    if recheck_reasons:
+        pct_wll = None
+        severity = "RED" if severity == "RED" or invalid_input else "AMBER"
+        message = f"{prefix}Reanalysis required before using the assessed gust limits: " + " ".join(reasons)
     return GustWarning(warning_id=new_id("warn"), plan_id=plan_id, at_utc=env.valid_at_utc, severity=severity,
                        gust_kt=env.wind_gust_kt, wind_from_true_deg=env.wind_from_true_deg,
                        pct_of_wll_limit=round(pct_wll, 1) if pct_wll is not None else None,
                        pct_of_breaking_limit=round(pct_break, 1) if pct_break is not None else None,
-                       element_id=point.first_failure_element if point else None, message=message)
+                       element_id=point.first_failure_element if point else None, message=message,
+                       requires_recheck=bool(reasons), recheck_reasons=reasons)
+
+
+def _watch_recheck(env, assessed) -> tuple[list[str], bool]:
+    """Compare supplied facts, never recompute or extrapolate a physical threshold in the agent."""
+    problems = [item for item in component_issues(env) if item[2] in ("AMBER", "RED")]
+    reasons = [item[3] for item in problems]
+    invalid = any(item[2] == "RED" for item in problems)
+    if problem := availability_problem(env, utcnow()):
+        reasons.append(problem)
+        invalid = True
+    fields = ("current_speed_kt", "current_set_true_deg", "water_level_mllw_ft", "air_density_kgm3", "water_density_kgm3")
+    if not any(all(getattr(env, field) == getattr(prior, field) for field in fields) for prior in assessed):
+        reasons.append("Current, water level or density differs from the reviewed conditions; wind limits have not been recomputed.")
+    meta = env.metadata
+    if meta and meta.quality in ("suspect", "poor"):
+        reasons.append("The environment provider reports suspect or poor quality.")
+        invalid = invalid or meta.quality == "poor"
+    flags = " ".join(flag for station in env.quality for flag in station.flags).lower()
+    if any(word in flags for word in ("missing", "unavailable", "stale", "suspect", "poor", "invalid", "gap")):
+        reasons.append("A required environmental source is flagged; review source availability and freshness.")
+        invalid = invalid or any(word in flags for word in ("missing", "unavailable", "poor", "invalid", "gap"))
+    at = (env.valid_at_utc.astimezone(UTC)
+          if env.valid_at_utc.tzinfo is not None and env.valid_at_utc.utcoffset() is not None else None)
+    if at is None or (meta and (
+            (meta.valid_from_utc and at < meta.valid_from_utc)
+            or (meta.valid_to_utc and at > meta.valid_to_utc))):
+        reasons.append("Environment time is unspecified or outside its declared validity interval.")
+        invalid = True
+    basis_fields = ("wind_averaging_s", "gust_duration_s", "wind_reference_height_m")
+    basis = tuple(getattr(meta, field, None) for field in basis_fields)
+    if not any(basis == tuple(getattr(prior.metadata, field, None) for field in basis_fields) for prior in assessed):
+        reasons.append("Wind duration or reference height differs from the reviewed basis.")
+    return reasons, invalid
 
 
 async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, limit: int = 0,
@@ -216,18 +318,25 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
     berth = await client.berth(rec.scenario.berth_id)
     heading = (berth.face_bearing_true_deg if rec.scenario.side_to == "starboard"
                else (berth.face_bearing_true_deg + 180) % 360)
-    factor = design_factor(rec.mst)
+    factor = 1.0  # Legacy helper parameter; breaking estimates are deliberately unavailable.
     emitted = 0
 
     report = REPORTS.get(safety_review.intake_report_id) if safety_review.intake_report_id else None
+    report_ids = {value for value in (safety_review.intake_report_id,
+        getattr(getattr(rec, "plan", None), "intake_report_id", None)) if value}
+    # Match review() exactly: reports replace the fallback snapshot, and supplemental reports add
+    # to the original intake. Never treat the old fallback as reviewed when it was not assessed.
+    assessed = [condition.environment for report_id in report_ids if (source_report := REPORTS.get(report_id))
+                for condition in source_report.planning_conditions] if report_ids else [rec.env]
     if report:
         for condition in report.planning_conditions:
             rel = (condition.environment.wind_from_true_deg - heading) % 360
             point = _limit_for(points, rel)
             forecast_at = format_fact("valid_at_utc", condition.environment.valid_at_utc)
+            reasons, invalid = _watch_recheck(condition.environment, assessed)
             warning = _warning(plan_id, condition.environment, point, factor,
-                               prefix=f"Forecast ahead at {forecast_at}: ")
-            if warning.pct_of_wll_limit is not None and warning.pct_of_wll_limit >= 80:
+                               prefix=f"Forecast ahead at {forecast_at}: ", recheck_reasons=reasons, invalid_input=invalid)
+            if warning.requires_recheck or (warning.pct_of_wll_limit is not None and warning.pct_of_wll_limit >= 80):
                 yield warning
                 emitted += 1
                 if limit and emitted >= limit:
@@ -236,21 +345,24 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
     previous_severity = -1
     previous_element = None
     previous_limit = math.inf
+    previous_recheck = None
     last_emit = -math.inf
     rank = {"INFO": 0, "AMBER": 1, "RED": 2}
     heartbeat_s = max(heartbeat_minutes * 60, 0)
     while limit == 0 or emitted < limit:
-        env = await client.env_now(rec.scenario.berth_id)
+        env = await client.scenario_environment(rec.scenario.scenario_id)
         rel = (env.wind_from_true_deg - heading) % 360
         point = _limit_for(points, rel)
-        warning = _warning(plan_id, env, point, factor)
+        recheck_reasons, invalid_input = _watch_recheck(env, assessed)
+        warning = _warning(plan_id, env, point, factor, recheck_reasons=recheck_reasons, invalid_input=invalid_input)
         now = time.monotonic()
-        point_limit = point.limit_wind_kt if point and point.limit_wind_kt else math.inf
+        point_limit = _gust_limit(point) if point and _gust_limit(point) is not None else math.inf
         severity_rise = rank[warning.severity] > previous_severity
         element_change = warning.element_id != previous_element
         weaker_sector = point_limit < previous_limit
         heartbeat = heartbeat_s == 0 or now - last_emit >= heartbeat_s
-        should_emit = severity_rise or element_change or weaker_sector or heartbeat
+        recheck_changed = tuple(warning.recheck_reasons) != previous_recheck
+        should_emit = severity_rise or element_change or weaker_sector or heartbeat or recheck_changed
         if should_emit:
             yield warning
             emitted += 1
@@ -258,6 +370,7 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
         previous_severity = rank[warning.severity]
         previous_element = warning.element_id
         previous_limit = point_limit
+        previous_recheck = tuple(warning.recheck_reasons)
         if limit and emitted >= limit:
             return
         await asyncio.sleep(interval_s)

@@ -83,11 +83,8 @@ def now(berth_id: str, heading_true_deg: float | None = None, env_scenario_id: s
 
 
 def forecast(berth_id: str, hours: int = 48, step_min: int = 30) -> ForecastSeries:
-    start = utcnow().replace(minute=0, second=0, microsecond=0)
-    st = _stations(berth_id)
-    n = int(hours * 60 / step_min) + 1
-    series = [synthetic(start + timedelta(minutes=i * step_min), "forecast", st) for i in range(n)]
-    return ForecastSeries(berth_id=berth_id, step_min=step_min, series=series)
+    from mooring.data_simulation.legacy_forecast import generate
+    return generate(berth_id, utcnow(), hours, step_min, _stations(berth_id), synthetic)
 
 
 def history(station_id: str, start: datetime, end: datetime, step_min: int = 6) -> HistorySeries:

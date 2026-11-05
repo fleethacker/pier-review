@@ -63,7 +63,7 @@ class DataQualityIssue(Model):
 
 class IntakeReport(Model):
     report_id: str
-    created_at_utc: datetime
+    created_at_utc: datetime = Field(description="UTC availability cutoff captured after input retrieval; assessment processing may finish later.")
     berth_id: str
     ship_class_id: str | None
     side_to: SideTo | None

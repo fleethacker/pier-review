@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyEdits, canConfirm, checkImage, confidenceBand, estimatedCapacityNote, friendlyVisionError, pendingConfirmations } from './logic';
 import type { Detection, DraftBerth } from './logic';
 
-const det = (id: string, c: number, needs: boolean): Detection => ({ item_id: id, kind: 'bollard', bbox_px: [0, 0, 1, 1], confidence: c, needs_confirmation: needs });
+const det = (id: string, c: number, needs: boolean): Detection => ({ item_id: id, kind: 'bollard', bbox_px: [0, 0, 1, 1], center_px: null, confidence: c, needs_confirmation: needs });
 
 describe('checkImage', () => {
   it('accepts normal images and says why it refuses others', () => {
@@ -52,4 +52,10 @@ describe('helpers', () => {
     expect(friendlyVisionError(422, 'bad')).toMatch(/bad/);
     expect(friendlyVisionError(null, 'boom')).toBe('boom');
   });
+});
+
+it('matches service image formats and the decimal eight-megabyte boundary', () => {
+  expect(checkImage({ type: 'image/gif', size: 1000 })).not.toBeNull();
+  expect(checkImage({ type: 'image/webp', size: 8_000_000 })).toBeNull();
+  expect(checkImage({ type: 'image/png', size: 8_000_001 })).not.toBeNull();
 });

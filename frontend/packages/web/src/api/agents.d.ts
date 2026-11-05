@@ -130,7 +130,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** SSE: step (AgentStepEvent), proposal (AgentProposalEvent), message (AgentMessageEvent), done (AgentDoneEvent). follow=true keeps the stream open for follow-up answers. */
+        /** SSE computed step/proposal events and terminal done; follow=true includes subsequent answers. */
         get: operations["plan_events_api_v1_agent_plans__plan_id__events_get"];
         put?: never;
         post?: never;
@@ -149,7 +149,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Ask a follow-up; the answer streams as a `message` event */
+        /** Ask a follow-up; the answer streams as a message event */
         post: operations["plan_message_api_v1_agent_plans__plan_id__messages_post"];
         delete?: never;
         options?: never;
@@ -198,7 +198,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** SSE `warning` events (GustWarning): live gusts vs the plan's working-load and breaking limits */
+        /** SSE warnings and recheck notices; terminal source_unavailable on provider failure */
         get: operations["watch_api_v1_safety_watch__plan_id__get"];
         put?: never;
         post?: never;
@@ -321,7 +321,8 @@ export interface paths {
         get: operations["job_status_api_v1_jobs__job_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Cancel Job */
+        delete: operations["cancel_job_api_v1_jobs__job_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -413,6 +414,13 @@ export interface components {
             config?: components["schemas"]["MooringConfig"] | null;
             tug_plan?: components["schemas"]["TugPlanResult"] | null;
             sequence?: components["schemas"]["SequenceResult"] | null;
+            /** Sequence Result Id */
+            sequence_result_id?: string | null;
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Common line-installation tide used across assessed conditions; absent on legacy plans.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
             /** Analysis Result Id */
             analysis_result_id?: string | null;
             /** Risk Result Id */
@@ -537,7 +545,10 @@ export interface components {
             face_length_ft: number;
             /** Deck Height Mllw Ft */
             deck_height_mllw_ft: number;
-            /** Depth Profile */
+            /**
+             * Depth Profile
+             * @description At least one MLLW depth sample; x_ft stations must be unique. Input ordering is unrestricted.
+             */
             depth_profile: components["schemas"]["DepthPoint"][];
             /** Fittings */
             fittings: components["schemas"]["PierFitting"][];
@@ -708,6 +719,49 @@ export interface components {
             water_level: string;
         };
         /**
+         * EnvironmentComponentProvenance
+         * @description Provider timing for one forcing component; retrieval is not provider issuance.
+         */
+        EnvironmentComponentProvenance: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "wind" | "current" | "water_level";
+            /**
+             * Source
+             * @description Provider, station/bin or grid product that supplied this component.
+             */
+            source: string;
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "observation" | "prediction" | "scenario";
+            /**
+             * Issued At Utc
+             * @description Actual provider issuance, when supplied; never substitute retrieval time.
+             */
+            issued_at_utc?: string | null;
+            /**
+             * Retrieved At Utc
+             * @description Recorded retrieval completion. If issuance is unknown, this proves only availability by this time, not forecast age or accuracy.
+             */
+            retrieved_at_utc?: string | null;
+            /** Valid From Utc */
+            valid_from_utc?: string | null;
+            /** Valid To Utc */
+            valid_to_utc?: string | null;
+            /**
+             * Quality
+             * @default unknown
+             * @enum {string}
+             */
+            quality: "good" | "suspect" | "poor" | "unknown";
+            /** Limitations */
+            limitations?: string[];
+        };
+        /**
          * EnvironmentMetadata
          * @description Where an environment snapshot came from and how to read its numbers (S00a).
          *
@@ -715,6 +769,11 @@ export interface components {
          *     sustained speed; the gust is assumed to be 30 s). Supplying metadata never changes the numerical values.
          */
         EnvironmentMetadata: {
+            /**
+             * Components
+             * @description Optional per-component provenance for composed snapshots. Advance public forecasts require wind, current and water level when this is supplied.
+             */
+            components?: components["schemas"]["EnvironmentComponentProvenance"][];
             /**
              * Basis
              * @description Measured, forecast/model output, or synthetic what-if input.
@@ -944,6 +1003,7 @@ export interface components {
             /**
              * Created At Utc
              * Format: date-time
+             * @description UTC availability cutoff captured after input retrieval; assessment processing may finish later.
              */
             created_at_utc: string;
             /** Berth Id */
@@ -1083,7 +1143,10 @@ export interface components {
              * @description Defaults to the berth's camel standoff.
              */
             standoff_ft?: number | null;
-            /** Lines */
+            /**
+             * Lines
+             * @description Lines with unique line_number identifiers; gaps in numbering are permitted.
+             */
             lines: components["schemas"]["MooringLine"][];
         };
         /**
@@ -1280,6 +1343,7 @@ export interface components {
         };
         /** SafetyReview */
         SafetyReview: {
+            validity?: components["schemas"]["Validity"] | null;
             /** Review Id */
             review_id: string;
             /** Plan Id */
@@ -1324,7 +1388,7 @@ export interface components {
             plan_id: string;
             /**
              * Intake Report Id
-             * @description Re-check against this report's conditions.
+             * @description Add this report's conditions to the original intake conditions; neither report is discarded.
              */
             intake_report_id?: string | null;
             /**
@@ -1335,6 +1399,20 @@ export interface components {
         };
         /** SafetySheet */
         SafetySheet: {
+            validity?: components["schemas"]["Validity"] | null;
+            /** Analysis Result Id */
+            analysis_result_id?: string | null;
+            /** Installed At Water Level Mllw Ft */
+            installed_at_water_level_mllw_ft?: number | null;
+            /** Sequence Result Id */
+            sequence_result_id?: string | null;
+            /** Threshold Result Ids */
+            threshold_result_ids?: string[];
+            /**
+             * Holding Tugs
+             * @description Prescribed continuous assistance included in the line/holding assessment; null means not recorded in a legacy sheet.
+             */
+            holding_tugs?: components["schemas"]["TugAssignment"][] | null;
             /** Sheet Id */
             sheet_id: string;
             /** Version */
@@ -1556,6 +1634,65 @@ export interface components {
              */
             status: "GREEN" | "AMBER" | "RED";
         };
+        /**
+         * SolverDiagnostics
+         * @description Numerical evidence behind a result. Absent values are `null` (not measured), never 0 or NaN.
+         */
+        SolverDiagnostics: {
+            /**
+             * Converged
+             * @description Null when no iterative solve was performed.
+             */
+            converged?: boolean | null;
+            /** Iterations */
+            iterations?: number | null;
+            /**
+             * Residuals
+             * @description Independent force and moment balances, each in its own unit.
+             */
+            residuals?: components["schemas"]["SolverResidual"][];
+            /**
+             * Active Constraints
+             * @description Contacts, slack lines and limits that were active at the solution.
+             */
+            active_constraints?: string[];
+            /**
+             * Rank
+             * @description Numerical rank of the support (stiffness) matrix.
+             */
+            rank?: number | null;
+            /**
+             * Degrees Of Freedom
+             * @description Rank is full when rank equals this.
+             */
+            degrees_of_freedom?: number | null;
+            /** Notes */
+            notes?: string[];
+        };
+        /**
+         * SolverResidual
+         * @description One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
+         */
+        SolverResidual: {
+            /**
+             * Name
+             * @example surge_force
+             */
+            name: string;
+            /** Value */
+            value: number;
+            /**
+             * Unit
+             * @example lbf
+             * @example ftlbf
+             */
+            unit: string;
+            /**
+             * Tolerance
+             * @description Same unit as value.
+             */
+            tolerance: number;
+        };
         /** StationQuality */
         StationQuality: {
             /** Station Id */
@@ -1570,7 +1707,7 @@ export interface components {
         };
         /**
          * Thresholds
-         * @description Wind limits for this plan. Breaking is estimated from the working-load limit and the design factor.
+         * @description Model-computed gust limits; breaking remains unavailable without a separate validated model.
          */
         Thresholds: {
             /**
@@ -1587,7 +1724,7 @@ export interface components {
             limit_wll_gust_kt: number | null;
             /**
              * Limit Breaking Gust Kt
-             * @description Estimated gust at line breaking: working-load limit times sqrt(design factor).
+             * @description Unavailable unless a separate validated breaking-limit model establishes it; legacy values were estimates.
              */
             limit_breaking_gust_kt: number | null;
             /** Forecast Max Gust Kt */
@@ -1602,6 +1739,11 @@ export interface components {
          * @description One ledger entry. Safety uses the ledger to prove every cited number came from a recorded tool call.
          */
         ToolCall: {
+            /**
+             * Operation Id
+             * @description Server-created agent operation budget scope; absent on legacy/direct gateway calls.
+             */
+            operation_id?: string | null;
             /** Call Id */
             call_id: string;
             /**
@@ -1767,6 +1909,45 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /**
+         * Validity
+         * @description Whether the numbers can be relied on, independent of the GREEN/AMBER/RED status.
+         *
+         *     `valid`: inside the model's qualified domain. `limited`: usable with the stated caveats, so never an
+         *     unconditional GREEN. `invalid`: do not use the numbers; status is RED. `unknown`: not assessed.
+         *     A numerical failure is not proof that no physical solution exists: report it as `invalid` with a reason.
+         */
+        Validity: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "valid" | "limited" | "invalid" | "unknown";
+            /** Reasons */
+            reasons?: components["schemas"]["ValidityReason"][];
+            diagnostics?: components["schemas"]["SolverDiagnostics"] | null;
+        };
+        /**
+         * ValidityReason
+         * @description Why a result is limited or invalid. Codes are stable UPPER_SNAKE identifiers that clients may switch on.
+         */
+        ValidityReason: {
+            /**
+             * Code
+             * @example MISSING_FITTING_RATING
+             */
+            code: string;
+            /** Message */
+            message: string;
+            /**
+             * Affected Components
+             * @description Element ids the reason applies to, e.g. 'line-2', 'P12N-B16'.
+             * @example [
+             *       "line-2"
+             *     ]
+             */
+            affected_components?: string[];
+        };
         /** VersionInfo */
         VersionInfo: {
             /** Api Version */
@@ -1807,6 +1988,16 @@ export interface components {
              * @enum {string}
              */
             status: "GREEN" | "AMBER" | "RED";
+            /**
+             * State
+             * @default null
+             */
+            state: ("queued" | "running" | "succeeded" | "failed" | "cancelled") | null;
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
         };
         /**
          * AgentMessageEvent
@@ -1856,15 +2047,23 @@ export interface components {
              */
             kind: string;
             /**
+             * Center Px
+             * @default null
+             */
+            center_px: [
+                number,
+                number
+            ] | null;
+            /**
              * Bbox Px
-             * @description [x, y, width, height] in image pixels.
+             * @description [x, y, width, height] in image pixels; null when not measured from the image.
              */
             bbox_px: [
                 number,
                 number,
                 number,
                 number
-            ];
+            ] | null;
             /** Confidence */
             confidence: number;
             /** Needs Confirmation */
@@ -1904,6 +2103,13 @@ export interface components {
          * @description SSE `warning` event on GET /safety/watch/{plan_id}.
          */
         GustWarning: {
+            /**
+             * Requires Recheck
+             * @default false
+             */
+            requires_recheck: boolean;
+            /** Recheck Reasons */
+            recheck_reasons?: string[];
             /** Warning Id */
             warning_id: string;
             /** Plan Id */
@@ -1994,115 +2200,55 @@ export interface components {
             rng_model_revision: string | null;
         };
         /**
-         * SolverDiagnostics
-         * @description Numerical evidence behind a result. Absent values are `null` (not measured), never 0 or NaN.
+         * SafetyWatchUnavailable
+         * @description Terminal SSE source_unavailable event; contains no fabricated measurement.
          */
-        SolverDiagnostics: {
+        SafetyWatchUnavailable: {
+            /** Plan Id */
+            plan_id: string;
             /**
-             * Converged
-             * @description Null when no iterative solve was performed.
-             * @default null
+             * At Utc
+             * Format: date-time
              */
-            converged: boolean | null;
+            at_utc: string;
             /**
-             * Iterations
-             * @default null
+             * Severity
+             * @default RED
+             * @constant
              */
-            iterations: number | null;
-            /**
-             * Residuals
-             * @description Independent force and moment balances, each in its own unit.
-             */
-            residuals?: components["schemas"]["SolverResidual"][];
-            /**
-             * Active Constraints
-             * @description Contacts, slack lines and limits that were active at the solution.
-             */
-            active_constraints?: string[];
-            /**
-             * Rank
-             * @description Numerical rank of the support (stiffness) matrix.
-             * @default null
-             */
-            rank: number | null;
-            /**
-             * Degrees Of Freedom
-             * @description Rank is full when rank equals this.
-             * @default null
-             */
-            degrees_of_freedom: number | null;
-            /** Notes */
-            notes?: string[];
-        };
-        /**
-         * SolverResidual
-         * @description One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
-         */
-        SolverResidual: {
-            /**
-             * Name
-             * @example surge_force
-             */
-            name: string;
-            /** Value */
-            value: number;
-            /**
-             * Unit
-             * @example lbf
-             * @example ftlbf
-             */
-            unit: string;
-            /**
-             * Tolerance
-             * @description Same unit as value.
-             */
-            tolerance: number;
-        };
-        /**
-         * Validity
-         * @description Whether the numbers can be relied on, independent of the GREEN/AMBER/RED status.
-         *
-         *     `valid`: inside the model's qualified domain. `limited`: usable with the stated caveats, so never an
-         *     unconditional GREEN. `invalid`: do not use the numbers; status is RED. `unknown`: not assessed.
-         *     A numerical failure is not proof that no physical solution exists: report it as `invalid` with a reason.
-         */
-        Validity: {
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "valid" | "limited" | "invalid" | "unknown";
-            /** Reasons */
-            reasons?: components["schemas"]["ValidityReason"][];
-            /** @default null */
-            diagnostics: components["schemas"]["SolverDiagnostics"] | null;
-        };
-        /**
-         * ValidityReason
-         * @description Why a result is limited or invalid. Codes are stable UPPER_SNAKE identifiers that clients may switch on.
-         */
-        ValidityReason: {
-            /**
-             * Code
-             * @example MISSING_FITTING_RATING
-             */
-            code: string;
-            /** Message */
-            message: string;
-            /**
-             * Affected Components
-             * @description Element ids the reason applies to, e.g. 'line-2', 'P12N-B16'.
-             * @example [
-             *       "line-2"
-             *     ]
-             */
-            affected_components?: string[];
+            severity: "RED";
+            /** Reason */
+            reason: string;
+            /** Retryable */
+            retryable: boolean;
         };
         /**
          * VisionMetadata
          * @description Sent as the `metadata` form field (a JSON string) next to the `image` file.
          */
         VisionMetadata: {
+            /**
+             * Berth Id
+             * @description Catalog berth supplying surveyed face location and notional fittings; absent uses an explicitly labeled demo template.
+             * @default null
+             */
+            berth_id: string | null;
+            /**
+             * Pier Face Start Px
+             * @default null
+             */
+            pier_face_start_px: [
+                number,
+                number
+            ] | null;
+            /**
+             * Pier Face End Px
+             * @default null
+             */
+            pier_face_end_px: [
+                number,
+                number
+            ] | null;
             /**
              * Image Kind
              * @enum {string}
@@ -2179,6 +2325,31 @@ export interface components {
         };
         /** VisionResult */
         VisionResult: {
+            /**
+             * Recommendation Result Id
+             * @default null
+             */
+            recommendation_result_id: string | null;
+            /**
+             * Extraction Source
+             * @default null
+             */
+            extraction_source: ("llm" | "deterministic") | null;
+            /**
+             * Extraction Note
+             * @default null
+             */
+            extraction_note: string | null;
+            /**
+             * Geometry Result Id
+             * @default null
+             */
+            geometry_result_id: string | null;
+            /**
+             * Image Sha256
+             * @default null
+             */
+            image_sha256: string | null;
             draft_berth: components["schemas"]["Berth"];
             /** Detections */
             detections: components["schemas"]["Detection"][];
@@ -2414,7 +2585,9 @@ export interface operations {
             query?: {
                 follow?: boolean;
             };
-            header?: never;
+            header?: {
+                "last-event-id"?: number | null;
+            };
             path: {
                 plan_id: string;
             };
@@ -2807,10 +2980,43 @@ export interface operations {
             };
         };
     };
-    job_events_api_v1_jobs__job_id__events_get: {
+    cancel_job_api_v1_jobs__job_id__delete: {
         parameters: {
             query?: never;
             header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_events_api_v1_jobs__job_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "last-event-id"?: number | null;
+            };
             path: {
                 job_id: string;
             };

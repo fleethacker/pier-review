@@ -186,3 +186,18 @@ def test_failed_step_is_marked_and_invalidates_the_sweep(monkeypatch):
     j = sweep(step_min=60).json()
     assert j["validity"]["state"] == "invalid" and j["status"] == "RED"
     assert "STEP_SOLVE_FAILED" in {r["code"] for r in j["validity"]["reasons"]}
+
+
+def test_explicit_gust_limit_matches_held_ratio_and_advisory_basis():
+    from mooring.core.schemas import LimitEnvelopeRequest
+    from mooring.examples import EXAMPLES
+    from mooring.moored.envelopes_real import limit_envelope
+    req = LimitEnvelopeRequest(**EXAMPLES['mooring_analyze'], step_deg=90)
+    response = limit_envelope(req)
+    ratio = req.environment.wind_gust_kt / req.environment.wind_speed_kt
+    for point in response.result.points:
+        if point.limit_wind_kt is None:
+            assert point.limit_gust_kt is None and point.advisory_gust_kt is None
+        else:
+            assert point.limit_gust_kt == pytest.approx(point.limit_wind_kt * ratio)
+            assert point.advisory_gust_kt == pytest.approx(point.limit_gust_kt * .8)

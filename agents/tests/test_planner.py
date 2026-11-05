@@ -41,7 +41,9 @@ class PhysicsClient:
     async def request(self, method, path, **kwargs):
         # The toolkit's typed helpers now share its validated generic HTTP path.
         if method == "GET":
-            if path == "/env/now":
+            if path.startswith("/scenarios/") and path.endswith("/environment"):
+                result = await self.env_now(self.sc.berth_id, env_scenario_id=self.sc.env_source.env_scenario_id)
+            elif path == "/env/now":
                 params = kwargs["params"]
                 result = await self.env_now(params["berth_id"], env_scenario_id=params.get("env_scenario_id"))
             else:
@@ -147,10 +149,17 @@ def test_model_text_cannot_be_laundered_through_citation(setup, monkeypatch):
     client.analyze_fn = lambda b: ("AMBER", 95) if b["config"]["lines"][0]["parts"] == 1 else ("GREEN", 40)
     llm = FakeLLM(move(line_number=1))
     monkeypatch.setattr(agent, "get_llm", lambda: llm)
+    # Opaque IDs may legitimately contain the attack's digits; they are not factual narration.
+    monkeypatch.setattr(agent, "new_id", lambda prefix: f"{prefix}_999")
     rec = run(tk)
     assert rec.plan.config.lines[0].parts == 3 and rec.plan.status == "GREEN"
     visible = json.dumps([rec.plan.model_dump(mode="json"), rec.events])
-    assert "999" not in visible and "Guaranteed" not in visible
+    narrative = json.dumps([[r.text for r in rec.plan.rationale],
+                            rec.plan.assumptions, rec.plan.open_questions,
+                            [payload.get("thought_summary", payload.get("text", "")) for _, payload in rec.events]])
+    assert "999" not in narrative and "Guaranteed" not in visible
+    assert llm.call.arguments["summary"] not in visible
+    assert rec.plan.plan_id == "plan_999"
     assert {t["name"] for t in llm.requests[0]} == agent.MOVE_NAMES
     assert len(client.requests) == 2
 
@@ -426,3 +435,112 @@ def test_max_iterations_with_default_budget_completes(setup, monkeypatch):
     client.analyze_fn = lambda b: ("AMBER", 95)
     rec = run(tk, intake_report_id="intake", max_iterations=20)
     assert rec.plan.state == "succeeded" and len(calls_for(rec.plan.plan_id)) <= 40
+
+
+def test_sequence_receives_same_loading_and_mst_as_the_plan(setup, monkeypatch):
+    client, tk = setup
+    client.sc.loading = 'light'
+    seen = []
+    original = client.sequence
+    async def ship(_):
+        value = refdata.ship(client.sc.ship_class_id).model_copy(deep=True)
+        value.mst_class = 'IIA'
+        return value
+    async def sequence(body):
+        seen.append(body)
+        return await original(body)
+    monkeypatch.setattr(client, 'ship', ship)
+    monkeypatch.setattr(client, 'sequence', sequence)
+    run(tk)
+    assert len(seen) == 1 and seen[0]['loading'] == 'light' and seen[0]['mst'] == 'IIA'
+
+
+@pytest.mark.parametrize('component', ['analysis', 'tugs'])
+def test_invalid_component_remains_blocking_in_complete_plan(setup, monkeypatch, component):
+    from mooring.core.schemas import Validity
+    client, tk = setup
+    original = client.analyze if component == 'analysis' else client.berthing_tugs
+    async def invalid(body):
+        response = await original(body)
+        response.validity = Validity(state='invalid', reasons=[{'code': 'TEST_INVALID', 'message': 'Invalid synthetic fixture'}])
+        response.status = 'RED'
+        return response
+    monkeypatch.setattr(client, 'analyze' if component == 'analysis' else 'berthing_tugs', invalid)
+    seen = []
+    original_sequence = client.sequence
+    async def sequence(body):
+        seen.append(body)
+        return await original_sequence(body)
+    monkeypatch.setattr(client, 'sequence', sequence)
+    rec = run(tk, max_iterations=1)
+    assert rec.plan.state == 'succeeded' and rec.plan.status == 'RED'
+    if component == 'tugs':
+        assert seen[0]['tug_plan_result_id'] is None
+        assert any('Invalid berthing-tug assessment' in value for value in rec.plan.assumptions)
+
+
+def test_tide_changes_keep_one_installation_through_plan_risk_and_what_if(setup, monkeypatch):
+    client, tk = setup
+    report = report_for(client)
+    report.planning_conditions[0].environment = client.env.model_copy(update={"water_level_mllw_ft": -1.25})
+    report.planning_conditions[1].environment = client.env.model_copy(update={"water_level_mllw_ft": 3.5})
+    monkeypatch.setitem(REPORTS, "changing-tide", report)
+    # Make the later tide govern, so rec.env cannot be mistaken for installation.
+    client.analyze_fn = lambda b: ("AMBER", 70 if b["environment"]["water_level_mllw_ft"] == 3.5 else 30)
+    sequences = []
+    original = client.sequence
+    async def sequence(body):
+        sequences.append(body)
+        return await original(body)
+    monkeypatch.setattr(client, "sequence", sequence)
+    rec = run(tk, intake_report_id="changing-tide", max_iterations=1)
+    assert rec.env.water_level_mllw_ft == 3.5
+    assert rec.plan.installed_at_water_level_mllw_ft == -1.25
+    assert {b["environment"]["water_level_mllw_ft"] for b in client.requests} == {-1.25, 3.5}
+    assert all(b["installed_at_water_level_mllw_ft"] == -1.25 for b in [*client.requests, *client.risks, *sequences])
+    restored = agent._load_record(agent.SavedPlan.model_validate_json(agent._save_record(rec).model_dump_json()))
+    assert restored.plan.installed_at_water_level_mllw_ft == -1.25
+    asyncio.run(agent.answer(restored, "NW 15 kt", tk))
+    assert client.requests[-1]["installed_at_water_level_mllw_ft"] == -1.25
+    assert client.requests[-1]["environment"]["water_level_mllw_ft"] == 3.5
+
+
+def test_holding_search_adds_to_existing_assistance_instead_of_replacing_it(setup, monkeypatch):
+    client, tk = setup
+    existing = {"tug_id": "T4", "push_point_id": "PP-AFT-P", "force_lbf": 5000, "mode": "push"}
+    client.sc.tugs = [TugAssignment.model_validate(existing)]
+    client.analyze_fn = lambda b: ("GREEN", 40) if len(b["tugs"]) == 2 else ("RED", 120)
+    monkeypatch.setattr(agent, "get_llm", lambda: FakeLLM(move("hold_tugs")))
+    rec = run(tk)
+    assert {a.tug_id for a in rec.plan.holding_tugs} == {"T1", "T4"}
+    assert len(rec.holding_tugs) == 2
+    assert all({a["tug_id"] for a in b["tugs"]} == {"T1", "T4"} for b in client.risks)
+
+
+def test_planner_preserves_model_resolved_spans_for_sequence_risk_and_saved_plan(setup, monkeypatch):
+    client, tk = setup
+    original = client.analyze
+    resolved = client.cfg.model_copy(deep=True)
+    for index, line in enumerate(resolved.lines):
+        line.paid_out_unstretched_length_ft = 100.125+index  # Fixture output, never computed by the agent.
+        line.pretension_lbf = line.slack_ft = None
+        line.condition = 'wet'
+    async def analyze_with_resolved(body):
+        response = await original(body)
+        response.result.resolved_config = resolved.model_copy(deep=True)
+        return response
+    monkeypatch.setattr(client, 'analyze', analyze_with_resolved)
+    sequences = []
+    original_sequence = client.sequence
+    async def sequence(body):
+        sequences.append(body)
+        return await original_sequence(body)
+    monkeypatch.setattr(client, 'sequence', sequence)
+    rec = run(tk)
+    assert rec.plan.config.model_dump() == resolved.model_dump()
+    for body in [*client.risks, *sequences]:
+        assert MooringConfig.model_validate(body['config']).model_dump() == resolved.model_dump()
+    restored = agent._load_record(agent.SavedPlan.model_validate_json(agent._save_record(rec).model_dump_json()))
+    assert restored.plan.config.model_dump() == resolved.model_dump()
+    assert any('modeling-resolved' in item.text and item.cites == [rec.plan.analysis_result_id]
+               for item in rec.plan.rationale)

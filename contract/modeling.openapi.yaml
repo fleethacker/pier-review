@@ -3,11 +3,13 @@ info:
   title: 'Mooring Assistant: Modeling API'
   description: '
 
-    Physics and ML modeling service for the mooring assistant. **Most modules still run on mock backends.**
+    Physics and planning service for the mooring assistant. `GET /version` reports implementation status;
 
-    Environmental loads (M3, UFC 4-159-03) and reference data are real; `GET /version` lists each module''s status.
+    `GET /capabilities` reports scope and qualification blockers. A `real` backend is not operational certification.
 
-    Check `backend` in every response envelope; the `X-Mooring-Backend` header is `mixed` while some modules are mock.
+    Inspect each result''s validity, reasons and source provenance: seed assets, synthetic forcing and unqualified
+
+    models remain limited or invalid. The offline default environment is synthetic; public providers are opt-in.
 
 
     Conventions: unit-suffixed field names (`_kt`, `_ft`, `_lbf`, `_deg`, `_utc`); wind direction is where it blows
@@ -344,7 +346,7 @@ paths:
     post:
       tags:
       - M2 Reference data
-      summary: Add or replace a berth (from the canvas or a confirmed vision draft)
+      summary: Register an immutable berth; identical retries are accepted, changed data requires a new ID
       operationId: create_berth_api_v1_berths_post
       requestBody:
         content:
@@ -359,6 +361,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BerthCreated'
+        '409':
+          description: Existing berth ID has different data; register a new revision ID
         '422':
           description: Validation Error
           content:
@@ -518,6 +522,98 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Scenario'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/scenarios/{scenario_id}/environment:
+    get:
+      tags:
+      - M2 Reference data
+      summary: Resolve the saved scenario source; explicit mock stays synthetic
+      operationId: scenario_environment_api_v1_scenarios__scenario_id__environment_get
+      parameters:
+      - name: scenario_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Scenario Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentSnapshot'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/demo/docking-cases:
+    get:
+      tags:
+      - M2 Reference data
+      summary: Named offline demo requests (seed data; not operational plans)
+      operationId: demo_docking_cases_api_v1_demo_docking_cases_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/DockingDemoCase'
+                type: array
+                title: Response Demo Docking Cases Api V1 Demo Docking Cases Get
+  /api/v1/data-simulation/forecast:
+    post:
+      tags:
+      - M2 Reference data
+      summary: Generate labeled, seeded training conditions; not a weather forecast
+      operationId: synthetic_forecast_api_v1_data_simulation_forecast_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyntheticForecastRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastSeries'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/berth-drafts:
+    post:
+      tags:
+      - M2 Reference data
+      summary: Build an unsaved berth draft from catalog geometry and optional image anchors
+      operationId: berth_draft_api_v1_berth_drafts_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BerthDraftRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BerthDraftResponse'
         '422':
           description: Validation Error
           content:
@@ -1207,6 +1303,31 @@ paths:
                   ship_x_ft: 650
                   design_mst: II
                   max_candidates: 3
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mooring/forecast-plan:
+    post:
+      tags:
+      - M7 Planning
+      summary: 'Assess arrivals at least 24 hours ahead (job result: ForecastDockingResponse)'
+      operationId: forecast_plan_api_v1_mooring_forecast_plan_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForecastDockingRequest'
         required: true
       responses:
         '202':
@@ -2018,6 +2139,12 @@ components:
       title: AnalyzeResponse
     AnalyzeResult:
       properties:
+        resolved_config:
+          anyOf:
+          - $ref: '#/components/schemas/MooringConfig'
+          - type: 'null'
+          description: Configuration with modeled unstretched spans and wet/dry conditions explicit for reproducible rechecks.
+            Not rope-cutting lengths, a handling instruction or approval.
         offset:
           $ref: '#/components/schemas/Offset'
         lines:
@@ -2184,9 +2311,13 @@ components:
           description: True bearing of the berth frame's +x axis.
         origin_lat:
           type: number
+          maximum: 90.0
+          minimum: -90.0
           title: Origin Lat
         origin_lon:
           type: number
+          maximum: 180.0
+          minimum: -180.0
           title: Origin Lon
         face_length_ft:
           type: number
@@ -2199,7 +2330,9 @@ components:
           items:
             $ref: '#/components/schemas/DepthPoint'
           type: array
+          minItems: 1
           title: Depth Profile
+          description: At least one MLLW depth sample; x_ft stations must be unique. Input ordering is unrestricted.
         fittings:
           items:
             $ref: '#/components/schemas/PierFitting'
@@ -2266,6 +2399,157 @@ components:
       required:
       - berth_id
       title: BerthCreated
+    BerthDraftRequest:
+      properties:
+        source_berth_id:
+          type: string
+          title: Source Berth Id
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        image_fittings:
+          items:
+            $ref: '#/components/schemas/ImageFitting'
+          type: array
+          maxItems: 100
+          title: Image Fittings
+        scale_ft_per_px:
+          anyOf:
+          - type: number
+            maximum: 10000.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Scale Ft Per Px
+        pier_face_start_px:
+          anyOf:
+          - prefixItems:
+            - type: number
+              maximum: 1000000.0
+              minimum: 0.0
+            - type: number
+              maximum: 1000000.0
+              minimum: 0.0
+            type: array
+            maxItems: 2
+            minItems: 2
+          - type: 'null'
+          title: Pier Face Start Px
+        pier_face_end_px:
+          anyOf:
+          - prefixItems:
+            - type: number
+              maximum: 1000000.0
+              minimum: 0.0
+            - type: number
+              maximum: 1000000.0
+              minimum: 0.0
+            type: array
+            maxItems: 2
+            minItems: 2
+          - type: 'null'
+          title: Pier Face End Px
+      additionalProperties: false
+      type: object
+      required:
+      - source_berth_id
+      title: BerthDraftRequest
+    BerthDraftResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/BerthDraftResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: BerthDraftResponse
+    BerthDraftResult:
+      properties:
+        draft_berth:
+          $ref: '#/components/schemas/Berth'
+        geometry_source:
+          type: string
+          title: Geometry Source
+        needs_confirmation:
+          items:
+            type: string
+          type: array
+          title: Needs Confirmation
+        notes:
+          items:
+            type: string
+          type: array
+          title: Notes
+      additionalProperties: false
+      type: object
+      required:
+      - draft_berth
+      - geometry_source
+      - needs_confirmation
+      - notes
+      title: BerthDraftResult
     BerthForce:
       properties:
         x_lbf:
@@ -2450,7 +2734,7 @@ components:
             type: array
           - type: 'null'
           title: Available Tug Ids
-          description: Defaults to the whole fleet.
+          description: Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
       additionalProperties: false
       type: object
       required:
@@ -2512,10 +2796,12 @@ components:
           type: string
           format: date-time
           title: From Utc
+          description: Timezone-aware window start; normalized to UTC for elapsed-time sampling.
         to_utc:
           type: string
           format: date-time
           title: To Utc
+          description: Timezone-aware window end, at or after start; normalized to UTC.
         max_current_kt:
           type: number
           minimum: 0.0
@@ -2534,7 +2820,7 @@ components:
             type: array
           - type: 'null'
           title: Available Tug Ids
-          description: Fleet requested for the berthing; defaults to the whole catalog fleet.
+          description: Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
         margin:
           type: number
           maximum: 1.0
@@ -2756,6 +3042,46 @@ components:
       - dist
       - params
       title: Distribution
+    DockingDemoCase:
+      properties:
+        case_id:
+          type: string
+          title: Case Id
+        name:
+          type: string
+          title: Name
+        expected_outcome:
+          type: string
+          enum:
+          - supported_limited
+          - overloaded
+          - invalid_data
+          - undetermined
+          title: Expected Outcome
+        explanation:
+          type: string
+          title: Explanation
+        environment_request:
+          $ref: '#/components/schemas/EnvScenarioCreate'
+        scenario_request:
+          $ref: '#/components/schemas/ScenarioCreate'
+        analysis_request:
+          $ref: '#/components/schemas/AnalyzeRequest'
+        envelope_request:
+          anyOf:
+          - $ref: '#/components/schemas/LimitEnvelopeRequest'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - case_id
+      - name
+      - expected_outcome
+      - explanation
+      - environment_request
+      - scenario_request
+      - analysis_request
+      title: DockingDemoCase
     EnvScenario:
       properties:
         name:
@@ -2999,8 +3325,86 @@ components:
       - water_level
       title: EnvStations
       description: NOAA CO-OPS station ids that feed this berth's environment.
+    EnvironmentComponentProvenance:
+      properties:
+        component:
+          type: string
+          enum:
+          - wind
+          - current
+          - water_level
+          title: Component
+        source:
+          type: string
+          minLength: 1
+          title: Source
+          description: Provider, station/bin or grid product that supplied this component.
+        basis:
+          type: string
+          enum:
+          - observation
+          - prediction
+          - scenario
+          title: Basis
+        issued_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Issued At Utc
+          description: Actual provider issuance, when supplied; never substitute retrieval time.
+        retrieved_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Retrieved At Utc
+          description: Recorded retrieval completion. If issuance is unknown, this proves only availability by this time,
+            not forecast age or accuracy.
+        valid_from_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid From Utc
+        valid_to_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid To Utc
+        quality:
+          type: string
+          enum:
+          - good
+          - suspect
+          - poor
+          - unknown
+          title: Quality
+          default: unknown
+        limitations:
+          items:
+            type: string
+          type: array
+          title: Limitations
+      additionalProperties: false
+      type: object
+      required:
+      - component
+      - source
+      - basis
+      title: EnvironmentComponentProvenance
+      description: Provider timing for one forcing component; retrieval is not provider issuance.
     EnvironmentMetadata:
       properties:
+        components:
+          items:
+            $ref: '#/components/schemas/EnvironmentComponentProvenance'
+          type: array
+          maxItems: 3
+          title: Components
+          description: Optional per-component provenance for composed snapshots. Advance public forecasts require wind, current
+            and water level when this is supplied.
         basis:
           type: string
           enum:
@@ -3325,6 +3729,7 @@ components:
       - config
       - environment
       title: ExceedanceRequest
+      description: At most 25,000 combined baseline, instantaneous and trajectory equilibrium solves per job.
     Fender:
       properties:
         fender_id:
@@ -3507,6 +3912,120 @@ components:
       - mz_ftlbf
       title: ForceSet
       description: Forces and moment in the ship frame (+x forward, +y to port, yaw positive counterclockwise).
+    ForecastDockingRequest:
+      properties:
+        allow_short_lead:
+          type: boolean
+          title: Allow Short Lead
+          description: Explicitly permit reassessment less than 24 hours before arrival. Arrival cannot precede as_of_utc;
+            all forecast provenance/coverage gates remain. Default retains the advance-planning lead requirement.
+          default: false
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          maxItems: 12
+          title: Tugs
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          default: II
+        as_of_utc:
+          type: string
+          format: date-time
+          title: As Of Utc
+        arrival_from_utc:
+          type: string
+          format: date-time
+          title: Arrival From Utc
+        arrival_to_utc:
+          type: string
+          format: date-time
+          title: Arrival To Utc
+        arrival_step_min:
+          type: integer
+          maximum: 360.0
+          minimum: 15.0
+          title: Arrival Step Min
+          default: 60
+        operation_hours:
+          type: number
+          maximum: 24.0
+          exclusiveMinimum: 0.0
+          title: Operation Hours
+          default: 2
+        holding_hours:
+          type: number
+          maximum: 48.0
+          minimum: 0.0
+          title: Holding Hours
+          default: 6
+        forecast:
+          items:
+            $ref: '#/components/schemas/EnvironmentSnapshot'
+          type: array
+          maxItems: 721
+          minItems: 2
+          title: Forecast
+        max_gap_min:
+          type: integer
+          maximum: 180.0
+          minimum: 1.0
+          title: Max Gap Min
+          description: Maximum covered interval between snapshots; this is a sampling assumption, not a guarantee against
+            sub-sample peaks.
+          default: 60
+        target_pct_wll:
+          type: number
+          maximum: 100.0
+          exclusiveMinimum: 0.0
+          title: Target Pct Wll
+          default: 80
+        max_evaluations:
+          type: integer
+          maximum: 2000.0
+          minimum: 1.0
+          title: Max Evaluations
+          default: 500
+        optimize_lines:
+          type: boolean
+          title: Optimize Lines
+          description: Search a common line plan across supplied conditions before assessing arrival windows.
+          default: false
+        search_budget:
+          type: integer
+          maximum: 500.0
+          minimum: 1.0
+          title: Search Budget
+          default: 100
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - config
+      - as_of_utc
+      - arrival_from_utc
+      - arrival_to_utc
+      - forecast
+      title: ForecastDockingRequest
     ForecastSeries:
       properties:
         berth_id:
@@ -3697,6 +4216,7 @@ components:
             type: array
           - type: 'null'
           title: Available Tug Ids
+          description: Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
       additionalProperties: false
       type: object
       required:
@@ -3705,6 +4225,41 @@ components:
       - config
       - environment
       title: HoldTugRequest
+    ImageFitting:
+      properties:
+        item_id:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Item Id
+        kind:
+          type: string
+          title: Kind
+        center_px:
+          prefixItems:
+          - type: number
+            maximum: 1000000.0
+            minimum: 0.0
+          - type: number
+            maximum: 1000000.0
+            minimum: 0.0
+          type: array
+          maxItems: 2
+          minItems: 2
+          title: Center Px
+        confidence:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Confidence
+      additionalProperties: false
+      type: object
+      required:
+      - item_id
+      - kind
+      - center_px
+      - confidence
+      title: ImageFitting
     JobAccepted:
       properties:
         job_id:
@@ -3809,6 +4364,18 @@ components:
           title: Limit Wind Kt
           description: Highest wind speed verified within limits (conservative end of the bracket). None unless outcome is
             'limit_found' or 'fails_at_zero_wind' (then 0).
+        limit_gust_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Limit Gust Kt
+          description: Corresponding gust at limit_wind_kt under the request's held gust/sustained ratio; not a breaking limit.
+        advisory_gust_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Advisory Gust Kt
+          description: Application advisory at 80% of the computed gust limit; not a physical failure threshold.
         first_failure_element:
           anyOf:
           - type: string
@@ -4139,10 +4706,11 @@ components:
         horiz_angle_deg:
           type: number
           title: Horiz Angle Deg
-          description: Angle from perpendicular to the ship; breast lines are under 45.
+          description: Angle from perpendicular to the ship at the solved pose, including yaw; breast lines are under 45.
         vert_angle_deg:
           type: number
           title: Vert Angle Deg
+          description: Solved line angle above horizontal at the assessed water level.
         breast_efficiency:
           type: number
           title: Breast Efficiency
@@ -4150,6 +4718,7 @@ components:
         length_ft:
           type: number
           title: Length Ft
+          description: Straight span between lead point and pier fitting at the solved pose; not unstretched paid-out length.
         status:
           type: string
           enum:
@@ -4517,6 +5086,7 @@ components:
             $ref: '#/components/schemas/MooringLine'
           type: array
           title: Lines
+          description: Lines with unique line_number identifiers; gaps in numbering are permitted.
       additionalProperties: false
       type: object
       required:
@@ -5870,6 +6440,29 @@ components:
           - III
           title: Design Mst
           default: II
+        design_basis:
+          anyOf:
+          - type: string
+            enum:
+            - mst_and_forecast
+            - forecast_only
+          - type: 'null'
+          title: Design Basis
+          description: Absent means mst_and_forecast. forecast_only checks supplied conditions, not MST design compliance.
+            Strength factors still use design_mst.
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          maxItems: 12
+          title: Tugs
+          description: Fixed holding assistance evaluated in every case; not an autonomous tug schedule.
+        standoff_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Standoff Ft
         forecast_env:
           items:
             $ref: '#/components/schemas/EnvironmentSnapshot'
@@ -6290,6 +6883,19 @@ components:
         ship_class_id:
           type: string
           title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          default: II
         berth_id:
           type: string
           title: Berth Id
@@ -6302,6 +6908,12 @@ components:
           - type: string
           - type: 'null'
           title: Tug Plan Result Id
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Common installation tide for draft static checks; defaults to the evaluated water level.
         line_handling_crews:
           type: integer
           minimum: 1.0
@@ -6461,6 +7073,7 @@ components:
           title: Station
         crews:
           type: integer
+          minimum: 0.0
           title: Crews
         trigger:
           type: string
@@ -6525,6 +7138,19 @@ components:
         ship_class_id:
           type: string
           title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          default: II
         berth_id:
           type: string
           title: Berth Id
@@ -6537,6 +7163,12 @@ components:
           - type: string
           - type: 'null'
           title: Tug Plan Result Id
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Common installation tide for draft static checks; defaults to the evaluated water level.
         line_handling_crews:
           type: integer
           minimum: 1.0
@@ -7295,6 +7927,65 @@ components:
       - station_id
       - age_s
       title: StationQuality
+    SyntheticForecastRequest:
+      properties:
+        berth_id:
+          type: string
+          title: Berth Id
+        start_utc:
+          type: string
+          format: date-time
+          title: Start Utc
+        baseline:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        duration_hours:
+          type: integer
+          maximum: 120.0
+          minimum: 24.0
+          title: Duration Hours
+          default: 48
+        step_min:
+          type: integer
+          maximum: 180.0
+          minimum: 5.0
+          title: Step Min
+          default: 60
+        seed:
+          type: integer
+          minimum: 0.0
+          title: Seed
+          default: 0
+        gust_peak_kt:
+          type: number
+          minimum: 0.0
+          title: Gust Peak Kt
+          description: User-specified synthetic triangular gust peak at midpoint.
+          default: 30
+        gust_noise_sigma_kt:
+          type: number
+          maximum: 20.0
+          minimum: 0.0
+          title: Gust Noise Sigma Kt
+          default: 0
+        water_level_amplitude_ft:
+          type: number
+          maximum: 20.0
+          minimum: 0.0
+          title: Water Level Amplitude Ft
+          default: 0
+        water_level_period_hours:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Water Level Period Hours
+          description: Scenario oscillation period, not a fitted tidal constituent.
+          default: 12
+      additionalProperties: false
+      type: object
+      required:
+      - berth_id
+      - start_utc
+      - baseline
+      title: SyntheticForecastRequest
     TelemetryAccepted:
       properties:
         accepted:
@@ -7602,6 +8293,17 @@ components:
           type: array
           title: Tending
           description: Explicit tending applied in time order. Nothing is retensioned silently.
+        water_level_forecast:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/EnvironmentSnapshot'
+            type: array
+            maxItems: 2000
+            minItems: 2
+          - type: 'null'
+          title: Water Level Forecast
+          description: Optional supplied snapshots covering the whole sweep; only MLLW water levels vary. Linear interpolation
+            is explicitly limited. Absent uses a labeled synthetic training tide.
       additionalProperties: false
       type: object
       required:
@@ -7818,6 +8520,18 @@ components:
           title: N Samples Per Step
           description: 0 = deterministic utilization only, no probability.
           default: 0
+        forecast:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/EnvironmentSnapshot'
+            type: array
+            maxItems: 721
+            minItems: 2
+          - type: 'null'
+          title: Forecast
+          description: Exact supplied snapshots; all knots in the requested window are evaluated. Requires start_utc, both
+            horizon endpoints and gaps <=60 minutes. No interpolation or provider fallback. Omitted means synthetic training
+            forcing.
       additionalProperties: false
       type: object
       required:
@@ -7826,6 +8540,7 @@ components:
       - config
       - environment
       title: TimelineRequest
+      description: At most 25,000 baseline, per-knot and Monte Carlo equilibrium solves per job.
     TrackPoint:
       properties:
         lat:
@@ -8432,6 +9147,12 @@ components:
       additionalProperties: false
       description: Message on WS /ws/alerts.
       properties:
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Input and model validity; observations without a plan do not establish mooring adequacy.
         alert_id:
           title: Alert Id
           type: string
@@ -8484,6 +9205,913 @@ components:
       - message
       - env
       title: Alert
+      type: object
+    ApproachSimResponse:
+      additionalProperties: false
+      properties:
+        result_id:
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+          title: Result Id
+          type: string
+        model:
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+          title: Model
+          type: string
+        model_version:
+          title: Model Version
+          type: string
+        backend:
+          description: '''mock'' until the workstream''s real module lands.'
+          enum:
+          - mock
+          - real
+          title: Backend
+          type: string
+        inputs_hash:
+          description: sha256 of the canonical request JSON.
+          title: Inputs Hash
+          type: string
+        computed_at_utc:
+          format: date-time
+          title: Computed At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        assumptions:
+          items:
+            type: string
+          title: Assumptions
+          type: array
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          title: Warnings
+          type: array
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          default: null
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/ApproachSimResult'
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: ApproachSimResponse
+      type: object
+    ApproachSimResult:
+      additionalProperties: false
+      properties:
+        track_url:
+          title: Track Url
+          type: string
+        max_cross_track_ft:
+          title: Max Cross Track Ft
+          type: number
+        min_ukc_ft:
+          title: Min Ukc Ft
+          type: number
+        events:
+          items:
+            $ref: '#/components/schemas/SimEvent'
+          title: Events
+          type: array
+      required:
+      - track_url
+      - max_cross_track_ft
+      - min_ukc_ft
+      - events
+      title: ApproachSimResult
+      type: object
+    BerthingSimResponse:
+      additionalProperties: false
+      properties:
+        result_id:
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+          title: Result Id
+          type: string
+        model:
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+          title: Model
+          type: string
+        model_version:
+          title: Model Version
+          type: string
+        backend:
+          description: '''mock'' until the workstream''s real module lands.'
+          enum:
+          - mock
+          - real
+          title: Backend
+          type: string
+        inputs_hash:
+          description: sha256 of the canonical request JSON.
+          title: Inputs Hash
+          type: string
+        computed_at_utc:
+          format: date-time
+          title: Computed At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        assumptions:
+          items:
+            type: string
+          title: Assumptions
+          type: array
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          title: Warnings
+          type: array
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          default: null
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/BerthingSimResult'
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: BerthingSimResponse
+      type: object
+    BerthingSimResult:
+      additionalProperties: false
+      properties:
+        transitions:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/SimulationTransition'
+            type: array
+          - type: 'null'
+          default: null
+          title: Transitions
+        diagnostics:
+          anyOf:
+          - $ref: '#/components/schemas/SimulationDiagnostics'
+          - type: 'null'
+          default: null
+        series_url:
+          title: Series Url
+          type: string
+        events:
+          items:
+            $ref: '#/components/schemas/SimEvent'
+          title: Events
+          type: array
+        contact:
+          anyOf:
+          - $ref: '#/components/schemas/ContactSummary'
+          - type: 'null'
+        max_line_tension_lbf:
+          title: Max Line Tension Lbf
+          type: number
+      required:
+      - series_url
+      - events
+      - contact
+      - max_line_tension_lbf
+      title: BerthingSimResult
+      type: object
+    Candidate:
+      additionalProperties: false
+      properties:
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        resolved_config:
+          anyOf:
+          - $ref: '#/components/schemas/MooringConfig'
+          - type: 'null'
+          default: null
+          description: Assessed installation with explicit unstretched spans and wet/dry condition, when available. Use for
+            fixed-installation rechecks; config retains assignment-only search semantics.
+        min_margin_pct_wll:
+          description: Highest utilization over every evaluated case (lower is better).
+          title: Min Margin Pct Wll
+          type: number
+        limit_wind_kt_worst:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Limit Wind Kt Worst
+        line_count:
+          title: Line Count
+          type: integer
+        analysis_result_id:
+          title: Analysis Result Id
+          type: string
+        why:
+          items:
+            type: string
+          title: Why
+          type: array
+        tugs:
+          description: Holding assistance used in every candidate evaluation.
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          title: Tugs
+          type: array
+        feasible:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          description: True when every case solved and stayed within every line, fitting and fender limit.
+          title: Feasible
+        worst_case:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Worst Case
+        cases_evaluated:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Cases Evaluated
+      required:
+      - config
+      - min_margin_pct_wll
+      - limit_wind_kt_worst
+      - line_count
+      - analysis_result_id
+      - why
+      title: Candidate
+      type: object
+    ContactSummary:
+      additionalProperties: false
+      properties:
+        lateral_speed_fps:
+          title: Lateral Speed Fps
+          type: number
+        energy_ftlbf:
+          title: Energy Ftlbf
+          type: number
+        fender_id:
+          title: Fender Id
+          type: string
+        pct_rated:
+          title: Pct Rated
+          type: number
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+      required:
+      - lateral_speed_fps
+      - energy_ftlbf
+      - fender_id
+      - pct_rated
+      - status
+      title: ContactSummary
+      type: object
+    DockingArrivalWindow:
+      additionalProperties: false
+      properties:
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          title: Installed At Water Level Mllw Ft
+        arrival_utc:
+          format: date-time
+          title: Arrival Utc
+          type: string
+        operation_end_utc:
+          format: date-time
+          title: Operation End Utc
+          type: string
+        holding_end_utc:
+          format: date-time
+          title: Holding End Utc
+          type: string
+        outcome:
+          enum:
+          - supported_limited
+          - within_target
+          - overloaded
+          - invalid
+          - undetermined
+          - unavailable
+          title: Outcome
+          type: string
+        max_pct_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Pct Wll
+        governing_at_utc:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Governing At Utc
+        governing_element:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Governing Element
+        analysis_result_ids:
+          items:
+            type: string
+          title: Analysis Result Ids
+          type: array
+        reasons:
+          items:
+            type: string
+          title: Reasons
+          type: array
+      required:
+      - arrival_utc
+      - operation_end_utc
+      - holding_end_utc
+      - outcome
+      - max_pct_wll
+      - governing_at_utc
+      - governing_element
+      - analysis_result_ids
+      title: DockingArrivalWindow
+      type: object
+    DockingConditionResult:
+      additionalProperties: false
+      properties:
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          title: Installed At Water Level Mllw Ft
+        valid_at_utc:
+          format: date-time
+          title: Valid At Utc
+          type: string
+        analysis_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Analysis Result Id
+        outcome:
+          enum:
+          - within_target
+          - overloaded
+          - invalid
+          - undetermined
+          - unavailable
+          title: Outcome
+          type: string
+        max_pct_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Pct Wll
+        governing_element:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Governing Element
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+        reasons:
+          items:
+            type: string
+          title: Reasons
+          type: array
+      required:
+      - valid_at_utc
+      - analysis_result_id
+      - outcome
+      - max_pct_wll
+      - governing_element
+      - validity
+      title: DockingConditionResult
+      type: object
+    ElementRisk:
+      additionalProperties: false
+      properties:
+        element_id:
+          title: Element Id
+          type: string
+        p_exceed_wll:
+          description: Probability the element's limit (WLL, rated capacity for fittings, or rated energy for fenders) is
+            exceeded, among valid samples.
+          maximum: 1
+          minimum: 0
+          title: P Exceed Wll
+          type: number
+        p_exceed_mbs:
+          anyOf:
+          - maximum: 1
+            minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          description: Lines only; null for fittings and fenders, which have no MBS.
+          title: P Exceed Mbs
+        tension_p50_lbf:
+          description: Force (lbf) median among valid samples; fenders report reaction force, while their exceedance compares
+            energy.
+          title: Tension P50 Lbf
+          type: number
+        tension_p95_lbf:
+          title: Tension P95 Lbf
+          type: number
+        p_exceed_wll_ci95:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          default: null
+          description: 95% Wilson interval on p_exceed_wll.
+          title: P Exceed Wll Ci95
+      required:
+      - element_id
+      - p_exceed_wll
+      - tension_p50_lbf
+      - tension_p95_lbf
+      title: ElementRisk
+      type: object
+    ExceedanceResponse:
+      additionalProperties: false
+      properties:
+        result_id:
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+          title: Result Id
+          type: string
+        model:
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+          title: Model
+          type: string
+        model_version:
+          title: Model Version
+          type: string
+        backend:
+          description: '''mock'' until the workstream''s real module lands.'
+          enum:
+          - mock
+          - real
+          title: Backend
+          type: string
+        inputs_hash:
+          description: sha256 of the canonical request JSON.
+          title: Inputs Hash
+          type: string
+        computed_at_utc:
+          format: date-time
+          title: Computed At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        assumptions:
+          items:
+            type: string
+          title: Assumptions
+          type: array
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          title: Warnings
+          type: array
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          default: null
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/ExceedanceResult'
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: ExceedanceResponse
+      type: object
+    ExceedanceResult:
+      additionalProperties: false
+      properties:
+        n_samples:
+          description: Samples requested and run; never silently capped.
+          title: N Samples
+          type: integer
+        p_any_exceeds_wll:
+          description: Instantaneous probability (pointwise), among valid samples.
+          maximum: 1
+          minimum: 0
+          title: P Any Exceeds Wll
+          type: number
+        p_any_exceeds_mbs:
+          maximum: 1
+          minimum: 0
+          title: P Any Exceeds Mbs
+          type: number
+        elements:
+          items:
+            $ref: '#/components/schemas/ElementRisk'
+          title: Elements
+          type: array
+        governing_element:
+          title: Governing Element
+          type: string
+        n_valid:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: N Valid
+        n_failed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          description: Samples whose equilibrium solve failed; never dropped from the accounting.
+          title: N Failed
+        p_any_ci95:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          default: null
+          description: 95% Wilson interval on p_any_exceeds_wll (valid samples).
+          title: P Any Ci95
+        p_any_bounds:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          default: null
+          description: '[exceedances / n, (exceedances + failed) / n]: bounds if every failed sample were safe / exceeding.'
+          title: P Any Bounds
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Seed
+        uncertainty_model:
+          anyOf:
+          - $ref: '#/components/schemas/UncertaintyModel'
+          - type: 'null'
+          default: null
+        pointwise_only:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          description: True when no horizon probability was computed.
+          title: Pointwise Only
+        horizon:
+          anyOf:
+          - $ref: '#/components/schemas/HorizonRisk'
+          - type: 'null'
+          default: null
+        error_criterion:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Error Criterion
+      required:
+      - n_samples
+      - p_any_exceeds_wll
+      - p_any_exceeds_mbs
+      - elements
+      - governing_element
+      title: ExceedanceResult
+      type: object
+    ForecastDockingResponse:
+      additionalProperties: false
+      properties:
+        result_id:
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+          title: Result Id
+          type: string
+        model:
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+          title: Model
+          type: string
+        model_version:
+          title: Model Version
+          type: string
+        backend:
+          description: '''mock'' until the workstream''s real module lands.'
+          enum:
+          - mock
+          - real
+          title: Backend
+          type: string
+        inputs_hash:
+          description: sha256 of the canonical request JSON.
+          title: Inputs Hash
+          type: string
+        computed_at_utc:
+          format: date-time
+          title: Computed At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        assumptions:
+          items:
+            type: string
+          title: Assumptions
+          type: array
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          title: Warnings
+          type: array
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          default: null
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/ForecastDockingResult'
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: ForecastDockingResponse
+      type: object
+    ForecastDockingResult:
+      additionalProperties: false
+      properties:
+        selected_config:
+          anyOf:
+          - $ref: '#/components/schemas/MooringConfig'
+          - type: 'null'
+          default: null
+          description: Selected arrival's configuration with modeled unstretched paid-out lengths made explicit. Reproduces
+            the static installation assumption; not a deck-handling instruction.
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          description: Installation water level for selected_config; unknown/absent when no supported arrival was selected.
+          title: Installed At Water Level Mllw Ft
+        as_of_utc:
+          format: date-time
+          title: As Of Utc
+          type: string
+        forecast_start_utc:
+          format: date-time
+          title: Forecast Start Utc
+          type: string
+        forecast_end_utc:
+          format: date-time
+          title: Forecast End Utc
+          type: string
+        issued_at_utc:
+          items:
+            format: date-time
+            type: string
+          title: Issued At Utc
+          type: array
+        retrieved_at_utc:
+          description: Recorded component retrieval times, separate from actual provider issuance.
+          items:
+            format: date-time
+            type: string
+          title: Retrieved At Utc
+          type: array
+        sources:
+          items:
+            type: string
+          title: Sources
+          type: array
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          title: Tugs
+          type: array
+        recommendation_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recommendation Result Id
+        selected_arrival_utc:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Selected Arrival Utc
+        windows:
+          items:
+            $ref: '#/components/schemas/DockingArrivalWindow'
+          title: Windows
+          type: array
+        conditions:
+          items:
+            $ref: '#/components/schemas/DockingConditionResult'
+          title: Conditions
+          type: array
+        evaluations:
+          title: Evaluations
+          type: integer
+        complete:
+          title: Complete
+          type: boolean
+        recheck_triggers:
+          items:
+            type: string
+          title: Recheck Triggers
+          type: array
+        limitations:
+          items:
+            type: string
+          title: Limitations
+          type: array
+      required:
+      - as_of_utc
+      - forecast_start_utc
+      - forecast_end_utc
+      - issued_at_utc
+      - sources
+      - config
+      - tugs
+      - recommendation_result_id
+      - selected_arrival_utc
+      - windows
+      - conditions
+      - evaluations
+      - complete
+      - recheck_triggers
+      - limitations
+      title: ForecastDockingResult
+      type: object
+    HeldOutValidation:
+      additionalProperties: false
+      description: Calibration check on data not used for fitting.
+      properties:
+        n_heldout:
+          minimum: 0
+          title: N Heldout
+          type: integer
+        nominal_coverage:
+          exclusiveMaximum: 1
+          exclusiveMinimum: 0
+          title: Nominal Coverage
+          type: number
+        observed_coverage:
+          anyOf:
+          - maximum: 1
+            minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          title: Observed Coverage
+      required:
+      - n_heldout
+      - nominal_coverage
+      title: HeldOutValidation
+      type: object
+    HorizonRisk:
+      additionalProperties: false
+      description: Probability of the event over the horizon, from correlated trajectories (not a combination of pointwise
+        values).
+      properties:
+        event:
+          title: Event
+          type: string
+        n_trajectories:
+          title: N Trajectories
+          type: integer
+        step_min:
+          title: Step Min
+          type: integer
+        horizon_hours:
+          title: Horizon Hours
+          type: number
+        p_event:
+          description: Known exceedances / all trajectories; a lower bound when solves fail. Consult p_event_bounds.
+          maximum: 1
+          minimum: 0
+          title: P Event
+          type: number
+        p_event_ci95:
+          description: 95% Wilson interval widened over both possible outcomes of failed trajectories.
+          items:
+            type: number
+          title: P Event Ci95
+          type: array
+        n_failed:
+          title: N Failed
+          type: integer
+        correlation_time_min:
+          title: Correlation Time Min
+          type: number
+        p_event_bounds:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          default: null
+          description: '[known exceedances / n, (known exceedances + failed) / n]. Failed trajectories are unknown, never
+            safe.'
+          title: P Event Bounds
+        effective_step_min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          description: Actual uniform sampling interval, no larger than step_min, including both horizon endpoints.
+          title: Effective Step Min
+      required:
+      - event
+      - n_trajectories
+      - step_min
+      - horizon_hours
+      - p_event
+      - p_event_ci95
+      - n_failed
+      - correlation_time_min
+      title: HorizonRisk
       type: object
     JobDoneEvent:
       additionalProperties: false
@@ -8703,6 +10331,147 @@ components:
       - position
       title: MotionSceneShipFitting
       type: object
+    RecommendResponse:
+      additionalProperties: false
+      properties:
+        result_id:
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+          title: Result Id
+          type: string
+        model:
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+          title: Model
+          type: string
+        model_version:
+          title: Model Version
+          type: string
+        backend:
+          description: '''mock'' until the workstream''s real module lands.'
+          enum:
+          - mock
+          - real
+          title: Backend
+          type: string
+        inputs_hash:
+          description: sha256 of the canonical request JSON.
+          title: Inputs Hash
+          type: string
+        computed_at_utc:
+          format: date-time
+          title: Computed At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        assumptions:
+          items:
+            type: string
+          title: Assumptions
+          type: array
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          title: Warnings
+          type: array
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          default: null
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/RecommendResult'
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: RecommendResponse
+      type: object
+    RecommendResult:
+      additionalProperties: false
+      properties:
+        candidates:
+          items:
+            $ref: '#/components/schemas/Candidate'
+          title: Candidates
+          type: array
+        design_environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        cases:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          description: Every environment case each candidate was evaluated against.
+          title: Cases
+        search:
+          anyOf:
+          - $ref: '#/components/schemas/SearchDiagnostics'
+          - type: 'null'
+          default: null
+      required:
+      - candidates
+      - design_environment
+      title: RecommendResult
+      type: object
+    SearchDiagnostics:
+      additionalProperties: false
+      properties:
+        strategy:
+          enum:
+          - exhaustive
+          - bounded_descent
+          - none
+          title: Strategy
+          type: string
+        complete:
+          description: True only when the whole candidate space was evaluated.
+          title: Complete
+          type: boolean
+        space_size:
+          title: Space Size
+          type: integer
+        evaluated:
+          title: Evaluated
+          type: integer
+        budget:
+          title: Budget
+          type: integer
+        feasible_found:
+          title: Feasible Found
+          type: integer
+        notes:
+          items:
+            type: string
+          title: Notes
+          type: array
+      required:
+      - strategy
+      - complete
+      - space_size
+      - evaluated
+      - budget
+      - feasible_found
+      title: SearchDiagnostics
+      type: object
     ShipPoint:
       additionalProperties: false
       properties:
@@ -8742,6 +10511,29 @@ components:
       required:
       - type
       title: SimControlMessage
+      type: object
+    SimEvent:
+      additionalProperties: false
+      properties:
+        t_s:
+          title: T S
+          type: number
+        kind:
+          enum:
+          - fender_contact
+          - line_overload
+          - speed_exceeded
+          - all_fast
+          title: Kind
+          type: string
+        detail:
+          title: Detail
+          type: string
+      required:
+      - t_s
+      - kind
+      - detail
+      title: SimEvent
       type: object
     SimLifecycle:
       additionalProperties: false
@@ -9130,6 +10922,381 @@ components:
       - direction_rel_deg
       title: SimTugCommandMessage
       type: object
+    SimulationTransition:
+      additionalProperties: false
+      properties:
+        t_s:
+          title: T S
+          type: number
+        kind:
+          enum:
+          - contact_start
+          - contact_end
+          - line_taut
+          - line_slack
+          - secured
+          - tensioned
+          - released
+          title: Kind
+          type: string
+        element_id:
+          title: Element Id
+          type: string
+      required:
+      - t_s
+      - kind
+      - element_id
+      title: SimulationTransition
+      type: object
+    TimelineResponse:
+      additionalProperties: false
+      properties:
+        result_id:
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+          title: Result Id
+          type: string
+        model:
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+          title: Model
+          type: string
+        model_version:
+          title: Model Version
+          type: string
+        backend:
+          description: '''mock'' until the workstream''s real module lands.'
+          enum:
+          - mock
+          - real
+          title: Backend
+          type: string
+        inputs_hash:
+          description: sha256 of the canonical request JSON.
+          title: Inputs Hash
+          type: string
+        computed_at_utc:
+          format: date-time
+          title: Computed At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        assumptions:
+          items:
+            type: string
+          title: Assumptions
+          type: array
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          title: Warnings
+          type: array
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          default: null
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/TimelineResult'
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: TimelineResponse
+      type: object
+    TimelineResult:
+      additionalProperties: false
+      properties:
+        forcing_source:
+          anyOf:
+          - enum:
+            - synthetic_training
+            - supplied
+            type: string
+          - type: 'null'
+          default: null
+          title: Forcing Source
+        steps:
+          items:
+            $ref: '#/components/schemas/TimelineStep'
+          title: Steps
+          type: array
+        first_amber_utc:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: First Amber Utc
+        first_red_utc:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: First Red Utc
+        recommended_actions:
+          items:
+            type: string
+          title: Recommended Actions
+          type: array
+      required:
+      - steps
+      - first_amber_utc
+      - first_red_utc
+      - recommended_actions
+      title: TimelineResult
+      type: object
+    TimelineStep:
+      additionalProperties: false
+      properties:
+        valid_at_utc:
+          format: date-time
+          title: Valid At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        wind_speed_kt:
+          title: Wind Speed Kt
+          type: number
+        wind_gust_kt:
+          title: Wind Gust Kt
+          type: number
+        p_any_exceeds_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          description: Null unless n_samples_per_step > 0; pointwise, not a horizon probability.
+          title: P Any Exceeds Wll
+        governing_element:
+          title: Governing Element
+          type: string
+        max_pct_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          title: Max Pct Wll
+        valid:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          title: Valid
+        environment:
+          anyOf:
+          - $ref: '#/components/schemas/EnvironmentSnapshot'
+          - type: 'null'
+          default: null
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+        n_valid:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: N Valid
+        n_failed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: N Failed
+        p_any_bounds:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          default: null
+          title: P Any Bounds
+      required:
+      - valid_at_utc
+      - status
+      - wind_speed_kt
+      - wind_gust_kt
+      - governing_element
+      title: TimelineStep
+      type: object
+    UncertaintyModel:
+      additionalProperties: false
+      description: 'A versioned description of what is random in the environment and how it was obtained.
+
+
+        `qualification` is ''qualified'' only when the minimum-data policy and held-out calibration pass. A synthetic or
+
+        underfit model validates algorithms only: probabilities computed from it are scenario outputs, not risk estimates.'
+      properties:
+        model_id:
+          title: Model Id
+          type: string
+        revision:
+          title: Revision
+          type: string
+        kind:
+          enum:
+          - synthetic
+          - fitted
+          title: Kind
+          type: string
+        station_ids:
+          items:
+            type: string
+          title: Station Ids
+          type: array
+        fit_start_utc:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Fit Start Utc
+        fit_end_utc:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Fit End Utc
+        filters:
+          description: Quality filters applied to the fitting data.
+          items:
+            type: string
+          title: Filters
+          type: array
+        gust_factor_mu:
+          description: Log-mean of gust / sustained wind.
+          title: Gust Factor Mu
+          type: number
+        gust_factor_sigma:
+          minimum: 0
+          title: Gust Factor Sigma
+          type: number
+        sectors:
+          description: Exploratory direction-sector gust fits; not used by the global risk sampler or independently qualified.
+          items:
+            $ref: '#/components/schemas/UncertaintySector'
+          title: Sectors
+          type: array
+        direction_sigma_deg:
+          description: Circular standard deviation of wind direction scatter.
+          minimum: 0
+          title: Direction Sigma Deg
+          type: number
+        current_sigma_kt:
+          description: Std. dev. of observed minus predicted current speed.
+          minimum: 0
+          title: Current Sigma Kt
+          type: number
+        correlation_time_min:
+          description: e-folding time of the AR(1) wind and current deviations.
+          exclusiveMinimum: 0
+          title: Correlation Time Min
+          type: number
+        n_events:
+          minimum: 0
+          title: N Events
+          type: integer
+        n_days:
+          minimum: 0
+          title: N Days
+          type: number
+        validation:
+          anyOf:
+          - $ref: '#/components/schemas/HeldOutValidation'
+          - type: 'null'
+          default: null
+        applicability:
+          items:
+            type: string
+          title: Applicability
+          type: array
+        limitations:
+          items:
+            type: string
+          title: Limitations
+          type: array
+        qualification:
+          enum:
+          - qualified
+          - unqualified
+          title: Qualification
+          type: string
+        qualification_reasons:
+          items:
+            type: string
+          title: Qualification Reasons
+          type: array
+      required:
+      - model_id
+      - revision
+      - kind
+      - gust_factor_mu
+      - gust_factor_sigma
+      - direction_sigma_deg
+      - current_sigma_kt
+      - correlation_time_min
+      - n_events
+      - n_days
+      - qualification
+      title: UncertaintyModel
+      type: object
+    UncertaintySector:
+      additionalProperties: false
+      description: Direction-sector gust fit; boundaries are true directions wind comes from.
+      properties:
+        from_deg:
+          exclusiveMaximum: 360
+          minimum: 0
+          title: From Deg
+          type: number
+        to_deg:
+          exclusiveMinimum: 0
+          maximum: 360
+          title: To Deg
+          type: number
+        gust_factor_mu:
+          title: Gust Factor Mu
+          type: number
+        gust_factor_sigma:
+          minimum: 0
+          title: Gust Factor Sigma
+          type: number
+        n_fit:
+          minimum: 2
+          title: N Fit
+          type: integer
+      required:
+      - from_deg
+      - to_deg
+      - gust_factor_mu
+      - gust_factor_sigma
+      - n_fit
+      title: UncertaintySector
+      type: object
 tags:
 - name: M1 Environment
   description: Wind, current and water level from every source, normalized.
@@ -9163,6 +11330,10 @@ x-websockets:
   /ws/alerts:
     query: berth_id, scenario_id, interval_s, limit
     server_messages: Alert
+    terminal_close_codes:
+      '1013': Environment source unavailable; no replacement snapshot is emitted
+      '4404': Scenario/source/reference not found or not owned
+      '4400': Invalid interval, limit or reference
   /ws/sim/{session_id}:
     query: limit
     client_messages: SimTugCommandMessage | SimLineEventMessage | SimControlMessage

@@ -1,5 +1,7 @@
 """M3 HTTP services; the numerical implementation stays independent of envelopes."""
 
+from pydantic import ValidationError
+
 from mooring import refdata
 from mooring.core.envelopes import RESULTS, inputs_hash, new_id, status_with_validity, utcnow
 from mooring.core.schemas import (
@@ -9,18 +11,28 @@ from mooring.core.schemas import (
 from mooring.core.schemas import Validity, ValidityReason
 from . import coefficients as c
 from .helpers import off_pier
-from .validity import classify_findings, merge_reasons, wind_basis
+from .validity import classify_findings, environment_findings, merge_reasons, wind_basis
 from .ufc import compute_loads, ship_inputs
 from .warnings import range_findings
+
+
+def _checked_loads(*args, **kwargs):
+    """Translate only nonfinite derived loads into the API's numerical-range error."""
+    try:
+        return compute_loads(*args, **kwargs)
+    except ValidationError as exc:
+        if all(error["type"] == "finite_number" for error in exc.errors()):
+            raise OverflowError("Derived loads exceed the supported numerical range") from exc
+        raise
 
 
 def _metadata(ship, loading, depth, water_density, use_gust, current_speed, results, env=None, require_basis=False):
     draft, *_ = ship_inputs(ship, loading, water_density)
     assumptions = [
         "UFC 4-159-03 (2020), Chapter 4; Eq. 4-3 harmonic and symmetric angle folding restored from the earlier UFC edition.",
-        "Wind uses the supplied gust speed, assumed to be a 10 m, 30-second gust; the API does not specify gust duration."
-        if use_gust else f"Wind uses 10 m, 1-minute sustained speed converted to 30 seconds by {c.SUSTAINED_TO_30S:.3f} (UFC Figure 3-5 synoptic curve, approximate readings 1.31/1.25).",
+        "Wind basis follows supplied metadata; unsupported conversions and any legacy assumptions are listed below.",
         "Wind shielding scales all wind forces and moments equally; current is unshielded.",
+        "Static wind and current loads only; wave and wake loads are not evaluated.",
         "Water depth is actual depth at the ship; water level is not added again.",
         "Current model assumes a wide harbor/channel, level keel, and 15 C salt-water viscosity (Table 4-1); density uses the request.",
         "Yaw uses UFC Tables 4-5/4-10: DDG and CG use destroyer wind / FFG current; CVN and LHD use carrier wind / CVE 55 current. CG is assumed at midships.",
@@ -44,6 +56,9 @@ def _metadata(ship, loading, depth, water_density, use_gust, current_speed, resu
         basis = wind_basis(env, use_gust)
         assumptions.extend(basis.notes)
         reasons += basis.reasons
+        for state, reason in environment_findings(env, use_gust):
+            reasons.append(reason)
+            invalid = invalid or state == "invalid"
         if require_basis and not basis.verified and not basis.reasons:
             reasons.append(ValidityReason(code="WIND_BASIS_UNVERIFIED", affected_components=["wind"],
                                           message="Wind averaging/gust duration/height are not documented; the legacy assumption was used."))
@@ -84,7 +99,7 @@ def _response(cls, req, result, assumptions, warnings, validity, manifest=None):
 
 def environmental(req: LoadsRequest) -> LoadsResponse:
     ship = refdata.ship(req.ship_class_id)
-    result = compute_loads(ship, req.loading, req.heading_true_deg, req.environment, req.water_depth_ft,
+    result = _checked_loads(ship, req.loading, req.heading_true_deg, req.environment, req.water_depth_ft,
                            req.use_gust, req.shielding_factor)
     if req.side_to:
         result.off_pier_component_lbf = off_pier(result.total.fy_lbf, req.side_to)
@@ -103,11 +118,12 @@ def polar(req: PolarRequest) -> PolarResponse:
                                   wind_from_true_deg=rel,
                                   current_speed_kt=req.current_speed_kt if req.apply_to != "wind" else 0,
                                   current_set_true_deg=(rel + 180) % 360, water_level_mllw_ft=0)
-        result = compute_loads(ship, req.loading, 0, env, req.water_depth_ft, use_gust=False)
+        result = _checked_loads(ship, req.loading, 0, env, req.water_depth_ft, use_gust=False)
         results.append(result)
         points.append(PolarPoint(rel_deg=rel, **result.total.model_dump()))
     assumptions, warnings, validity = _metadata(ship, req.loading, req.water_depth_ft, env.water_density_kgm3, False,
                                                 env.current_speed_kt, results)
+    assumptions.append(f"Polar wind uses 10 m, 60 s sustained speed converted to 30 s by {c.SUSTAINED_TO_30S:.3f}; no wind metadata is accepted by this endpoint.")
     assumptions.append("rel_deg is the direction the wind comes from; current flows the same way as the wind.")
     return _response(PolarResponse, req, PolarResult(points=points), assumptions, warnings, validity, _manifest(req, ship))
 

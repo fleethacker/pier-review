@@ -178,7 +178,7 @@ and the shell only deals with the scene model.
    tugs to the canvas (with undo), shows the line sequence, takes follow-up questions.
 4. **Dashboard** (bottom): live, replay and storm-ramp environment streams, the alert feed, a 24 h forecast, a
    limiting-wind chart and gust risk.
-5. **Safety sheet** (overlay): the service's rendered sheet, margins, rationale, a layout image, approvals by pilot,
+5. **Safety sheet** (overlay): the service's rendered sheet, margins, rationale, an explanation when a plan-bound layout image is unavailable, approvals by pilot,
    first lieutenant and CO, and print.
 
 ## Known limits and qualification
@@ -186,12 +186,10 @@ and the shell only deals with the scene model.
 - Backend `real` identifies the implementation, not qualification. Seed data and synthetic uncertainty remain unqualified; inspect result validity and warnings. Do not use this UI operationally.
 - Saving a scenario freezes the displayed weather into a synthetic steady snapshot, including for agent runs; it does not preserve a live forecast or replay timeline.
 - Only the DDG-51 class has fitting data, so other classes show a hull only and line editing is disabled.
-- The mock alert stream does not escalate during a storm ramp. The UI therefore also raises warnings from the plan
-  analysis and labels them as coming from the analysis, not the service.
-- The mock's reported line lengths do not match the contract's geometry; the canvas draws from the contract's frames
-  and the inspector shows the service's numbers.
-- The meaning of `wind_rel_deg` in the wind-limit chart is not defined in the contract; the chart shows it as
-  reported.
+- Alerts and load displays retain validity; invalid or unknown assessments do not supply passing load colors or percentages.
+- Wind-limit bearings use the API wind-from convention; the chart compares sustained wind to sustained limits. See [contract semantics](../docs/CONTRACT_SEMANTICS.md).
+- Explicit Intake and independent Safety-review selection remain absent from the UI. Sheet creation invokes review implicitly; API clients can select those reports explicitly.
+- Motion is a labeled surrogate; the 2D motion panel does not establish a qualified vessel maneuver.
 
 ## Open decisions
 
@@ -207,7 +205,7 @@ server proxies `api/modeling/*` and `api/agents/*` to the two services (`MODELIN
 environment lacks it). Entry script: `app.sh`; branch: `ui/frontend`. A hardware tier with at least 4 GiB of memory
 is enough for the build. This script has not been run on Domino yet; check the first start's logs.
 
-## Check the whole demo
+## Check the integrated demo paths
 
 ```bash
 make demo-check   # repo root
@@ -216,7 +214,21 @@ make demo-check   # repo root
 Starts both services and the built UI on private ports (the way `app.sh` does), then checks through the UI proxy:
 the page and bundled fixtures, health and capabilities, the Phase 1 chain (scenario, agent plan over SSE, safety
 sheet, approval), a berth vision round trip, and a motion session over a WebSocket (resume, command, pause, reset).
-If Playwright is available it also drives the UI in headless Chromium and saves screenshots to
-`docs/overnight/screens/`; set `DEMO_CHECK_BROWSER_PYTHON` to an interpreter that has Playwright, and
-`PLAYWRIGHT_BROWSERS_PATH` if its Chromium is somewhere unusual. Without a browser the browser part is reported as
-skipped. `--skip-build` reuses `frontend/packages/web/dist`; `--no-browser` runs the API part only.
+The browser portion requires Playwright and Chromium. Missing Playwright is a failure, not a passing gate.
+Set `DEMO_CHECK_BROWSER_PYTHON` to an interpreter with Playwright; optionally set
+`DEMO_CHECK_BROWSER_EXECUTABLE` to an installed Chrome/Chromium executable. `PLAYWRIGHT_BROWSERS_PATH`
+selects a downloaded browser location. `DEMO_CHECK_SCREEN_DIR` redirects screenshots outside the repository.
+`--skip-build` reuses the built UI; `--no-browser` explicitly reports the browser portion as skipped.
+
+The API check uses the supported-limited named scenario, explicit Intake and independent Safety review,
+and asserts AMBER/limited before sheet approval. The browser checks planning, sheet/print controls, motion,
+units and estimated berth confirmation. These are scoped integration checks: explicit Intake/review UI
+selection and the full four-case browser acceptance flow remain incomplete.
+
+Verified local example without changing project dependencies:
+
+```sh
+DEMO_CHECK_BROWSER_EXECUTABLE="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+DEMO_CHECK_SCREEN_DIR=/tmp/mooring-demo-screens \
+uv run --all-packages --with playwright python scripts/demo_check.py
+```

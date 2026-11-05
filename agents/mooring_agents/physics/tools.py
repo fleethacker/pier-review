@@ -27,6 +27,14 @@ class ToolSpec(Model):
 
 
 TOOLS: list[ToolSpec] = [
+    ToolSpec(name="get_scenario_environment", description="Resolve the saved scenario's actual source; explicit mock remains synthetic and unsupported sources fail.",
+             method="GET", path="/scenarios/{scenario_id}/environment", request_schema=None),
+    ToolSpec(name="get_environment_scenario", description="Read the declared steady, ramp or replay source without inventing future samples.",
+             method="GET", path="/env/scenarios/{env_scenario_id}", request_schema=None),
+    ToolSpec(name="save_berth", description="Register explicitly human-confirmed berth geometry, preserving estimated provenance.",
+             method="POST", path="/berths", request_schema="Berth"),
+    ToolSpec(name="draft_berth", description="Build unsaved draft geometry using catalog data and optional image anchors.",
+             method="POST", path="/berth-drafts", request_schema="BerthDraftRequest"),
     ToolSpec(name="get_scenario", description="Load the saved scenario: ship, berth, side, environment source, config.",
              method="GET", path="/scenarios/{scenario_id}", request_schema=None),
     ToolSpec(name="get_environment", description="Current wind, current and water level at the berth.",
@@ -49,7 +57,7 @@ TOOLS: list[ToolSpec] = [
              method="POST", path="/mooring/recommend", request_schema="RecommendRequest", async_job=True),
     ToolSpec(name="plan_tugs", description="Tug force, bollard pull and horsepower to land and hold the ship.",
              method="POST", path="/tugs/berthing-plan", request_schema="BerthingTugRequest"),
-    ToolSpec(name="hold_tugs", description="Tugs needed to relieve overloaded lines on a moored ship.",
+    ToolSpec(name="hold_tugs", description="Additional tugs needed to relieve overloaded lines; retain the request tugs alongside returned assignments.",
              method="POST", path="/tugs/hold-plan", request_schema="HoldTugRequest"),
     ToolSpec(name="berthing_windows", description="Times with low current and gusts for berthing.",
              method="POST", path="/windows/berthing", request_schema="BerthingWindowRequest"),

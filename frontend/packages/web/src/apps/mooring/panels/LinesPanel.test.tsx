@@ -9,10 +9,10 @@ afterEach(cleanup);
 function setup(lines = [
   { line_number: 1, role: 'bow', spec_id: 'NYLON', parts: 1, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P-1' },
   { line_number: 2, role: 'stern', spec_id: 'NYLON', parts: 3, ship_fitting_id: 'BITT-6S', pier_fitting_id: 'P-2' },
-]) {
+], analysis: unknown = null) {
   const c = { setAllParts: vi.fn(), updateLine: vi.fn(), setNewLineSpec: vi.fn(), startAddLine: vi.fn(), cancelAddLine: vi.fn(), removeLine: vi.fn(), host: { store: { select: vi.fn() } } };
   const state = {
-    ship: { fittings: [{}] }, lines, lineSpecs: [{ spec_id: 'NYLON' }], analysis: { response: null },
+    ship: { fittings: [{}] }, lines, lineSpecs: [{ spec_id: 'NYLON' }], analysis: { response: analysis },
     addLine: { active: false, shipFittingId: null, specId: 'NYLON', parts: 1 }, recommend: { state: 'idle' },
   };
   render(
@@ -61,4 +61,17 @@ describe('LinesPanel doubling up', () => {
     fireEvent.click(group.querySelectorAll('button')[2]);
     expect(c.setNewLineSpec).toHaveBeenCalledWith('NYLON', 3);
   });
+});
+
+
+it.each(['invalid', 'unknown', undefined])('withholds line percentages for %s analysis validity', (state) => {
+  setup(undefined, { validity: state ? { state } : undefined,
+    result: { lines: [{ line_number: 1, pct_wll: 12.3, status: 'GREEN' }] } });
+  expect(screen.queryByText('12%')).toBeNull();
+  expect(screen.getByText(/Line loads unavailable/)).toBeTruthy();
+});
+
+it.each(['valid', 'limited'])('retains line percentages for %s analysis', (state) => {
+  setup(undefined, { validity: { state }, result: { lines: [{ line_number: 1, pct_wll: 12.3, status: 'GREEN' }] } });
+  expect(screen.getByText('12%')).toBeTruthy();
 });

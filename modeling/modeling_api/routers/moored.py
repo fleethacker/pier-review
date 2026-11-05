@@ -88,3 +88,14 @@ def hold_plan(req: Annotated[HoldTugRequest, Body(openapi_examples=ex("tugs_hold
              summary="Recommend line configurations (job; result is a RecommendResponse)")
 def recommend(req: Annotated[RecommendRequest, Body(openapi_examples=ex("mooring_recommend"))]):
     return JOBS.submit_task("mooring.recommend", lambda ctx: optimizer.recommend(req, ctx))
+
+
+# ---- Advance docking forecast assessment ----
+from mooring.core.schemas.forecast_planning import ForecastDockingRequest
+from mooring.moored.forecast_planning import assess as assess_forecast_docking
+
+
+@router.post("/mooring/forecast-plan", response_model=JobAccepted, status_code=202, tags=["M7 Planning"],
+             summary="Assess arrivals at least 24 hours ahead (job result: ForecastDockingResponse)")
+def forecast_plan(req: ForecastDockingRequest):
+    return JOBS.submit_task("mooring.forecast_plan", lambda ctx: assess_forecast_docking(req, ctx))

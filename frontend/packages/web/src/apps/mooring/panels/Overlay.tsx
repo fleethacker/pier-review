@@ -123,6 +123,7 @@ function SheetViewer() {
   const [comment, setComment] = useState('');
   const s = sheet.sheet;
   if (!s) return null;
+  const usable = s.validity?.state === 'valid' || s.validity?.state === 'limited';
   const approved = s.approvals.filter((a) => a.decision === 'approve');
   const rejected = s.approvals.some((a) => a.decision === 'reject');
 
@@ -150,7 +151,7 @@ function SheetViewer() {
         </div>
 
         <div className="space-y-3 text-[11px]">
-          {sheet.image && (
+          {sheet.image ? (
             <div>
               <div className="mil-label mb-1">Layout</div>
               <img src={sheet.image} alt="Mooring layout at the time the sheet was built" className="w-full rounded-sm border border-mil-border" />
@@ -158,6 +159,8 @@ function SheetViewer() {
                 Download layout image
               </a>
             </div>
+          ) : (
+            <p className="text-mil-dim">No plan-bound layout image is attached. The current map may differ from this sheet; use its recorded line plan and result references.</p>
           )}
 
           {s.warnings.length > 0 && (
@@ -182,7 +185,7 @@ function SheetViewer() {
                     Line {l.line_number} {l.role}
                   </span>
                   <span className="flex items-center gap-2">
-                    {fmt.pct(l.pct_wll)} of WLL <StatusChip status={l.status} label="" />
+                    {usable ? <>{fmt.pct(l.pct_wll)} of WLL <StatusChip status={l.status} label="" /></> : 'Unavailable'}
                   </span>
                 </li>
               ))}

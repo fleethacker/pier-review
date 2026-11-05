@@ -33,7 +33,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "frontend" / "packages" / "web"
 EXAMPLES = ROOT / "contract" / "examples" / "modeling"
-SCREENS = ROOT / "docs" / "overnight" / "screens"
+SCREENS = Path(os.environ.get("DEMO_CHECK_SCREEN_DIR", str(ROOT / "docs" / "overnight" / "screens")))
 
 RESULTS: list[tuple[str, str, str]] = []  # (status, name, detail)
 
@@ -106,8 +106,9 @@ class Stack:
 
     def start_services(self) -> None:
         env = {**os.environ, "AGENTS_LLM_PROVIDER": "none", "PYTHONUNBUFFERED": "1"}
-        for k in ("MOORING_API_KEYS", "MOORING_AUTH_REQUIRED"):
+        for k in ("MOORING_API_KEYS", "MOORING_AUTH_REQUIRED", "AGENTS_API_KEYS", "AGENTS_AUTH_REQUIRED", "AGENTS_LEDGER_DB"):
             env.pop(k, None)  # demo mode: open, loopback only
+        env.update(MOORING_DB=":memory:", AGENTS_PERSIST="0", MOORING_ENV_SOURCE="mock", MOORING_RATE_PER_MINUTE="0", AGENTS_RATE_PER_MINUTE="0")
         py = [sys.executable, "-m", "uvicorn"]
         self._spawn("modeling", [*py, "modeling_api.main:app", "--host", "127.0.0.1", "--port", str(self.modeling_port)], env, ROOT)
         self._spawn(
@@ -195,16 +196,32 @@ def api_checks(stack: Stack) -> dict:
         assert "wave_height_ft" not in env or env["wave_height_ft"] is None, "waves must be unavailable, not a number"
         return f"environment source={env['source']}"
 
+    def finish(accepted):
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
+            _, job = http("GET", agents + "/jobs/" + accepted["job_id"])
+            if job["state"] == "succeeded":
+                return job["result"]
+            assert job["state"] in ("queued", "running"), job.get("error")
+            time.sleep(0.1)
+        raise AssertionError("agent job exceeded demo-check deadline")
+
     def scenario():
-        body = json.loads((EXAMPLES / "scenario.json").read_text())
-        body["name"] = f"demo-check {time.strftime('%H:%M:%S')}"
+        _, cases = http("GET", modeling + "/demo/docking-cases")
+        case = next(c for c in cases if c["case_id"] == "ddg-supported-limited")
+        _, weather = http("POST", modeling + "/env/scenarios", case["environment_request"])
+        body = case["scenario_request"]
+        body["name"] = "demo-check supported-limited"
+        body["env_source"] = {"mode": "scenario", "env_scenario_id": weather["env_scenario_id"]}
         _, sc = http("POST", modeling + "/scenarios", body)
         ctx["scenario_id"] = sc["scenario_id"]
-        ctx["tugs"] = [t["tug_id"] for t in (sc.get("tugs") or body.get("tugs") or [])]
-        return f"scenario {sc['scenario_id']}"
+        ctx["tugs"] = [t["tug_id"] for t in (sc.get("tugs") or [])]
+        _, accepted = http("POST", agents + "/intake/reports", {"scenario_id": sc["scenario_id"], "horizon_hours": 48})
+        ctx["intake"] = finish(accepted)
+        return f"supported scenario {sc['scenario_id']}; explicit Intake completed"
 
     def plan():
-        _, accepted = http("POST", agents + "/agent/plans", {"scenario_id": ctx["scenario_id"], "objective": "moor_for_forecast", "target_margin_pct_wll": 60, "max_iterations": 8})
+        _, accepted = http("POST", agents + "/agent/plans", {"scenario_id": ctx["scenario_id"], "intake_report_id": ctx["intake"]["report_id"], "objective": "moor_for_forecast", "target_margin_pct_wll": 60, "max_iterations": 8})
         ctx["plan_id"] = accepted["plan_id"]
         events = []
         req = urllib.request.Request(f"{ui}/api/agents{accepted['events_url']}")
@@ -219,11 +236,16 @@ def api_checks(stack: Stack) -> dict:
                     break
         assert "step" in events and events[-1] == "done", f"SSE events: {events}"
         _, p = http("GET", f"{agents}/agent/plans/{ctx['plan_id']}")
+        _, analysis = http("GET", modeling + "/results/" + p["analysis_result_id"])
+        assert p["status"] == "AMBER" and analysis["validity"]["state"] == "limited", p
         ctx["plan"] = p
         return f"SSE: {events.count('step')} steps then done; plan state={p['state']}, status={p.get('status')}"
 
     def sheet_and_approval():
-        _, sheet = http("POST", agents + "/safety-sheets", {"plan_id": ctx["plan_id"]})
+        _, accepted = http("POST", agents + "/safety/reviews", {"plan_id": ctx["plan_id"]})
+        review = finish(accepted)
+        assert review["verdict"] == "ready_for_signature" and review["validity"]["state"] == "limited", review
+        _, sheet = http("POST", agents + "/safety-sheets", {"plan_id": ctx["plan_id"], "review_id": review["review_id"]})
         sid = sheet["sheet_id"]
         status, html = http("GET", f"{agents}/safety-sheets/{sid}/render?format=html")
         assert status == 200 and len(html) > 500, "sheet did not render"
@@ -354,7 +376,7 @@ def browser_checks(stack: Stack, browser_python: str | None, browser_timeout: fl
     py = browser_python or os.environ.get("DEMO_CHECK_BROWSER_PYTHON") or sys.executable
     probe = subprocess.run([py, "-c", "import playwright"], capture_output=True)
     if probe.returncode != 0:
-        record("SKIP", "Browser flow (headless Chromium)", "Playwright is not installed; API and proxy checks above are all that ran (set DEMO_CHECK_BROWSER_PYTHON)")
+        record("FAIL", "Browser flow (headless Chromium)", "Playwright is not installed; API and proxy checks above are all that ran (set DEMO_CHECK_BROWSER_PYTHON)")
         return
     SCREENS.mkdir(parents=True, exist_ok=True)
     # Stream the child's results as they arrive: a timeout must not lose what already passed.
@@ -423,6 +445,7 @@ def main() -> int:
     print(f"\ndemo-check: {len(RESULTS) - len(failed) - len(skipped)} passed, {len(failed)} failed, {len(skipped)} skipped")
     for _, name, detail in skipped:
         print(f"  not covered: {name} ({detail})")
+    print("Coverage limit: explicit Intake/review UI selection and the complete four-case browser gate remain unimplemented; this is a scoped integration check.")
     return 1 if failed else 0
 
 

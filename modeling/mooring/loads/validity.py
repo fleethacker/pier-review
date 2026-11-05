@@ -12,6 +12,7 @@ conservative for a coupled mooring model is not established here, and nothing cl
 """
 
 from dataclasses import dataclass, field
+from datetime import UTC
 
 from mooring.core.schemas import EnvironmentSnapshot, Finding, ValidityReason
 
@@ -92,6 +93,68 @@ def merge_reasons(reasons: list[ValidityReason]) -> list[ValidityReason]:
         else:
             merged[r.code] = r.model_copy(deep=True)
     return list(merged.values())
+
+
+def environment_findings(env: EnvironmentSnapshot, use_gust: bool = True) -> list[tuple[str, ValidityReason]]:
+    """Honor explicit input quality without applying a wall-clock expiry to archived scenarios.
+
+    No age threshold is invented here: providers own freshness policy and flag stale data.
+    Forecast as-of/coverage checks belong to the planning service. Missing/bad inputs cannot
+    establish a physical limit; suspect/stale inputs retain diagnostic values but stay limited.
+    """
+    out = []
+
+    def add(state, code, message, components=None):
+        out.append((state, ValidityReason(code=code, message=message,
+                                       affected_components=components or ["environment"])))
+
+    meta = env.metadata
+    time_specified = env.valid_at_utc.tzinfo is not None and env.valid_at_utc.utcoffset() is not None
+    at = env.valid_at_utc.astimezone(UTC) if time_specified else None
+    if not time_specified:
+        add("invalid", "ENVIRONMENT_TIME_UNSPECIFIED", "Environment validity time has no timezone.")
+    elif meta:
+        if ((meta.valid_from_utc and at < meta.valid_from_utc)
+                or (meta.valid_to_utc and at > meta.valid_to_utc)):
+            add("invalid", "ENVIRONMENT_OUTSIDE_VALID_INTERVAL", "Snapshot time lies outside its declared validity interval.")
+    for item in meta.components if meta else []:
+        if time_specified and ((item.valid_from_utc and at < item.valid_from_utc)
+                or (item.valid_to_utc and at > item.valid_to_utc)):
+            add("invalid", "ENVIRONMENT_COMPONENT_OUTSIDE_VALID_INTERVAL",
+                f"{item.component} snapshot lies outside the source validity interval.", [item.component])
+        if item.quality == "poor":
+            add("invalid", "ENVIRONMENT_COMPONENT_POOR_QUALITY",
+                f"{item.component} provider marks the component as poor quality.", [item.component])
+        elif item.quality in ("suspect", "unknown"):
+            add("limited", "ENVIRONMENT_COMPONENT_QUALITY_UNVERIFIED",
+                f"{item.component} quality is {item.quality}; qualification is not established.", [item.component])
+        if item.basis == "prediction" and item.issued_at_utc is None:
+            add("limited", "FORECAST_COMPONENT_ISSUANCE_UNKNOWN",
+                f"{item.component} provider issuance is unknown; recorded retrieval establishes only an availability bound.", [item.component])
+        if item.limitations:
+            add("limited", "ENVIRONMENT_COMPONENT_LIMITATIONS",
+                f"{item.component}: {'; '.join(item.limitations)}", [item.component])
+    if meta and meta.quality == "poor":
+        add("invalid", "ENVIRONMENT_POOR_QUALITY", "Provider marks required environmental inputs as poor quality.")
+    elif meta and meta.quality == "suspect":
+        add("limited", "ENVIRONMENT_SUSPECT", "Provider marks environmental inputs as suspect; values are diagnostic, not qualified.")
+    if env.source in ("live", "forecast", "replay", "ship_sensor"):
+        basis = wind_basis(env, use_gust)
+        if not basis.verified and not basis.reasons:
+            add("limited", "WIND_BASIS_UNVERIFIED", "Public/sensor wind duration or reference height is undocumented.", ["wind"])
+        if meta is None or meta.quality == "unknown":
+            add("limited", "ENVIRONMENT_QUALITY_UNVERIFIED", "Public/sensor input quality is undocumented.")
+    for quality in env.quality:
+        flags = " ".join(quality.flags).lower()
+        if any(word in flags for word in ("missing", "unavailable", "invalid", "poor", "gap")):
+            add("invalid", "ENVIRONMENT_COMPONENT_UNAVAILABLE",
+                f"Source {quality.station_id} reports unusable input: {', '.join(quality.flags)}.", [quality.station_id])
+        elif any(word in flags for word in ("stale", "suspect")):
+            add("limited", "ENVIRONMENT_COMPONENT_FLAGGED",
+                f"Source {quality.station_id} requires review: {', '.join(quality.flags)}.", [quality.station_id])
+    if env.wind_gust_kt < env.wind_speed_kt:
+        add("limited", "WIND_GUST_BELOW_SUSTAINED", "Supplied gust is below sustained wind; duration/alignment needs review.", ["wind"])
+    return out
 
 
 def aggregate_findings(per_context: list[tuple[str, list[Finding]]], max_listed: int = 5) -> list[Finding]:

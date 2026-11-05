@@ -1,10 +1,12 @@
-"""Reference data loader (module M2). YAML in this folder is the seed data; berths added at runtime live in memory."""
+"""Reference data loader (module M2). YAML is the seed data; confirmed runtime berths use the configured SQLite store."""
 
 from functools import cache
 from pathlib import Path
+from threading import RLock
 
 import yaml
 
+from mooring.core import store
 from mooring.core.schemas import Berth, LineSpec, ShipClass, TugSpec
 
 ROOT = Path(__file__).parent
@@ -19,6 +21,10 @@ class NotFound(KeyError):
 
 class InvalidReference(ValueError):
     """Raised when a request body refers to something that doesn't exist; the API turns it into HTTP 422."""
+
+
+class ReferenceConflict(ValueError):
+    """An existing reference ID cannot be rebound to different asset data."""
 
 
 def _load(path: Path):
@@ -48,7 +54,8 @@ def _tugs() -> dict[str, TugSpec]:
     return {d["tug_id"]: TugSpec.model_validate(d) for d in _load(ROOT / "tugs.yaml")}
 
 
-_runtime_berths: dict[str, Berth] = {}
+_BERTH_NAMESPACE = "reference_berths"
+_berths_lock = RLock()
 
 
 def ships() -> list[ShipClass]:
@@ -74,19 +81,46 @@ def line(spec_id: str) -> LineSpec:
 
 
 def berths() -> list[Berth]:
-    return [b.model_copy(deep=True) for b in [*_seed_berths().values(), *_runtime_berths.values()]]
+    with _berths_lock:
+        saved = [Berth.model_validate_json(row[0]) for row in store.db().execute(
+            "SELECT body FROM docs WHERE namespace=? ORDER BY key", (_BERTH_NAMESPACE,)
+        )]
+        seeds = _seed_berths()
+        for b in saved:
+            if b.berth_id in seeds and b != seeds[b.berth_id]:
+                raise InvalidReference(f"Stored berth '{b.berth_id}' conflicts with the installed seed catalog")
+        return [b.model_copy(deep=True) for b in [*seeds.values(), *(b for b in saved if b.berth_id not in seeds)]]
 
 
 def berth(berth_id: str) -> Berth:
-    found = _runtime_berths.get(berth_id) or _seed_berths().get(berth_id)
-    if found is None:
-        raise NotFound(f"Berth '{berth_id}' not found")
-    return found.model_copy(deep=True)
+    with _berths_lock:
+        rows = store.db().execute("SELECT body FROM docs WHERE namespace=? AND key=?", (_BERTH_NAMESPACE, berth_id))
+        saved = Berth.model_validate_json(rows[0][0]) if rows else None
+        seed = _seed_berths().get(berth_id)
+        if saved is not None and seed is not None and saved != seed:
+            raise InvalidReference(f"Stored berth '{berth_id}' conflicts with the installed seed catalog")
+        found = saved or seed
+        if found is None:
+            raise NotFound(f"Berth '{berth_id}' not found")
+        return found.model_copy(deep=True)
 
 
 def add_berth(b: Berth) -> Berth:
-    _runtime_berths[b.berth_id] = b.model_copy(deep=True)
-    return b
+    """Register a shared immutable reference; MOORING_DB controls restart durability.
+
+    This catalog intentionally remains shared-readable, unlike principal-owned scenarios.
+    SQLite's unique namespace/key also protects against concurrent registrations.
+    """
+    candidate = b.model_copy(deep=True)
+    with _berths_lock:
+        seed = _seed_berths().get(candidate.berth_id)
+        if seed is None:
+            store.db().execute("INSERT OR IGNORE INTO docs VALUES (?,?,?)",
+                               (_BERTH_NAMESPACE, candidate.berth_id, candidate.model_dump_json()))
+        existing = berth(candidate.berth_id)
+        if existing != candidate:
+            raise ReferenceConflict(f"Berth '{candidate.berth_id}' already exists with different data; use a new berth_id for a revision")
+        return existing
 
 
 def tugs() -> list[TugSpec]:

@@ -12,10 +12,14 @@ import os
 from . import mock as _mock
 from .mock import (  # noqa: F401
     get_scenario,
-    gust_model,
     synthetic,
     with_relative,
 )
+
+
+def gust_model(station_id):
+    from .uncertainty import served_gust_model
+    return served_gust_model(station_id)
 
 
 def source_mode() -> str:
@@ -68,6 +72,30 @@ def history(station_id, start, end, step_min=6):
         return _mock.history(station_id, start, end, step_min)
     from . import live
     return live.history(station_id, start, end, step_min)
+
+
+def replay_snapshot(berth_id, at, heading_true_deg=None):
+    """Replay a provider observation or explicitly synthetic fixture at an explicit time."""
+    from .errors import ProviderError
+    if at.tzinfo is None or at.utcoffset() is None:
+        raise ProviderError("malformed", "Replay time must include a timezone offset")
+    if source_mode() == "coops":
+        from . import live
+        return live.at(berth_id, at, heading_true_deg)
+    from .replay import Unavailable, recorded_fixture_source
+    snap = recorded_fixture_source().at(at, now=at)
+    if isinstance(snap, Unavailable):
+        raise ProviderError("no_data", snap.reason)
+    return with_relative(snap, heading_true_deg)
+
+
+def provider_modules() -> dict[str, str]:
+    coops = "live" if source_mode() == "coops" else "mock (disabled)"
+    return {
+        "Provider NOAA CO-OPS": coops,
+        "Provider NWS": "unavailable (NWS wind reader installed; composed forecast not wired)",
+        "Provider CBOFS": "unavailable (CBOFS reader installed; composed forecast not wired)",
+    }
 
 
 def forecast(berth_id, hours=48, step_min=30):

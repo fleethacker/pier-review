@@ -62,6 +62,7 @@ def test_no_double_normalization_loads_use_basis_exactly_once():
     e = env(metadata=meta(wind_averaging_s=30, wind_reference_height_m=10))
     sustained30 = compute_loads(DDG, "full_load", 105, e, 46.8, use_gust=False)
     as_gust = compute_loads(DDG, "full_load", 105, e.model_copy(update={"wind_gust_kt": e.wind_speed_kt}), 46.8, use_gust=True)
+    assert sustained30.wind.coefficients["wind_speed_basis_factor"] == 1.0
     assert sustained30.wind.fy_lbf == pytest.approx(as_gust.wind.fy_lbf, rel=1e-12)
     legacy = compute_loads(DDG, "full_load", 105, env(), 46.8, use_gust=False)
     assert legacy.wind.fy_lbf / compute_loads(DDG, "full_load", 105, env(), 46.8, use_gust=False).wind.fy_lbf == 1.0

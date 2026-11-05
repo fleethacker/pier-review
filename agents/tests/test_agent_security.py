@@ -166,3 +166,21 @@ def test_body_limit_counts_received_bytes_not_content_length(monkeypatch):
     monkeypatch.setenv('AGENTS_MAX_BODY_BYTES', '16')
     response = TestClient(app).post(f'{P}/intake/reports', headers={'Content-Length': '0'}, content=b'x' * 17)
     assert response.status_code == 413
+
+
+def test_repeated_authenticated_reviews_have_separate_bounded_operations(secured, monkeypatch):
+    client, modeling = secured
+    case = docking_cases()[0]
+    eid = modeling.post(f'{P}/env/scenarios', json=case.environment_request.model_dump(mode='json'), headers=ALICE).json()['env_scenario_id']
+    body = case.scenario_request.model_dump(mode='json')
+    body['env_source']['env_scenario_id'] = eid
+    sid = modeling.post(f'{P}/scenarios', json=body, headers=ALICE).json()['scenario_id']
+    plan = complete(client, client.post(f'{P}/agent/plans', json={'scenario_id':sid}, headers=ALICE).json())
+    monkeypatch.setenv('AGENTS_MAX_TOOL_CALLS', '2')  # one analysis + one envelope per one-condition review
+    reviews = [complete(client, client.post(f'{P}/safety/reviews', json={'plan_id':plan['plan_id']}, headers=ALICE).json()) for _ in range(2)]
+    assert reviews[0]['review_id'] != reviews[1]['review_id']
+    calls = client.get(f'{P}/physics/calls', params={'plan_id':plan['plan_id']}, headers=ALICE).json()
+    safety_calls = [call for call in calls if call['caller']=='safety']
+    assert len(safety_calls) == 4
+    assert len({call['operation_id'] for call in safety_calls}) == 2
+    assert not any(call.get('error') for call in safety_calls)

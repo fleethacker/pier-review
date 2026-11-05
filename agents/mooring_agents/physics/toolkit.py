@@ -50,8 +50,9 @@ def _request_hash(request: Any) -> str:
 
 
 class PhysicsToolkit:
-    def __init__(self, client: ModelingClient, caller: str, plan_id: str | None = None):
+    def __init__(self, client: ModelingClient, caller: str, plan_id: str | None = None, *, operation_id: str | None = None):
         self.client, self.caller, self.plan_id = client, caller, plan_id
+        self.operation_id = operation_id
         self.max_calls = int(os.environ.get("AGENTS_MAX_TOOL_CALLS", "40"))
         self.timeout_s = float(os.environ.get("AGENTS_TOOL_TIMEOUT_S", "30"))
         if self.max_calls < 0:
@@ -86,20 +87,20 @@ class PhysicsToolkit:
     async def call(self, name: str, input: dict[str, Any]) -> Any:
         """Return modeling output, or a correctable local error with a ledger entry.
 
-        Every attempt consumes the plan's budget, including invalid inputs and failures.
+        Every attempt consumes the operation's budget (legacy: plan/caller budget), including invalid inputs and failures.
         Reservations happen before awaiting HTTP so concurrent calls cannot overspend.
         The timeout covers the complete request, including async-job polling.
         Modeling HTTP failures retain their existing ModelingError behavior.
         """
         self.checkpoint()
         start = time.perf_counter()
-        call = ToolCall(call_id=new_id("call"), at_utc=utcnow(), caller=self.caller, plan_id=self.plan_id,
+        call = ToolCall(call_id=new_id("call"), at_utc=utcnow(), caller=self.caller, plan_id=self.plan_id, operation_id=self.operation_id,
                         tool=name, request_hash=_request_hash(input), result_id=None, status=None, duration_ms=0)
         allowed = reserve_call(call, self.max_calls, scope_id=self._scope_id)
         self.last_call = call
         if not allowed:
             return self._reject(call, start, "budget_exceeded",
-                                f"Tool call budget of {self.max_calls} exhausted for this plan; stop calling tools.",
+                                f"Tool call budget of {self.max_calls} exhausted for this operation/scope; stop calling tools.",
                                 plan_id=self.plan_id, max_calls=self.max_calls)
 
         try:

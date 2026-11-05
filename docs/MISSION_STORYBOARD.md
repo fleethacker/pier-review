@@ -1,5 +1,7 @@
 # S5 Mission storyboarding
 
+> **Role in the product (backup camera for ships, see [MASTER_PLAN.md](MASTER_PLAN.md)):** the storyboard is the after-action half of the camera. A recorded track, in the same `TrackFix` format the predictors emit, is the ground truth for comparing what was predicted at each moment with where the ship actually went. Simulated transits (S6) can be saved as missions and replayed here today; predicted-vs-actual overlays follow with S7.
+
 Rebuild a ship's path after a mission from its recorded fixes, and tie timestamped images and reports to positions on
 that path. Code: `modeling/mooring/missions/` (parsers, exif, locate, geo, store, storyboard); routes:
 `modeling/modeling_api/routers/missions.py`; contract: `modeling/mooring/core/schemas/missions.py`.

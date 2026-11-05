@@ -27,6 +27,10 @@ class ToolSpec(Model):
 
 
 TOOLS: list[ToolSpec] = [
+    ToolSpec(name="save_berth", description="Register explicitly human-confirmed berth geometry, preserving estimated provenance.",
+             method="POST", path="/berths", request_schema="Berth"),
+    ToolSpec(name="draft_berth", description="Build unsaved draft geometry using catalog data and optional image anchors.",
+             method="POST", path="/berth-drafts", request_schema="BerthDraftRequest"),
     ToolSpec(name="get_scenario", description="Load the saved scenario: ship, berth, side, environment source, config.",
              method="GET", path="/scenarios/{scenario_id}", request_schema=None),
     ToolSpec(name="get_environment", description="Current wind, current and water level at the berth.",

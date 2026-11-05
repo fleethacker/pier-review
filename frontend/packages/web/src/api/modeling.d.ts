@@ -295,6 +295,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/berth-drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build an unsaved berth draft from catalog geometry and optional image anchors */
+        post: operations["berth_draft_api_v1_berth_drafts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/qualification": {
         parameters: {
             query?: never;
@@ -1050,6 +1067,82 @@ export interface components {
         BerthCreated: {
             /** Berth Id */
             berth_id: string;
+        };
+        /** BerthDraftRequest */
+        BerthDraftRequest: {
+            /** Source Berth Id */
+            source_berth_id: string;
+            /** Name */
+            name?: string | null;
+            /** Image Fittings */
+            image_fittings?: components["schemas"]["ImageFitting"][];
+            /** Scale Ft Per Px */
+            scale_ft_per_px?: number | null;
+            /** Pier Face Start Px */
+            pier_face_start_px?: [
+                number,
+                number
+            ] | null;
+            /** Pier Face End Px */
+            pier_face_end_px?: [
+                number,
+                number
+            ] | null;
+        };
+        /** BerthDraftResponse */
+        BerthDraftResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /** @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes. */
+            manifest?: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["BerthDraftResult"];
+        };
+        /** BerthDraftResult */
+        BerthDraftResult: {
+            draft_berth: components["schemas"]["Berth"];
+            /** Geometry Source */
+            geometry_source: string;
+            /** Needs Confirmation */
+            needs_confirmation: string[];
+            /** Notes */
+            notes: string[];
         };
         /** BerthForce */
         BerthForce: {
@@ -2098,6 +2191,20 @@ export interface components {
             margin: number;
             /** Available Tug Ids */
             available_tug_ids?: string[] | null;
+        };
+        /** ImageFitting */
+        ImageFitting: {
+            /** Item Id */
+            item_id: string;
+            /** Kind */
+            kind: string;
+            /** Center Px */
+            center_px: [
+                number,
+                number
+            ];
+            /** Confidence */
+            confidence: number;
         };
         /**
          * JobAccepted
@@ -6048,6 +6155,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForecastSeries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    berth_draft_api_v1_berth_drafts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BerthDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BerthDraftResponse"];
                 };
             };
             /** @description Validation Error */

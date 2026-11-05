@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from mooring import refdata
 from mooring.core.schemas import Health, JobStatus, VersionInfo
 
-from ...backend import BACKENDS
+from ...backend import BACKENDS, overall_backend
 from ..state import JOBS
 
 router = APIRouter(tags=["System"])
@@ -30,7 +30,7 @@ def job_events(job_id: str):
 
 @router.get("/health", response_model=Health)
 def health():
-    return Health(status="ok", backend="mock")
+    return Health(status="ok", backend=overall_backend())
 
 
 @router.get("/version", response_model=VersionInfo)

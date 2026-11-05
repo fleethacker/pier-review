@@ -101,3 +101,13 @@ from mooring.data_simulation.forecast import generate as generate_synthetic_fore
 def synthetic_forecast(req: SyntheticForecastRequest):
     refdata.berth(req.berth_id)
     return generate_synthetic_forecast(req)
+
+
+from mooring.core.schemas.berth_drafts import BerthDraftRequest, BerthDraftResponse
+from mooring.refdata.drafts import build as build_berth_draft
+
+
+@router.post("/berth-drafts", response_model=BerthDraftResponse,
+             summary="Build an unsaved berth draft from catalog geometry and optional image anchors")
+def berth_draft(req: BerthDraftRequest):
+    return build_berth_draft(req)

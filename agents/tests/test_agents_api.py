@@ -220,3 +220,24 @@ def test_supported_demo_chain_preserves_limited_validity_and_forecast_review():
     assert 'Validity: limited' in html and 'not qualified for operational use' in html
     assert 'Fender-loading direction' not in html
     assert 'Unavailable; not established' in html
+
+
+def test_vision_confirmation_cannot_overwrite_catalog_or_claim_certification(monkeypatch):
+    monkeypatch.setenv('AGENTS_LLM_PROVIDER', 'none')
+    r = client.post(f'{P}/berth-vision/analyze',
+                    files={'image': ('pier.png', b'catalog draft', 'image/png')},
+                    data={'metadata': json.dumps({'image_kind': 'satellite', 'berth_id': 'NAVSTA-NORFOLK-P12-N'})})
+    assert r.status_code == 202, r.text
+    job = r.json()
+    draft = client.get(job['status_url']).json()['result']['result']['draft_berth']
+    original_id = draft['berth_id']
+    draft['berth_id'] = 'NAVSTA-NORFOLK-P12-N'
+    rejected = client.post(f"{P}/berth-vision/{job['job_id']}/confirm", json={'berth': draft})
+    assert rejected.status_code == 422
+    draft['berth_id'] = original_id
+    draft['provenance']['confidence'] = 'published'
+    saved = client.post(f"{P}/berth-vision/{job['job_id']}/confirm", json={'berth': draft})
+    assert saved.status_code == 201, saved.text
+    berth = modeling.get(f"{P}/berths/{original_id}").json()
+    assert berth['provenance']['confidence'] == 'estimated'
+    assert 'qualification not established' in berth['provenance']['notes']

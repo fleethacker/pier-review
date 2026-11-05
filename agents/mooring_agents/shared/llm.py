@@ -19,9 +19,15 @@ class ToolUse(BaseModel):
     arguments: dict[str, Any]
 
 
+class ImageInput(BaseModel):
+    media_type: Literal["image/png", "image/jpeg", "image/webp"]
+    data_base64: str = Field(max_length=12_000_000)
+
+
 class Message(BaseModel):
     role: Literal["system", "user", "assistant", "tool"]
     content: str
+    images: list[ImageInput] = Field(default_factory=list, max_length=4)
     tool_use_id: str | None = Field(default=None, description="role='tool': which ToolUse this answers.")
     tool_uses: list[ToolUse] = Field(default_factory=list, description="role='assistant': tools it asked for.")
 
@@ -63,7 +69,13 @@ class OpenAIResponsesLLM:
                 inputs.append({"type": "function_call_output", "call_id": message.tool_use_id,
                                "output": message.content})
             else:
-                if message.content:
+                if message.images:
+                    inputs.append({"role": message.role, "content": [
+                        {"type": "input_text", "text": message.content},
+                        *({"type": "input_image", "image_url": f"data:{image.media_type};base64,{image.data_base64}"}
+                          for image in message.images),
+                    ]})
+                elif message.content:
                     inputs.append({"role": message.role, "content": message.content})
                 for call in message.tool_uses:
                     inputs.append({"type": "function_call", "call_id": call.id, "name": call.name,

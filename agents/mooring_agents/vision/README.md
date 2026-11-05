@@ -3,8 +3,10 @@
 Turns an image of a berth (satellite, chart, NAVFAC berthing plan, photo of a sketch) into a draft `Berth` and a
 recommended line placement. A human confirms the draft before anything uses it.
 
-**Status:** mock (`mock.py`). It returns the seed Pier 12 North berth as the "extraction", with synthetic detections
-and confirmation questions.
+**Status:** real draft pipeline (`agent.py`), always limited/unconfirmed. Deterministic geometry comes from the
+selected catalog berth (`metadata.berth_id`). Without it, an explicitly labeled Norfolk demo template is returned;
+no image location is inferred. No LLM is needed. Optional image proposals require a configured provider, a supported
+image, scale and two pier-face pixel anchors. Modeling projects detected centers; the model cannot supply ratings.
 
 ## Endpoints
 
@@ -25,3 +27,21 @@ and confirmation questions.
 
 Nothing is saved until the user confirms. Low-confidence items are flagged `needs_confirmation`, and capacities
 the image can't show are always marked as estimates.
+
+
+## Current contract and limits
+
+`metadata` adds optional `berth_id`, `pier_face_start_px`, `pier_face_end_px`. Scale remains in `georef.scale_ft_per_px`.
+With no extraction, detection boxes/centers are null and confidence is zero, never fabricated image coordinates.
+All detections require confirmation, even high-confidence model proposals. Extracted fittings are projected onto the
+straight face with unresolved setback and suspect condition; ratings come from estimated catalog templates,
+not the image. Unknown kinds and out-of-face geometry are rejected.
+
+Response includes extraction source/reason, image hash, modeling geometry result ID and optional catalog-preview
+recommendation result ID. Changed image geometry requires confirmation before line search; a catalog preview is
+not analysis of modified geometry. Confirmation preserves the draft ID, cannot overwrite another berth, and cannot
+promote estimates to published qualification. No draft is registered before confirmation. Runtime berths remain
+single-process; persistent deployment storage is still required.
+
+Image payload follows [OpenAI Responses image inputs](https://developers.openai.com/api/docs/guides/images-vision).
+No real model-perception accuracy is established; tests use a generated fixture and fake model transport.

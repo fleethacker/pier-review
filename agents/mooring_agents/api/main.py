@@ -12,6 +12,7 @@ from pydantic.json_schema import models_json_schema
 from mooring import refdata
 
 from ..physics.client import ModelingError
+from ..backend import overall_backend
 from ..planner.schemas import AgentDoneEvent, AgentMessageEvent, AgentProposalEvent, AgentStepEvent
 from ..safety.schemas import GustWarning
 from ..vision.schemas import VisionMetadata, VisionResponse
@@ -33,8 +34,8 @@ LLM agent service for the mooring assistant. Typical flow: `POST /intake/reports
 (with `intake_report_id`) → `POST /safety/reviews` → `POST /safety-sheets` → approvals, with
 `GET /safety/watch/{plan_id}` for live gust warnings. Agents reach physics only through the Physics agent
 (`/tools`, `/physics/*`), which logs every call; every number in a plan cites a logged `result_id`.
-**Mixed implementation:** Intake and Planner have guarded optional LLM layers; other agent and modeling
-capabilities still include mocks. See `/version` for module status.
+**Deterministic agents with optional guarded LLM layers.** Real implementation does not establish
+engineering qualification; inspect result validity and `/version` for module status.
 """
 
 app = FastAPI(title="Mooring Assistant: Agents API", version="1.1.0", description=DESCRIPTION, openapi_tags=TAGS,
@@ -45,7 +46,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 @app.middleware("http")
 async def backend_header(request: Request, call_next):
     response = await call_next(request)
-    response.headers["X-Mooring-Backend"] = "mock"
+    response.headers["X-Mooring-Backend"] = overall_backend()
     return response
 
 
@@ -75,7 +76,7 @@ def openapi_schema() -> dict:
     comps = schema.setdefault("components", {}).setdefault("schemas", {})
     for name, s in defs.get("$defs", {}).items():
         comps.setdefault(name, s)
-    schema["servers"] = [{"url": "http://localhost:8001", "description": "Local mock server"}]
+    schema["servers"] = [{"url": "http://localhost:8001", "description": "Local agents service"}]
     return schema
 
 

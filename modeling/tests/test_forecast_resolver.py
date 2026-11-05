@@ -65,6 +65,16 @@ def test_fixture_covers_plus_24_hours_through_docking_and_holding():
     assert all(s.source == 'scenario' for s in revision.snapshots())
 
 
+@pytest.mark.parametrize('options', [
+    {'from_utc': AS_OF-HOUR},
+    {'to_utc': START},
+    {'to_utc': AS_OF+timedelta(hours=121)},
+])
+def test_direct_resolver_cannot_bypass_api_horizon_limits(options):
+    with pytest.raises(refdata.InvalidReference, match='horizon'):
+        resolved(**options)
+
+
 def test_input_and_output_mutation_cannot_change_frozen_revision():
     original = public_samples()
     revision = resolved(original)

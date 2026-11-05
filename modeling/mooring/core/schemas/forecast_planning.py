@@ -76,6 +76,7 @@ class ForecastResolveRequest(Model):
 
 
 class ForecastResolvedResult(Model):
+    berth_id: str
     forecast_manifest: ForecastResolutionManifest
     series: list[EnvironmentSnapshot]
     coverage_complete: bool

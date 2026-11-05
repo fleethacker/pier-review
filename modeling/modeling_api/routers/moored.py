@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body
 
 from mooring.core.schemas import (
     AnalyzeRequest,
@@ -104,4 +104,5 @@ def forecast_plan(req: ForecastDockingRequest):
 @router.post("/mooring/forecast/resolve", response_model=ForecastResolvedResponse, tags=["M7 Planning"],
              summary="Freeze an explicit forecast series and its as-of/horizon identity")
 def resolve_forecast(req: ForecastResolveRequest):
-    raise HTTPException(status_code=501, detail="P1 interface preview; resolver implementation pending")
+    from mooring.moored.forecast_service import resolve
+    return resolve(req)

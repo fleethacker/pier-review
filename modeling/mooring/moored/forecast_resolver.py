@@ -9,7 +9,7 @@ consumer must check each operation's complete interval before using its forcing.
 from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import json
 
 from pydantic import ValidationError
@@ -96,12 +96,14 @@ class ResolvedForecast:
             'to_utc': self.to_utc, 'max_gap_min': self.max_gap_min,
         })
 
-    def coverage_problem(self, start: datetime, end: datetime) -> str | None:
+    def coverage_problem(self, start: datetime, end: datetime, *, check_inputs: bool = True) -> str | None:
         """Check the entire closed operation interval, including every interior knot.
 
         A snapshot is held only until the next actual supplied snapshot. Even a
         short operation cannot bridge an oversized source interval. The final
         actual snapshot can be evaluated at its timestamp, never beyond it.
+        The planner sets check_inputs=False only to report quality/provenance
+        failures separately for each condition using the same input_problem gate.
         """
         start, end = _utc(start, 'Coverage start'), _utc(end, 'Coverage end')
         if end < start:
@@ -116,9 +118,10 @@ class ResolvedForecast:
             if (self._times[index] < end
                     and (following - self._times[index]).total_seconds() > self.max_gap_min * 60):
                 return 'Forecast gap exceeds maximum covered interval'
-            snapshot = EnvironmentSnapshot.model_validate_json(self._snapshot_json[index])
-            if problem := input_problem(snapshot, self.as_of_utc, min(following, end)):
-                return problem
+            if check_inputs:
+                snapshot = EnvironmentSnapshot.model_validate_json(self._snapshot_json[index])
+                if problem := input_problem(snapshot, self.as_of_utc, min(following, end)):
+                    return problem
         return None
 
     def require_coverage(self, start: datetime | None = None, end: datetime | None = None) -> None:
@@ -153,6 +156,10 @@ def resolve_forecast(
     from_utc, to_utc = _utc(from_utc, 'Forecast horizon start'), _utc(to_utc, 'Forecast horizon end')
     if to_utc < from_utc:
         raise refdata.InvalidReference('Forecast horizon end precedes start')
+    if from_utc < as_of_utc or to_utc == from_utc:
+        raise refdata.InvalidReference('Forecast horizon must start at/after as_of_utc and end after its start')
+    if to_utc > as_of_utc + timedelta(hours=120):
+        raise refdata.InvalidReference('Forecast horizon must end within 120 hours of as_of_utc')
     if source not in ('supplied', 'scenario'):
         raise refdata.InvalidReference("Forecast source must be 'supplied' or 'scenario'")
     for name, value in (('source_id', source_id), ('env_scenario_id', env_scenario_id), ('revision', revision)):

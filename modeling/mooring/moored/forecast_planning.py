@@ -9,14 +9,16 @@ from datetime import timedelta
 from mooring import refdata
 from mooring.core.envelopes import envelope, resolved_inputs_hash
 from mooring.core import store
-from mooring.core.forecast_provenance import availability_problem
 from mooring.core.schemas import AnalyzeRequest, RecommendRequest, Validity, ValidityReason, ResultManifest, ManifestRecord
 from mooring.core.schemas.forecast_planning import (
     DockingArrivalWindow, DockingConditionResult, ForecastDockingRequest, ForecastDockingResponse, ForecastDockingResult,
+    ForecastResolutionManifest,
 )
 from mooring.tugs.validation import assignment_errors
 from mooring.mechanics import equilibrium as eq
 from . import search, solver
+from .forecast_resolver import input_problem as _input_problem
+from .forecast_service import resolve_docking
 
 RECHECK = ['New forecast issuance or missing/stale component', 'Arrival or operation duration changes',
            'Ship, loading, berth, lines, fittings or tug availability changes',
@@ -26,29 +28,6 @@ LIMITATIONS = ['Static line/holding assessment, not a validated docking maneuver
               'Line installation length is fixed at each candidate arrival tide; no automatic tending.',
               'No qualified UKC, traffic, wake, dynamic-wave or line-handling approval is supplied.',
               'A supported window is conditional on the stated forecast, assets and continuous tug availability.']
-
-
-def _input_problem(snapshot, as_of, valid_until=None):
-    if problem := availability_problem(snapshot, as_of, require_forecast=True):
-        return problem
-    meta = snapshot.metadata
-    for item in meta.components if meta else []:
-        if item.quality in ('poor', 'suspect'):
-            return f'{item.component}: source quality is poor or suspect'
-        if item.valid_from_utc and snapshot.valid_at_utc < item.valid_from_utc:
-            return f'{item.component}: snapshot precedes its declared validity interval'
-        if item.valid_to_utc and (valid_until or snapshot.valid_at_utc) > item.valid_to_utc:
-            return f'{item.component}: forecast would be held beyond its declared validity interval'
-    if meta and meta.quality in ('poor', 'suspect'):
-        return 'Environment quality is poor or suspect; a supported arrival cannot be established'
-    if meta and meta.valid_from_utc and snapshot.valid_at_utc < meta.valid_from_utc:
-        return 'Snapshot precedes its declared validity interval'
-    if meta and meta.valid_to_utc and (valid_until or snapshot.valid_at_utc) > meta.valid_to_utc:
-        return 'Forecast would be held beyond its declared validity interval'
-    flags = {flag.lower() for quality in snapshot.quality for flag in quality.flags}
-    if any(any(word in flag for word in ('missing', 'unavailable', 'stale')) for flag in flags):
-        return 'Required environment component is missing, unavailable or stale'
-    return None
 
 
 def _assess_condition(req, config, snapshot, install_level):
@@ -78,6 +57,12 @@ def _assess_condition(req, config, snapshot, install_level):
 
 
 def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
+    if ctx is not None:
+        ctx.check_cancelled()
+    original_request = req
+    resolved = resolve_docking(req)
+    req = req.model_copy(deep=True, update={'forecast': list(resolved.snapshots())})
+    forecast_manifest = ForecastResolutionManifest.model_validate(resolved.manifest())
     ship = refdata.ship(req.ship_class_id)
     berth = refdata.berth(req.berth_id)
     refdata.loading(ship, req.loading)
@@ -112,11 +97,9 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
         last = bisect_right(dates, end) - 1
         reasons, checks = [], []
         install_level = None
-        if first < 0 or dates[-1] < end:
-            reasons.append('Forecast does not cover the full arrival, docking and holding interval')
-        elif any((dates[i + 1] - dates[i]).total_seconds() > req.max_gap_min * 60
-                 for i in range(first, min(last + 1, len(dates) - 1)) if dates[i] < end):
-            reasons.append('Forecast gap exceeds maximum covered interval')
+        coverage_problem = resolved.coverage_problem(arrival, end, check_inputs=False)
+        if coverage_problem:
+            reasons.append(coverage_problem)
         else:
             install_level = req.forecast[first].water_level_mllw_ft
             for index in range(first, last + 1):
@@ -182,7 +165,7 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
                      if req.arrival_from_utc < req.as_of_utc + timedelta(hours=24) else [])
     component_provenance = [item for snap in req.forecast if snap.metadata for item in snap.metadata.components]
     unknown_issuance = any(item.basis == 'prediction' and item.issued_at_utc is None for item in component_provenance)
-    result = ForecastDockingResult(as_of_utc=req.as_of_utc, forecast_start_utc=dates[0], forecast_end_utc=dates[-1],
+    result = ForecastDockingResult(forecast_manifest=forecast_manifest, as_of_utc=req.as_of_utc, forecast_start_utc=dates[0], forecast_end_utc=dates[-1],
         issued_at_utc=sorted({s.metadata.issued_at_utc for s in req.forecast if s.metadata and s.metadata.issued_at_utc}
                             | {item.issued_at_utc for item in component_provenance if item.issued_at_utc}),
         retrieved_at_utc=sorted({item.retrieved_at_utc for item in component_provenance if item.retrieved_at_utc}),
@@ -195,19 +178,39 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
         evaluations=evaluations, complete=complete, recheck_triggers=RECHECK,
         limitations=LIMITATIONS + timing_limits + (['Some component issue times are unknown; retrieval establishes only an available-by bound, not issuance or forecast freshness.'] if unknown_issuance else []) + (['Input contains synthetic scenario data; this is not a public weather forecast.']
                                   if any(s.source in ('scenario', 'mock') for s in req.forecast) else []))
-    snapshot = {'request': req.model_dump(mode='json'), 'config': config.model_dump(mode='json'),
+    # Random result IDs remain audit references, never part of reproducible input identity.
+    request_snapshot = original_request.model_dump(mode='json')
+    if original_request.forecast is not None:
+        request_snapshot['forecast'] = [s.model_dump(mode='json') for s in req.forecast]
+    analysis_ids = [c.analysis_result_id for c in conditions if c.analysis_result_id]
+    assets = {'ship': ship.model_dump(mode='json'), 'berth': berth.model_dump(mode='json'),
+              'lines': {line.spec_id: refdata.line(line.spec_id).model_dump(mode='json') for line in config.lines},
+              'tugs': {tug.tug_id: tug.model_dump(mode='json') for tug in refdata.tugs()
+                       if any(assignment.tug_id == tug.tug_id for assignment in req.tugs)}}
+    snapshot = {'request': request_snapshot, 'config': config.model_dump(mode='json'),
                 'selected_config': selected_config.model_dump(mode='json') if selected_config else None,
                 'installed_at_water_level_mllw_ft': result.installed_at_water_level_mllw_ft,
-                'analysis_result_ids': [c.analysis_result_id for c in conditions if c.analysis_result_id],
-                'recommendation_result_id': recommendation_id}
+                'forecast_manifest': forecast_manifest.model_dump(mode='json'),
+                'forecast': [s.model_dump(mode='json') for s in req.forecast], 'assets': assets,
+                'code_version': 'mooring.forecast_docking@1.1.0'}
     digest = resolved_inputs_hash(snapshot)
     store.save_snapshot(digest, snapshot)
-    manifest = ResultManifest(resolved_inputs_hash=digest, code_version='mooring.forecast_docking@1.0.0',
-        records=[ManifestRecord(kind='analysis_result', id=rid) for rid in snapshot['analysis_result_ids']],
-        environment_hash=resolved_inputs_hash({'forecast': [s.model_dump(mode='json') for s in req.forecast]}),
+    semantic_result = result.model_dump(mode='json')
+    semantic_result.pop('recommendation_result_id')
+    for condition in semantic_result['conditions']:
+        condition.pop('analysis_result_id')
+    for window in semantic_result['windows']:
+        window.pop('analysis_result_ids')
+    result.result_hash = resolved_inputs_hash({'resolved_inputs_hash': digest, 'result': semantic_result})
+    records = [ManifestRecord(kind='analysis_result', id=rid) for rid in analysis_ids]
+    if recommendation_id:
+        records.append(ManifestRecord(kind='recommendation_result', id=recommendation_id))
+    records.append(ManifestRecord(kind='forecast', id=resolved.binding_hash, revision=resolved.revision))
+    manifest = ResultManifest(resolved_inputs_hash=digest, code_version='mooring.forecast_docking@1.1.0',
+        records=records, environment_hash=resolved.content_hash,
         numerical_settings={'max_gap_min': req.max_gap_min, 'max_evaluations': req.max_evaluations})
-    return envelope(ForecastDockingResponse, model='mooring.forecast_docking', model_version='1.0.0',
-        backend='real', request=req, result=result, manifest=manifest, status='AMBER' if selected else 'RED', validity=validity,
+    return envelope(ForecastDockingResponse, model='mooring.forecast_docking', model_version='1.1.0',
+        backend='real', request=original_request, result=result, manifest=manifest, status='AMBER' if selected else 'RED', validity=validity,
         assumptions=[f'Forecast sampled/held with maximum gap {req.max_gap_min} minutes.',
                      'Target is a utilization bound on supplied forecast conditions, not an MST design certification.',
                      *LIMITATIONS, *timing_limits])

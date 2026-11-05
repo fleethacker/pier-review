@@ -2,8 +2,8 @@
 
 * Transport: one sentence per record, text starting with '$', optional trailing CR/LF, at most 82 characters, with the
   two-hex-digit checksum after '*' required and verified (XOR of the characters between '$' and '*').
-* Sentences: `MWV` (wind speed and angle; reference R relative/apparent or T true; units N knots, M m/s, K km/h; status A) and
-  `HDT` (true heading). Talker id is any two letters. Nothing else is decoded: no NMEA 2000, no AIS, no proprietary
+* Sentences: `MWV`, `HDT`, `VTG` (true course and speed over ground), `GGA` (fix position/quality), and `DPT` (depth and
+  transducer offset). Talker id is any two letters. Nothing else is decoded: no NMEA 2000, no AIS, no proprietary
   sentences. Unsupported or malformed input is rejected with a code; it is never guessed at.
 
 Reference: NMEA 0183 sentence structure as commonly published (field order of MWV and HDT). The standard itself is not
@@ -35,6 +35,25 @@ class Heading:
     true_deg: float
 
 
+@dataclass(frozen=True)
+class Course:
+    true_deg: float
+    speed_kt: float
+
+
+@dataclass(frozen=True)
+class Position:
+    latitude: float
+    longitude: float
+    fix_quality: int
+
+
+@dataclass(frozen=True)
+class Depth:
+    depth_m: float
+    offset_m: float
+
+
 def checksum(body: str) -> str:
     x = 0
     for ch in body:
@@ -42,7 +61,28 @@ def checksum(body: str) -> str:
     return f"{x:02X}"
 
 
-def decode(sentence: str) -> Wind | Heading:
+def _number(raw: str, label: str) -> float:
+    try:
+        value = float(raw)
+    except ValueError:
+        raise NmeaError("BAD_NUMBER", f"{label} is not numeric") from None
+    if not math.isfinite(value):
+        raise NmeaError("BAD_NUMBER", f"{label} is not finite")
+    return value
+
+
+def _coordinate(raw: str, hemisphere: str, latitude: bool) -> float:
+    value = _number(raw, "GGA coordinate")
+    degrees_value = int(value // 100)
+    result = degrees_value + (value - degrees_value * 100) / 60
+    valid_hemi = ("N", "S") if latitude else ("E", "W")
+    limit = 90 if latitude else 180
+    if hemisphere not in valid_hemi or not 0 <= result <= limit:
+        raise NmeaError("OUT_OF_RANGE", "GGA coordinate or hemisphere is invalid")
+    return -result if hemisphere in ("S", "W") else result
+
+
+def decode(sentence: str) -> Wind | Heading | Course | Position | Depth:
     s = sentence.rstrip("\r\n")
     if len(s) > MAX_LEN:
         raise NmeaError("SENTENCE_TOO_LONG", f"{len(s)} characters; the limit is {MAX_LEN}")
@@ -86,7 +126,31 @@ def decode(sentence: str) -> Wind | Heading:
         if not 0 <= h < 360:
             raise NmeaError("OUT_OF_RANGE", "HDT heading must be in [0, 360)")
         return Heading(h)
-    raise NmeaError("UNSUPPORTED_SENTENCE", f"sentence type {kind!r} is not supported (MWV and HDT only)")
+    if kind == "VTG":
+        if len(f) < 9 or f[2] != "T" or f[6] != "N":
+            raise NmeaError("BAD_FIELD_COUNT", "VTG needs true course marker T and speed marker N")
+        course, speed = _number(f[1], "VTG course"), _number(f[5], "VTG speed")
+        if not 0 <= course < 360 or not 0 <= speed <= 100:
+            raise NmeaError("OUT_OF_RANGE", "VTG course must be [0,360) and speed [0,100] kt")
+        return Course(course, speed)
+    if kind == "GGA":
+        if len(f) < 10:
+            raise NmeaError("BAD_FIELD_COUNT", "GGA needs time, position and fix quality fields")
+        try:
+            quality = int(f[6])
+        except ValueError:
+            raise NmeaError("BAD_NUMBER", "GGA fix quality is not an integer") from None
+        if quality <= 0:
+            raise NmeaError("DATA_NOT_VALID", "GGA reports no valid fix")
+        return Position(_coordinate(f[2], f[3], True), _coordinate(f[4], f[5], False), quality)
+    if kind == "DPT":
+        if len(f) < 3:
+            raise NmeaError("BAD_FIELD_COUNT", "DPT needs depth and transducer offset")
+        depth, offset = _number(f[1], "DPT depth"), _number(f[2], "DPT offset")
+        if not 0 <= depth <= 12000 or not -100 <= offset <= 100:
+            raise NmeaError("OUT_OF_RANGE", "DPT depth or offset is outside supported physical bounds")
+        return Depth(depth, offset)
+    raise NmeaError("UNSUPPORTED_SENTENCE", f"sentence type {kind!r} is not supported (MWV, HDT, VTG, GGA and DPT only)")
 
 
 def true_wind(apparent: Wind, heading_true_deg: float, sog_kt: float, cog_true_deg: float) -> Wind:

@@ -37,7 +37,7 @@ BACKENDS: dict[str, str] = {
     "M7 sequence (berthing)": "real (draft, unreviewed, static check)",
     "M11 berthing simulator": "real (synthetic body; vessel dynamics unqualified)",
     "M12 approach planner": "mock",
-    "M13 telemetry ingest": "real (NMEA MWV/HDT, registered load cells)",
+    "M13 telemetry ingest": "real (NMEA MWV/HDT/VTG/GGA/DPT, registered load cells; AIS unsupported)",
 }
 
 

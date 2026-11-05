@@ -31,13 +31,20 @@ def test_valid_mwv_and_hdt_decode_with_unit_conversion():
     assert nmea.decode(sentence("HEHDT,123.4,T")).true_deg == 123.4
 
 
+def test_vtg_gga_and_dpt_declared_subset():
+    assert nmea.decode(sentence("GPVTG,123.4,T,,M,12.5,N,23.2,K")).speed_kt == 12.5
+    pos = nmea.decode(sentence("GPGGA,123519,3657.510,N,07619.830,W,1,08,0.9,5.0,M,0.0,M,,"))
+    assert pos.latitude == pytest.approx(36.9585) and pos.longitude == pytest.approx(-76.3305)
+    assert nmea.decode(sentence("SDDPT,12.3,-0.7")).depth_m == 12.3
+
+
 @pytest.mark.parametrize("raw,code", [
     ("$WIMWV,045.0,R,18.5,N,A*00", "CHECKSUM_MISMATCH"),
     ("$WIMWV,045.0,R,18.5,N,A", "MISSING_CHECKSUM"),
     ("$WIMWV,045.0,R,18.5,N,A*ZZ", "BAD_CHECKSUM_FORMAT"),
     ("WIMWV,045.0,R,18.5,N,A*1E", "BAD_FRAMING"),
     ("!AIVDM,1,1,,A,x,0*00", "BAD_FRAMING"),
-    (sentence("WIGGA,1,2,3"), "UNSUPPORTED_SENTENCE"),
+    (sentence("WIGGA,1,2,3"), "BAD_FIELD_COUNT"),
     (sentence("WIMWV,045.0,R,18.5,N,V"), "DATA_NOT_VALID"),
     (sentence("WIMWV,045.0,X,18.5,N,A"), "BAD_REFERENCE"),
     (sentence("WIMWV,045.0,R,18.5,Q,A"), "BAD_UNITS"),

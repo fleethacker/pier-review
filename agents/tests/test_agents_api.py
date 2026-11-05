@@ -341,3 +341,31 @@ def test_sheet_preserves_holding_assistance_and_visible_result_references(plan_i
     assert legacy.holding_tugs is None and 'not recorded in this archived sheet' in renderer.render_html(legacy)
     assert legacy.installed_at_water_level_mllw_ft is None and 'not recorded in this legacy sheet' in renderer.render_html(legacy)
     assert legacy.sequence_result_id is None and 'sequence_result_id' not in legacy.model_dump()
+
+
+def test_printed_sheet_preserves_environment_basis_direction_and_forecast_provenance(plan_id):
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    from mooring_agents.planner.agent import PLANS
+    from mooring_agents.safety import sheet as renderer
+    sheet = renderer.build(PLANS[plan_id])
+    env = sheet.environment.observed.model_copy(deep=True)
+    env.current_set_true_deg = 217
+    env.water_level_mllw_ft = 2.75
+    env.metadata = EnvironmentMetadata(basis='prediction', wind_averaging_s=60,
+        gust_duration_s=30, wind_reference_height_m=10, components=[
+            EnvironmentComponentProvenance(component='water_level', source='<script>source</script>',
+                basis='prediction', retrieved_at_utc=datetime.fromisoformat('2026-11-05T08:00:00+02:00'),
+                limitations=['Tidal-only <b>unqualified</b>'])])
+    sheet.environment.observed = env
+    sheet.environment.forecast_summary = 'Coverage incomplete <img src="bad">; use only assessed inputs.'
+    text = renderer.render_html(sheet)
+    assert 'flowing toward 217° true' in text and '2.75 ft MLLW' in text
+    assert 'assessment MST' in text and text.count('<thead>') == 2
+    assert 'Wind averaging: 60 s' in text and 'gust duration: 30 s' in text and 'reference height: 10 m' in text
+    assert 'issued unknown; retrieved 2026-11-05 06:00Z' in text
+    assert 'not a provider issue time or proof of freshness' in text
+    assert 'Coverage incomplete &lt;img' in text and '<img src="bad">' not in text
+    assert '&lt;script&gt;source&lt;/script&gt;' in text and '<script>source</script>' not in text
+    assert 'Tidal-only &lt;b&gt;unqualified&lt;/b&gt;' in text
+    env.metadata = None
+    assert 'Wind averaging, gust duration and reference height: not recorded' in renderer.render_html(sheet)

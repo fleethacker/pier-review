@@ -41,7 +41,15 @@ if needs_node; then
 fi
 echo "Using node $(node -v), npm $(npm -v)"
 
-npm install --no-audit --no-fund
+# Start from a clean tree. A leftover node_modules — a stale directory, or a symlink whose target has moved — makes npm
+# fail while reading what is already there, before it installs anything ("Cannot read properties of null (reading
+# 'edgesOut')"), and the project directory is not always as clean as a fresh clone.
+rm -rf node_modules package-lock.json
+if ! npm install --no-audit --no-fund; then
+  echo "--- npm debug log ---" >&2
+  tail -n 40 "$HOME"/.npm/_logs/*-debug-0.log 2>/dev/null >&2 || true
+  exit 1
+fi
 npm run build
 
 # The service is optional, so a failure here is a warning, not the end of the app.

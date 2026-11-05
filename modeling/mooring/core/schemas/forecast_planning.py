@@ -20,7 +20,7 @@ class ForecastBinding(Model):
     """Explicit input selection. Provider acquisition remains outside the planner."""
 
     wire_omitted_defaults = {"source_id": None, "env_scenario_id": None, "revision": None,
-                            "expected_content_hash": None}
+                            "expected_content_hash": None, "sample_from_utc": None, "sample_to_utc": None}
     source: Literal['supplied', 'scenario'] = Field(default='supplied', json_schema_extra=_optional_wire_schema)
     source_id: str | None = Field(default=None, min_length=1, json_schema_extra=_optional_wire_schema,
         description="Caller-declared dataset/product identity; not proof of provider authenticity.")
@@ -29,12 +29,35 @@ class ForecastBinding(Model):
         description="Declared provider/scenario revision. Content is hashed independently even when this is unchanged.")
     expected_content_hash: str | None = Field(default=None, pattern=r'^sha256:[0-9a-f]{64}$', json_schema_extra=_optional_wire_schema,
         description="Optional pin: reject different content instead of silently evaluating a changed revision.")
+    sample_from_utc: AwareDatetime | None = Field(default=None, json_schema_extra=_optional_wire_schema,
+        description="Scenario-only sampling window retained when rechecking a selected operation from a wider original series.")
+    sample_to_utc: AwareDatetime | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+
+    @field_validator('sample_from_utc', 'sample_to_utc')
+    @classmethod
+    def utc_sampling(cls, value):
+        return value.astimezone(UTC) if value is not None else None
 
     @model_validator(mode='after')
     def selection(self):
         if (self.source == 'scenario') != (self.env_scenario_id is not None):
             raise ValueError('Scenario source requires env_scenario_id; supplied source cannot select a scenario')
+        if (self.sample_from_utc is None) != (self.sample_to_utc is None):
+            raise ValueError('Scenario sampling window requires both endpoints')
+        if self.sample_from_utc is not None:
+            if self.source != 'scenario':
+                raise ValueError('Explicit sampling windows apply only to scenario sources')
+            if not self.sample_from_utc < self.sample_to_utc <= self.sample_from_utc + timedelta(hours=120):
+                raise ValueError('Scenario sampling window must be increasing and at most 120 hours')
         return self
+
+
+def _sampling_window(binding, as_of, start, end):
+    if binding is not None and binding.sample_from_utc is not None:
+        if binding.sample_from_utc > start or binding.sample_to_utc < end:
+            raise ValueError('Scenario sampling window must cover the requested operation')
+        if binding.sample_from_utc < as_of-timedelta(hours=120) or binding.sample_to_utc > as_of+timedelta(hours=120):
+            raise ValueError('Retained scenario samples must be within 120 hours of as_of_utc')
 
 
 class ForecastResolutionManifest(Model):
@@ -79,6 +102,7 @@ class ForecastResolveRequest(Model):
         scenario = self.forecast_binding is not None and self.forecast_binding.source == 'scenario'
         if scenario == (self.forecast is not None):
             raise ValueError('Supply exactly one forecast series or a scenario binding')
+        _sampling_window(self.forecast_binding, self.as_of_utc, self.from_utc, self.to_utc)
         return self
 
 
@@ -97,7 +121,11 @@ class ForecastResolvedResponse(Envelope[ForecastResolvedResult]):
 
 class ForecastDockingRequest(Model):
     wire_omitted_defaults = {"allow_short_lead": False, "forecast_binding": None,
-                            "forecast_step_min": 30, "forecast": None}
+                            "forecast_step_min": 30, "forecast": None,
+                            "installed_at_water_level_mllw_ft": None}
+
+    installed_at_water_level_mllw_ft: float | None = Field(default=None, json_schema_extra=_optional_wire_schema,
+        description="Preserve an existing installation tide during explicit reassessment; omitted means install at each candidate arrival's tide.")
 
     allow_short_lead: bool = Field(default=False,
         description="Explicitly permit reassessment less than 24 hours before arrival. Arrival cannot precede as_of_utc; all forecast provenance/coverage gates remain. Default retains the advance-planning lead requirement.")
@@ -143,6 +171,8 @@ class ForecastDockingRequest(Model):
             raise ValueError('arrival_to_utc precedes arrival_from_utc')
         if self.arrival_to_utc + timedelta(hours=self.operation_hours + self.holding_hours) > self.as_of_utc + timedelta(hours=120):
             raise ValueError('Docking and holding must end within the 120-hour planning horizon')
+        _sampling_window(self.forecast_binding, self.as_of_utc, self.arrival_from_utc,
+                         self.arrival_to_utc + timedelta(hours=self.operation_hours+self.holding_hours))
         if self.forecast is None:
             return self
         dates = [s.valid_at_utc for s in self.forecast]
@@ -213,4 +243,41 @@ class ForecastDockingResult(Model):
 
 
 class ForecastDockingResponse(Envelope[ForecastDockingResult]):
+    pass
+
+
+class ForecastRecheckRequest(Model):
+    wire_omitted_defaults = {"forecast": None, "forecast_binding": None}
+    prior_result_id: str = Field(min_length=1)
+    as_of_utc: AwareDatetime
+    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721, json_schema_extra=_optional_wire_schema)
+    forecast_binding: ForecastBinding | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+
+    @field_validator('as_of_utc')
+    @classmethod
+    def utc_cutoff(cls, value):
+        return value.astimezone(UTC)
+
+    @model_validator(mode='after')
+    def selection(self):
+        scenario = self.forecast_binding is not None and self.forecast_binding.source == 'scenario'
+        if scenario == (self.forecast is not None):
+            raise ValueError('Supply exactly one forecast series or a scenario binding')
+        return self
+
+
+class ForecastRecheckResult(Model):
+    wire_omitted_defaults = {"previous_forecast_manifest": None, "current_forecast_manifest": None,
+                            "reassessment_request": None, "installed_at_water_level_mllw_ft": None}
+    state: Literal['unchanged', 'recheck_required', 'unavailable']
+    prior_result_id: str
+    previous_forecast_manifest: ForecastResolutionManifest | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    current_forecast_manifest: ForecastResolutionManifest | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    reasons: list[str]
+    reassessment_request: ForecastDockingRequest | None = Field(default=None, json_schema_extra=_optional_wire_schema,
+        description="Suggested explicit new calculation preserving the installation. This comparison neither runs it nor transfers approval.")
+    installed_at_water_level_mllw_ft: float | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+
+
+class ForecastRecheckResponse(Envelope[ForecastRecheckResult]):
     pass

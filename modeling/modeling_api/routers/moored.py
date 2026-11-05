@@ -106,3 +106,13 @@ def forecast_plan(req: ForecastDockingRequest):
 def resolve_forecast(req: ForecastResolveRequest):
     from mooring.moored.forecast_service import resolve
     return resolve(req)
+
+
+from mooring.core.schemas.forecast_planning import ForecastRecheckRequest, ForecastRecheckResponse
+
+
+@router.post("/mooring/forecast-plan/recheck", response_model=ForecastRecheckResponse, tags=["M7 Planning"],
+             summary="Compare replacement guidance with a saved plan; never change or approve it")
+def forecast_recheck(req: ForecastRecheckRequest):
+    from mooring.moored.forecast_recheck import recheck
+    return recheck(req)

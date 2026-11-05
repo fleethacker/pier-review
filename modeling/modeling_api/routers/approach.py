@@ -29,7 +29,7 @@ def ukc(req: Annotated[UkcRequest, Body(openapi_examples=ex("approach_ukc"))]):
              summary="Approach simulation (job; result is an ApproachSimResponse)")
 def simulate(req: Annotated[ApproachSimRequest, Body(openapi_examples=ex("approach_simulate"))]):
     jid = new_id("job")
-    return JOBS.submit("approach.simulate", approach_sim.simulate_approach(req, jid, API_PREFIX), job_id=jid)
+    return JOBS.submit_task("approach.simulate", lambda ctx: approach_sim.simulate_approach(req, jid, API_PREFIX), job_id=jid)
 
 
 @router.get("/approach/simulations/{job_id}/track", response_model=ApproachTrack)

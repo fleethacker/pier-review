@@ -1,0 +1,55 @@
+{
+ "nbr_of_bins": 12,
+ "units": "feet",
+ "real_time_bin": 4,
+ "bins": [
+  {
+   "num": 1,
+   "depth": 10.7
+  },
+  {
+   "num": 2,
+   "depth": 14.0
+  },
+  {
+   "num": 3,
+   "depth": 17.3
+  },
+  {
+   "num": 4,
+   "depth": 20.6
+  },
+  {
+   "num": 5,
+   "depth": 23.9
+  },
+  {
+   "num": 6,
+   "depth": 27.1
+  },
+  {
+   "num": 7,
+   "depth": 30.4
+  },
+  {
+   "num": 8,
+   "depth": 33.7
+  },
+  {
+   "num": 9,
+   "depth": 37.0
+  },
+  {
+   "num": 10,
+   "depth": 40.3
+  },
+  {
+   "num": 11,
+   "depth": 43.5
+  },
+  {
+   "num": 12,
+   "depth": 46.8
+  }
+ ]
+}

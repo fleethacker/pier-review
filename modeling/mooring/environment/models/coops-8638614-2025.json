@@ -1,0 +1,44 @@
+{
+ "model_id": "coops-8638614-2025",
+ "revision": "1",
+ "kind": "fitted",
+ "station_ids": [
+  "8638614",
+  "cb0402"
+ ],
+ "fit_start_utc": "2025-01-01T00:00:00Z",
+ "fit_end_utc": "2025-12-31T00:00:00Z",
+ "filters": [
+  "wind speed >= 5 kt",
+  "wind flags clean (X, R = 0)",
+  "gust >= sustained",
+  "UTC days with >= 20 usable samples count as events",
+  "current residual: observed minus predicted, nearest sample within 6 min"
+ ],
+ "gust_factor_mu": 0.18177566926308708,
+ "gust_factor_sigma": 0.08439002401861552,
+ "direction_sigma_deg": 8.49170745092339,
+ "current_sigma_kt": 0.22009418936193592,
+ "correlation_time_min": 4.507928294540134,
+ "n_events": 364,
+ "n_days": 364.0,
+ "validation": {
+  "n_heldout": 20965,
+  "nominal_coverage": 0.9,
+  "observed_coverage": 0.9183877891724302
+ },
+ "applicability": [
+  "Wind at CO-OPS 8638614 and current at cb0402 bin 4, 2025-01-01 to 2025-12-31, wind >= 5 kt."
+ ],
+ "limitations": [
+  "Observations only: forecast error and tide error are not fitted.",
+  "Direction scatter is within-hour variability, not forecast direction error.",
+  "No storm or hurricane winds in the data window.",
+  "Gust factor is truncated at gust >= sustained and fitted for wind >= 5 kt."
+ ],
+ "qualification": "unqualified",
+ "qualification_reasons": [
+  "Only 364 days of data; the policy needs at least 365.",
+  "Hurricane and storm-force winds are outside the data and the model; forecast error is not modeled."
+ ]
+}

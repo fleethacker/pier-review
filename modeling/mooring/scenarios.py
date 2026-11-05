@@ -3,10 +3,11 @@
 from mooring import refdata
 from mooring.core.schemas import EnvironmentSnapshot, Scenario, ScenarioCreate
 
-from mooring.environment import mock as environment
+from mooring import environment
 from mooring.core.envelopes import new_id, utcnow
+from mooring.core.store import DocStore
 
-_store: dict[str, Scenario] = {}
+_store = DocStore("scenario", Scenario)
 
 
 def create(req: ScenarioCreate) -> Scenario:

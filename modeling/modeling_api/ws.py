@@ -6,6 +6,7 @@ Every channel accepts `limit` (close after N server messages; 0 = run until the 
 import asyncio
 from datetime import datetime, timedelta
 
+from mooring.environment.coops import ProviderError
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import TypeAdapter, ValidationError
 
@@ -42,7 +43,12 @@ async def ws_env(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", mode: st
                 elapsed = (datetime.now().astimezone() - started) * speed
                 snap = env.synthetic(replay_start + elapsed, "replay")
             else:
-                snap = env.now(berth_id)
+                try:
+                    snap = env.now(berth_id)
+                except ProviderError as e:   # documented provider failure: tell the client and close, never synthesize
+                    await ws.send_json({"error": e.kind, "detail": str(e)})
+                    await ws.close(code=1013)
+                    return
             await ws.send_json(snap.model_dump(mode="json"))
             sent += 1
             await asyncio.sleep(interval_s)
@@ -76,39 +82,84 @@ async def ws_alerts(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", scena
 
 @router.websocket("/ws/sim/{session_id}")
 async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0):
-    await ws.accept()
-    model = SESSIONS.get(session_id)
-    if model is None:
-        await ws.close(code=4404, reason=f"Session '{session_id}' not found")
-        return
-    initial = model.state.model_copy()
-    dt, sent = 0.1, 0
+    # This handler alone is changed; /ws/env is owned by another workstream.
+    import anyio
+    from mooring.core import access
+    from .security import identity, AccessError
+    from mooring.core.envelopes import new_id
     try:
-        while limit == 0 or sent < limit:
-            alerts: list[str] = []
-            try:
-                raw = await asyncio.wait_for(ws.receive_json(), timeout=dt)
-                msg = SimClientMessage.validate_python(raw)
-                if isinstance(msg, SimTugCommandMessage):
-                    model.command(msg.tug_id, msg.force_lbf, msg.direction_rel_deg)
-                elif isinstance(msg, SimControlMessage):
-                    if msg.type == "reset":
-                        model = SESSIONS[session_id] = type(model)(model.sc, initial, model.env)
-                    else:
-                        model.paused = msg.type == "pause"
-                else:
-                    alerts.append(f"Line {msg.line_number} {msg.event}.")
-            except TimeoutError:
-                pass
-            except ValidationError as e:
-                alerts.append(f"Ignored invalid message: {e.errors()[0]['msg']}")
-            events = model.step(dt)
-            alerts += [e.detail for e in events]
-            await ws.send_json(model.frame(alerts).model_dump(mode="json"))
-            sent += 1
-    except WebSocketDisconnect:
+        principal, enabled = identity(ws.headers)
+    except AccessError as exc:
+        await ws.close(code=4401, reason=exc.message)
         return
-    await ws.close()
+    token=access.principal.set(principal)
+    enforcement=access.enforced.set(enabled)
+    connection=new_id("controller")
+    session=None
+    ticker=None
+    try:
+        if not access.allowed("session",session_id) or session_id not in SESSIONS:
+            await ws.close(code=4404,reason="Session not found")
+            return
+        session=SESSIONS[session_id]
+        try: session.attach(connection)
+        except ValueError:
+            await ws.close(code=4409,reason="Session already controlled")
+            return
+        await ws.accept()
+        ticker=asyncio.create_task(session.run())
+        async def receive_commands():
+            while True:
+                incoming=await ws.receive()
+                if incoming["type"]=="websocket.disconnect": return
+                text=incoming.get("text")
+                if text is None:
+                    await ws.close(code=1003,reason="Simulation commands must be JSON text")
+                    return
+                if len(text.encode())>8192:
+                    await ws.close(code=1009,reason="Command too large")
+                    return
+                try:
+                    msg=SimClientMessage.validate_json(text)
+                    session.receive(connection,msg)
+                except (ValidationError,ValueError) as exc:
+                    # Invalid commands close the controller; no partial application.
+                    await ws.close(code=1008,reason=("Invalid command schema" if isinstance(exc,ValidationError) else str(exc))[:120])
+                    return
+        async def send_frames():
+            sent=0
+            while limit==0 or sent<limit:
+                session.changed.clear()
+                frame=session.latest
+                await asyncio.wait_for(ws.send_json(frame.model_dump(mode="json")),timeout=2.0)
+                sent+=1
+                if limit and sent>=limit: return
+                await session.changed.wait()
+        receive_task=asyncio.create_task(receive_commands())
+        send_task=asyncio.create_task(send_frames())
+        try:
+            done,pending=await asyncio.wait([receive_task,send_task],return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                try: task.result()
+                except TimeoutError:
+                    await ws.close(code=1013,reason="Simulation client did not accept a frame within 2 seconds")
+                except (WebSocketDisconnect,RuntimeError): pass
+        finally:
+            for task in (receive_task,send_task): task.cancel()
+            with anyio.CancelScope(shield=True):
+                await asyncio.gather(receive_task,send_task,return_exceptions=True)
+        try: await ws.close()
+        except RuntimeError: pass
+    except asyncio.CancelledError:
+        pass  # ASGI disconnect/server cancellation still performs ownership cleanup.
+    finally:
+        if session is not None and session.connection==connection:
+            session.detach(connection)
+            if ticker:
+                ticker.cancel()
+                with anyio.CancelScope(shield=True):
+                    await asyncio.gather(ticker,return_exceptions=True)
+        access.principal.reset(token); access.enforced.reset(enforcement)
 
 
 @router.websocket("/ws/telemetry")

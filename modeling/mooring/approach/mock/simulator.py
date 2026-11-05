@@ -6,7 +6,7 @@ from datetime import timedelta
 from mooring import refdata
 from mooring.core.envelopes import envelope
 from mooring.core.schemas import ApproachSimRequest, ApproachSimResponse, ApproachSimResult, ApproachTrack, TrackPoint
-from mooring.environment import mock as environment
+from mooring import environment
 from mooring.loads import mean_draft_ft
 
 from .planner import leg_nm

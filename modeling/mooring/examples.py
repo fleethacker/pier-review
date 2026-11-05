@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from mooring import refdata
 from mooring.core.schemas import EnvironmentSnapshot
 
-from mooring.moored.mock.optimizer import template_config
+from mooring.templates import template_config
 
 T0 = datetime(2026, 11, 4, 15, 48, tzinfo=UTC)
 SHIP = "DDG-51-FIIA"
@@ -82,7 +82,7 @@ def build() -> dict[str, dict]:
                                              "channel_depth_mllw_ft": 45, "width_ft": 800}],
                               "eta_utc": "2026-11-04T18:00:00Z", "speed_profile_kt": [8]},
         "telemetry_batch": {"records": [
-            {"source": "ship_nmea", "t_utc": "2026-11-04T15:48:00Z", "sentence": "$WIMWV,045.0,R,18.5,N,A*1C"},
+            {"source": "ship_nmea", "t_utc": "2026-11-04T15:48:00Z", "sentence": "$WIMWV,045.0,R,18.5,N,A*1E"},
             {"source": "load_cell", "t_utc": "2026-11-04T15:48:00Z", "line_number": 2, "tension_lbf": 31000}]},
     }
 

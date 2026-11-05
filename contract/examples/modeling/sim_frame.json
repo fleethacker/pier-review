@@ -1,0 +1,923 @@
+{
+  "t_s": 30.0,
+  "pose": {
+    "x_ft": 300.0,
+    "y_ft": 72.5,
+    "heading_true_deg": 90.0,
+    "u_kt": 0.0,
+    "v_kt": 0.1481209465592067,
+    "r_degps": 0.0
+  },
+  "tugs": [
+    {
+      "tug_id": "tug-fixture",
+      "force_lbf": 1000.0,
+      "direction_rel_deg": 90.0
+    }
+  ],
+  "lines": [
+    {
+      "line_number": 1,
+      "tension_lbf": 12500.0
+    },
+    {
+      "line_number": 2,
+      "tension_lbf": 0.0
+    }
+  ],
+  "fenders": [
+    {
+      "fender_id": "fender-fixture",
+      "reaction_lbf": 0.0,
+      "compression_ft": 0.0,
+      "status": "AMBER"
+    }
+  ],
+  "alerts": [
+    "MOCK display fixture; prescribed motion and independent illustrative loads."
+  ],
+  "schema_version": "rm0-v1",
+  "sequence": 32,
+  "session_id": "sim_rm0_fixture",
+  "run_id": "run_rm0_fixture",
+  "scene_id": "scene_rm0_fixture",
+  "scene_revision": "1",
+  "motion": {
+    "availability": "available",
+    "provenance": {
+      "kind": "mock",
+      "source": "RM0 display fixture",
+      "references": [],
+      "notes": []
+    },
+    "validity": {
+      "state": "limited",
+      "reasons": [
+        {
+          "code": "AUTHORED_DISPLAY_FIXTURE",
+          "message": "Authored display value; no physical solution.",
+          "affected_components": [
+            "ship"
+          ]
+        }
+      ],
+      "diagnostics": null
+    },
+    "pose": {
+      "x_ft": 300.0,
+      "y_ft": 72.5,
+      "heave_mllw_ft": null,
+      "roll_deg": null,
+      "pitch_deg": null,
+      "yaw_deg": 0.0
+    },
+    "velocity": {
+      "surge_fps": 0.0,
+      "sway_fps": -0.25,
+      "heave_fps": null,
+      "roll_degps": null,
+      "pitch_degps": null,
+      "yaw_degps": 0.0
+    },
+    "dofs": {
+      "surge": "prescribed",
+      "sway": "prescribed",
+      "heave": "not_simulated",
+      "roll": "not_simulated",
+      "pitch": "not_simulated",
+      "yaw": "prescribed"
+    },
+    "acceleration": {
+      "surge_fps2": 0.0,
+      "sway_fps2": 0.0,
+      "heave_fps2": null,
+      "roll_degps2": null,
+      "pitch_degps2": null,
+      "yaw_degps2": 0.0
+    }
+  },
+  "tug_states": [
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "tug-fixture"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "tug_id": "tug-fixture",
+      "position": {
+        "x_ft": 300.0,
+        "y_ft": 107.5,
+        "z_mllw_ft": null
+      },
+      "heading_true_deg": 180.0,
+      "velocity": {
+        "x_fps": 0.0,
+        "y_fps": -0.25,
+        "z_fps": null
+      },
+      "acceleration": {
+        "x_fps2": 0.0,
+        "y_fps2": 0.0,
+        "z_fps2": null
+      },
+      "commanded_force": {
+        "x_lbf": 0.0,
+        "y_lbf": -1500.0,
+        "z_lbf": null
+      },
+      "actual_force": {
+        "x_lbf": 0.0,
+        "y_lbf": -1000.0,
+        "z_lbf": null
+      },
+      "push_point_id": "push-port-midships",
+      "contact_position": {
+        "x_ft": 300.0,
+        "y_ft": 92.5,
+        "z_mllw_ft": null
+      },
+      "mode": "push",
+      "contact_state": "contact",
+      "capacity_utilization_pct": 10.0
+    }
+  ],
+  "environment": {
+    "t_s": 30.0,
+    "valid_at_utc": "2026-11-04T15:48:30Z",
+    "wind": {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "wind"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "metadata": {
+        "basis": "scenario",
+        "source": "RM0 authored display fixture",
+        "issued_at_utc": null,
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 3.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      },
+      "speed_kt": 12.0,
+      "gust_kt": 15.0,
+      "from_true_deg": 180.0
+    },
+    "current": {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "current"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "metadata": {
+        "basis": "scenario",
+        "source": "RM0 authored display fixture",
+        "issued_at_utc": null,
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": null,
+        "gust_duration_s": null,
+        "wind_reference_height_m": null,
+        "current_depth_ft": 6.0,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      },
+      "speed_kt": 0.2,
+      "set_true_deg": 0.0
+    },
+    "water": {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "water"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "metadata": {
+        "basis": "scenario",
+        "source": "RM0 authored display fixture",
+        "issued_at_utc": null,
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": null,
+        "gust_duration_s": null,
+        "wind_reference_height_m": null,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      },
+      "level_mllw_ft": 2.0
+    },
+    "waves": {
+      "ocean_swell": {
+        "availability": "unavailable",
+        "provenance": {
+          "kind": "mock",
+          "source": "RM0 display fixture",
+          "references": [],
+          "notes": [
+            "No wave source or wave model selected by this fixture."
+          ]
+        },
+        "validity": {
+          "state": "unknown",
+          "reasons": [
+            {
+              "code": "WAVE_SOURCE_UNAVAILABLE",
+              "message": "No wave source supplied; not a zero-wave claim.",
+              "affected_components": [
+                "ocean_swell"
+              ]
+            }
+          ],
+          "diagnostics": null
+        },
+        "metadata": null,
+        "height_ft": null,
+        "height_basis": "unknown",
+        "period_s": null,
+        "period_basis": "unknown",
+        "from_true_deg": null
+      },
+      "local_chop": {
+        "availability": "unavailable",
+        "provenance": {
+          "kind": "mock",
+          "source": "RM0 display fixture",
+          "references": [],
+          "notes": [
+            "No wave source or wave model selected by this fixture."
+          ]
+        },
+        "validity": {
+          "state": "unknown",
+          "reasons": [
+            {
+              "code": "WAVE_SOURCE_UNAVAILABLE",
+              "message": "No wave source supplied; not a zero-wave claim.",
+              "affected_components": [
+                "local_chop"
+              ]
+            }
+          ],
+          "diagnostics": null
+        },
+        "metadata": null,
+        "height_ft": null,
+        "height_basis": "unknown",
+        "period_s": null,
+        "period_basis": "unknown",
+        "from_true_deg": null
+      },
+      "ship_wake": {
+        "availability": "unavailable",
+        "provenance": {
+          "kind": "mock",
+          "source": "RM0 display fixture",
+          "references": [],
+          "notes": [
+            "No wave source or wave model selected by this fixture."
+          ]
+        },
+        "validity": {
+          "state": "unknown",
+          "reasons": [
+            {
+              "code": "WAVE_SOURCE_UNAVAILABLE",
+              "message": "No wave source supplied; not a zero-wave claim.",
+              "affected_components": [
+                "ship_wake"
+              ]
+            }
+          ],
+          "diagnostics": null
+        },
+        "metadata": null,
+        "height_ft": null,
+        "height_basis": "unknown",
+        "period_s": null,
+        "period_basis": "unknown",
+        "from_true_deg": null
+      },
+      "tug_wake": {
+        "availability": "unavailable",
+        "provenance": {
+          "kind": "mock",
+          "source": "RM0 display fixture",
+          "references": [],
+          "notes": [
+            "No wave source or wave model selected by this fixture."
+          ]
+        },
+        "validity": {
+          "state": "unknown",
+          "reasons": [
+            {
+              "code": "WAVE_SOURCE_UNAVAILABLE",
+              "message": "No wave source supplied; not a zero-wave claim.",
+              "affected_components": [
+                "tug_wake"
+              ]
+            }
+          ],
+          "diagnostics": null
+        },
+        "metadata": null,
+        "height_ft": null,
+        "height_basis": "unknown",
+        "period_s": null,
+        "period_basis": "unknown",
+        "from_true_deg": null
+      }
+    }
+  },
+  "line_states": [
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "line-1"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "line_number": 1,
+      "tension_lbf": 12500.0,
+      "status": "taut",
+      "ship_fitting_id": "ship-forward",
+      "pier_fitting_id": "pier-forward",
+      "ship_end": {
+        "x_ft": 360.0,
+        "y_ft": 52.5,
+        "z_mllw_ft": null
+      },
+      "pier_end": {
+        "x_ft": 360.0,
+        "y_ft": 0.0,
+        "z_mllw_ft": 8.0
+      },
+      "polyline": [
+        {
+          "x_ft": 360.0,
+          "y_ft": 52.5,
+          "z_mllw_ft": null
+        },
+        {
+          "x_ft": 360.0,
+          "y_ft": 0.0,
+          "z_mllw_ft": 8.0
+        }
+      ]
+    },
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "line-2"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "line_number": 2,
+      "tension_lbf": 0.0,
+      "status": "slack",
+      "ship_fitting_id": "ship-aft",
+      "pier_fitting_id": "pier-aft",
+      "ship_end": {
+        "x_ft": 240.0,
+        "y_ft": 52.5,
+        "z_mllw_ft": null
+      },
+      "pier_end": {
+        "x_ft": 240.0,
+        "y_ft": 0.0,
+        "z_mllw_ft": 8.0
+      },
+      "polyline": [
+        {
+          "x_ft": 240.0,
+          "y_ft": 52.5,
+          "z_mllw_ft": null
+        },
+        {
+          "x_ft": 240.0,
+          "y_ft": 0.0,
+          "z_mllw_ft": 8.0
+        }
+      ]
+    }
+  ],
+  "fitting_loads": [
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "ship-forward"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "fitting_id": "ship-forward",
+      "owner": "ship",
+      "load_lbf": 12500.0,
+      "capacity_lbf": 25000.0,
+      "utilization_pct": 50.0,
+      "force": null,
+      "status": "AMBER"
+    },
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "pier-forward"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "fitting_id": "pier-forward",
+      "owner": "pier",
+      "load_lbf": 12500.0,
+      "capacity_lbf": 50000.0,
+      "utilization_pct": 25.0,
+      "force": null,
+      "status": "AMBER"
+    },
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "ship-aft"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "fitting_id": "ship-aft",
+      "owner": "ship",
+      "load_lbf": 0.0,
+      "capacity_lbf": 25000.0,
+      "utilization_pct": 0.0,
+      "force": null,
+      "status": "AMBER"
+    },
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "pier-aft"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "fitting_id": "pier-aft",
+      "owner": "pier",
+      "load_lbf": 0.0,
+      "capacity_lbf": 50000.0,
+      "utilization_pct": 0.0,
+      "force": null,
+      "status": "AMBER"
+    }
+  ],
+  "fender_states": [
+    {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "fender-fixture"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "fender_id": "fender-fixture",
+      "compression_ft": 0.0,
+      "reaction_lbf": 0.0,
+      "force": null,
+      "status": "AMBER"
+    }
+  ],
+  "forces": {
+    "wind": {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "wind"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "force": {
+        "x_lbf": 0.0,
+        "y_lbf": 500.0,
+        "z_lbf": null
+      },
+      "yaw_moment_ftlbf": 0.0
+    },
+    "current": {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "current"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "force": {
+        "x_lbf": 0.0,
+        "y_lbf": 250.0,
+        "z_lbf": null
+      },
+      "yaw_moment_ftlbf": 0.0
+    },
+    "waves": {
+      "ocean_swell": {
+        "availability": "unavailable",
+        "provenance": {
+          "kind": "mock",
+          "source": "RM0 display fixture",
+          "references": [],
+          "notes": []
+        },
+        "validity": {
+          "state": "unknown",
+          "reasons": [
+            {
+              "code": "WAVE_SOURCE_UNAVAILABLE",
+              "message": "No wave forcing supplied; not a zero-force claim.",
+              "affected_components": [
+                "ocean_swell"
+              ]
+            }
+          ],
+          "diagnostics": null
+        },
+        "force": null,
+        "yaw_moment_ftlbf": null
+      },
+      "local_chop": {
+        "availability": "unavailable",
+        "provenance": {
+          "kind": "mock",
+          "source": "RM0 display fixture",
+          "references": [],
+          "notes": []
+        },
+        "validity": {
+          "state": "unknown",
+          "reasons": [
+            {
+              "code": "WAVE_SOURCE_UNAVAILABLE",
+              "message": "No wave forcing supplied; not a zero-force claim.",
+              "affected_components": [
+                "local_chop"
+              ]
+            }
+          ],
+          "diagnostics": null
+        },
+        "force": null,
+        "yaw_moment_ftlbf": null
+      },
+      "ship_wake": {
+        "availability": "unavailable",
+        "provenance": {
+          "kind": "mock",
+          "source": "RM0 display fixture",
+          "references": [],
+          "notes": []
+        },
+        "validity": {
+          "state": "unknown",
+          "reasons": [
+            {
+              "code": "WAVE_SOURCE_UNAVAILABLE",
+              "message": "No wave forcing supplied; not a zero-force claim.",
+              "affected_components": [
+                "ship_wake"
+              ]
+            }
+          ],
+          "diagnostics": null
+        },
+        "force": null,
+        "yaw_moment_ftlbf": null
+      },
+      "tug_wake": {
+        "availability": "unavailable",
+        "provenance": {
+          "kind": "mock",
+          "source": "RM0 display fixture",
+          "references": [],
+          "notes": []
+        },
+        "validity": {
+          "state": "unknown",
+          "reasons": [
+            {
+              "code": "WAVE_SOURCE_UNAVAILABLE",
+              "message": "No wave forcing supplied; not a zero-force claim.",
+              "affected_components": [
+                "tug_wake"
+              ]
+            }
+          ],
+          "diagnostics": null
+        },
+        "force": null,
+        "yaw_moment_ftlbf": null
+      }
+    },
+    "tugs": {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "tugs"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "force": {
+        "x_lbf": 0.0,
+        "y_lbf": -1000.0,
+        "z_lbf": null
+      },
+      "yaw_moment_ftlbf": 0.0
+    },
+    "lines": {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "lines"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "force": {
+        "x_lbf": 0.0,
+        "y_lbf": -12500.0,
+        "z_lbf": null
+      },
+      "yaw_moment_ftlbf": -750000.0
+    },
+    "fenders": {
+      "availability": "available",
+      "provenance": {
+        "kind": "mock",
+        "source": "RM0 display fixture",
+        "references": [],
+        "notes": []
+      },
+      "validity": {
+        "state": "limited",
+        "reasons": [
+          {
+            "code": "AUTHORED_DISPLAY_FIXTURE",
+            "message": "Authored display value; no physical solution.",
+            "affected_components": [
+              "fenders"
+            ]
+          }
+        ],
+        "diagnostics": null
+      },
+      "force": {
+        "x_lbf": 0.0,
+        "y_lbf": 0.0,
+        "z_lbf": null
+      },
+      "yaw_moment_ftlbf": 0.0
+    }
+  },
+  "validity": {
+    "state": "limited",
+    "reasons": [
+      {
+        "code": "AUTHORED_DISPLAY_FIXTURE",
+        "message": "Authored display value; no physical solution.",
+        "affected_components": [
+          "frame"
+        ]
+      }
+    ],
+    "diagnostics": null
+  },
+  "provenance": {
+    "kind": "mock",
+    "source": "RM0 display fixture",
+    "references": [],
+    "notes": [
+      "Prescribed planar translation; independent illustrative loads; no physics, force balance, or vessel qualification."
+    ]
+  },
+  "structured_alerts": [
+    {
+      "code": "AUTHORED_DISPLAY_FIXTURE",
+      "severity": "AMBER",
+      "message": "MOCK: prescribed trajectory; loads do not solve dynamics or force balance.",
+      "element_ids": [
+        "ship"
+      ]
+    }
+  ]
+}

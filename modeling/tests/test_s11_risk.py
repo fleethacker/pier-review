@@ -1,0 +1,186 @@
+"""S11: exceedance, horizon, timeline and alerts."""
+
+import copy
+import math
+import random
+from datetime import UTC, datetime
+
+import pytest
+from fastapi.testclient import TestClient
+
+from modeling_api.main import app
+from mooring.core.schemas import EnvironmentSnapshot
+from mooring.environment import uncertainty as unc
+from mooring.examples import EXAMPLES
+from mooring.loads import compute_loads
+from mooring.moored import risk
+
+client = TestClient(app)
+P = "/api/v1"
+
+
+def wait(job, timeout=60):
+    import time
+    end = time.monotonic() + timeout
+    st = client.get(job["status_url"]).json()
+    while st["state"] in ("queued", "running") and time.monotonic() < end:
+        time.sleep(0.02)
+        st = client.get(job["status_url"]).json()
+    assert st["state"] == "succeeded", st
+    return st["result"]
+
+
+def run(**kw):
+    b = copy.deepcopy(EXAMPLES["risk_exceedance"])
+    b.update(kw)
+    r = client.post(f"{P}/risk/exceedance", json=b)
+    assert r.status_code == 202, r.text
+    return wait(r.json())
+
+
+# ---------- statistics against known answers ----------
+
+def test_wilson_interval_known_values():
+    lo, hi = risk.wilson(0, 100)
+    assert lo == pytest.approx(0.0, abs=1e-12) and hi == pytest.approx(0.0370, abs=1e-3)
+    lo, hi = risk.wilson(100, 100)
+    assert hi == 1.0 and lo == pytest.approx(0.9630, abs=1e-3)
+    lo, hi = risk.wilson(50, 100)
+    assert (lo, hi) == pytest.approx((0.4038, 0.5962), abs=1e-3)
+    assert risk.wilson(0, 0) == (0.0, 1.0)
+
+
+def test_exceedance_probability_matches_the_analytic_lognormal_value():
+    mu, sigma, thr = 0.27, 0.08, 1.4
+    exact = 1 - __import__("statistics").NormalDist(mu, sigma).cdf(math.log(thr))
+    model = unc.SYNTHETIC_DEMO.model_copy(update={"gust_factor_mu": mu, "gust_factor_sigma": sigma})
+    s = unc.Sampler(model, 12345)
+    env = EnvironmentSnapshot(wind_speed_kt=20, wind_gust_kt=20, wind_from_true_deg=0, current_speed_kt=0, current_set_true_deg=0, water_level_mllw_ft=0)
+    n = 20_000
+    tally, per = risk.monte_carlo(lambda: s.instant(env), lambda e: {"gust": (e.wind_gust_kt / e.wind_speed_kt, thr, None)}, n)
+    p = tally.any_wll / n
+    lo, hi = risk.wilson(tally.any_wll, n)
+    assert lo <= exact <= hi and abs(p - exact) < 4 * math.sqrt(exact * (1 - exact) / n)
+
+
+def test_zero_and_all_exceedance_have_nonvacuous_bounds():
+    env = EnvironmentSnapshot(wind_speed_kt=10, wind_gust_kt=10, wind_from_true_deg=0, current_speed_kt=0, current_set_true_deg=0, water_level_mllw_ft=0)
+    s = unc.Sampler(unc.SYNTHETIC_DEMO, 1)
+    none, _ = risk.monte_carlo(lambda: s.instant(env), lambda e: {"x": (0.0, 1.0, None)}, 500)
+    every, _ = risk.monte_carlo(lambda: s.instant(env), lambda e: {"x": (2.0, 1.0, None)}, 500)
+    assert none.any_wll == 0 and risk.wilson(0, 500)[1] > 0 and every.any_wll == 500 and risk.wilson(500, 500)[0] < 1
+
+
+def test_failed_samples_are_counted_and_bound_the_probability():
+    s = unc.Sampler(unc.SYNTHETIC_DEMO, 2)
+    env = EnvironmentSnapshot(wind_speed_kt=10, wind_gust_kt=10, wind_from_true_deg=0, current_speed_kt=0, current_set_true_deg=0, water_level_mllw_ft=0)
+    k = {"i": 0}
+    def ev(e):
+        k["i"] += 1
+        return None if k["i"] % 10 == 0 else {"x": (2.0 if k["i"] % 2 else 0.0, 1.0, None)}
+    t, _ = risk.monte_carlo(lambda: s.instant(env), ev, 1000)
+    assert t.failed == 100 and t.n == 1000
+    lower, upper = t.any_wll / t.n, (t.any_wll + t.failed) / t.n
+    assert lower < t.any_wll / (t.n - t.failed) < upper + 1e-12
+
+
+# ---------- service ----------
+
+def test_requested_sample_count_is_honored_or_rejected_never_capped():
+    assert run(n_samples=1234)["result"]["n_samples"] == 1234
+    assert client.post(f"{P}/risk/exceedance", json={**EXAMPLES["risk_exceedance"], "n_samples": 20001}).status_code == 422
+
+
+def test_reproducible_with_a_seed_and_records_provenance():
+    a, b, c = run(seed=7), run(seed=7), run(seed=8)
+    for x in (a, b):
+        x.pop("result_id"); x.pop("computed_at_utc")
+    assert a["result"] == b["result"]
+    assert a["manifest"]["rng_seed"] == 7 and a["manifest"]["rng_model_revision"] == "synthetic-demo@1"
+    assert run(seed=8)["result"]["p_any_exceeds_wll"] != 99 and c["result"]["seed"] == 8
+
+
+def test_unqualified_model_makes_the_result_limited_and_pointwise_only_is_stated():
+    j = run(n_samples=200)
+    assert j["validity"]["state"] == "limited" and j["status"] != "GREEN"
+    assert "UNQUALIFIED_UNCERTAINTY_MODEL" in {r["code"] for r in j["validity"]["reasons"]}
+    assert j["result"]["pointwise_only"] is True and j["result"].get("horizon") is None
+    assert any(w["rule_id"] == "RISK-HORIZON-UNSUPPORTED" for w in j["warnings"])
+    assert client.post(f"{P}/risk/exceedance", json={**EXAMPLES["risk_exceedance"], "uncertainty_model_id": "nope"}).status_code == 422
+
+
+def test_accounting_ci_and_element_semantics():
+    r = run(n_samples=300)["result"]
+    assert r["n_valid"] + r["n_failed"] == 300 and r["p_any_ci95"][0] <= r["p_any_exceeds_wll"] <= r["p_any_ci95"][1]
+    assert r["p_any_bounds"][0] <= r["p_any_bounds"][1]
+    fit = [e for e in r["elements"] if not e["element_id"].startswith("line-")]
+    assert fit and all(e["p_exceed_mbs"] is None for e in fit)          # no fictitious MBS for fittings and fenders
+    assert all(e["p_exceed_mbs"] is not None for e in r["elements"] if e["element_id"].startswith("line-"))
+    assert "Wilson" in r["error_criterion"]
+
+
+def test_dynamic_factor_scales_wind_force_exactly_once():
+    from mooring import refdata
+    ship = refdata.ship("DDG-51-FIIA")
+    env = EnvironmentSnapshot(wind_speed_kt=30, wind_gust_kt=30, wind_from_true_deg=200, current_speed_kt=0.0001, current_set_true_deg=0, water_level_mllw_ft=0)
+    f = 1.5
+    base = compute_loads(ship, "full_load", 105, env, 46.8).wind.fy_lbf
+    scaled = compute_loads(ship, "full_load", 105, risk._with_dynamic(env, f), 46.8).wind.fy_lbf
+    assert scaled / base == pytest.approx(f, rel=1e-9)   # not f**2
+
+
+def test_horizon_probability_comes_from_trajectories_and_is_not_a_sum_of_pointwise_values():
+    j = run(n_samples=100, include_horizon=True, n_trajectories=40, horizon_hours=6, seed=3)
+    h = j["result"]["horizon"]
+    assert j["result"]["pointwise_only"] is False and h["n_trajectories"] == 40 and h["step_min"] == 30
+    assert "any line" in h["event"] and 0 <= h["p_event"] <= 1 and h["p_event_ci95"][0] <= h["p_event"] <= h["p_event_ci95"][1]
+    assert h["p_event"] >= j["result"]["p_any_exceeds_wll"] - 0.35   # a horizon event is at least about as likely as one instant
+
+
+def test_empty_configuration_is_invalid_not_a_probability_of_safety():
+    b = copy.deepcopy(EXAMPLES["risk_exceedance"])
+    b["config"]["lines"] = []
+    r = client.post(f"{P}/risk/exceedance", json=b)
+    assert r.status_code == 202
+    j = wait(r.json())
+    assert j["validity"]["state"] == "invalid" and j["status"] == "RED"
+
+
+def test_job_cancellation_stops_sampling():
+    r = client.post(f"{P}/risk/exceedance", json={**EXAMPLES["risk_exceedance"], "n_samples": 20000}).json()
+    client.delete(f"{P}/jobs/{r['job_id']}")
+    assert client.get(r["status_url"]).json()["state"] == "cancelled"
+
+
+# ---------- timeline and alerts ----------
+
+def timeline(**kw):
+    b = copy.deepcopy(EXAMPLES["risk_timeline"])
+    b.update({"start_utc": "2026-11-04T12:00:00Z", **kw})
+    r = client.post(f"{P}/risk/timeline", json=b)
+    assert r.status_code == 202, r.text
+    return wait(r.json())
+
+
+def test_timeline_is_reproducible_with_an_injected_start_and_has_no_fake_probability():
+    a, b = timeline(), timeline()
+    for x in (a, b):
+        x.pop("result_id"); x.pop("computed_at_utc")
+    assert a["result"] == b["result"] and len(a["result"]["steps"]) == 25
+    assert all(s["p_any_exceeds_wll"] is None and s["valid"] for s in a["result"]["steps"])
+    assert any("pointwise per step" in s for s in a["assumptions"])
+
+
+def test_timeline_with_sampling_gives_pointwise_probabilities_labeled_scenario_only():
+    j = timeline(n_samples_per_step=20, forecast_hours=2)
+    assert all(0 <= s["p_any_exceeds_wll"] <= 1 for s in j["result"]["steps"])
+    assert "UNQUALIFIED_UNCERTAINTY_MODEL" in {r["code"] for r in j["validity"]["reasons"]}
+
+
+def test_alert_carries_event_time_provenance_and_staleness():
+    from mooring.core.schemas import AnalyzeRequest, EnvironmentMetadata
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"])
+    fresh = risk.alert_for(req.environment, req)
+    assert fresh.at_utc == req.environment.valid_at_utc and "no probability" in fresh.provenance and fresh.stale is False
+    old = req.environment.model_copy(update={"metadata": EnvironmentMetadata(basis="observation", age_s=4000.0)})
+    assert risk.alert_for(old, req).stale is True and "stale" in risk.alert_for(old, req).message

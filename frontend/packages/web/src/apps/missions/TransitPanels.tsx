@@ -210,6 +210,7 @@ const KIND_TEXT: Record<TransitEvent['kind'], string> = {
   tug_saturated: 'tug saturated',
   large_cross_track: 'large cross-track',
   stopped_short: 'stopped short',
+  missed_approach: 'missed approach, re-approaching',
   integration_failed: 'integration failed',
 };
 

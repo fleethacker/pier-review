@@ -231,3 +231,58 @@ def test_modeling_job_lifecycle_over_http_including_cancel():
     assert wait_for(lambda: client.get(acc["status_url"]).json()["state"] == "succeeded", 20)
     assert client.delete(f"{P}/jobs/{acc['job_id']}").json()["state"] == "succeeded"  # terminal jobs stay terminal
     assert client.delete(f"{P}/jobs/job_missing").status_code == 404
+
+
+def test_job_recovery_and_retention_are_service_scoped(tmp_path):
+    """Starting agents must not fail or purge modeling jobs in the shared SQLite file."""
+    path = str(tmp_path / 'services.sqlite')
+    store.reset_db(path)
+    gate = threading.Event()
+    modeling = JobStore('/api', workers=1, persist=True)
+    agents = None
+    try:
+        active = modeling.submit_task('modeling.work', lambda ctx: gate.wait(5) and {'modeling': True})
+        assert wait_for(lambda: modeling.status(active.job_id).state == 'running')
+        agents = JobStore('/api', persist=True, namespace='agents')
+        assert agents.status(active.job_id) is None
+        row = store.db().execute('SELECT state FROM jobs WHERE job_id=?', (active.job_id,))[0][0]
+        assert row in ('queued', 'running')
+        done = agents.submit_task('agent.work', lambda ctx: ctx.emit('step', {'n': 1}) or {'agent': True})
+        agents.get(done.job_id).future.result(timeout=5)
+        original_events = sse_events(agents, done.job_id)
+        recovered = JobStore('/api', persist=True, namespace='agents')
+        assert recovered.status(done.job_id).result == {'agent': True}
+        assert sse_events(recovered, done.job_id) == original_events
+        assert sse_events(recovered, done.job_id, last=original_events[-1][0]) == []
+        assert modeling.status(done.job_id) is None
+        assert recovered.purge(-1) == 1
+        assert store.db().execute('SELECT state FROM jobs WHERE job_id=?', (active.job_id,))
+        gate.set()
+        modeling.get(active.job_id).future.result(timeout=5)
+        assert modeling.status(active.job_id).state == 'succeeded'
+    finally:
+        gate.set()
+        modeling.shutdown()
+        if agents: agents.shutdown()
+        store.reset_db(':memory:')
+
+
+def test_v3_job_migration_assigns_legacy_rows_to_modeling(tmp_path):
+    import sqlite3
+    from datetime import datetime, UTC
+    path = str(tmp_path / 'legacy.sqlite')
+    with sqlite3.connect(path) as conn:
+        conn.executescript('CREATE TABLE schema_version(version INTEGER NOT NULL);' + ''.join(store.MIGRATIONS[:3]))
+        conn.execute('INSERT INTO schema_version VALUES (3)')
+        conn.execute('INSERT INTO jobs VALUES (?,?,?,?,?,?,?)',
+                     ('legacy', 'work', 'running', datetime.now(UTC).isoformat(), None, None, None))
+    store.reset_db(path)
+    try:
+        agent_jobs = JobStore('/api', persist=True, namespace='agents')
+        assert agent_jobs.status('legacy') is None
+        assert store.db().execute('SELECT state,namespace FROM jobs')[0] == ('running', 'modeling')
+        recovered = JobStore('/api', persist=True)
+        assert recovered.status('legacy').state == 'failed'
+        assert recovered.status('legacy').error == 'interrupted by restart'
+    finally:
+        store.reset_db(':memory:')

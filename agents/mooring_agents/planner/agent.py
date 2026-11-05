@@ -42,7 +42,31 @@ class PlanRecord:
     holding_tugs: list = field(default_factory=list)
 
 
-PLANS: dict[str, PlanRecord] = {}
+from pydantic import BaseModel, Field
+from ..shared.storage import AgentStore
+
+
+class SavedPlan(BaseModel):
+    """Explicit persistence schema: never serialize the live toolkit/HTTP credentials."""
+    plan: AgentPlan
+    scenario: Scenario
+    env: EnvironmentSnapshot
+    analysis: AnalyzeResponse | None
+    mst: str = "II"
+    events: list[tuple[str, dict]] = Field(default_factory=list)
+    messages: list[tuple[str, dict]] = Field(default_factory=list)
+    holding_tugs: list = Field(default_factory=list)
+
+
+def _save_record(rec):
+    return SavedPlan(**{name: getattr(rec, name) for name in SavedPlan.model_fields})
+
+
+def _load_record(saved):
+    return PlanRecord(**{name: getattr(saved, name) for name in SavedPlan.model_fields})
+
+
+PLANS = AgentStore("agent_plan", SavedPlan, encode=_save_record, decode=_load_record)
 
 
 def _analyze_body(sc: Scenario, cfg: MooringConfig, env: EnvironmentSnapshot, mst: str, tugs: list | None = None) -> dict:
@@ -480,5 +504,8 @@ async def answer(rec: PlanRecord, text: str, tk: PhysicsToolkit) -> AgentMessage
             text=f"At {speed:.0f} kt, gusting {gust:.0f} kt ({'assumed 1.3 times sustained' if speed_match else 'unchanged gust'}), "
                  f"from {changed.wind_from_true_deg:03.0f}, the plan is {_analysis_status(result)}; "
                  f"the governing utilization is {top.pct_wll:.0f}% on {top.element_id}.")
-    rec.messages.append(("message", msg.model_dump(mode="json")))
+    with PLANS.atomic():
+        current = PLANS.get(rec.plan.plan_id, rec)
+        current.messages.append(("message", msg.model_dump(mode="json")))
+        PLANS[rec.plan.plan_id] = current
     return msg

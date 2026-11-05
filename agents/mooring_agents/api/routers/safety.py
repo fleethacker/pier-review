@@ -70,7 +70,11 @@ async def create_sheet(req: SafetySheetCreate, tk: SafetyTools):
     else:
         rv = await safety.review(SafetyReviewRequest(plan_id=req.plan_id), tk)
     s = sheet.build(rec, rv)
-    rec.plan.safety_sheet_id = s.sheet_id
+    from ...planner.agent import PLANS
+    with PLANS.atomic():
+        current = PLANS[req.plan_id]
+        current.plan.safety_sheet_id = s.sheet_id
+        PLANS[req.plan_id] = current
     return SafetySheetCreated(sheet_id=s.sheet_id, version=s.version)
 
 

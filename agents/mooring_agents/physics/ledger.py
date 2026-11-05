@@ -20,7 +20,8 @@ _LOCK = RLock()
 
 
 def _database_path() -> str | None:
-    path = os.environ.get("AGENTS_LEDGER_DB") or None
+    from ..shared.storage import persistence_enabled
+    path = os.environ.get("AGENTS_LEDGER_DB") or (os.environ["MOORING_DB"] if persistence_enabled() else None)
     if path == ":memory:":
         raise ValueError("AGENTS_LEDGER_DB must name a file; unset it to use the in-memory ledger")
     return path

@@ -2104,10 +2104,9 @@ export interface components {
         ForecastBinding: {
             /**
              * Source
-             * @default supplied
              * @enum {string}
              */
-            source: "supplied" | "scenario";
+            source?: "supplied" | "scenario";
             /**
              * Source Id
              * @description Caller-declared dataset/product identity; not proof of provider authenticity.
@@ -2200,9 +2199,8 @@ export interface components {
             /**
              * Forecast Step Min
              * @description Sampling interval only for an explicitly selected environment scenario.
-             * @default 30
              */
-            forecast_step_min: number;
+            forecast_step_min?: number;
             /**
              * Max Gap Min
              * @description Maximum covered interval between snapshots; this is a sampling assumption, not a guarantee against sub-sample peaks.
@@ -2364,17 +2362,13 @@ export interface components {
              * Format: date-time
              */
             to_utc: string;
-            /**
-             * Max Gap Min
-             * @default 60
-             */
-            max_gap_min: number;
+            /** Max Gap Min */
+            max_gap_min?: number;
             /**
              * Step Min
              * @description Sampling interval for an explicitly selected scenario; supplied series retain every knot.
-             * @default 30
              */
-            step_min: number;
+            step_min?: number;
             /** Forecast */
             forecast?: components["schemas"]["EnvironmentSnapshot"][] | null;
             forecast_binding?: components["schemas"]["ForecastBinding"] | null;
@@ -5947,14 +5941,12 @@ export interface components {
         };
         /** ForecastDockingResult */
         ForecastDockingResult: {
-            /** @default null */
-            forecast_manifest: components["schemas"]["ForecastResolutionManifest"] | null;
+            forecast_manifest?: components["schemas"]["ForecastResolutionManifest"] | null;
             /**
              * Result Hash
              * @description Hash of the semantic assessment, excluding newly allocated result IDs and execution timestamps.
-             * @default null
              */
-            result_hash: string | null;
+            result_hash?: string | null;
             /**
              * @description Selected arrival's configuration with modeled unstretched paid-out lengths made explicit. Reproduces the static installation assumption; not a deck-handling instruction.
              * @default null

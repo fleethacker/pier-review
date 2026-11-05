@@ -75,6 +75,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/env/waves/compose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acquire offshore wave evidence and explicit berth-applicability gaps */
+        post: operations["env_waves_compose_api_v1_env_waves_compose_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/env/history": {
         parameters: {
             query?: never;
@@ -1564,6 +1581,31 @@ export interface components {
              * @description Requested station bin or model-layer identifier; substitutions must be reported unavailable.
              */
             current_bin: string;
+        };
+        /**
+         * ComposedWaveManifest
+         * @description Frozen offshore acquisition and explicit berth-applicability gaps.
+         */
+        ComposedWaveManifest: {
+            /**
+             * Schema Version
+             * @default composed-waves-v1
+             * @constant
+             */
+            schema_version: "composed-waves-v1";
+            /** Revision */
+            revision: string;
+            request: components["schemas"]["WaveComposeRequest"];
+            /** Offshore Series */
+            offshore_series: components["schemas"]["OffshoreWaveSeries"][];
+            /** Berth Exposure */
+            berth_exposure: components["schemas"]["WaveBerthExposureAvailability"][];
+            /** Limitations */
+            limitations?: string[];
+        };
+        /** ComposedWaves */
+        ComposedWaves: {
+            manifest: components["schemas"]["ComposedWaveManifest"];
         };
         /** CurrentForecastPoint */
         CurrentForecastPoint: {
@@ -3613,6 +3655,91 @@ export interface components {
             yaw_deg: number;
         };
         /**
+         * OffshoreWavePoint
+         * @description One offshore provider time; representations are alternatives, never additive forcing.
+         */
+        OffshoreWavePoint: {
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /** Sample Start Utc */
+            sample_start_utc?: string | null;
+            /** Sample End Utc */
+            sample_end_utc?: string | null;
+            /**
+             * Timestamp Basis
+             * @default unknown
+             * @enum {string}
+             */
+            timestamp_basis: "start" | "center" | "end" | "instant" | "unknown";
+            total_sea?: components["schemas"]["WaveBulkParameters"] | null;
+            /** Partitions */
+            partitions?: components["schemas"]["WaveBulkParameters"][];
+            spectrum?: components["schemas"]["WaveSpectrum"] | null;
+            /** Original */
+            original?: {
+                [key: string]: number | string;
+            } | null;
+        };
+        /**
+         * OffshoreWaveSeries
+         * @description Observation, forecast, or independent check at its source location.
+         */
+        OffshoreWaveSeries: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "observation" | "forecast" | "independent_check";
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "ndbc" | "gfs-wave";
+            /** Station Id */
+            station_id?: string | null;
+            /** Model Id */
+            model_id?: string | null;
+            /**
+             * Reference Time Utc
+             * @description Forecast model reference/cycle time; not a substitute for issue or retrieval time.
+             */
+            reference_time_utc?: string | null;
+            /**
+             * Coverage
+             * @enum {string}
+             */
+            coverage: "complete" | "partial" | "unavailable";
+            availability: components["schemas"]["EnvironmentComponentAvailability"];
+            /** Product Ids */
+            product_ids?: string[];
+            location?: components["schemas"]["WaveSourceLocation"] | null;
+            /**
+             * Applicability
+             * @default offshore_boundary_only
+             * @constant
+             */
+            applicability: "offshore_boundary_only";
+            /**
+             * Load Ready
+             * @default false
+             * @constant
+             */
+            load_ready: false;
+            /**
+             * Representation Policy
+             * @default choose_total_or_partitions_or_spectrum
+             * @constant
+             */
+            representation_policy: "choose_total_or_partitions_or_spectrum";
+            /** Content Sha256 */
+            content_sha256?: string | null;
+            /** Points */
+            points?: components["schemas"]["OffshoreWavePoint"][];
+        };
+        /**
          * PierFitting
          * @description A bollard, bitt or cleat on the pier. Coordinates in the berth frame (negative y = on the deck).
          */
@@ -5462,6 +5589,198 @@ export interface components {
                 [key: string]: number | string;
             } | null;
         };
+        /**
+         * WaveBerthExposureAvailability
+         * @description Status of one physically distinct berth exposure; this model carries no measurements.
+         */
+        WaveBerthExposureAvailability: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "ocean_swell" | "local_chop" | "ship_wake" | "tug_wake";
+            /**
+             * State
+             * @default unavailable
+             * @constant
+             */
+            state: "unavailable";
+            /** Reason Code */
+            reason_code?: ("NO_BERTH_WAVE_TRANSFER" | "NO_DIRECTIONAL_FETCH" | "NO_WAKE_SOURCE" | "SOURCE_UNAVAILABLE") | null;
+            /** Reason */
+            reason?: string | null;
+            /** Limitations */
+            limitations?: string[];
+        };
+        /**
+         * WaveBulkParameters
+         * @description Provider bulk parameters; total sea and partitions are deliberately distinct.
+         */
+        WaveBulkParameters: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "total_sea" | "swell" | "wind_sea" | "provider_partition";
+            /** Provider Partition Id */
+            provider_partition_id?: string | null;
+            /** Significant Height Ft */
+            significant_height_ft: number;
+            /** Period S */
+            period_s?: number | null;
+            /**
+             * Period Basis
+             * @default unknown
+             * @enum {string}
+             */
+            period_basis: "dominant" | "average" | "peak" | "provider_partition" | "unknown";
+            /** Direction From True Deg */
+            direction_from_true_deg?: number | null;
+            /**
+             * Direction Basis
+             * @default unknown
+             * @enum {string}
+             */
+            direction_basis: "mean" | "dominant" | "peak" | "provider_partition" | "unknown";
+        };
+        /**
+         * WaveComposeRequest
+         * @description Bounded public wave acquisition with a reproducible availability cutoff.
+         */
+        WaveComposeRequest: {
+            /** Berth Id */
+            berth_id: string;
+            /**
+             * As Of Utc
+             * Format: date-time
+             * @description Availability cutoff for observations and forecast cycles; provider retrieval after this time is excluded.
+             */
+            as_of_utc: string;
+            /**
+             * Horizon Start Utc
+             * Format: date-time
+             */
+            horizon_start_utc: string;
+            /**
+             * Horizon End Utc
+             * Format: date-time
+             */
+            horizon_end_utc: string;
+            /**
+             * Observation Lookback Hours
+             * @default 24
+             */
+            observation_lookback_hours: number;
+            /**
+             * Max Forecast Gap Hours
+             * @default 3
+             */
+            max_forecast_gap_hours: number;
+            /**
+             * Observation Station Id
+             * @default 44099
+             * @constant
+             */
+            observation_station_id: "44099";
+            /**
+             * Independent Check Station Id
+             * @default 44014
+             * @constant
+             */
+            independent_check_station_id: "44014";
+            /**
+             * Forecast Source
+             * @default gfs-wave
+             * @constant
+             */
+            forecast_source: "gfs-wave";
+            /**
+             * Include Spectrum
+             * @default true
+             */
+            include_spectrum: boolean;
+        };
+        /** WaveSourceLocation */
+        WaveSourceLocation: {
+            /** Latitude Deg */
+            latitude_deg: number;
+            /** Longitude Deg */
+            longitude_deg: number;
+            /** Water Depth M */
+            water_depth_m?: number | null;
+            /** Grid Cell */
+            grid_cell?: string | null;
+        };
+        /**
+         * WaveSpectrum
+         * @description Native NDBC density/coefficient representation, not a reconstructed 2-D spectrum.
+         */
+        WaveSpectrum: {
+            /**
+             * Representation
+             * @enum {string}
+             */
+            representation: "frequency_density" | "ndbc_fourier_coefficients";
+            /** Frequency Bin Count */
+            frequency_bin_count: number;
+            /**
+             * Density Coverage
+             * @enum {string}
+             */
+            density_coverage: "complete" | "partial" | "unavailable";
+            /**
+             * Alpha1 Coverage
+             * @default unavailable
+             * @enum {string}
+             */
+            alpha1_coverage: "complete" | "partial" | "unavailable";
+            /**
+             * Alpha2 Coverage
+             * @default unavailable
+             * @enum {string}
+             */
+            alpha2_coverage: "complete" | "partial" | "unavailable";
+            /**
+             * R1 Coverage
+             * @default unavailable
+             * @enum {string}
+             */
+            r1_coverage: "complete" | "partial" | "unavailable";
+            /**
+             * R2 Coverage
+             * @default unavailable
+             * @enum {string}
+             */
+            r2_coverage: "complete" | "partial" | "unavailable";
+            /** Bins */
+            bins: components["schemas"]["WaveSpectrumBin"][];
+        };
+        /**
+         * WaveSpectrumBin
+         * @description One provider-native frequency bin; Fourier coefficients are never reconstructed.
+         */
+        WaveSpectrumBin: {
+            /** Frequency Hz */
+            frequency_hz: number;
+            /** Energy Density M2 Per Hz */
+            energy_density_m2_per_hz?: number | null;
+            /**
+             * Alpha1 Direction From True Deg
+             * @description NDBC alpha1 mean direction waves come from, clockwise from true north.
+             */
+            alpha1_direction_from_true_deg?: number | null;
+            /**
+             * Alpha2 Direction From True Deg
+             * @description NDBC alpha2 principal direction waves come from, clockwise from true north.
+             */
+            alpha2_direction_from_true_deg?: number | null;
+            /** R1 */
+            r1?: number | null;
+            /** R2 */
+            r2?: number | null;
+            /** Quality Flags */
+            quality_flags?: string[];
+        };
         /** Waypoint */
         Waypoint: {
             /** Lat */
@@ -6985,6 +7304,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ComposedForecast"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    env_waves_compose_api_v1_env_waves_compose_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaveComposeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposedWaves"];
                 };
             };
             /** @description Validation Error */

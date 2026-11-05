@@ -1,0 +1,12 @@
+{
+  "berth_id": "NAVSTA-NORFOLK-P12-N",
+  "as_of_utc": "2026-11-05T16:30:00Z",
+  "horizon_start_utc": "2026-11-05T16:30:00Z",
+  "horizon_end_utc": "2026-11-06T16:30:00Z",
+  "observation_lookback_hours": 24,
+  "max_forecast_gap_hours": 3,
+  "observation_station_id": "44099",
+  "independent_check_station_id": "44014",
+  "forecast_source": "gfs-wave",
+  "include_spectrum": true
+}

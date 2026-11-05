@@ -1,0 +1,286 @@
+{
+  "manifest": {
+    "schema_version": "composed-waves-v1",
+    "revision": "sha256:032d561a0074c7f3189e78c06440747eabd3c2da9920f818ed9a987d85f2ebcf",
+    "request": {
+      "berth_id": "NAVSTA-NORFOLK-P12-N",
+      "as_of_utc": "2026-11-05T16:30:00Z",
+      "horizon_start_utc": "2026-11-05T16:30:00Z",
+      "horizon_end_utc": "2026-11-06T16:30:00Z",
+      "observation_lookback_hours": 24,
+      "max_forecast_gap_hours": 3,
+      "observation_station_id": "44099",
+      "independent_check_station_id": "44014",
+      "forecast_source": "gfs-wave",
+      "include_spectrum": true
+    },
+    "offshore_series": [
+      {
+        "role": "observation",
+        "provider": "ndbc",
+        "station_id": "44099",
+        "model_id": null,
+        "reference_time_utc": null,
+        "coverage": "partial",
+        "availability": {
+          "component": "waves",
+          "state": "live",
+          "source": "NOAA/NDBC station 44099 detailed wave summary",
+          "basis": "observation",
+          "age_s": 1800.0,
+          "age_basis": "valid_time",
+          "issued_at_utc": null,
+          "retrieved_at_utc": "2026-11-05T16:26:24Z",
+          "valid_from_utc": "2026-11-05T15:56:00Z",
+          "valid_to_utc": "2026-11-05T16:00:00Z",
+          "quality": "unknown",
+          "limitations": [
+            "Provider sample bounds are not documented by this response and remain unknown.",
+            "Station 44099 is an offshore boundary condition; no berth transfer is established."
+          ],
+          "station_id": "44099",
+          "grid_cell": null,
+          "current_depth_ft": null,
+          "current_bin": null,
+          "vertical_datum": null,
+          "wind_averaging_s": null,
+          "gust_duration_s": null,
+          "wind_reference_height_m": null,
+          "reason": null
+        },
+        "product_ids": [
+          "NDBC realtime2 44099.spec",
+          "NDBC realtime2 44099.data_spec"
+        ],
+        "location": {
+          "latitude_deg": 36.915,
+          "longitude_deg": -75.722,
+          "water_depth_m": 15.0,
+          "grid_cell": null
+        },
+        "applicability": "offshore_boundary_only",
+        "load_ready": false,
+        "representation_policy": "choose_total_or_partitions_or_spectrum",
+        "content_sha256": "ae2be272f8f8b76767fb8789b684f6ead6251aa23149a6d8d08c7a538a66105e",
+        "points": [
+          {
+            "valid_at_utc": "2026-11-05T15:56:00Z",
+            "sample_start_utc": null,
+            "sample_end_utc": null,
+            "timestamp_basis": "unknown",
+            "total_sea": {
+              "component": "total_sea",
+              "provider_partition_id": null,
+              "significant_height_ft": 3.608924,
+              "period_s": 5.8,
+              "period_basis": "average",
+              "direction_from_true_deg": 121.0,
+              "direction_basis": "mean"
+            },
+            "partitions": [
+              {
+                "component": "swell",
+                "provider_partition_id": null,
+                "significant_height_ft": 0.656168,
+                "period_s": 10.5,
+                "period_basis": "provider_partition",
+                "direction_from_true_deg": 112.5,
+                "direction_basis": "provider_partition"
+              },
+              {
+                "component": "wind_sea",
+                "provider_partition_id": null,
+                "significant_height_ft": 3.608924,
+                "period_s": 9.1,
+                "period_basis": "provider_partition",
+                "direction_from_true_deg": 112.5,
+                "direction_basis": "provider_partition"
+              }
+            ],
+            "spectrum": null,
+            "original": {
+              "WVHT_m": 1.1,
+              "SwH_m": 0.2,
+              "SwP_s": 10.5,
+              "WWH_m": 1.1,
+              "WWP_s": 9.1,
+              "SwD": "ESE",
+              "WWD": "ESE",
+              "APD_s": 5.8,
+              "MWD_degT": 121.0
+            }
+          },
+          {
+            "valid_at_utc": "2026-11-05T16:00:00Z",
+            "sample_start_utc": null,
+            "sample_end_utc": null,
+            "timestamp_basis": "unknown",
+            "total_sea": null,
+            "partitions": [],
+            "spectrum": {
+              "representation": "frequency_density",
+              "frequency_bin_count": 56,
+              "density_coverage": "partial",
+              "alpha1_coverage": "unavailable",
+              "alpha2_coverage": "unavailable",
+              "r1_coverage": "unavailable",
+              "r2_coverage": "unavailable",
+              "bins": [
+                {
+                  "frequency_hz": 0.09,
+                  "energy_density_m2_per_hz": 0.099,
+                  "alpha1_direction_from_true_deg": null,
+                  "alpha2_direction_from_true_deg": null,
+                  "r1": null,
+                  "r2": null,
+                  "quality_flags": [
+                    "contract example excerpt; source record has 56 bins"
+                  ]
+                },
+                {
+                  "frequency_hz": 0.095,
+                  "energy_density_m2_per_hz": 0.508,
+                  "alpha1_direction_from_true_deg": null,
+                  "alpha2_direction_from_true_deg": null,
+                  "r1": null,
+                  "r2": null,
+                  "quality_flags": [
+                    "contract example excerpt; source record has 56 bins"
+                  ]
+                },
+                {
+                  "frequency_hz": 0.101,
+                  "energy_density_m2_per_hz": 0.521,
+                  "alpha1_direction_from_true_deg": null,
+                  "alpha2_direction_from_true_deg": null,
+                  "r1": null,
+                  "r2": null,
+                  "quality_flags": [
+                    "contract example excerpt; source record has 56 bins"
+                  ]
+                }
+              ]
+            },
+            "original": {
+              "Sep_Freq": 9.999,
+              "source_product": "44099.data_spec"
+            }
+          }
+        ]
+      },
+      {
+        "role": "forecast",
+        "provider": "gfs-wave",
+        "station_id": null,
+        "model_id": "gfs-wave",
+        "reference_time_utc": null,
+        "coverage": "unavailable",
+        "availability": {
+          "component": "waves",
+          "state": "unavailable",
+          "source": "NOAA/NCEP GFS-Wave",
+          "basis": "prediction",
+          "age_s": null,
+          "age_basis": null,
+          "issued_at_utc": null,
+          "retrieved_at_utc": null,
+          "valid_from_utc": null,
+          "valid_to_utc": null,
+          "quality": "unknown",
+          "limitations": [],
+          "station_id": null,
+          "grid_cell": null,
+          "current_depth_ft": null,
+          "current_bin": null,
+          "vertical_datum": null,
+          "wind_averaging_s": null,
+          "gust_duration_s": null,
+          "wind_reference_height_m": null,
+          "reason": "No forecast artifact available by the request as_of time."
+        },
+        "product_ids": [],
+        "location": null,
+        "applicability": "offshore_boundary_only",
+        "load_ready": false,
+        "representation_policy": "choose_total_or_partitions_or_spectrum",
+        "content_sha256": null,
+        "points": []
+      },
+      {
+        "role": "independent_check",
+        "provider": "ndbc",
+        "station_id": "44014",
+        "model_id": null,
+        "reference_time_utc": null,
+        "coverage": "unavailable",
+        "availability": {
+          "component": "waves",
+          "state": "unavailable",
+          "source": "NOAA/NDBC station 44014",
+          "basis": "observation",
+          "age_s": null,
+          "age_basis": null,
+          "issued_at_utc": null,
+          "retrieved_at_utc": null,
+          "valid_from_utc": null,
+          "valid_to_utc": null,
+          "quality": "unknown",
+          "limitations": [],
+          "station_id": "44014",
+          "grid_cell": null,
+          "current_depth_ft": null,
+          "current_bin": null,
+          "vertical_datum": null,
+          "wind_averaging_s": null,
+          "gust_duration_s": null,
+          "wind_reference_height_m": null,
+          "reason": "Independent comparison was not acquired for this manifest."
+        },
+        "product_ids": [],
+        "location": null,
+        "applicability": "offshore_boundary_only",
+        "load_ready": false,
+        "representation_policy": "choose_total_or_partitions_or_spectrum",
+        "content_sha256": null,
+        "points": []
+      }
+    ],
+    "berth_exposure": [
+      {
+        "component": "ocean_swell",
+        "state": "unavailable",
+        "reason_code": "NO_BERTH_WAVE_TRANSFER",
+        "reason": "No validated transformation from the offshore boundary to this berth.",
+        "limitations": [
+          "Offshore values cannot be copied into berth forcing."
+        ]
+      },
+      {
+        "component": "local_chop",
+        "state": "unavailable",
+        "reason_code": "NO_DIRECTIONAL_FETCH",
+        "reason": "No reviewed directional fetch geometry is available for this berth.",
+        "limitations": []
+      },
+      {
+        "component": "ship_wake",
+        "state": "unavailable",
+        "reason_code": "NO_WAKE_SOURCE",
+        "reason": "No approved traffic feed and berth-validated ship-wake model are available.",
+        "limitations": []
+      },
+      {
+        "component": "tug_wake",
+        "state": "unavailable",
+        "reason_code": "NO_WAKE_SOURCE",
+        "reason": "No berth-validated tug-wake source or response model is available.",
+        "limitations": []
+      }
+    ],
+    "limitations": [
+      "Total sea, provider partitions and spectra are alternative representations and must not be summed.",
+      "NDBC 44099 is about 54 km from the berth and is exposed only as an offshore boundary condition.",
+      "GFS-Wave forecast guidance is unavailable in this example; missing guidance is not replaced with zero waves."
+    ]
+  }
+}

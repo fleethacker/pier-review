@@ -35,6 +35,7 @@ def render() -> dict[Path, str]:
     from modeling_api.main import openapi_schema as modeling_schema
     from mooring.examples import EXAMPLES
     from mooring.environment.forecast_contract_examples import compose_partial_response_example
+    from mooring.environment.wave_contract_examples import wave_compose_partial_response_example
     from mooring.motion_examples import MOTION_EXAMPLES
     from mooring.demo_cases import docking_cases
     from mooring.data_simulation.examples import examples as forecast_examples
@@ -49,6 +50,9 @@ def render() -> dict[Path, str]:
         out[CONTRACT / "examples" / "modeling" / f"{name}.json"] = json.dumps(body, indent=2) + "\n"
     out[CONTRACT / "examples" / "modeling" / "env_forecast_compose_partial.json"] = (
         json.dumps(compose_partial_response_example(), indent=2) + "\n"
+    )
+    out[CONTRACT / "examples" / "modeling" / "env_waves_compose_partial.json"] = (
+        json.dumps(wave_compose_partial_response_example(), indent=2) + "\n"
     )
     for name, body in MOTION_EXAMPLES.items():
         out[CONTRACT / "examples" / "modeling" / f"{name}.json"] = _motion_example_json(name, body)

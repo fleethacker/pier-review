@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from mooring.core.schemas import (
     ComposedForecast,
     ComposedForecastRequest,
+    ComposedWaves,
     EnvironmentAvailability,
     EnvironmentSnapshot,
     EnvScenario,
@@ -13,6 +14,7 @@ from mooring.core.schemas import (
     ForecastSeries,
     GustModel,
     HistorySeries,
+    WaveComposeRequest,
 )
 from mooring.examples import ex
 
@@ -79,6 +81,17 @@ def env_forecast_compose(
     req: Annotated[ComposedForecastRequest, Body(openapi_examples=ex("env_forecast_compose"))],
 ):
     return guarded(impl.compose_forecast, req)
+
+
+@router.post(
+    "/env/waves/compose",
+    response_model=ComposedWaves,
+    summary="Acquire offshore wave evidence and explicit berth-applicability gaps",
+)
+def env_waves_compose(
+    req: Annotated[WaveComposeRequest, Body(openapi_examples=ex("env_waves_compose"))],
+):
+    return guarded(impl.compose_waves, req)
 
 
 @router.get("/env/history", response_model=HistorySeries, summary="Historical observations for replay")

@@ -306,3 +306,9 @@ def compose_forecast(request):
     """Resolve the D2 component-level forecast without changing the legacy compatibility endpoint."""
     from .composed_forecast import compose
     return compose(request)
+
+
+def compose_waves(request):
+    """D4 contract stub; implementation is delivered on the following item branch."""
+    from .errors import ProviderError
+    raise ProviderError("unavailable", "wave acquisition is not implemented on the contract-only branch")

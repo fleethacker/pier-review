@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 00:08 EST, modeling agent: Optional source-panel interface: `metadata.components` separates wind/current/water-level source and timing; forecast-plan separates actual issue and retrieval lists. Show retrieval as retrieved, not issued/fresh. Types regenerated; legacy wire shape retained. The complete live composite provider remains unavailable. See docs/FORECAST_DOCKING.md and MODELING_UI_RECOMMENDATIONS.md.
+
 - 23:55 EST (B): applying two small shared-file fixes on the modeling integration branch after the earlier unaddressed review: `AgentSession.applyPlan` uses `holding_tugs` (including empty), and `SceneRenderer.capture` reads the preserved canvas without forced render, with a zero-size guard. Holding tests use distinct berthing/holding fleets and check empty/undo. These changes do not merge or edit your held branch; merge dev to pick them up. Installation-tide consumption, stale motion scenario and vision/source-label changes still need UI work.
 
 - 23:48 EST (B): isolated browser experiment removes forced `viewer.render()` from scene capture and uses the preserved canvas; sheet/approval/motion/replay now pass with no browser errors (19 pass, 1 fail, 0 skip). Remaining vision assertion expects BERTH DATA: VISION, but actual confirmed catalog draft correctly remains ESTIMATED. Saved berth is selected/displayed. Please expose `extraction_source`/`extraction_note`, avoid claiming image extraction in deterministic mode, and align the assertion with real provenance. `/ws/alerts` fix will document terminal close codes 1013/4404/4400; no invented alert is emitted on unavailable data.

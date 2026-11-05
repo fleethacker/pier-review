@@ -114,6 +114,23 @@ def environment_findings(env: EnvironmentSnapshot, use_gust: bool = True) -> lis
         if ((meta.valid_from_utc and env.valid_at_utc < meta.valid_from_utc)
                 or (meta.valid_to_utc and env.valid_at_utc > meta.valid_to_utc)):
             add("invalid", "ENVIRONMENT_OUTSIDE_VALID_INTERVAL", "Snapshot time lies outside its declared validity interval.")
+    for item in meta.components if meta else []:
+        if ((item.valid_from_utc and env.valid_at_utc < item.valid_from_utc)
+                or (item.valid_to_utc and env.valid_at_utc > item.valid_to_utc)):
+            add("invalid", "ENVIRONMENT_COMPONENT_OUTSIDE_VALID_INTERVAL",
+                f"{item.component} snapshot lies outside the source validity interval.", [item.component])
+        if item.quality == "poor":
+            add("invalid", "ENVIRONMENT_COMPONENT_POOR_QUALITY",
+                f"{item.component} provider marks the component as poor quality.", [item.component])
+        elif item.quality in ("suspect", "unknown"):
+            add("limited", "ENVIRONMENT_COMPONENT_QUALITY_UNVERIFIED",
+                f"{item.component} quality is {item.quality}; qualification is not established.", [item.component])
+        if item.basis == "prediction" and item.issued_at_utc is None:
+            add("limited", "FORECAST_COMPONENT_ISSUANCE_UNKNOWN",
+                f"{item.component} provider issuance is unknown; recorded retrieval establishes only an availability bound.", [item.component])
+        if item.limitations:
+            add("limited", "ENVIRONMENT_COMPONENT_LIMITATIONS",
+                f"{item.component}: {'; '.join(item.limitations)}", [item.component])
     if meta and meta.quality == "poor":
         add("invalid", "ENVIRONMENT_POOR_QUALITY", "Provider marks required environmental inputs as poor quality.")
     elif meta and meta.quality == "suspect":

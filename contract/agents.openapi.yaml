@@ -1250,8 +1250,86 @@ components:
       - water_level
       title: EnvStations
       description: NOAA CO-OPS station ids that feed this berth's environment.
+    EnvironmentComponentProvenance:
+      properties:
+        component:
+          type: string
+          enum:
+          - wind
+          - current
+          - water_level
+          title: Component
+        source:
+          type: string
+          minLength: 1
+          title: Source
+          description: Provider, station/bin or grid product that supplied this component.
+        basis:
+          type: string
+          enum:
+          - observation
+          - prediction
+          - scenario
+          title: Basis
+        issued_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Issued At Utc
+          description: Actual provider issuance, when supplied; never substitute retrieval time.
+        retrieved_at_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Retrieved At Utc
+          description: Recorded retrieval completion. If issuance is unknown, this proves only availability by this time,
+            not forecast age or accuracy.
+        valid_from_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid From Utc
+        valid_to_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Valid To Utc
+        quality:
+          type: string
+          enum:
+          - good
+          - suspect
+          - poor
+          - unknown
+          title: Quality
+          default: unknown
+        limitations:
+          items:
+            type: string
+          type: array
+          title: Limitations
+      additionalProperties: false
+      type: object
+      required:
+      - component
+      - source
+      - basis
+      title: EnvironmentComponentProvenance
+      description: Provider timing for one forcing component; retrieval is not provider issuance.
     EnvironmentMetadata:
       properties:
+        components:
+          items:
+            $ref: '#/components/schemas/EnvironmentComponentProvenance'
+          type: array
+          maxItems: 3
+          title: Components
+          description: Optional per-component provenance for composed snapshots. Advance public forecasts require wind, current
+            and water level when this is supplied.
         basis:
           type: string
           enum:

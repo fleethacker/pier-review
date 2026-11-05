@@ -2,6 +2,10 @@
 
 ## Log
 
+- 00:08 EST: Temporary NWS + CO-OPS tidal current/level composition exercised 72 hourly snapshots, seven arrivals 24–30 h ahead and 63 real static evaluations. All unchanged-template arrivals overloaded (119.0–216.0% WLL), correctly RED/limited with no selected arrival. Actual NWS issue retained separately from two NOAA retrievals; tidal/weather residual, depth/spatial and wind-basis limitations retained. No production provider wiring or raw data committed.
+
+- 00:08 EST: PR #63 merged after both CI jobs passed; shared UI now preserves assessed holding tugs and avoids forced capture renders. Per-component forecast provenance implementation: 62 focused and 1500 full Python tests pass; 82 UI tests, typecheck, lint, build, contract regeneration and contract-check pass. No skips/xfails. NWS issuance and NOAA retrieval remain separate; no provider composition or physical coefficient change.
+
 - 23:58 EST: independent offline randomized probe (seed 20261104) ran 200 DDG cases across both sides, wind 0–80 kt plus 0–30 kt gust increment, current 0–3 kt, directions over 360 degrees, water/installation levels -4 to +6 ft and 1–3 line parts. All outputs finite and limited; 111 RED, 89 AMBER, none GREEN. Twenty repeat solves matched results, validity and input hashes without mutating requests. Median full analysis 1.72 ms, max 258 ms locally; not a performance budget or physics validation. Scratch script/results remain outside git.
 
 - 23:56 EST: two small shared UI fixes are prepared in this worktree, not the held feature branch: apply actual `holding_tugs` including empty, and capture preserved canvas without synchronous Cesium render. 82 UI tests/typecheck/lint/build pass; browser mitigation evidence is the isolated 19-pass/one-provenance-assertion-fail run. Backend code remains the previously verified 1486-test state. UI inbox records the narrow cross-boundary fixes and remaining installation/motion/vision work.

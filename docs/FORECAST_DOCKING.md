@@ -2,7 +2,7 @@
 
 `POST /api/v1/mooring/forecast-plan` returns a job; its result is `ForecastDockingResponse`. Use `contract/examples/modeling/mooring_forecast_plan.json` for a complete, explicitly synthetic 48-hour example. Arrival must be at least 24 hours after `as_of_utc`; docking and holding must end within 120 hours.
 
-The caller supplies an ordered, timezone-aware forecast. Agent C owns `/env/forecast` and public-provider normalization. The modeling endpoint does not fetch the network: it evaluates the supplied snapshots and retains their source, issue and valid times. Submit forecast data issued no later than planning time. An observation in the future, missing/stale component flag, or uncovered interval is unavailable, not zero. Forecasts with unknown averaging metadata remain limited under the loads model.
+The caller supplies an ordered, timezone-aware forecast. Agent C owns `/env/forecast` and public-provider normalization. The modeling endpoint does not fetch the network: it evaluates the supplied snapshots and retains their source, issue and valid times. Submit forecasts whose availability no later than planning time is established by actual issuance or the component retrieval provenance described below. An observation in the future, missing/stale component flag, or uncovered interval is unavailable, not zero. Forecasts with unknown averaging metadata remain limited under the loads model.
 
 For each candidate arrival, line installation lengths use that arrival's tide and stay fixed through docking and holding. All supplied snapshots within the interval, including interior peaks, are evaluated. For coverage between snapshots the forcing is held piecewise constant up to `max_gap_min`; peaks between samples remain unresolved. The end must lie within actual supplied coverage. A budget-exhausted or unconverged interval is undetermined. Every computed condition cites its immutable analysis result; the aggregate manifest records request/config and result references.
 
@@ -32,7 +32,7 @@ actions must fall within the window; actions that produce a nonpositive rest len
 recommendations remain advisory and unreviewed.
 
 Forecast provenance gates also reject poor/suspect quality, future observations disguised as forecasts, missing public
-forecast issue time/prediction basis, snapshots before their declared interval, and holding a snapshot past its declared
+forecast availability provenance/prediction basis, snapshots before their declared interval, and holding a snapshot past its declared
 validity end. Short operations may fit within a short declared interval; extending the holding duration requires actual
 coverage. These gates apply before a window is called supported; unavailable data is never replaced by a calm value.
 
@@ -48,4 +48,14 @@ Use `selected_config` for a later static recheck so a changed tide does not sile
 
 Each step carries the exact environment, validity and (when sampling is requested) successful/failed counts and probability bounds. Invalid source data or all-failed sampling is RED/invalid and has no usable probability. Installations stay fixed at the main request's water level unless paid-out lengths are supplied. The manifest retains all forcing snapshots. Without `forecast`, `forcing_source=synthetic_training`, source scenario and `SYNTHETIC_TIMELINE` explicitly identify training data, even if a public provider is configured. Its adapter lives in `mooring/data_simulation/timeline.py`; changing providers never turns that legacy generator into a forecast.
 
-Replay snapshots with times after planning as-of require archived prediction metadata and an issue time no later than as-of. Future observations, or replay data without that provenance, cannot support an advance arrival. Explicit synthetic scenarios remain permitted and labeled training inputs.
+Replay snapshots with times after planning as-of require archived prediction metadata and established availability no later than as-of. Future observations, or replay data without that provenance, cannot support an advance arrival. Explicit synthetic scenarios remain permitted and labeled training inputs.
+
+## Component provenance for public forecasts
+
+Optional `EnvironmentMetadata.components` keeps wind, current and water-level provenance separate. If a public forecast or future replay supplies this list, all three components are required: provider/product/station in `source`, prediction `basis`, and actual `issued_at_utc` or recorded `retrieved_at_utc` no later than planning as-of. A later archive retrieval is allowed when a known actual issuance establishes earlier availability. Retrieval never replaces issuance: a component without an actual issue time stays explicitly limited, and freshness is unknown. An aggregate issue timestamp cannot hide missing, late, poor/suspect or observation-only component provenance.
+
+Each component can declare its own valid interval, quality and limitations. The interval must cover the full period for which its snapshot is held. Unknown quality remains limited; poor/suspect inputs cannot establish a supported arrival. The result separates actual `issued_at_utc` from `retrieved_at_utc`, and lists the individual sources. Legacy snapshots without components retain their previous issue-time gate and wire shape.
+
+This additive interface supports caller-composed NWS weather plus tidal current/level predictions. It does not enable a complete live `/env/forecast` provider. Tidal-only predictions omit weather residuals; a current station/bin is not a qualified pier-wide or draft-averaged flow profile. Preserve those limitations in the component metadata. Public raw responses and retrieval manifests stay outside the repository.
+
+A temporary composed-data smoke on 5 November used 72 hourly snapshots (05 Nov 05:00Z through 08 Nov 04:00Z), NWS actual issue 04 Nov 23:38:07Z and separate CO-OPS retrieval times around 05 Nov 04:41Z. Seven arrivals 24–30 hours after as-of produced 63 static assessments. The unchanged example line plan was overloaded for every arrival (maximum utilizations 119.0–216.0% WLL); the result stayed RED/limited and selected no arrival. This verifies ingestion/provenance and an honest rejection, not a qualified forecast, optimal-plan search or operational readiness. Request/result and raw source manifests are temporary artifacts outside git; air/water densities remain schema assumptions rather than measured inputs.

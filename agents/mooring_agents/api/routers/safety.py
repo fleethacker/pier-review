@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from mooring import refdata
+from mooring.core import access
 from mooring.core.jobs import sse
 from mooring.core.schemas import JobAccepted
 
@@ -19,6 +20,7 @@ from ...safety.schemas import (
     SafetySheetCreated,
 )
 from ..state import JOBS, Client, SafetyTools
+from ..execution import submit_async
 from .planner import plan_record
 
 router = APIRouter(tags=["Safety agent"])
@@ -31,12 +33,12 @@ async def create_review(tk: SafetyTools, req: Annotated[SafetyReviewRequest, Bod
     _, job = plan_record(req.plan_id)
     if job.state != "succeeded":
         return JSONResponse(status_code=409, content={"detail": "Plan is still running"})
-    return JOBS.submit("safety.review", await safety.review(req, tk))
+    return submit_async(JOBS, "safety.review", tk, lambda ctx: safety.review(req, tk))
 
 
 @router.get("/safety/reviews/{review_id}", response_model=SafetyReview)
 def get_review(review_id: str):
-    if review_id not in safety.REVIEWS:
+    if not access.allowed("agent_review", review_id) or review_id not in safety.REVIEWS:
         raise refdata.NotFound(f"Review '{review_id}' not found")
     return safety.REVIEWS[review_id]
 
@@ -63,17 +65,21 @@ async def create_sheet(req: SafetySheetCreate, tk: SafetyTools):
         return JSONResponse(status_code=409, content={"detail": "Plan is still running"})
     if req.review_id:
         rv = safety.REVIEWS.get(req.review_id)
-        if rv is None or rv.plan_id != req.plan_id:
+        if not access.allowed("agent_review", req.review_id) or rv is None or rv.plan_id != req.plan_id:
             raise refdata.NotFound(f"Review '{req.review_id}' not found for plan '{req.plan_id}'")
     else:
         rv = await safety.review(SafetyReviewRequest(plan_id=req.plan_id), tk)
     s = sheet.build(rec, rv)
-    rec.plan.safety_sheet_id = s.sheet_id
+    from ...planner.agent import PLANS
+    with PLANS.atomic():
+        current = PLANS[req.plan_id]
+        current.plan.safety_sheet_id = s.sheet_id
+        PLANS[req.plan_id] = current
     return SafetySheetCreated(sheet_id=s.sheet_id, version=s.version)
 
 
 def _sheet(sheet_id: str) -> SafetySheet:
-    if sheet_id not in sheet.SHEETS:
+    if not access.allowed("agent_sheet", sheet_id) or sheet_id not in sheet.SHEETS:
         raise refdata.NotFound(f"Safety sheet '{sheet_id}' not found")
     return sheet.SHEETS[sheet_id]
 

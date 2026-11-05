@@ -29,6 +29,7 @@ from mooring.rules.nstm582 import design_factor
 from mooring.mechanics import equilibrium as eq
 from mooring.mechanics.equilibrium import utilization  # noqa: F401  (shared evaluator, re-exported)
 from .solver import MODEL, VERSION, solve_request
+from mooring.tugs.validation import assignment_errors
 
 FINE_STEP_MIN = 5.0
 ADVISORY_GUST_FRACTION = 0.8  # Application warning policy, not a UFC/NSTM physical coefficient.
@@ -50,7 +51,12 @@ def limit_envelope(req: LimitEnvelopeRequest) -> LimitEnvelopeResponse:
     heading = ship_heading_true(base.berth, req.config.side_to)
     df = design_factor(req.mst)
     points: list[LimitEnvelopePoint] = []
+    invalid_tugs = assignment_errors(base.ship, req.tugs, refdata.tugs())
     for rel in range(0, 360, req.step_deg):
+        if invalid_tugs:
+            points.append(LimitEnvelopePoint(wind_rel_deg=rel, limit_wind_kt=None, first_failure_element=None,
+                                            failure_mode="none", outcome="invalid_inputs", search_max_kt=req.max_search_kt))
+            continue
         from_true = (heading + rel) % 360
 
         def at(v: float, warm: Pose):
@@ -153,13 +159,8 @@ def limit_envelope(req: LimitEnvelopeRequest) -> LimitEnvelopeResponse:
 
 
 def _tide_levels(req: TideSweepRequest, berth) -> list:
-    stations = (berth.env_station_ids.wind, berth.env_station_ids.current, berth.env_station_ids.water_level)
-    out, t = [], req.from_utc
-    fine = timedelta(minutes=min(FINE_STEP_MIN, req.step_min))
-    while t <= req.to_utc and len(out) < 2000:
-        out.append((t, environment.synthetic(t, "forecast", stations).water_level_mllw_ft))
-        t += fine
-    return out
+    from .tide_inputs import levels
+    return levels(req, berth, min(FINE_STEP_MIN, req.step_min))
 
 
 def tide_sweep(req: TideSweepRequest) -> TideSweepResponse:
@@ -167,19 +168,23 @@ def tide_sweep(req: TideSweepRequest) -> TideSweepResponse:
     from mooring.moored import solver as svc
 
     berth = refdata.berth(req.berth_id)
-    base_req = AnalyzeRequest(**req.model_dump(exclude={"from_utc", "to_utc", "step_min", "tending"}))
+    base_req = AnalyzeRequest(**req.model_dump(exclude={"from_utc", "to_utc", "step_min", "tending", "water_level_forecast"}))
     install = base_req.installed_at_water_level_mllw_ft if base_req.installed_at_water_level_mllw_ft is not None else base_req.environment.water_level_mllw_ft
     base_req = base_req.model_copy(update={"installed_at_water_level_mllw_ft": install})
     system0, sol0, specs = solve_request(base_req)
     levels = _tide_levels(req, berth)
     df = design_factor(req.mst)
     fine_min = min(FINE_STEP_MIN, req.step_min)
-    report_every = max(1, round(req.step_min / fine_min))
     rest0 = {r.ln.line_number: r.model.rest_length_ft for r in system0.lines}
     tend = sorted(req.tending, key=lambda x: x.at_utc)
     unknown = [x.line_number for x in tend if x.line_number not in rest0]
     if unknown:
         raise refdata.InvalidReference(f"tending refers to unknown line numbers {sorted(set(unknown))}")
+    lengths = dict(rest0)
+    for action in tend:
+        lengths[action.line_number] += action.amount_ft if action.action == "slack" else -action.amount_ft
+        if lengths[action.line_number] <= 0:
+            raise refdata.InvalidReference(f"Tending would make line {action.line_number}'s unstretched length nonpositive")
     steps, recommended, applied, failed_times = [], [], [], []
     ext: dict[int, dict] = {}
     pose = Pose()
@@ -193,7 +198,7 @@ def tide_sweep(req: TideSweepRequest) -> TideSweepResponse:
             adj = sum((x.amount_ft if x.action == "slack" else -x.amount_ft) for x in tend if x.line_number == r.ln.line_number and x.at_utc <= t)
             r.model.rest_length_ft = rest0[r.ln.line_number] + adj
         sol = eq.solve(system, pose)
-        report = i % report_every == 0
+        report = (t-req.from_utc).total_seconds() % (req.step_min*60) == 0 or i == len(levels)-1
         if not sol.converged:
             failed_times.append(t.isoformat())
             if report:
@@ -223,6 +228,10 @@ def tide_sweep(req: TideSweepRequest) -> TideSweepResponse:
     _, status0, load_findings = svc.build_result(base_req, system0, sol0, specs, run_rules=False)
     from mooring.loads.validity import wind_basis
     validity = svc._validity(base_req, system0, sol0, specs, load_findings, wind_basis(base_req.environment, True))
+    from .tide_inputs import source_reasons
+    validity.reasons.extend(source_reasons(req))
+    if validity.state == "valid":
+        validity.state = "limited"
     if failed_times:
         shown = ", ".join(failed_times[:3]) + (f" and {len(failed_times) - 3} more" if len(failed_times) > 3 else "")
         validity = Validity(state="invalid", reasons=validity.reasons + [ValidityReason(
@@ -241,7 +250,8 @@ def tide_sweep(req: TideSweepRequest) -> TideSweepResponse:
                     model_version=VERSION, validity=validity,
                     assumptions=[f"Rest lengths installed at water level {install:g} ft MLLW and held; only explicit tending inputs change them. Nothing is retensioned silently.",
                                  f"Evaluated every {fine_min:g} min (reported every {req.step_min} min); extremes between reported steps are captured at that resolution.",
-                                 "Water level from the environment service (mock tide model until S04 providers are enabled).",
+                                 "Water levels from supplied snapshots with linear interpolation; wind/current held at the request values." if req.water_level_forecast is not None else
+                                 "Water levels from an explicitly synthetic training tide; not a public forecast.",
                                  "Recommended tending is advisory: it is not applied to the reported tensions."] + svc.ASSUMPTIONS,
                     manifest=svc.manifest_for(base_req, system0, specs, sol0, {"sweep": {"from": req.from_utc.isoformat(), "to": req.to_utc.isoformat(),
-                                                                                         "step_min": req.step_min, "tending": [x.model_dump(mode="json") for x in tend]}}))
+                                                                                         "step_min": req.step_min, "fine_step_min": fine_min, "tide_interpolation": "linear" if req.water_level_forecast is not None else "synthetic_training", "water_level_forecast": [s.model_dump(mode="json") for s in req.water_level_forecast] if req.water_level_forecast is not None else None, "tending": [x.model_dump(mode="json") for x in tend]}}))

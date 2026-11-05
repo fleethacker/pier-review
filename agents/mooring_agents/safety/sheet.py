@@ -6,6 +6,7 @@ first approval; edits create a new version.
 
 import html
 
+from mooring.core import access
 from mooring.core.envelopes import new_id, utcnow
 from mooring.core.schemas import Provenance, Finding
 
@@ -22,13 +23,20 @@ from .schemas import (
     SheetLineRow,
 )
 
-SHEETS: dict[str, SafetySheet] = {}
+from ..shared.storage import AgentStore
+
+SHEETS = AgentStore("agent_sheet", SafetySheet)
 
 DISCLAIMER = ("Decision aid only. The Commanding Officer and pilot retain authority for the mooring evolution. "
               "Values marked mock or estimated are not validated.")
 
 
 def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
+    with SHEETS.atomic():
+        return _build(rec, review)
+
+
+def _build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
     plan, a = rec.plan, rec.analysis
     if a is None or plan.config is None:
         raise ValueError("Plan has no analysis to build a sheet from")
@@ -40,11 +48,10 @@ def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
     top = a.result.min_margin
     limit = review.thresholds.limit_wll_gust_kt if review else None
     breaking = review.thresholds.limit_breaking_gust_kt if review else None
-    worst_lines = sorted(rows, key=lambda r: -r.pct_wll)[:2]
     go_no_go = []
     if limit:
         go_no_go.append(GoNoGo(condition=f"Gusts above {0.8 * limit:.0f} kt (80% of plan limit)",
-                               action=f"Tend and double up lines {', '.join(str(r.line_number) for r in worst_lines)}"))
+                               action="Reassess the plan with the bridge and pilot; use only an independently reviewed tending or assistance procedure"))
         go_no_go.append(GoNoGo(condition=f"Gusts above {limit:.0f} kt (working-load limit)",
                                action="Call holding tugs; consider an alternate berth"))
     if breaking:
@@ -59,7 +66,8 @@ def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
         status = "RED"
     elif validity and validity.state == "limited" and status == "GREEN":
         status = "AMBER"
-    report = REPORTS.get(plan.intake_report_id) if plan.intake_report_id else None
+    report_id = review.intake_report_id if review and review.intake_report_id else plan.intake_report_id
+    report = REPORTS.get(report_id) if report_id else None
     forecast_summary = report.summary if report else "No intake forecast attached; only the plan's evaluated conditions are documented."
     validity_findings = [Finding(rule_id=r.code, severity="RED" if validity.state == "invalid" else "AMBER",
         message=r.message, reference="Result validity", element_ids=r.affected_components) for r in validity.reasons] if validity else []
@@ -84,15 +92,18 @@ def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
                  Provenance(source="UFC 4-159-03 Chapter 4", confidence="published"),
                  Provenance(source=f"{a.model} ({a.backend}); reference data qualification is reported in validity", confidence="estimated")],
         approvals=[], disclaimer=DISCLAIMER)
+    access.claim("agent_sheet", sheet.sheet_id)
     SHEETS[sheet.sheet_id] = sheet
     return sheet
 
 
 def approve(sheet: SafetySheet, req: ApprovalCreate) -> SafetySheet:
-    approval = Approval(**req.model_dump(), at_utc=utcnow())
-    updated = sheet.model_copy(update={"approvals": [*sheet.approvals, approval], "locked": True})
-    SHEETS[sheet.sheet_id] = updated
-    return updated
+    with SHEETS.atomic():
+        current = SHEETS[sheet.sheet_id]
+        approval = Approval(**req.model_dump(), at_utc=utcnow())
+        updated = current.model_copy(update={"approvals": [*current.approvals, approval], "locked": True})
+        SHEETS[sheet.sheet_id] = updated
+        return updated
 
 
 def render_html(s: SafetySheet) -> str:

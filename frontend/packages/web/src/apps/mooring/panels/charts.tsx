@@ -105,9 +105,9 @@ export function ProbabilityBars({
   const m = { l: 34, r: 8, t: 4, b: 4 };
   const bw = (W - m.l - m.r) / steps.length;
   return (
-    <svg viewBox={`0 0 ${W} ${height}`} className="h-full w-full" role="img" aria-label="Chance that any line exceeds its working load, per forecast hour">
+    <svg viewBox={`0 0 ${W} ${height}`} className="h-full w-full" role="img" aria-label="Sampled exceedance by timeline step">
       <text x={4} y={10} fontSize="9" fill={TEXT}>
-        P(any line &gt; WLL)
+        P(any element &gt; limit)
       </text>
       {steps.map((s, i) => {
         if (s.p == null) return <text key={i} x={m.l + i * bw} y={height / 2} fontSize="8" fill={TEXT}><title>{s.label}: probability unavailable</title>?</text>;
@@ -144,15 +144,22 @@ export function PolarEnvelope({
   size?: number;
 }) {
   const finite = points.filter((p) => p.limit != null) as { angle: number; limit: number }[];
-  if (finite.length === 0) return <div className="text-[11px] text-mil-dim">No limiting wind found.</div>;
-  const max = Math.max(...finite.map((p) => p.limit), currentWindKt ?? 0) * 1.1;
+  if (finite.length === 0) return <div className="text-[11px] text-mil-dim">No usable limiting-wind values.</div>;
+  const max = Math.max(1, ...finite.map((p) => p.limit), currentWindKt ?? 0) * 1.1;
   const c = size / 2;
   const r = size / 2 - 14;
   const pt = (angle: number, v: number): [number, number] => {
     const a = ((angle - 90) * Math.PI) / 180; // 0 deg at the top, clockwise
     return [c + Math.cos(a) * (v / max) * r, c + Math.sin(a) * (v / max) * r];
   };
-  const rings = [0.33, 0.66, 1].map((f) => Math.round(max * f));
+  const rings = [...new Set([0.33, 0.66, 1].map((f) => Math.round(max * f)))].filter((v) => v > 0);
+  const segments: typeof finite[] = [];
+  let segment: typeof finite = [];
+  for (const p of points) {
+    if (p.limit == null) { segment = []; continue; }
+    if (segment.length === 0) segments.push(segment);
+    segment.push({ angle: p.angle, limit: p.limit });
+  }
   return (
     <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full" role="img" aria-label="Limiting wind speed by wind angle">
       {rings.map((v) => (
@@ -174,13 +181,15 @@ export function PolarEnvelope({
           </g>
         );
       })}
-      <polygon
+      {finite.length === points.length ? <polygon
         points={finite.map((p) => pt(p.angle, p.limit).join(',')).join(' ')}
         fill="#00e5ff"
         fillOpacity="0.15"
         stroke="#00e5ff"
         strokeWidth="1.5"
-      />
+      /> : segments.map((segment, i) => segment.length > 1
+        ? <polyline key={i} points={segment.map((p) => pt(p.angle, p.limit).join(',')).join(' ')} fill="none" stroke="#00e5ff" strokeWidth="1.5" />
+        : <circle key={i} cx={pt(segment[0].angle, segment[0].limit)[0]} cy={pt(segment[0].angle, segment[0].limit)[1]} r="2" fill="#00e5ff" />)}
       {currentWindKt != null && <circle cx={c} cy={c} r={(currentWindKt / max) * r} fill="none" stroke="#ffc107" strokeDasharray="3 3" />}
       {worstAngle != null && (() => {
         const w = finite.find((p) => p.angle === worstAngle);

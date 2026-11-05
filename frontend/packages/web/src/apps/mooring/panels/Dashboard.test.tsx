@@ -5,9 +5,9 @@ import { Dashboard } from './Dashboard';
 import { ControllerContext } from './context';
 
 afterEach(cleanup);
-function setup(exceedance: unknown = null, timeline: unknown = null) {
-  const state = { alerts: [], env: null, envMode: { kind: 'manual' }, windHistory: [], lines: [],
-    risk: { running: null, error: null, exceedance, timeline, envelope: null } };
+function setup(exceedance: unknown = null, timeline: unknown = null, options: { env?: unknown; envelope?: unknown } = {}) {
+  const state = { alerts: [], env: options.env ?? null, envMode: { kind: 'manual' }, windHistory: [], lines: [],
+    risk: { running: null, error: null, exceedance, timeline, envelope: options.envelope ?? null } };
   render(<ControllerContext.Provider value={{ state: { use: (sel: (s: typeof state) => unknown) => sel(state) } } as never}>
     <Dashboard />
   </ControllerContext.Provider>);
@@ -45,4 +45,26 @@ it('labels the generated timeline as synthetic rather than a public forecast', (
   fireEvent.click(screen.getByRole('tab', { name: /forecast|timeline/i }));
   expect(screen.getByText(/synthetic training timeline.*not a weather forecast/i)).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Run 24 h forecast' })).toBeNull();
+});
+
+const wind = { wind_speed_kt: 10, wind_gust_kt: 20, wind_from_true_deg: 90, current_speed_kt: 0,
+  current_set_true_deg: 0, water_level_mllw_ft: 0 };
+const limits = { result_id: 'limits-fixture', status: 'AMBER', backend: 'real', validity: { state: 'limited' },
+  result: { points: [0, 90, 180, 270].map((wind_rel_deg) => ({ wind_rel_deg, limit_wind_kt: 40 })), worst: null } };
+
+it('compares sustained wind with sustained-wind limits', () => {
+  setup(null, null, { env: wind, envelope: limits });
+  fireEvent.click(screen.getByRole('tab', { name: /wind limits/i }));
+  const plot = screen.getByRole('img', { name: 'Limiting wind speed by wind angle' });
+  const ring = plot.querySelector('circle[stroke-dasharray]')!;
+  expect(Number(ring.getAttribute('r'))).toBeCloseTo(15); // 10 kt / (40 kt × 1.1) × 66 px.
+  expect(screen.getByText(/current sustained wind/i)).toBeTruthy();
+  expect(screen.queryByText(/inside.*plan holds/i)).toBeNull();
+});
+
+it.each(['invalid', 'unknown'])('withholds the limit plot for %s validity', (validity) => {
+  setup(null, null, { env: wind, envelope: { ...limits, validity: { state: validity } } });
+  fireEvent.click(screen.getByRole('tab', { name: /wind limits/i }));
+  expect(screen.queryByRole('img', { name: 'Limiting wind speed by wind angle' })).toBeNull();
+  expect(screen.getByText(/wind limits unavailable/i)).toBeTruthy();
 });

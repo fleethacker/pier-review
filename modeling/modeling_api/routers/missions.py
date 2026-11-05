@@ -1,5 +1,6 @@
 """S5 mission storyboarding: tracks, images and reports tied together by time. Implementation: mooring.missions."""
 
+import csv
 import json
 from datetime import date
 from typing import Annotated
@@ -57,7 +58,7 @@ def _ingest(mission_id, result: parsers.ParseResult, fmt: str) -> TrackIngestRes
                                   "errors": result.errors})
     if not result.fixes:
         raise HTTPException(422, "the upload contains no fixes")
-    return _limit(store.ingest, mission_id, result.fixes, result.rejected, result.errors, fmt)
+    return _limit(store.ingest, mission_id, result.fixes, result.rejected, result.errors, fmt, result.duplicates)
 
 
 def _parse_and_ingest(mission_id: str, fmt: str, data: bytes, utc_offset_min, nd) -> TrackIngestResult:
@@ -68,6 +69,8 @@ def _parse_and_ingest(mission_id: str, fmt: str, data: bytes, utc_offset_min, nd
         raise HTTPException(422, str(exc)) from exc
     except parsers.TrackLimitError as exc:
         raise HTTPException(409, str(exc)) from exc
+    except csv.Error as exc:  # e.g. a field above the csv module's size limit, NUL bytes
+        raise HTTPException(422, f"file is not readable as CSV: {exc}") from exc
     return _ingest(mission_id, result, fmt)
 
 

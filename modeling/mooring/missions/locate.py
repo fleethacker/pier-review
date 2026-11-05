@@ -83,6 +83,14 @@ def _reason(code, message, comp=None):
     return ValidityReason(code=code, message=message, affected_components=[comp] if comp else [])
 
 
+def _simulated(index, *js) -> bool:
+    return any((index.source[j] or "").lower().startswith("simulated") for j in js)
+
+
+_SIM_MSG = ("The position comes from a simulated track (source 'simulated:*'), not a recorded one; "
+            "it is not evidence of where the vessel was.")
+
+
 def _validity(reasons: list[ValidityReason]) -> Validity:
     return Validity(state="limited", reasons=reasons) if reasons else Validity(state="valid")
 
@@ -135,6 +143,8 @@ def locate(index: TrackIndex, t: datetime | None, max_interp_gap_s: float, *, st
         sog = index.sog[j] if index.sog[j] is not None else (seg[0] / seg[1] / KT_MS if seg else None)
         if index.quality[j] != "good":
             reasons.insert(0, _reason("FIX_QUALITY_NOT_GOOD", f"The fix quality is '{index.quality[j]}' (HDOP > 2 or not recorded).", component))
+        if _simulated(index, j):
+            reasons.insert(0, _reason("SIMULATED_TRACK", _SIM_MSG, component))
         loc = dict(method="exact_fix", lat=lat, lon=lon, fix_before_utc=from_us(index.t[j]), fix_after_utc=from_us(index.t[j]),
                    distance_along_track_nm=index.cum_m[j] / NM_M, sog_kt=sog, heading_true_deg=hdg)
         return _finish(loc, st, reasons, component)
@@ -166,6 +176,8 @@ def locate(index: TrackIndex, t: datetime | None, max_interp_gap_s: float, *, st
     if index.quality[a] != "good" or index.quality[b] != "good":
         reasons.insert(1, _reason("FIX_QUALITY_NOT_GOOD", f"A bracketing fix is not of good quality (before: '{index.quality[a]}', "
                                   f"after: '{index.quality[b]}'; HDOP > 2 or not recorded).", component))
+    if _simulated(index, a, b):
+        reasons.insert(0, _reason("SIMULATED_TRACK", _SIM_MSG, component))
     loc = dict(method="interpolated", lat=lat, lon=lon, fix_before_utc=from_us(index.t[a]), fix_after_utc=from_us(index.t[b]),
                gap_s=span, distance_along_track_nm=(index.cum_m[a] + f * dist) / NM_M, sog_kt=dist / span / KT_MS,
                heading_true_deg=hdg)

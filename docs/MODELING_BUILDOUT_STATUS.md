@@ -65,11 +65,21 @@ approval. Record the closing PR, regression and independent review against each 
 
 | Finding | Disposition on reconciled `dev` | Lead / next evidence |
 | --- | --- | --- |
-| 1, 2, 4–7: rejected RMC date changes, simulated-track validity, GGA quality, malformed uploads, JPEG decoding, duplicate-row memory | Open; relevant S5 backend paths were unchanged by #14/#18 | Snyder M-SIM fixes; Snyder M-PLAN independently verifies |
+| 1: rejected RMC/GGA changes the NMEA date state | **Closed on branch (pending independent review).** Date/time-of-day state is staged and committed only for accepted sentences | `test_s5_ledger.py::test_rejected_rmc_does_not_change_the_date_for_later_gga`, `::test_rejected_gga_does_not_roll_the_date_over` |
+| 2: simulated-track validity | **Closed on branch (pending review).** Events located on a `simulated*` source fix are `limited` with `SIMULATED_TRACK`, never `valid` | `test_s5_ledger.py::test_events_on_simulated_track_are_limited_never_valid` |
+| 4: GGA quality | **Closed on branch (pending review).** Only quality 1-5 accepted; 0, 6 (estimated), 7 (manual), 8 (simulation) and non-numeric rejected | `test_s5_ledger.py::test_gga_quality_only_measured_fixes_accepted` |
+| 5: malformed uploads | **Partly closed.** Oversized CSV fields (`csv.Error`) were an uncaught 500, now 422; a fuzz set of malformed CSV/GPX/GeoJSON/NMEA bodies returns 4xx. Not an exhaustive fuzz | `test_s5_ledger.py::test_csv_oversized_field_is_4xx_not_500`, `::test_malformed_uploads_never_500` |
+| 6: JPEG decoding | **Closed on branch (pending review).** `verify()` only checks structure; images are now fully decoded at upload, so a truncated JPEG is 422 | `test_s5_ledger.py::test_truncated_jpeg_is_refused_at_upload` |
+| 7: duplicate-row memory | **Closed on branch (pending review).** Same-timestamp fixes are dropped during parsing (first kept) and still counted as `duplicates`; existing tests `test_cap_counts_distinct_timestamps_so_duplicate_reupload_still_works` and `test_csv_fixture_reports_each_bad_row_with_line_numbers` were updated to the new accounting (fixes + duplicates unchanged) | `test_s5_ledger.py::test_duplicate_timestamps_are_dropped_while_parsing_and_still_counted` |
 | 12–16: mission-selection race, decimated playback evidence, antipodal/dateline behavior, authenticated media/downloads | Open; relevant mission geometry/playback/media paths unchanged | Kori fixes; Snyder supplies authoritative location semantics; Bixler reviews integration |
-| 9: future manual tug command suppresses earlier auto-assist | Open; manual tug IDs still selected from all future commands at initialization | Snyder M-SIM fixes simulation-time ownership; M-PLAN regression/review |
+| 9: future manual tug command suppresses earlier auto-assist | **Closed on branch (pending review).** Manual ownership starts at the tug's first command in simulation time | `test_s6_ledger.py::test_future_manual_command_does_not_suppress_earlier_auto_assist`, `::test_manual_command_at_t0_still_owns_the_tug` |
 | 3, 8, 11: arrival speed, latched auto-assist, exact output sampling | Fixes and regressions added in #14; explicit independent closure still to record | Snyder's independent reviewer verifies each against original acceptance |
 | 10: land-crossing presets | Partially addressed: OSM checks/rerouting, a 1 km pier-zone exception and two simulated presets; original complete NOAA-based criterion not demonstrated | Snyder + Cruz complete/review authoritative coverage and all applicable routes; keep restricted scope visible |
+
+S7 hazard-coverage honesty, swept-hull checking, uncertainty-unavailable reporting and clone/bounds tests are in
+`modeling/tests/test_s7_honesty.py` (see [PREDICTION.md](PREDICTION.md)). Findings 12-16 (Kori's UI paths) and 10 (coastline source
+evidence) are untouched here and remain open. "Closed on branch" means fixed with a regression test on the working branch, not yet merged
+or independently reviewed.
 
 ## Test evidence
 

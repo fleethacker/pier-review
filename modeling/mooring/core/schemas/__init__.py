@@ -16,3 +16,5 @@ from .risk import *  # noqa: F403
 from .telemetry import *  # noqa: F403
 from .transit import *  # noqa: F403
 from .tugs import *  # noqa: F403
+from .ultimate import *  # noqa: F403
+from .wave_surrogate import *  # noqa: F403

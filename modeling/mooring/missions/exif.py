@@ -61,6 +61,12 @@ def validate_image(data: bytes) -> str:
             if img.width * img.height > MAX_PIXELS:
                 raise ImageError(422, "image dimensions too large")
             img.verify()
+        # verify() checks structure only; a truncated/corrupt body passes it. Decode fully (pixel count is already
+        # capped above) so an image that cannot be rendered is refused at upload, not when a client fetches it.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            img = Image.open(io.BytesIO(data))
+            img.load()
     except ImageError:
         raise
     except Exception as exc:  # Pillow raises many types for corrupt input, including bomb warnings

@@ -163,7 +163,8 @@ def test_cap_counts_distinct_timestamps_so_duplicate_reupload_still_works(monkey
     monkeypatch.setattr(store, "MAX_FIXES", 3)
     rows = "\n".join(["2025-06-01T12:00:00Z,1,2"] * 10 + ["2025-06-01T12:00:01Z,1,2"])
     r = parsers.parse_csv(("time,lat,lon\n" + rows).encode(), max_fixes=3)
-    assert len(r.fixes) == 11
+    # same-timestamp rows are dropped while parsing (bounded memory, ledger finding 7) but still counted
+    assert len(r.fixes) == 2 and r.duplicates == 9 and len(r.fixes) + r.duplicates == 11
 
 
 def test_parse_runs_off_the_event_loop(monkeypatch, client):

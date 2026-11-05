@@ -13,10 +13,15 @@ officer or pilot reviews it.
 """
 
 import dataclasses
+import itertools
+import math
 
 from mooring import refdata, qualification
 from mooring.core.envelopes import RESULTS, envelope, status_with_validity
 from mooring.core.geometry import line_geometry
+from mooring.core.schemas.sequence_search import (
+    SequenceConstraintCheck, SequenceProposal, SequenceSearchBounds, SequenceSearchRequest, SequenceSearchResult,
+)
 from mooring.core.schemas import (
     MooringLine, SequenceIssue, SequenceRequest, SequenceResponse, SequenceResult, SequenceStep, SequenceValidateRequest, ShipClass,
     TugAssignment, Validity, ValidityReason,
@@ -42,7 +47,12 @@ def _station(ship: ShipClass, x_ft: float) -> str:
     return "forecastle" if x_ft > 0.25 * ship.loa_ft else "fantail" if x_ft < -0.25 * ship.loa_ft else "waist"
 
 
-def generate_steps(ship: ShipClass, lines: dict[int, MooringLine], tugs_holding: bool, tug_ids: list[str]) -> list[SequenceStep]:
+def default_order(lines) -> list[int]:
+    return [n for n in (2, 5, 3, 4, 1, 6) if n in lines] + sorted(n for n in lines if n not in (1, 2, 3, 4, 5, 6))
+
+
+def generate_steps(ship: ShipClass, lines: dict[int, MooringLine], tugs_holding: bool, tug_ids: list[str],
+                   order: list[int] | None = None) -> list[SequenceStep]:
     fittings = {f.fitting_id: f for f in ship.fittings}
     steps: list[SequenceStep] = []
 
@@ -55,7 +65,7 @@ def generate_steps(ship: ShipClass, lines: dict[int, MooringLine], tugs_holding:
                                   reference=RULE_REF[action], depends_on=list(depends), duration_min=DURATIONS[action], tug_ids=list(tugs)))
         return len(steps)
 
-    order = [n for n in (2, 5, 3, 4, 1, 6) if n in lines] + sorted(n for n in lines if n not in (1, 2, 3, 4, 5, 6))
+    order = list(order) if order is not None else default_order(lines)
     secured: list[int] = []
     prev = None
     for i, n in enumerate(order):
@@ -342,3 +352,102 @@ def validate_sequence(req: SequenceValidateRequest) -> SequenceResponse:
     refdata.loading(ship, req.loading)
     tug_assignments = load_tug_plan(req.tug_plan_result_id, req.ship_class_id, req.berth_id)
     return _result(req, ship, berth, list(req.steps), tug_assignments, req.tug_plan_result_id)
+
+
+SEARCH_TIE_BREAKS = [
+    "outcome rank (feasible_static, indeterminate, infeasible)",
+    "fewer RED, then fewer AMBER issues",
+    "lower worst intermediate-state utilization (unknown last)",
+    "shorter critical-path estimate (unreviewed durations)",
+    "enumeration order: default, reverse default, ascending, then lexicographic",
+]
+ENUMERATION_GUARD = 5040   # 7 lines; beyond this the permutation space is not enumerated and the search reports truncation
+
+
+def _candidate_orders(lines, default):
+    """Deterministic, deduplicated: default, its reverse, ascending, then lexicographic permutations (bounded)."""
+    seen, out = set(), []
+    for o in (default, list(reversed(default)), sorted(lines), *itertools.islice(itertools.permutations(sorted(lines)), ENUMERATION_GUARD)):
+        t = tuple(o)
+        if t not in seen:
+            seen.add(t)
+            out.append(list(t))
+    return out
+
+
+def _constraint_checks(order, req, issues):
+    pos = {n: i for i, n in enumerate(order)}
+    checks = [SequenceConstraintCheck(code="MUST_PRECEDE", satisfied=pos[a] < pos[b], message=f"Line {a} before line {b}") for a, b in req.must_precede]
+    if req.first_line is not None:
+        checks.append(SequenceConstraintCheck(code="FIRST_LINE", satisfied=order[0] == req.first_line, message=f"Line {req.first_line} handled first"))
+    reds = {i.code for i in issues if i.severity == "RED"}
+    state_codes = {"UNSAFE_INTERMEDIATE_STATE", "INVALID_FINAL_PLAN"}
+    checks.append(SequenceConstraintCheck(code="STRUCTURE_AND_RESOURCES", satisfied=not (reds - state_codes),
+                                          message="Dependencies, per-line actions, crews, tug references and line availability"))
+    checks.append(SequenceConstraintCheck(code="INTERMEDIATE_STATES_SAFE", satisfied=not (reds & state_codes),
+                                          message="Static equilibrium within limits after each line is secured, tensioned or doubled, including tug release"))
+    partial = [i.step for i in issues if i.code == "PARTIAL_RESTRAINT"]
+    checks.append(SequenceConstraintCheck(code="NO_PARTIAL_RESTRAINT", satisfied=not partial,
+                                          message="Every intermediate state is determinate" + (f" (undetermined after steps {partial})" if partial else "")))
+    return checks
+
+
+def propose_sequences(req: SequenceSearchRequest) -> SequenceSearchResult:
+    """Bounded search over line orderings, each checked per intermediate state with the real static solver.
+
+    Additive to `sequence()`: the fixed default order is always the first candidate and is reported separately. Transient
+    handling loads and procedure timing are not evaluated or invented; every proposal stays draft_unreviewed.
+    """
+    ship, berth = refdata.ship(req.ship_class_id), refdata.berth(req.berth_id)
+    refdata.loading(ship, req.loading)
+    tug_assignments = load_tug_plan(req.tug_plan_result_id, req.ship_class_id, req.berth_id)
+    lines = {l.line_number: l for l in req.config.lines}
+    tug_ids = sorted({a.tug_id for a in tug_assignments})
+    default = default_order(lines)
+    space = math.factorial(len(lines))
+    lims = list(LIMITATIONS) + [
+        "Search is over line orderings only; tug allocation is taken from the cited tug plan and not re-optimized.",
+        "feasible_static means every modeled intermediate state is determinate and within limits; it is not a transient-safety or procedure review.",
+    ]
+    mentioned = {n for pair in req.must_precede for n in pair} | ({req.first_line} if req.first_line is not None else set())
+    if mentioned - set(lines):
+        lims.append(f"Constraints reference lines not in the configuration: {sorted(mentioned - set(lines))}; no search was run.")
+        return SequenceSearchResult(outcome="unsupported", proposals=[], default_order=default, default_order_outcome="not_evaluated", tie_breaks=SEARCH_TIE_BREAKS,
+                                    limitations=lims, bounds=SequenceSearchBounds(max_candidates=req.max_candidates, candidate_space=space, evaluated=0, truncated=False))
+    base_req = SequenceRequest(**{k: getattr(req, k) for k in SequenceRequest.model_fields})
+    enumerated_all = space <= ENUMERATION_GUARD
+    admissible = []
+    for o in _candidate_orders(lines, default):
+        pos = {n: i for i, n in enumerate(o)}
+        if all(pos[a] < pos[b] for a, b in req.must_precede) and (req.first_line is None or o[0] == req.first_line):
+            admissible.append(o)
+    todo = admissible[:req.max_candidates]
+    rows = []
+    for idx, o in enumerate(todo):
+        steps = generate_steps(ship, lines, bool(tug_assignments), tug_ids, order=o)
+        issues, annotated, _ = validate(steps, ship, berth, base_req, tug_assignments)
+        reds = sum(i.severity == "RED" for i in issues)
+        partial = any(i.code == "PARTIAL_RESTRAINT" for i in issues)
+        pcts = [s.state_max_pct for s in annotated if s.state_max_pct is not None]
+        rows.append(dict(order=o, steps=annotated, issues=issues, reds=reds, ambers=sum(i.severity == "AMBER" for i in issues), idx=idx,
+                         outcome="infeasible" if reds else "indeterminate" if partial else "feasible_static",
+                         worst=max(pcts) if pcts else None, dur=_critical_path(annotated)))
+    rank = {"feasible_static": 0, "indeterminate": 1, "infeasible": 2}
+    rows.sort(key=lambda r: (rank[r["outcome"]], r["reds"], r["ambers"], r["worst"] is None, r["worst"] or 0.0, r["dur"] is None, r["dur"] or 0.0, r["idx"]))
+    proposals = [SequenceProposal(
+        rank=i, line_order=r["order"], outcome=r["outcome"], is_default_order=r["order"] == default, steps=r["steps"], issues=r["issues"],
+        constraints=_constraint_checks(r["order"], req, r["issues"]),
+        intermediate_states_evaluated=sum(s.state_ok is not None for s in r["steps"]),
+        intermediate_states_indeterminate=sum(s.state_ok is None and s.state_note is not None for s in r["steps"]),
+        worst_state_pct=r["worst"], total_duration_min=r["dur"], validity_state="invalid" if r["reds"] else "limited",
+    ) for i, r in enumerate(rows[:req.max_proposals], 1)]
+    truncated = len(todo) < len(admissible) or not enumerated_all
+    outcomes = {r["outcome"] for r in rows}
+    outcome = ("feasible_found" if "feasible_static" in outcomes else "budget_limited" if truncated
+               else "indeterminate_only" if "indeterminate" in outcomes else "no_feasible_order")
+    dflt = next((r for r in rows if r["order"] == default), None)
+    return SequenceSearchResult(
+        outcome=outcome, proposals=proposals, default_order=default, default_order_outcome=dflt["outcome"] if dflt else "not_evaluated",
+        tie_breaks=SEARCH_TIE_BREAKS, limitations=lims,
+        bounds=SequenceSearchBounds(max_candidates=req.max_candidates, candidate_space=space, evaluated=len(rows),
+                                    admissible_candidates=len(admissible) if enumerated_all else None, truncated=truncated))

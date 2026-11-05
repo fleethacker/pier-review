@@ -38,15 +38,18 @@ class ParseResult:
     rejected: int = 0
     errors: list[str] = field(default_factory=list)
     max_fixes: int | None = None  # abort parsing once more distinct timestamps than this have been seen
+    duplicates: int = 0  # same-timestamp fixes dropped at parse time (first kept) so memory stays bounded
     _seen: set = field(default_factory=set, repr=False)
 
     def add(self, fix: TrackFix) -> None:
+        if fix.t_utc in self._seen:
+            self.duplicates += 1
+            return
+        self._seen.add(fix.t_utc)
+        if self.max_fixes is not None and len(self._seen) > self.max_fixes:
+            raise TrackLimitError(f"a mission holds at most {self.max_fixes} fixes; the file has more distinct "
+                                  f"timestamps than that (parsing stopped)")
         self.fixes.append(fix)
-        if self.max_fixes is not None:
-            self._seen.add(fix.t_utc)
-            if len(self._seen) > self.max_fixes:
-                raise TrackLimitError(f"a mission holds at most {self.max_fixes} fixes; the file has more distinct "
-                                      f"timestamps than that (parsing stopped)")
 
     def warn(self, message: str) -> None:
         if len(self.errors) < MAX_ERRORS:
@@ -394,21 +397,24 @@ def parse_nmea(data: bytes, nmea_date: date | None = None, max_fixes: int | None
                 except ValueError as exc:
                     raise ValueError(f"invalid date '{f[9]}'") from exc
                 tod = _tod(f[1])
-                cur_date, last_tod = d, tod  # an RMC date is authoritative
                 lat, lon = _latlon(f[3], f[4], 2, "latitude", "S", "N"), _latlon(f[5], f[6], 3, "longitude", "W", "E")
                 extra = dict(sog_kt=f[7] or None, cog=f[8] or None)
+                new_state = (d, tod)  # an RMC date is authoritative, but only once the sentence is accepted
             else:
                 if len(f) < 9:
                     raise ValueError("too few fields")
                 if f[6] in ("", "0"):
                     raise ValueError(f"GGA quality '{f[6] or 'empty'}' (no fix)")
+                if f[6] not in ("1", "2", "3", "4", "5"):
+                    raise ValueError(f"GGA quality '{f[6] or 'empty'}' is not a measured fix (accepted 1 GPS, 2 DGPS, "
+                                     f"3 PPS, 4 RTK, 5 float RTK; 0 no fix, 6 estimated, 7 manual, 8 simulation refused)")
                 tod = _tod(f[1])
                 if cur_date is None:
                     raise ValueError("GGA has no date: no preceding RMC and no nmea_date")
-                if last_tod is not None and tod < last_tod - timedelta(hours=12):
-                    cur_date = cur_date + timedelta(days=1)  # midnight crossed
-                last_tod = tod
                 d = cur_date
+                if last_tod is not None and tod < last_tod - timedelta(hours=12):
+                    d = cur_date + timedelta(days=1)  # midnight crossed
+                new_state = (d, tod)
                 lat, lon = _latlon(f[2], f[3], 2, "latitude", "S", "N"), _latlon(f[4], f[5], 3, "longitude", "W", "E")
                 extra = dict(hdop=f[8] or None)
             t = to_utc(datetime(d.year, d.month, d.day, tzinfo=UTC) + tod)
@@ -416,6 +422,7 @@ def parse_nmea(data: bytes, nmea_date: date | None = None, max_fixes: int | None
         except ValueError as exc:
             out.reject(f"line {lineno}", str(exc))
             continue
+        cur_date, last_tod = new_state  # committed only for accepted sentences
         seen = by_time.get(t)
         if seen and kind not in seen[0]:
             seen[0].add(kind)

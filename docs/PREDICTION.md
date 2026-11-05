@@ -27,6 +27,19 @@ Always `limited`: inherits the transit reasons, plus `INPUT_AGE`, `STALE_INPUT` 
 (only forward surge is supported at start; the rudder starts at 0 and slews to the observed angle; thrust starts near
 resistance), `COASTLINE_NOT_CHECKED`. Status RED if the held commands breach, else AMBER.
 
+## Honesty rules (tests: `modeling/tests/test_s7_honesty.py`)
+- Hazard coverage: no layer checked gives `HAZARD_COVERAGE_UNKNOWN` (no breach reported is not an all-clear); otherwise
+  `HAZARD_COVERAGE_INCOMPLETE` names the unchecked kinds. A supplied other-vessel path shorter than the horizon is disclosed
+  (`OTHER_VESSEL_PATH_SHORT`; the vessel is held at its first/last fix, not predicted).
+- Swept hull: clearance uses the convex hull of consecutive footprints (central path checked at most 2 s apart, samples
+  5 s), plus the initial footprint, so contact between output ticks or an overlap at t = 0 is reported (`SWEPT_HULL_CHECK`).
+  Other vessels are swept over the same interval, which is conservative.
+- Uncertainty is `UNCERTAINTY_UNAVAILABLE` (null corridor, spread and probability), never a zero-width corridor, when
+  samples = 0, samples = 1, or there is no spread source (no state uncertainty and no wind/current).
+- The engine works on a deep copy of the request and writes nothing to sessions, missions, scenarios or jobs.
+- Bounds: horizon <= 900 s, ticks <= 900, <= 4 alternatives, <= 64 samples, <= 16 other vessels; non-finite or
+  |speed| > 60 kt is a 422.
+
 ## Not done
 Berthing engine (S1-S3); coastline; S10 uncertainty; sway/yaw-rate initial conditions; hull-pier contact is not simulated
 (the path passes through it; clearance is 0 from contact on). Decision support for a demonstrator, not navigational guidance.

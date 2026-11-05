@@ -379,7 +379,7 @@ class Session:
             try:
                 self.model.advance(target,observe=self.observe if self.rich else (lambda *args: None), max_work=max_steps)
             except (ValueError,OverflowError) as exc:
-                self.fail("DYNAMICS_INTEGRATION_FAILED","Integration stopped; reset or create a new session.",exc); return
+                self.fail("FORCING_UNCOVERED" if isinstance(exc,berthing_sim.ForcingUncovered) else "DYNAMICS_INTEGRATION_FAILED","Integration stopped; reset or create a new session.",exc); return
             self.lag_s=max(0.0,wanted-self.model.t)/self.speed
             alerts=[f"Simulation lagging wall clock by {self.lag_s:.1f} s at {self.speed:g}x"] if self.lag_s>LAG_ALERT_S else None
             if self.model.pending and self.model.pending[0][0]<=self.model.t+1e-9:
@@ -413,7 +413,7 @@ class Session:
             self.last_access=now
             if msg.type in ("pause","resume","reset"):
                 if msg.type=="reset":
-                    self.model=berthing_sim.BerthingModel(*self.initial,dt=self.model.dt,duration=self.model.duration)
+                    self.model=berthing_sim.BerthingModel(*self.initial,dt=self.model.dt,duration=self.model.duration,forcing=self.model.forcing_spec)
                     self.paused=True; self.error=None
                     self.reanchor()
                     if self.rich:

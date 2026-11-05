@@ -839,6 +839,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/loads/wave-surrogate:
+    post:
+      tags:
+      - M3 Environmental loads
+      - S4 Wave surrogate
+      summary: Seeded synthetic wave elevation series (visualization only; unqualified)
+      operationId: wave_surrogate_api_v1_loads_wave_surrogate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaveSurrogateRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaveSurrogateResult'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/mooring/analyze:
     post:
       tags:
@@ -1387,6 +1413,56 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tugs/horsepower-plan:
+    post:
+      tags:
+      - M6 Tugs
+      summary: Minimum-total-horsepower tug assignment for a required wrench (catalog data, validity limited)
+      operationId: horsepower_plan_api_v1_tugs_horsepower_plan_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HorsepowerRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HorsepowerPlan'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/risk/ultimate-gust:
+    post:
+      tags:
+      - M5 Risk
+      summary: Modeled ultimate-load gust threshold; 'unavailable' envelope (200) without a supplied capacity basis
+      operationId: ultimate_gust_api_v1_risk_ultimate_gust_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UltimateGustRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UltimateGustResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/mooring/recommend:
     post:
       tags:
@@ -1685,6 +1761,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SequenceResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mooring/sequence/search:
+    post:
+      tags:
+      - M7 Planning
+      summary: 'S8: bounded search over line orders with intermediate static checks (draft, unreviewed)'
+      operationId: sequence_search_api_v1_mooring_sequence_search_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SequenceSearchRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSearchResult'
         '422':
           description: Validation Error
           content:
@@ -3464,6 +3565,11 @@ components:
           - gusting
           title: Env Mode
           default: steady
+        forcing:
+          anyOf:
+          - $ref: '#/components/schemas/ForcingSpec'
+          - type: 'null'
+          description: Time-varying forcing series; absent keeps the frozen scenario environment.
       additionalProperties: false
       type: object
       required:
@@ -5200,6 +5306,153 @@ components:
       - mz_ftlbf
       title: ForceSet
       description: Forces and moment in the ship frame (+x forward, +y to port, yaw positive counterclockwise).
+    ForcingSample:
+      properties:
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+          description: Simulation time of the sample.
+        wind_speed_kt:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Wind Speed Kt
+        wind_gust_kt:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Wind Gust Kt
+        wind_from_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: Wind From True Deg
+        current_speed_kt:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Current Speed Kt
+        current_set_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: Current Set True Deg
+        water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Water Level Mllw Ft
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      title: ForcingSample
+      description: One supplied forcing sample (replay). A channel is either given in every sample or in none.
+    ForcingSpec:
+      properties:
+        kind:
+          type: string
+          enum:
+          - steady
+          - ramp
+          - gusts
+          - replay
+          title: Kind
+          default: steady
+        label:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Label
+        ramp_start_s:
+          type: number
+          minimum: 0.0
+          title: Ramp Start S
+          default: 0
+        target:
+          anyOf:
+          - $ref: '#/components/schemas/ForcingSample'
+          - type: 'null'
+          description: ramp end values; t_s is the ramp end time.
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed
+          description: 'gusts: required; same seed gives the same series.'
+        gust_sigma_kt:
+          type: number
+          maximum: 100.0
+          minimum: 0.0
+          title: Gust Sigma Kt
+          default: 3.0
+        gust_correlation_s:
+          type: number
+          maximum: 600.0
+          minimum: 1.0
+          title: Gust Correlation S
+          description: Spacing of the random knots (linearly interpolated).
+          default: 10.0
+        samples:
+          items:
+            $ref: '#/components/schemas/ForcingSample'
+          type: array
+          maxItems: 2000
+          title: Samples
+        tide_amplitude_ft:
+          type: number
+          maximum: 50.0
+          minimum: 0.0
+          title: Tide Amplitude Ft
+          description: Synthetic sinusoidal water-level term added to any kind.
+          default: 0
+        tide_period_s:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Tide Period S
+          description: Default is the M2 period.
+          default: 44712
+        tide_phase_rad:
+          type: number
+          title: Tide Phase Rad
+          default: 0.0
+        vessel_relative_wind:
+          type: boolean
+          title: Vessel Relative Wind
+          description: 'Subtract ship ground velocity from the wind (apparent wind). Current is never made relative here:
+            velocity-dependent water drag stays entirely in the body damping term, so it is not double counted.'
+          default: false
+        on_uncovered:
+          type: string
+          enum:
+          - stop
+          - invalidate
+          title: On Uncovered
+          description: 'Time past the series coverage: stop = fail the run (RED); invalidate = hold the last value and mark
+            the run invalid.'
+          default: stop
+      additionalProperties: false
+      type: object
+      title: ForcingSpec
+      description: 'Time-varying forcing, resolved at integration-stage time from an immutable series (S2).
+
+
+        steady: the scenario environment, constant (optionally plus the synthetic tide term).
+
+        ramp: linear move from the scenario environment at ramp_start_s to `target` at target.t_s, held afterwards.
+
+        gusts: seeded synthetic wind-speed fluctuation about the scenario environment (a pure function of seed and time).
+
+        replay: piecewise-linear interpolation of supplied samples; coverage is the sample time range.'
     ForecastBinding:
       properties:
         source:
@@ -6068,6 +6321,161 @@ components:
       - config
       - environment
       title: HoldTugRequest
+    HorsepowerPlacement:
+      properties:
+        tug_id:
+          type: string
+          title: Tug Id
+        push_point_id:
+          type: string
+          title: Push Point Id
+        mode:
+          type: string
+          enum:
+          - push
+          - pull
+          title: Mode
+        force_lbf:
+          type: number
+          title: Force Lbf
+        capacity_lbf:
+          type: number
+          title: Capacity Lbf
+          description: min(catalog bollard pull in this mode x efficiency, push-point rating).
+        utilization:
+          type: number
+          title: Utilization
+          description: force_lbf / capacity_lbf.
+        power_hp:
+          type: number
+          title: Power Hp
+          description: Catalog horsepower (seed/synthetic unless published); never converted to force.
+      additionalProperties: false
+      type: object
+      required:
+      - tug_id
+      - push_point_id
+      - mode
+      - force_lbf
+      - capacity_lbf
+      - utilization
+      - power_hp
+      title: HorsepowerPlacement
+    HorsepowerPlan:
+      properties:
+        objective:
+          type: string
+          title: Objective
+          default: minimize_total_horsepower
+        feasible:
+          type: boolean
+          title: Feasible
+        total_power_hp:
+          type: number
+          title: Total Power Hp
+          default: 0.0
+        tug_count:
+          type: integer
+          title: Tug Count
+          default: 0
+        placements:
+          items:
+            $ref: '#/components/schemas/HorsepowerPlacement'
+          type: array
+          title: Placements
+        required_wrench:
+          $ref: '#/components/schemas/WrenchLbf'
+        delivered_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+        residual_wrench:
+          anyOf:
+          - $ref: '#/components/schemas/WrenchLbf'
+          - type: 'null'
+        load_scale_margin:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Load Scale Margin
+          description: Largest factor s such that s x required wrench is still placement-feasible with the chosen tugs; >=1
+            when feasible.
+        fleet_scale_margin:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Fleet Scale Margin
+          description: Same factor for the whole available fleet (best case); <1 explains infeasibility.
+        candidates_evaluated:
+          type: integer
+          title: Candidates Evaluated
+          default: 0
+        infeasibility_reasons:
+          items:
+            type: string
+          type: array
+          title: Infeasibility Reasons
+        tie_break:
+          type: string
+          title: Tie Break
+          default: lowest total hp, then fewest tugs, then lowest total force, then lexicographic (tug_id, push_point_id)
+        validity:
+          type: string
+          title: Validity
+          description: Validity limited where fleet horsepower/bollard-pull data are assumed (seed/synthetic).
+          default: limited
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+      additionalProperties: false
+      type: object
+      required:
+      - feasible
+      - required_wrench
+      title: HorsepowerPlan
+      description: 'P5: minimum-total-horsepower, placement-feasible tug assignment for a required ship-frame wrench.'
+    HorsepowerRequest:
+      properties:
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+          examples:
+          - DDG-51-FIIA
+        required_wrench:
+          $ref: '#/components/schemas/WrenchLbf'
+        available_tug_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            maxItems: 8
+          - type: 'null'
+          title: Available Tug Ids
+          description: Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
+            At most 8 tugs (exhaustive search).
+        efficiency:
+          type: number
+          maximum: 1.0
+          exclusiveMinimum: 0.0
+          title: Efficiency
+          description: Multiplier on catalog bollard pull.
+          default: 1.0
+        margin:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Margin
+          description: Added to the required wrench.
+          default: 0.0
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - required_wrench
+      title: HorsepowerRequest
+      description: 'P5 request: minimum-horsepower tug assignment for a required ship-frame wrench.'
     ImageFitting:
       properties:
         item_id:
@@ -6668,6 +7076,35 @@ components:
       - line_number
       - tension_lbf
       title: LineTension
+    LineUltimateCapacity:
+      properties:
+        line_number:
+          type: integer
+          title: Line Number
+        ultimate_capacity_lbf:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Ultimate Capacity Lbf
+          description: Effective ultimate tension of the installed line (all parts), with wet/condition/termination factors
+            already applied and cited in `factors`.
+        material_law_max_strain:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Material Law Max Strain
+          description: Largest strain for which the load-elongation law is supported. Beyond it the search stops as indeterminate.
+        factors:
+          type: string
+          minLength: 1
+          title: Factors
+          description: Wet, condition and termination factors applied, as sourced.
+      additionalProperties: false
+      type: object
+      required:
+      - line_number
+      - ultimate_capacity_lbf
+      - material_law_max_strain
+      - factors
+      title: LineUltimateCapacity
     LoadingCondition:
       properties:
         name:
@@ -9889,6 +10326,27 @@ components:
       - env_source
       title: ScenarioCreate
       description: 'A saved setup: the UI''s save file.'
+    SequenceConstraintCheck:
+      properties:
+        code:
+          type: string
+          title: Code
+        satisfied:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Satisfied
+          description: null when not evaluated.
+        message:
+          type: string
+          title: Message
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - satisfied
+      - message
+      title: SequenceConstraintCheck
     SequenceIssue:
       properties:
         code:
@@ -9921,6 +10379,84 @@ components:
       - severity
       - message
       title: SequenceIssue
+    SequenceProposal:
+      properties:
+        rank:
+          type: integer
+          title: Rank
+        line_order:
+          items:
+            type: integer
+          type: array
+          title: Line Order
+        outcome:
+          type: string
+          enum:
+          - feasible_static
+          - indeterminate
+          - infeasible
+          title: Outcome
+        is_default_order:
+          type: boolean
+          title: Is Default Order
+        steps:
+          items:
+            $ref: '#/components/schemas/SequenceStep'
+          type: array
+          title: Steps
+        issues:
+          items:
+            $ref: '#/components/schemas/SequenceIssue'
+          type: array
+          title: Issues
+        constraints:
+          items:
+            $ref: '#/components/schemas/SequenceConstraintCheck'
+          type: array
+          title: Constraints
+        intermediate_states_evaluated:
+          type: integer
+          title: Intermediate States Evaluated
+        intermediate_states_indeterminate:
+          type: integer
+          title: Intermediate States Indeterminate
+        worst_state_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Worst State Pct
+        total_duration_min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Total Duration Min
+        validity_state:
+          type: string
+          enum:
+          - limited
+          - invalid
+          title: Validity State
+        review_status:
+          type: string
+          enum:
+          - draft_unreviewed
+          - reviewed
+          title: Review Status
+          default: draft_unreviewed
+      additionalProperties: false
+      type: object
+      required:
+      - rank
+      - line_order
+      - outcome
+      - is_default_order
+      - steps
+      - issues
+      - constraints
+      - intermediate_states_evaluated
+      - intermediate_states_indeterminate
+      - validity_state
+      title: SequenceProposal
     SequenceRequest:
       properties:
         ship_class_id:
@@ -10085,6 +10621,175 @@ components:
       - steps
       - crews_required
       title: SequenceResult
+    SequenceSearchBounds:
+      properties:
+        max_candidates:
+          type: integer
+          title: Max Candidates
+        candidate_space:
+          type: integer
+          title: Candidate Space
+          description: Number of orderings of the configured lines (n!).
+        evaluated:
+          type: integer
+          title: Evaluated
+        admissible_candidates:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Admissible Candidates
+          description: Orderings meeting the caller constraints; null when the space was not fully enumerated.
+        truncated:
+          type: boolean
+          title: Truncated
+          description: True when admissible orderings remained unevaluated because of max_candidates or the enumeration guard.
+      additionalProperties: false
+      type: object
+      required:
+      - max_candidates
+      - candidate_space
+      - evaluated
+      - truncated
+      title: SequenceSearchBounds
+    SequenceSearchRequest:
+      properties:
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          default: II
+        berth_id:
+          type: string
+          title: Berth Id
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        tug_plan_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tug Plan Result Id
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Common installation tide for draft static checks; defaults to the evaluated water level.
+        line_handling_crews:
+          type: integer
+          minimum: 1.0
+          title: Line Handling Crews
+          default: 6
+        must_precede:
+          items:
+            prefixItems:
+            - type: integer
+            - type: integer
+            type: array
+            maxItems: 2
+            minItems: 2
+          type: array
+          title: Must Precede
+          description: 'Handling constraints (a, b): line a is passed and secured before line b. Caller-supplied; none are
+            invented.'
+        first_line:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: First Line
+          description: 'Optional constraint: this line is handled first.'
+        max_candidates:
+          type: integer
+          maximum: 60.0
+          minimum: 1.0
+          title: Max Candidates
+          description: Upper bound on orderings evaluated with the static solver.
+          default: 8
+        max_proposals:
+          type: integer
+          maximum: 10.0
+          minimum: 1.0
+          title: Max Proposals
+          default: 3
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - config
+      - environment
+      title: SequenceSearchRequest
+    SequenceSearchResult:
+      properties:
+        outcome:
+          type: string
+          enum:
+          - feasible_found
+          - indeterminate_only
+          - no_feasible_order
+          - budget_limited
+          - unsupported
+          title: Outcome
+        proposals:
+          items:
+            $ref: '#/components/schemas/SequenceProposal'
+          type: array
+          title: Proposals
+        bounds:
+          $ref: '#/components/schemas/SequenceSearchBounds'
+        default_order:
+          items:
+            type: integer
+          type: array
+          title: Default Order
+        default_order_outcome:
+          type: string
+          enum:
+          - feasible_static
+          - indeterminate
+          - infeasible
+          - not_evaluated
+          title: Default Order Outcome
+        tie_breaks:
+          items:
+            type: string
+          type: array
+          title: Tie Breaks
+        limitations:
+          items:
+            type: string
+          type: array
+          title: Limitations
+        review_status:
+          type: string
+          enum:
+          - draft_unreviewed
+          - reviewed
+          title: Review Status
+          default: draft_unreviewed
+      additionalProperties: false
+      type: object
+      required:
+      - outcome
+      - proposals
+      - bounds
+      - default_order
+      - default_order_outcome
+      - tie_breaks
+      - limitations
+      title: SequenceSearchResult
     SequenceStep:
       properties:
         step:
@@ -10636,6 +11341,12 @@ components:
           anyOf:
           - $ref: '#/components/schemas/SimulationDiagnostics'
           - type: 'null'
+        forcing_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Forcing Revision
+          description: Revision id of the immutable forcing series; with t_s it identifies the forcing in effect.
         t_s:
           type: number
           title: T S
@@ -11158,6 +11869,11 @@ components:
       title: SimSeries
     SimSessionCreate:
       properties:
+        forcing:
+          anyOf:
+          - $ref: '#/components/schemas/ForcingSpec'
+          - type: 'null'
+          description: Forcing series; absent keeps the frozen scenario environment.
         dt_s:
           anyOf:
           - type: number
@@ -11192,6 +11908,17 @@ components:
       title: SimSessionCreate
     SimSessionCreated:
       properties:
+        forcing_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Forcing Revision
+        forcing_synthetic:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Forcing Synthetic
+          description: True when the forcing series is generated rather than supplied.
         session_id:
           type: string
           title: Session Id
@@ -13212,6 +13939,374 @@ components:
       - legs
       - window
       title: UkcResult
+    UltimateCapacityBasis:
+      properties:
+        basis_id:
+          type: string
+          title: Basis Id
+        evidence_status:
+          type: string
+          enum:
+          - sourced
+          - synthetic_test_fixture
+          title: Evidence Status
+        citation:
+          type: string
+          minLength: 1
+          title: Citation
+          description: Source of the capacity and material-law range.
+        wind_basis:
+          type: string
+          minLength: 1
+          title: Wind Basis
+          description: Wind averaging duration and reference height the supplied gust speed is stated on.
+        capacity_uncertainty:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Capacity Uncertainty
+          description: Stated uncertainty of the capacity; informational, not applied to the threshold.
+        lines:
+          items:
+            $ref: '#/components/schemas/LineUltimateCapacity'
+          type: array
+          minItems: 1
+          title: Lines
+      additionalProperties: false
+      type: object
+      required:
+      - basis_id
+      - evidence_status
+      - citation
+      - wind_basis
+      - lines
+      title: UltimateCapacityBasis
+    UltimateDirectionResult:
+      properties:
+        wind_rel_deg:
+          type: number
+          title: Wind Rel Deg
+        wind_from_true_deg:
+          type: number
+          title: Wind From True Deg
+        outcome:
+          type: string
+          enum:
+          - threshold_found
+          - ultimate_at_zero_wind
+          - indeterminate_component_failed_first
+          - indeterminate_material_range
+          - indeterminate_nonconvergence
+          - indeterminate_search_ceiling
+          title: Outcome
+        threshold_wind_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Threshold Wind Kt
+          description: Highest verified speed below modeled ultimate capacity; 0 at zero-wind failure; None unless a threshold
+            was found.
+        threshold_gust_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Threshold Gust Kt
+          description: threshold_wind_kt times the request's held gust/sustained ratio.
+        bracket_kt:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          title: Bracket Kt
+        governing_line:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Governing Line
+        governing_utilization_of_ultimate:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Governing Utilization Of Ultimate
+          description: Tension / ultimate capacity of the governing line at the upper bracket end.
+        wll_crossing_bracket_kt:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          title: Wll Crossing Bracket Kt
+          description: Coarse wind-speed interval of the first WLL crossing (a warning, not a stop); None if none before the
+            stop.
+        stop_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Stop Kt
+          description: Speed at which a non-ultimate stop or nonconvergence occurred.
+        stop_elements:
+          items:
+            type: string
+          type: array
+          title: Stop Elements
+        nonmonotone_in_bracket:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Nonmonotone In Bracket
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - wind_rel_deg
+      - wind_from_true_deg
+      - outcome
+      title: UltimateDirectionResult
+    UltimateGustRequest:
+      properties:
+        scenario_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scenario Id
+          description: Informational; inputs are always taken from the body.
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+          examples:
+          - DDG-51-FIIA
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+          examples:
+          - NAVSTA-NORFOLK-P12-N
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          title: Tugs
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          description: 'Sets the design factor: 3.0 (I, II, IIA) or 2.5 (III).'
+          default: II
+        lines_wet:
+          type: boolean
+          title: Lines Wet
+          description: Apply the wet-strength factor (nylon loses 15%).
+          default: true
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft
+            (lines installed at the analysis water level). A different value keeps rest lengths from that state.
+        capacity_basis:
+          anyOf:
+          - $ref: '#/components/schemas/UltimateCapacityBasis'
+          - type: 'null'
+          description: Required for a threshold; absent -> outcome 'unavailable'.
+        step_deg:
+          type: integer
+          maximum: 90.0
+          minimum: 5.0
+          title: Step Deg
+          default: 30
+        max_search_kt:
+          type: number
+          maximum: 300.0
+          minimum: 10.0
+          title: Max Search Kt
+          description: Search ceiling; no stop below it is indeterminate, never 'unlimited'.
+          default: 150.0
+        sampling_step_kt:
+          type: number
+          maximum: 20.0
+          exclusiveMinimum: 0.0
+          title: Sampling Step Kt
+          default: 5.0
+        tolerance_kt:
+          type: number
+          maximum: 5.0
+          exclusiveMinimum: 0.0
+          title: Tolerance Kt
+          default: 0.25
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - config
+      - environment
+      title: UltimateGustRequest
+    UltimateGustResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/UltimateGustResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: UltimateGustResponse
+    UltimateGustResult:
+      properties:
+        outcome:
+          type: string
+          enum:
+          - threshold_found
+          - unavailable
+          - indeterminate
+          title: Outcome
+        reasons:
+          items:
+            type: string
+          type: array
+          title: Reasons
+        basis_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Basis Id
+        evidence_status:
+          anyOf:
+          - type: string
+            enum:
+            - sourced
+            - synthetic_test_fixture
+          - type: 'null'
+          title: Evidence Status
+        citation:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Citation
+        wind_basis:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Wind Basis
+        complete:
+          type: boolean
+          title: Complete
+          description: True only if every searched direction produced a threshold; otherwise the governing value is the lowest
+            found, not a proven minimum.
+          default: false
+        governing:
+          anyOf:
+          - $ref: '#/components/schemas/UltimateDirectionResult'
+          - type: 'null'
+        assessed:
+          anyOf:
+          - $ref: '#/components/schemas/UltimateDirectionResult'
+          - type: 'null'
+          description: Search along the request's own wind direction.
+        assessed_gust_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Assessed Gust Kt
+        assessed_gust_margin_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Assessed Gust Margin Kt
+          description: Assessed-direction threshold gust minus the request gust; negative means the modeled ultimate is exceeded.
+        directions:
+          items:
+            $ref: '#/components/schemas/UltimateDirectionResult'
+          type: array
+          title: Directions
+        validated_rupture_prediction:
+          type: boolean
+          const: false
+          title: Validated Rupture Prediction
+          description: 'Always false: a physical breaking claim needs its own validation evidence.'
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - outcome
+      title: UltimateGustResult
     UncertaintySettings:
       properties:
         samples:
@@ -13741,6 +14836,197 @@ components:
       - frequency_hz
       title: WaveSpectrumBin
       description: One provider-native frequency bin; Fourier coefficients are never reconstructed.
+    WaveSpectrumComponent:
+      properties:
+        label:
+          type: string
+          enum:
+          - total_sea
+          - swell
+          - wind_sea
+          title: Label
+        hs_ft:
+          type: number
+          minimum: 0.0
+          title: Hs Ft
+          description: Significant wave height (4 sqrt(m0)) of this component.
+        peak_period_s:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Peak Period S
+          description: Spectral peak period.
+        from_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: From True Deg
+          description: Provenance only; the surrogate is a scalar elevation at one point and does not model direction.
+        gamma:
+          type: number
+          maximum: 10.0
+          minimum: 1.0
+          title: Gamma
+          description: JONSWAP peak enhancement. A scenario shape parameter, not fitted to data.
+          default: 3.3
+      additionalProperties: false
+      type: object
+      required:
+      - label
+      - hs_ft
+      - peak_period_s
+      title: WaveSpectrumComponent
+    WaveSpectrumInput:
+      properties:
+        kind:
+          type: string
+          enum:
+          - total
+          - partitions
+          title: Kind
+        components:
+          items:
+            $ref: '#/components/schemas/WaveSpectrumComponent'
+          type: array
+          minItems: 1
+          title: Components
+        reported_total_hs_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Reported Total Hs Ft
+          description: Provider's reported total Hs alongside partitions. Checked for consistency, never added.
+        source:
+          type: string
+          minLength: 1
+          title: Source
+          description: Where these labeled parameters came from (e.g. a D4 record id or 'hand-entered scenario').
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - components
+      - source
+      title: WaveSpectrumInput
+    WaveSurrogateRequest:
+      properties:
+        seed:
+          type: integer
+          minimum: 0.0
+          title: Seed
+        duration_s:
+          type: number
+          maximum: 3600.0
+          exclusiveMinimum: 0.0
+          title: Duration S
+          default: 600.0
+        dt_s:
+          type: number
+          maximum: 10.0
+          exclusiveMinimum: 0.0
+          title: Dt S
+          default: 0.5
+        spectrum:
+          anyOf:
+          - $ref: '#/components/schemas/WaveSpectrumInput'
+          - type: 'null'
+          description: None means waves are unavailable (not zero).
+      additionalProperties: false
+      type: object
+      required:
+      - seed
+      title: WaveSurrogateRequest
+    WaveSurrogateResult:
+      properties:
+        state:
+          type: string
+          enum:
+          - synthetic
+          - unavailable
+          title: State
+        label:
+          type: string
+          title: Label
+          default: 'SYNTHETIC / UNQUALIFIED: seeded random-phase JONSWAP-shaped surface elevation for visualization only.
+            Not a forecast, not a measurement, and not berth forcing (offshore availability is not berth forcing).'
+        qualified:
+          type: boolean
+          const: false
+          title: Qualified
+          default: false
+        seed:
+          type: integer
+          title: Seed
+        reasons:
+          items:
+            type: string
+          type: array
+          title: Reasons
+        series:
+          anyOf:
+          - $ref: '#/components/schemas/WaveSurrogateSeries'
+          - type: 'null'
+        target_hs_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Target Hs Ft
+          description: 'sqrt(sum of component Hs^2): energy-additive, each source once.'
+        realized_hs_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Realized Hs Ft
+          description: 4 x standard deviation of the generated series.
+        mean_zero_crossing_period_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Mean Zero Crossing Period S
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+        notes:
+          items:
+            type: string
+          type: array
+          title: Notes
+      additionalProperties: false
+      type: object
+      required:
+      - state
+      - seed
+      title: WaveSurrogateResult
+    WaveSurrogateSeries:
+      properties:
+        t_s:
+          items:
+            type: number
+          type: array
+          title: T S
+        elevation_ft:
+          items:
+            type: number
+          type: array
+          title: Elevation Ft
+          description: Sum of the component elevations; each partition added once.
+        components:
+          additionalProperties:
+            items:
+              type: number
+            type: array
+          type: object
+          title: Components
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - elevation_ft
+      title: WaveSurrogateSeries
     Waypoint:
       properties:
         lat:
@@ -14100,6 +15386,13 @@ components:
     BerthingSimResult:
       additionalProperties: false
       properties:
+        forcing_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: Revision id of the forcing series used; absent for the frozen environment.
+          title: Forcing Revision
         transitions:
           anyOf:
           - items:
@@ -15740,6 +17033,8 @@ tags:
   description: 'Backup camera for ships: predicted path, footprints, corridor and clearance from the current state.'
 - name: S6 Port transit
   description: Ships entering or leaving port on own thrust or with tugs (surrogate maneuvering).
+- name: S4 Wave surrogate
+  description: Seeded synthetic wave elevation for visualization (unqualified).
 - name: System
   description: Jobs, stored results, health.
 servers:

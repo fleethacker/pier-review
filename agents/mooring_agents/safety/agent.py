@@ -13,6 +13,7 @@ from importlib.resources import files
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
+from mooring.core import access
 from mooring.core.envelopes import new_id, utcnow
 from mooring.core.schemas import LimitEnvelopePoint, Validity
 
@@ -40,7 +41,7 @@ class BriefProposal(_ProposalModel):
 
 
 def plan_record(plan_id: str) -> PlanRecord:
-    if plan_id not in PLANS:
+    if not access.allowed("agent_plan", plan_id) or plan_id not in PLANS:
         raise ModelingError(404, f"Plan '{plan_id}' not found")
     return PLANS[plan_id]
 
@@ -128,7 +129,7 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
     results = [await checks.cites_resolve(tk, cites), checks.cites_in_ledger(req.plan_id, cites)]
 
     intake_id = req.intake_report_id or getattr(plan, "intake_report_id", None)
-    report = REPORTS.get(intake_id) if intake_id else None
+    report = REPORTS.get(intake_id) if intake_id and access.allowed("agent_report", intake_id) else None
     if intake_id and report is None:
         raise ModelingError(404, f"Intake report '{intake_id}' not found")
     if report is not None:
@@ -194,6 +195,7 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
         validity=review_validity, summary=headline, summary_source="deterministic", narration_note=None, backend="real",
     )
     result = await _narrate(result)
+    access.claim("agent_review", result.review_id)
     REVIEWS[result.review_id] = result
     ENVELOPES[result.review_id] = envelope.result.points
     return result

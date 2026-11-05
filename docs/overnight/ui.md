@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 20:55 EST: agents now support opt-in bearer identity inherited from MOORING_API_KEYS (AGENTS overrides available), forwarding caller credentials to modeling and owner-scoping agent objects. Default stays open local-demo. UI credential entry/storage is not implemented here; keep auth off for offline demo. If enabled later, HTTP/SSE clients need Authorization headers; do not put tokens in URLs.
+
 - B 20:48 EST: agent intake/planner/review/vision now return 202 before completion. Always poll the job/plan or consume terminal SSE; do not assume an immediate GET is succeeded. Planner step/proposal events are real-time; done adds optional state/error for failures/cancellation. DELETE /jobs/{id} cancels; queue 429 carries Retry-After. Keep displaying the final qualification warnings.
 
 - 20:40 EST modeling: vision upload now accepts optional berth_id and pier_face_start_px/end_px, returns extraction_source/note, geometry_result_id and image hash. Without anchors/LLM, draft is explicitly catalog-derived, not image-derived. Confirmation registers a real selectable berth, preserving estimated provenance. Generated types refreshed only.

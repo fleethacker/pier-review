@@ -34,12 +34,14 @@ class ModelingError(Exception):
 
 
 class ModelingClient:
-    def __init__(self, base_url: str | None = None, transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(self, base_url: str | None = None, transport: httpx.AsyncBaseTransport | None = None, *, authorization: str | None = None):
         self.base_url = (base_url or os.environ.get("MODELING_API_URL", DEFAULT_URL)).rstrip("/")
         self._transport = transport
+        self._authorization = authorization
 
     def _client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(base_url=self.base_url, transport=self._transport, timeout=60)
+        return httpx.AsyncClient(base_url=self.base_url, transport=self._transport, timeout=60,
+                                 headers={"Authorization": self._authorization} if self._authorization else None)
 
     async def _req(self, method: str, path: str, **kw) -> Any:
         async with self._client() as c:

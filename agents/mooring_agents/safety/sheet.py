@@ -6,6 +6,7 @@ first approval; edits create a new version.
 
 import html
 
+from mooring.core import access
 from mooring.core.envelopes import new_id, utcnow
 from mooring.core.schemas import Provenance, Finding
 
@@ -84,6 +85,7 @@ def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
                  Provenance(source="UFC 4-159-03 Chapter 4", confidence="published"),
                  Provenance(source=f"{a.model} ({a.backend}); reference data qualification is reported in validity", confidence="estimated")],
         approvals=[], disclaimer=DISCLAIMER)
+    access.claim("agent_sheet", sheet.sheet_id)
     SHEETS[sheet.sheet_id] = sheet
     return sheet
 

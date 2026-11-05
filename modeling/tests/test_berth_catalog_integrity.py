@@ -65,3 +65,48 @@ def test_concurrent_conflicting_registration_keeps_one_complete_record(catalog):
         winners = [i for i in pool.map(submit, range(8)) if i is not None]
     assert len(winners) == 1
     assert refdata.berth('CONCURRENT-FIXTURE').name == f'Candidate {winners[0]}'
+
+
+@pytest.mark.parametrize('problem', [
+    'empty_depth', 'duplicate_depth', 'duplicate_fitting', 'duplicate_fender',
+    'fitting_fender_collision', 'latitude', 'longitude',
+])
+def test_invalid_asset_cannot_poison_catalog_listing(catalog, monkeypatch, problem):
+    monkeypatch.setenv('MOORING_API_KEYS', '')
+    monkeypatch.setenv('MOORING_AUTH_REQUIRED', '0')
+    value = refdata.berth(SEED).model_dump(mode='json')
+    value['berth_id'] = 'INVALID-'+problem
+    if problem == 'empty_depth':
+        value['depth_profile'] = []
+    elif problem == 'duplicate_depth':
+        value['depth_profile'].append(value['depth_profile'][0] | {'depth_mllw_ft': 1})
+    elif problem == 'duplicate_fitting':
+        value['fittings'].append(dict(value['fittings'][0]))
+    elif problem == 'duplicate_fender':
+        value['fenders'].append(dict(value['fenders'][0]))
+    elif problem == 'fitting_fender_collision':
+        value['fenders'][0]['fender_id'] = value['fittings'][0]['fitting_id']
+    elif problem == 'latitude':
+        value['origin_lat'] = 91
+    else:
+        value['origin_lon'] = 181
+    response = catalog.post(f'{P}/berths', json=value)
+    assert response.status_code == 422
+    listing = catalog.get(f'{P}/berths')
+    assert listing.status_code == 200
+    assert value['berth_id'] not in {b['berth_id'] for b in listing.json()}
+
+
+def test_single_or_unordered_unique_depth_samples_remain_supported(catalog, monkeypatch):
+    from mooring.core.geometry import depth_at
+    monkeypatch.setenv('MOORING_API_KEYS', '')
+    monkeypatch.setenv('MOORING_AUTH_REQUIRED', '0')
+    value = refdata.berth(SEED).model_dump(mode='json')
+    value['berth_id'] = 'SINGLE-DEPTH'
+    value['depth_profile'] = [{'x_ft': 0, 'depth_mllw_ft': 30}]
+    assert catalog.post(f'{P}/berths', json=value).status_code == 201
+    assert depth_at(refdata.berth(value['berth_id']), 100) == 30
+    value['berth_id'] = 'UNORDERED-DEPTH'
+    value['depth_profile'] = [{'x_ft': 100, 'depth_mllw_ft': 40}, {'x_ft': 0, 'depth_mllw_ft': 30}]
+    assert catalog.post(f'{P}/berths', json=value).status_code == 201
+    assert depth_at(refdata.berth(value['berth_id']), 50) == 35

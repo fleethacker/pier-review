@@ -10,7 +10,7 @@ Frames:
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import Model, Provenance
 
@@ -162,16 +162,26 @@ class Berth(Model):
     berth_id: str = Field(examples=["NAVSTA-NORFOLK-P12-N"])
     name: str
     face_bearing_true_deg: float = Field(ge=0, lt=360, description="True bearing of the berth frame's +x axis.")
-    origin_lat: float
-    origin_lon: float
+    origin_lat: float = Field(ge=-90, le=90)
+    origin_lon: float = Field(ge=-180, le=180)
     face_length_ft: float = Field(gt=0)
     deck_height_mllw_ft: float
-    depth_profile: list[DepthPoint]
+    depth_profile: list[DepthPoint] = Field(min_length=1, description="At least one MLLW depth sample; x_ft stations must be unique. Input ordering is unrestricted.")
     fittings: list[PierFitting]
     fenders: list[Fender] = Field(default_factory=list)
     structure: Literal["open_pile", "solid"] = "open_pile"
     env_station_ids: EnvStations
     provenance: Provenance
+
+    @model_validator(mode="after")
+    def _reference_identity(self):
+        ids = [item.fitting_id for item in self.fittings] + [item.fender_id for item in self.fenders]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Fitting and fender IDs must be unique within a berth")
+        stations = [point.x_ft for point in self.depth_profile]
+        if len(stations) != len(set(stations)):
+            raise ValueError("Depth profile x_ft stations must be unique")
+        return self
 
 
 class BerthSummary(Model):

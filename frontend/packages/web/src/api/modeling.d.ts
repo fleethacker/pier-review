@@ -1058,7 +1058,10 @@ export interface components {
             face_length_ft: number;
             /** Deck Height Mllw Ft */
             deck_height_mllw_ft: number;
-            /** Depth Profile */
+            /**
+             * Depth Profile
+             * @description At least one MLLW depth sample; x_ft stations must be unique. Input ordering is unrestricted.
+             */
             depth_profile: components["schemas"]["DepthPoint"][];
             /** Fittings */
             fittings: components["schemas"]["PierFitting"][];

@@ -1050,6 +1050,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/predict/trajectory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Predict a vessel's path, hull footprints, uncertainty corridor and hazard clearance from its current state */
+        post: operations["predict_trajectory_api_v1_predict_trajectory_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/predict/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ready-made prediction requests for demos */
+        get: operations["presets_api_v1_predict_presets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -1810,6 +1844,20 @@ export interface components {
             problems?: components["schemas"]["QualificationIssue"][];
             /** Assets */
             assets: components["schemas"]["AssetQualification"][];
+        };
+        /** CurrentTugForce */
+        CurrentTugForce: {
+            /** Tug Id */
+            tug_id: string;
+            /**
+             * Point
+             * @enum {string}
+             */
+            point: "bow" | "stern" | "port_shoulder" | "starboard_shoulder" | "port_quarter" | "starboard_quarter";
+            /** Force Lbf */
+            force_lbf: number;
+            /** Direction Rel Deg */
+            direction_rel_deg: number;
         };
         /** DepthPoint */
         DepthPoint: {
@@ -2805,6 +2853,50 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HazardApproach */
+        HazardApproach: {
+            /** T S */
+            t_s: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "pier" | "fender" | "coastline" | "vessel";
+            /** Element Id */
+            element_id: string;
+            /**
+             * Clearance Ft
+             * @description Hull-to-hazard distance at that time; <= 0 means contact.
+             */
+            clearance_ft: number;
+            /** @description Closest point on the hull. */
+            position: components["schemas"]["GeoPoint"];
+            /**
+             * Probability
+             * @description Share of uncertainty samples that breach; null without samples. Not a calibrated probability.
+             */
+            probability?: number | null;
+        };
+        /** HazardSettings */
+        HazardSettings: {
+            /**
+             * Berth Id
+             * @description Check clearance to this berth's pier face and fenders.
+             */
+            berth_id?: string | null;
+            /**
+             * Coastline
+             * @description Check clearance to available coastline data, where covered.
+             * @default true
+             */
+            coastline: boolean;
+            /**
+             * Min Clearance Ft
+             * @description Clearance below this is reported as a breach.
+             * @default 50
+             */
+            min_clearance_ft: number;
         };
         /** Health */
         Health: {
@@ -4146,6 +4238,71 @@ export interface components {
              */
             yaw_moment_ftlbf?: number | null;
         };
+        /**
+         * ObservedShipState
+         * @description The starting state: where the ship is now and what it is doing.
+         */
+        ObservedShipState: {
+            /** Vessel Id */
+            vessel_id: string;
+            /** Ship Class Id */
+            ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /**
+             * Observed Utc
+             * Format: date-time
+             * @description Time the state was observed; input age = as_of_utc - observed_utc.
+             */
+            observed_utc: string;
+            position: components["schemas"]["GeoPoint"];
+            /** Heading True Deg */
+            heading_true_deg: number;
+            /**
+             * Surge Kt
+             * @description Speed through the water, + ahead.
+             */
+            surge_kt: number;
+            /**
+             * Sway Kt
+             * @description Through the water, + to port.
+             * @default 0
+             */
+            sway_kt: number;
+            /**
+             * Yaw Rate Degps
+             * @description + counterclockwise (turning to port).
+             * @default 0
+             */
+            yaw_rate_degps: number;
+            /**
+             * Rudder Deg
+             * @default 0
+             */
+            rudder_deg: number;
+            /**
+             * Engine Order
+             * @default 0
+             */
+            engine_order: number;
+            /**
+             * Delivered Thrust Lbf
+             * @description Null assumes thrust has settled at the order.
+             */
+            delivered_thrust_lbf?: number | null;
+            /** Tugs */
+            tugs?: components["schemas"]["CurrentTugForce"][];
+            /** @description Null: no initial-state spread is sampled. */
+            uncertainty?: components["schemas"]["StateUncertainty"] | null;
+            /**
+             * Source
+             * @description e.g. gps+gyro, ais, replay:<mission_id>, sim:<session>.
+             */
+            source?: string | null;
+        };
         /** Offset */
         Offset: {
             /** Surge Ft */
@@ -4157,6 +4314,20 @@ export interface components {
             sway_ft: number;
             /** Yaw Deg */
             yaw_deg: number;
+        };
+        /**
+         * OtherVessel
+         * @description Another vessel whose path is checked for clearance: a supplied predicted/planned path, not simulated here.
+         */
+        OtherVessel: {
+            /** Vessel Id */
+            vessel_id: string;
+            /** Beam Ft */
+            beam_ft: number;
+            /** Length Ft */
+            length_ft: number;
+            /** Path */
+            path: components["schemas"]["TrackFix"][];
         };
         /**
          * PierFitting
@@ -4306,6 +4477,179 @@ export interface components {
         PolarResult: {
             /** Points */
             points: components["schemas"]["PolarPoint"][];
+        };
+        /** PredictedTick */
+        PredictedTick: {
+            /**
+             * T S
+             * @description Seconds after as_of_utc.
+             */
+            t_s: number;
+            /**
+             * T Utc
+             * Format: date-time
+             */
+            t_utc: string;
+            position: components["schemas"]["GeoPoint"];
+            /** Heading True Deg */
+            heading_true_deg: number;
+            /** Sog Kt */
+            sog_kt: number;
+            /** Cog True Deg */
+            cog_true_deg?: number | null;
+            /** Rudder Deg */
+            rudder_deg: number;
+            /** Engine Order */
+            engine_order: number;
+            /**
+             * Footprint
+             * @description Hull outline at this tick (parametric planform).
+             */
+            footprint: components["schemas"]["GeoPoint"][];
+            /**
+             * Position Sd Ft
+             * @description Spread of sampled positions; null without samples.
+             */
+            position_sd_ft?: number | null;
+        };
+        /** PredictionAlternative */
+        PredictionAlternative: {
+            /** Alt Id */
+            alt_id: string;
+            /** Label */
+            label: string;
+            /** Ticks */
+            ticks: components["schemas"]["PredictedTick"][];
+            /**
+             * Corridor
+             * @description Outline enclosing the chosen percentile of sampled hull footprints over the horizon; null without samples.
+             */
+            corridor?: components["schemas"]["GeoPoint"][] | null;
+            /** @description Smallest clearance to any checked hazard. */
+            closest_approach?: components["schemas"]["HazardApproach"] | null;
+            /** @description First time clearance falls below min_clearance_ft on the central prediction. */
+            first_breach?: components["schemas"]["HazardApproach"] | null;
+        };
+        /** PredictionPreset */
+        PredictionPreset: {
+            /** Preset Id */
+            preset_id: string;
+            /** Title */
+            title: string;
+            request: components["schemas"]["PredictionRequest"];
+            validity: components["schemas"]["Validity"];
+        };
+        /** PredictionRequest */
+        PredictionRequest: {
+            vessel: components["schemas"]["ObservedShipState"];
+            /** @description Conditions held over the horizon. Null means explicitly calm (labeled), not unknown. */
+            environment?: components["schemas"]["EnvironmentSnapshot"] | null;
+            /**
+             * As Of Utc
+             * @description Prediction time; default now.
+             */
+            as_of_utc?: string | null;
+            /**
+             * Horizon S
+             * @default 300
+             */
+            horizon_s: number;
+            /**
+             * Tick S
+             * @description Output spacing of predicted states and footprints.
+             * @default 10
+             */
+            tick_s: number;
+            /**
+             * Dt S
+             * @default 0.2
+             */
+            dt_s: number;
+            propulsion?: components["schemas"]["PropulsionAssumptions"];
+            /**
+             * Alternatives
+             * @description What-if command sets; the baseline (commands held) is always predicted as alt_id 'hold'.
+             */
+            alternatives?: components["schemas"]["WhatIf"][];
+            /** Others */
+            others?: components["schemas"]["OtherVessel"][];
+            uncertainty?: components["schemas"]["UncertaintySettings"];
+            hazards?: components["schemas"]["HazardSettings"];
+        };
+        /** PredictionResponse */
+        PredictionResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /** @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes. */
+            manifest?: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["PredictionResult"];
+        };
+        /** PredictionResult */
+        PredictionResult: {
+            /** Vessel Id */
+            vessel_id: string;
+            /**
+             * Engine
+             * @enum {string}
+             */
+            engine: "transit" | "berthing";
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /**
+             * Input Age S
+             * @description as_of_utc - observed_utc. Stale inputs reduce validity.
+             */
+            input_age_s: number;
+            /**
+             * Hazards Checked
+             * @description Hazard kinds actually checked; unchecked kinds are not clear, just unknown.
+             */
+            hazards_checked: ("pier" | "fender" | "coastline" | "vessel")[];
+            /**
+             * Alternatives
+             * @description 'hold' first, then what-ifs in request order.
+             */
+            alternatives: components["schemas"]["PredictionAlternative"][];
         };
         /**
          * PropulsionAssumptions
@@ -5552,6 +5896,27 @@ export interface components {
              */
             tolerance: number;
         };
+        /**
+         * StateUncertainty
+         * @description One-sigma uncertainty of the starting state (e.g. GPS and heading sensor error).
+         */
+        StateUncertainty: {
+            /**
+             * Position Sd Ft
+             * @default 15
+             */
+            position_sd_ft: number;
+            /**
+             * Heading Sd Deg
+             * @default 1
+             */
+            heading_sd_deg: number;
+            /**
+             * Speed Sd Kt
+             * @default 0.2
+             */
+            speed_sd_kt: number;
+        };
         /** StationQuality */
         StationQuality: {
             /** Station Id */
@@ -6644,6 +7009,33 @@ export interface components {
             legs: components["schemas"]["UkcLeg"][];
             window: components["schemas"]["TimeWindow"];
         };
+        /** UncertaintySettings */
+        UncertaintySettings: {
+            /**
+             * Samples
+             * @description Monte Carlo samples per alternative; 0 = no corridor.
+             * @default 0
+             */
+            samples: number;
+            /**
+             * Seed
+             * @default 0
+             */
+            seed: number;
+            /**
+             * Model
+             * @description Seeded gust and current perturbations from the S10 uncertainty model (unqualified), plus initial-state spread.
+             * @default s10_gust_current
+             * @constant
+             */
+            model: "s10_gust_current";
+            /**
+             * Percentile
+             * @description Corridor encloses this share of sampled footprints.
+             * @default 90
+             */
+            percentile: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -6748,6 +7140,20 @@ export interface components {
             channel_depth_mllw_ft: number;
             /** Width Ft */
             width_ft: number;
+        };
+        /**
+         * WhatIf
+         * @description An alternative set of commands from now on. Times are seconds from the prediction start.
+         */
+        WhatIf: {
+            /** Alt Id */
+            alt_id: string;
+            /** Label */
+            label: string;
+            /** Helm Commands */
+            helm_commands?: components["schemas"]["TransitHelmCommand"][];
+            /** Tug Commands */
+            tug_commands?: components["schemas"]["TransitTugCommand"][];
         };
         /**
          * WrenchLbf
@@ -7704,7 +8110,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "waypoint_reached" | "arrived" | "rudder_saturated" | "tug_saturated" | "large_cross_track" | "stopped_short" | "integration_failed";
+            kind: "waypoint_reached" | "arrived" | "rudder_saturated" | "tug_saturated" | "large_cross_track" | "missed_approach" | "stopped_short" | "integration_failed";
             /** Detail */
             detail: string;
         };
@@ -9960,6 +10366,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TransitPreset"][];
+                };
+            };
+        };
+    };
+    predict_trajectory_api_v1_predict_trajectory_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PredictionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    presets_api_v1_predict_presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionPreset"][];
                 };
             };
         };

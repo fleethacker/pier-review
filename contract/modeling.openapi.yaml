@@ -14277,6 +14277,7 @@ components:
           - rudder_saturated
           - tug_saturated
           - large_cross_track
+          - missed_approach
           - stopped_short
           - integration_failed
           title: Kind

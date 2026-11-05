@@ -2,6 +2,8 @@
 
 ## Log
 
+- 02:23 EST: Confirmed shared berth catalog now uses configured SQLite storage (default remains ephemeral), immutable IDs and defensive reads. No cache survives database switching. Separate-process read, reopen/restore and seed-upgrade conflict checks pass; four competing processes accept exactly one definition. 1654 full Python tests passed, plus the subsequently added process-race test (17 catalog tests pass); no skips/xfails. Contract-check and UI typecheck/lint/84 tests/build pass. Authenticated TCP probe with a new berth preserves seven owned chain documents, hashes/events/ledger/locked sheet and exact shared geometry through restart and backup restoration; reanalysis remains AMBER/limited. No admin/retirement/qualification claim.
+
 - 02:19 EST: Numerical overflow guard returns HTTP422 with no result for finite inputs whose derived calculations overflow. No physical bounds, clamps or coefficients changed. Loads service translates only nonfinite derived-load validation errors; unrelated errors remain visible. All11 HTTP regressions failed before;12 focused/1650 full Python tests pass after, no skips/xfails. Contract-check and UI typecheck/lint/84 tests/build pass. #83 merged after green CI. Investigating durable confirmed-berth storage next; reconnect/slow-reader soaks remain clean.
 
 - 02:13 EST: Narrow replay/live provenance fix: observation time is no longer copied into issued_at_utc. Snapshot time, validity interval, age and values remain unchanged. Three regressions failed before/pass after;238 focused and1638 full Python tests pass, no skips/xfails;84 UI tests/typecheck/lint/build and contract-check pass, no wire/schema changes. One-line shared adapter correction logged in C inbox; no fetch/composition changes.

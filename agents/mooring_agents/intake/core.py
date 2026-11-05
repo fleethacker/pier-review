@@ -9,6 +9,7 @@ from mooring.core.schemas import EnvironmentSnapshot
 
 from ..physics.toolkit import PhysicsToolkit, calls_for
 from ..physics.client import ModelingError
+from ..shared.environment_quality import component_issues
 from .schemas import ConcernWindow, DataQualityIssue, IntakeReport, IntakeRequest, MstAssessment, PlanningCondition
 
 from .thresholds import (
@@ -122,6 +123,7 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
     # Quality can be carried by forecast metadata, not just current station observations.
     flagged = set()
     for sample in [current, *series]:
+        flagged.update(component_issues(sample))
         metadata = sample.metadata
         if metadata and metadata.quality in ("suspect", "poor"):
             flagged.add((metadata.source or "environment", "flagged", "RED" if metadata.quality == "poor" else "AMBER",

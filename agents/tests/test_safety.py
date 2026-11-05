@@ -5,6 +5,8 @@ import json
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import pytest
+
 from mooring.core.schemas import EnvironmentSnapshot, LimitEnvelopePoint
 from mooring_agents.safety import agent
 from mooring_agents.safety.schemas import CheckResult, DirectionalThreshold, SafetyReview, Thresholds
@@ -352,3 +354,48 @@ def test_watch_does_not_treat_old_fallback_as_independently_reviewed(monkeypatch
     # This snapshot matches the original plan fallback, but that fallback was not in the independent review.
     warning = collect(agent.watch('plan_test', FakeClient([env(0)]), interval_s=0, limit=1))[0]
     assert warning.requires_recheck and warning.pct_of_wll_limit is None
+
+
+@pytest.mark.parametrize('quality,invalid', [('poor',True), ('suspect',False)])
+def test_watch_component_quality_cannot_be_hidden_by_aggregate_quality(quality, invalid):
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    sample = env(0)
+    sample.metadata = EnvironmentMetadata(basis='prediction', quality='good', components=[
+        EnvironmentComponentProvenance(component='current', source='fixture', basis='prediction', quality=quality)])
+    reasons, bad = agent._watch_recheck(sample, [sample])
+    assert bad is invalid and any(f'component {quality}' in reason for reason in reasons)
+
+
+def test_watch_rejects_component_outside_valid_interval_without_erasing_poor_component():
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    sample = env(0)
+    sample.metadata = EnvironmentMetadata(basis='prediction', quality='suspect', components=[
+        EnvironmentComponentProvenance(component='water_level', source='fixture', basis='prediction', quality='poor',
+            valid_to_utc=NOW-timedelta(minutes=1))])
+    reasons, bad = agent._watch_recheck(sample, [sample])
+    assert bad and any('validity interval' in reason for reason in reasons)
+    assert any('component poor' in reason for reason in reasons)
+
+
+def test_watch_missing_snapshot_timezone_is_flagged_without_component_comparison_crash():
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    sample = env(0, at=NOW.replace(tzinfo=None))
+    sample.metadata = EnvironmentMetadata(basis='prediction', components=[
+        EnvironmentComponentProvenance(component='wind', source='fixture', basis='prediction',
+            valid_from_utc=NOW-timedelta(hours=1))])
+    reasons, bad = agent._watch_recheck(sample, [sample])
+    assert bad and any('timezone' in reason for reason in reasons)
+
+
+def test_watch_emits_red_on_component_quality_drop_and_withholds_old_percent(monkeypatch):
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    install_watch_state(monkeypatch)
+    good = env(0)
+    good.metadata = EnvironmentMetadata(basis='prediction', quality='good', components=[
+        EnvironmentComponentProvenance(component='current', source='fixture', basis='prediction', quality='good')])
+    bad = good.model_copy(deep=True)
+    bad.metadata.components[0].quality = 'poor'
+    warnings = collect(agent.watch('plan_test', FakeClient([good, bad]), interval_s=0, limit=2, heartbeat_minutes=60))
+    assert warnings[0].severity == 'INFO' and warnings[0].pct_of_wll_limit is not None
+    assert warnings[1].severity == 'RED' and warnings[1].requires_recheck
+    assert warnings[1].pct_of_wll_limit is None and 'component poor' in warnings[1].message

@@ -118,3 +118,5 @@ that store. Agent responses report `backend="real"` even when narration falls ba
 that describes the intake implementation, not whether modeling data is live.
 Underlying mock/stale quality findings remain visible. The generated contract includes
 the two optional provenance fields; all existing fields and endpoints remain.
+
+Declared per-component quality and validity intervals are checked across current and forecast samples, independently of aggregate quality. Poor/out-of-interval inputs produce RED data-quality findings, suspect AMBER; unknown quality, unknown prediction issue time and source limitations remain INFO. Retrieval time is not an issue time or proof of freshness. Safety review consumes these findings and Safety watch rechecks when component quality changes.

@@ -278,6 +278,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/data-simulation/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate labeled, seeded training conditions; not a weather forecast */
+        post: operations["synthetic_forecast_api_v1_data_simulation_forecast_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/qualification": {
         parameters: {
             query?: never;
@@ -476,6 +493,23 @@ export interface paths {
         put?: never;
         /** Recommend line configurations (job; result is a RecommendResponse) */
         post: operations["recommend_api_v1_mooring_recommend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mooring/forecast-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assess arrivals at least 24 hours ahead (job result: ForecastDockingResponse) */
+        post: operations["forecast_plan_api_v1_mooring_forecast_plan_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1860,6 +1894,86 @@ export interface components {
             fy_lbf: number;
             /** Mz Ftlbf */
             mz_ftlbf: number;
+        };
+        /** ForecastDockingRequest */
+        ForecastDockingRequest: {
+            /** Ship Class Id */
+            ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /** Berth Id */
+            berth_id: string;
+            config: components["schemas"]["MooringConfig"];
+            /** Tugs */
+            tugs?: components["schemas"]["TugAssignment"][];
+            /**
+             * Mst
+             * @default II
+             * @enum {string}
+             */
+            mst: "I" | "II" | "IIA" | "III";
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /**
+             * Arrival From Utc
+             * Format: date-time
+             */
+            arrival_from_utc: string;
+            /**
+             * Arrival To Utc
+             * Format: date-time
+             */
+            arrival_to_utc: string;
+            /**
+             * Arrival Step Min
+             * @default 60
+             */
+            arrival_step_min: number;
+            /**
+             * Operation Hours
+             * @default 2
+             */
+            operation_hours: number;
+            /**
+             * Holding Hours
+             * @default 6
+             */
+            holding_hours: number;
+            /** Forecast */
+            forecast: components["schemas"]["EnvironmentSnapshot"][];
+            /**
+             * Max Gap Min
+             * @description Maximum covered interval between snapshots; this is a sampling assumption, not a guarantee against sub-sample peaks.
+             * @default 60
+             */
+            max_gap_min: number;
+            /**
+             * Target Pct Wll
+             * @default 80
+             */
+            target_pct_wll: number;
+            /**
+             * Max Evaluations
+             * @default 500
+             */
+            max_evaluations: number;
+            /**
+             * Optimize Lines
+             * @description Search a common line plan across supplied conditions before assessing arrival windows.
+             * @default false
+             */
+            optimize_lines: boolean;
+            /**
+             * Search Budget
+             * @default 100
+             */
+            search_budget: number;
         };
         /** ForecastSeries */
         ForecastSeries: {
@@ -4041,6 +4155,54 @@ export interface components {
             /** Flags */
             flags?: string[];
         };
+        /** SyntheticForecastRequest */
+        SyntheticForecastRequest: {
+            /** Berth Id */
+            berth_id: string;
+            /**
+             * Start Utc
+             * Format: date-time
+             */
+            start_utc: string;
+            baseline: components["schemas"]["EnvironmentSnapshot"];
+            /**
+             * Duration Hours
+             * @default 48
+             */
+            duration_hours: number;
+            /**
+             * Step Min
+             * @default 60
+             */
+            step_min: number;
+            /**
+             * Seed
+             * @default 0
+             */
+            seed: number;
+            /**
+             * Gust Peak Kt
+             * @description User-specified synthetic triangular gust peak at midpoint.
+             * @default 30
+             */
+            gust_peak_kt: number;
+            /**
+             * Gust Noise Sigma Kt
+             * @default 0
+             */
+            gust_noise_sigma_kt: number;
+            /**
+             * Water Level Amplitude Ft
+             * @default 0
+             */
+            water_level_amplitude_ft: number;
+            /**
+             * Water Level Period Hours
+             * @description Scenario oscillation period, not a fitted tidal constituent.
+             * @default 12
+             */
+            water_level_period_hours: number;
+        };
         /** TelemetryAccepted */
         TelemetryAccepted: {
             /** Accepted */
@@ -4786,6 +4948,153 @@ export interface components {
              * @default null
              */
             provenance: string | null;
+        };
+        /** DockingArrivalWindow */
+        DockingArrivalWindow: {
+            /**
+             * Arrival Utc
+             * Format: date-time
+             */
+            arrival_utc: string;
+            /**
+             * Operation End Utc
+             * Format: date-time
+             */
+            operation_end_utc: string;
+            /**
+             * Holding End Utc
+             * Format: date-time
+             */
+            holding_end_utc: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "supported_limited" | "within_target" | "overloaded" | "invalid" | "undetermined" | "unavailable";
+            /** Max Pct Wll */
+            max_pct_wll: number | null;
+            /** Governing At Utc */
+            governing_at_utc: string | null;
+            /** Governing Element */
+            governing_element: string | null;
+            /** Analysis Result Ids */
+            analysis_result_ids: string[];
+            /** Reasons */
+            reasons?: string[];
+        };
+        /** DockingConditionResult */
+        DockingConditionResult: {
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /** Analysis Result Id */
+            analysis_result_id: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "within_target" | "overloaded" | "invalid" | "undetermined" | "unavailable";
+            /** Max Pct Wll */
+            max_pct_wll: number | null;
+            /** Governing Element */
+            governing_element: string | null;
+            validity: components["schemas"]["Validity"] | null;
+            /** Reasons */
+            reasons?: string[];
+        };
+        /** ForecastDockingResponse */
+        ForecastDockingResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["ForecastDockingResult"];
+        };
+        /** ForecastDockingResult */
+        ForecastDockingResult: {
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /**
+             * Forecast Start Utc
+             * Format: date-time
+             */
+            forecast_start_utc: string;
+            /**
+             * Forecast End Utc
+             * Format: date-time
+             */
+            forecast_end_utc: string;
+            /** Issued At Utc */
+            issued_at_utc: string[];
+            /** Sources */
+            sources: string[];
+            config: components["schemas"]["MooringConfig"];
+            /** Tugs */
+            tugs: components["schemas"]["TugAssignment"][];
+            /** Recommendation Result Id */
+            recommendation_result_id: string | null;
+            /** Selected Arrival Utc */
+            selected_arrival_utc: string | null;
+            /** Windows */
+            windows: components["schemas"]["DockingArrivalWindow"][];
+            /** Conditions */
+            conditions: components["schemas"]["DockingConditionResult"][];
+            /** Evaluations */
+            evaluations: number;
+            /** Complete */
+            complete: boolean;
+            /** Recheck Triggers */
+            recheck_triggers: string[];
+            /** Limitations */
+            limitations: string[];
         };
         /**
          * JobDoneEvent
@@ -5709,6 +6018,39 @@ export interface operations {
             };
         };
     };
+    synthetic_forecast_api_v1_data_simulation_forecast_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyntheticForecastRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastSeries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     catalog_audit_api_v1_qualification_get: {
         parameters: {
             query?: never;
@@ -6043,6 +6385,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RecommendRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forecast_plan_api_v1_mooring_forecast_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForecastDockingRequest"];
             };
         };
         responses: {

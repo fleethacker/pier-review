@@ -36,6 +36,7 @@ def render() -> dict[Path, str]:
     from mooring.examples import EXAMPLES
     from mooring.motion_examples import MOTION_EXAMPLES
     from mooring.demo_cases import docking_cases
+    from mooring.data_simulation.examples import examples as forecast_examples
     from mooring_agents.api.main import openapi_schema as agents_schema
 
     def dump(schema: dict) -> str:
@@ -49,6 +50,8 @@ def render() -> dict[Path, str]:
         out[CONTRACT / "examples" / "modeling" / f"{name}.json"] = _motion_example_json(name, body)
     for case in docking_cases():
         out[CONTRACT / "examples" / "modeling" / f"demo_{case.case_id}.json"] = case.model_dump_json(indent=2) + "\n"
+    for name, body in forecast_examples().items():
+        out[CONTRACT / "examples" / "modeling" / f"{name}.json"] = json.dumps(body, indent=2) + "\n"
     return out
 
 

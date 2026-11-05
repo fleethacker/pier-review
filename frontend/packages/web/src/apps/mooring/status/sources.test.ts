@@ -120,6 +120,16 @@ describe('independent provider availability and selected forcing', () => {
     expect(byId(rows, 'current').reason).toContain('Current is stale');
   });
 
+  it('never labels prediction or scenario component values as live observations', () => {
+    const rows = deriveSources({ env: null, envMode: manual, capabilities: null, nowMs: Date.parse(checked),
+      availability: { ...availability, components: availability.components.map((component) => ({ ...component,
+        ...(component.component === 'waves' ? { state: 'live' as const, basis: 'prediction' as const } : {}),
+        ...(component.component === 'wind' ? { state: 'live' as const, basis: 'scenario' as const } : {}),
+      })) } });
+    expect(byId(rows, 'waves').state).toBe('prediction');
+    expect(byId(rows, 'wind').state).toBe('mock');
+  });
+
   it.each([['scenario', 'manual'], ['replay', 'replay'], ['mock', 'mock'], ['forecast', 'prediction'], ['ship_sensor', 'live']] as const)(
     'retains selected %s forcing while showing public availability separately', (source, expected) => {
       const rows = deriveSources({ env: env({ source, quality: [] }), availability,

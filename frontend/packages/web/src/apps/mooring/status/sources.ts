@@ -79,12 +79,11 @@ function availableRow(id: SourceRow['id'], label: string, component: AvailableCo
   }
   const notes = [component.reason, ...(component.limitations ?? [])].filter((item): item is string => Boolean(item));
   let state: SourceState = component.state;
+  if (state === 'live' && component.basis === 'prediction') state = 'prediction';
+  if (state === 'live' && component.basis === 'scenario') state = 'mock';
   if (state === 'live' && id === 'forecast') {
-    if (component.basis === 'prediction') state = 'prediction';
-    else {
-      state = 'unavailable';
-      notes.push('Forecast status did not identify a prediction basis, so it is not shown as live.');
-    }
+    state = 'unavailable';
+    notes.push('Forecast status did not identify a prediction basis, so it is not shown as live.');
   }
   if (state === 'prediction' && !notes.length) notes.push('Predicted values, not observations.');
   if (state === 'unavailable' && !notes.length) notes.push(`No ${label.toLowerCase()} source is available.`);

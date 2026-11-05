@@ -1,5 +1,6 @@
 """D4 provider parsing/composition tests; no test reaches a network."""
 
+import io
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -142,6 +143,7 @@ def test_ndbc_summary_preserves_units_directions_partitions_and_missingness():
     assert latest.total_sea.significant_height_ft == pytest.approx(1.1 * 3.28084)
     assert latest.total_sea.period_basis == "average"
     assert latest.total_sea.direction_from_true_deg == 123.0
+    assert latest.total_sea.direction_basis == "dominant"
     by_component = {item.component: item for item in latest.partitions}
     assert by_component["swell"].direction_from_true_deg == 112.5
     assert by_component["wind_sea"].direction_from_true_deg == 112.5
@@ -178,6 +180,36 @@ def test_ndbc_spectral_parser_rejects_corrupt_tails_and_inconsistent_bins():
         parse_spectral_product(inconsistent, "swdir")
 
 
+def test_ndbc_realtime_coefficients_are_dimensionless_and_preserve_missing_values():
+    # NOAA measdes.shtml#spec: only monthly/yearly historical r1/r2 files are
+    # scaled by 100. The realtime2 products consumed here already use 0..1.
+    products = {
+        "data_spec": "2026 11 05 16 00 9.999 0.176 (0.090) 0.508 (0.095)",
+        "swdir": "2026 11 05 16 00 120.0 (0.090) 125.0 (0.095)",
+        "swdir2": "2026 11 05 16 00 118.0 (0.090) 124.0 (0.095)",
+        "swr1": "2026 11 05 16 00 0.80 (0.090) 999.00 (0.095)",
+        "swr2": "2026 11 05 16 00 0.75 (0.090) 0.70 (0.095)",
+    }
+    spectrum, _ = merge_spectral_products(products)[datetime(2026, 11, 5, 16, tzinfo=UTC)]
+    assert spectrum.density_coverage == spectrum.alpha1_coverage == spectrum.alpha2_coverage == "complete"
+    assert spectrum.r1_coverage == "partial" and spectrum.r2_coverage == "complete"
+    assert spectrum.bins[0].r1 == 0.80 and spectrum.bins[0].r2 == 0.75
+    assert spectrum.bins[1].r1 is None and spectrum.bins[1].r2 == 0.70
+    assert spectrum.bins[0].energy_density_m2_per_hz == 0.176
+    assert spectrum.bins[0].alpha1_direction_from_true_deg == 120.0
+
+
+def test_gfs_artifact_size_limit_bounds_the_read(monkeypatch):
+    class BoundedRead(io.BytesIO):
+        def read(self, size=-1):
+            assert size == 33
+            return super().read(size)
+
+    monkeypatch.setattr(Path, "open", lambda *_args, **_kwargs: BoundedRead(b"x" * 100))
+    with pytest.raises(ProviderError, match="exceeds 32 bytes"):
+        load_artifact(Path("unused"), max_artifact_bytes=32)
+
+
 def test_ndbc_live_reader_bounds_response_size_and_station_elapsed_time():
     client = SimpleNamespace(
         clock=SimpleNamespace(now=lambda: AS_OF),
@@ -194,6 +226,28 @@ def test_ndbc_live_reader_bounds_response_size_and_station_elapsed_time():
     )
     with pytest.raises(ProviderError, match="total deadline"):
         bounded.acquire("44099", as_of_utc=AS_OF, lookback_hours=24, include_spectrum=False)
+
+
+def test_ndbc_retrieval_time_is_the_cached_acquisition_not_the_reader_clock():
+    retrieved = AS_OF - timedelta(minutes=10)
+    payload = SimpleNamespace(
+        status_code=200,
+        content=b"provider text",
+        stale=False,
+        age_s=1.0,
+        retrieved_at_utc=retrieved,
+    )
+    client = SimpleNamespace(
+        clock=SimpleNamespace(now=lambda: AS_OF),
+        get=lambda _url: payload,
+    )
+    reader = NDBCRealtime(client)
+    assert reader.fetch("44099", "spec").retrieved_at_utc == retrieved
+    client.clock.now = lambda: AS_OF + timedelta(minutes=5)
+    assert reader.fetch("44099", "spec").retrieved_at_utc == retrieved
+    payload.retrieved_at_utc = None
+    with pytest.raises(ProviderError, match="no recorded retrieval time"):
+        reader.fetch("44099", "spec")
 
 
 def test_default_http_transport_stops_streaming_at_the_byte_limit(monkeypatch):
@@ -251,6 +305,38 @@ def test_composer_keeps_gfs_unavailable_but_returns_both_ndbc_stations():
     assert all(item.state == "unavailable" for item in response.manifest.berth_exposure)
 
 
+def test_full_observation_lookback_preserves_offset_summary_and_spectral_times():
+    # Both products can report twice hourly at different timestamps. Their union
+    # over the published 45-day request limit contains 4320 distinct points.
+    start = AS_OF - timedelta(days=45) + timedelta(minutes=5)
+    summary, density = [], []
+    for index in range(45 * 48):
+        summary_at = start + timedelta(minutes=30 * index)
+        spectral_at = summary_at + timedelta(minutes=15)
+        summary.append(summary_at.strftime("%Y %m %d %H %M") + " 1.1 MM MM MM MM MM MM N/A 5.8 123")
+        density.append(spectral_at.strftime("%Y %m %d %H %M") + " 9.999 0.2 (0.090)")
+
+    class LongRealtime(FixtureRealtime):
+        def fetch(self, station_id, product):
+            if station_id != "44099":
+                return super().fetch(station_id, product)
+            rows = {"spec": summary, "data_spec": density}.get(product)
+            if rows is None:
+                raise ProviderError("no_data", "optional product unavailable")
+            return FetchedProduct(
+                "\n".join(rows),
+                AS_OF - timedelta(minutes=1),
+                f"https://www.ndbc.noaa.gov/data/realtime2/{station_id}.{product}",
+            )
+
+    response = WaveComposer(ndbc=NDBCStationAdapter(LongRealtime())).compose(request(observation_lookback_hours=45 * 24))
+    observation = next(item for item in response.manifest.offshore_series if item.role == "observation")
+    assert observation.availability.state == "live", observation.availability.reason
+    assert len(observation.points) == 4320
+    assert sum(point.total_sea is not None for point in observation.points) == 2160
+    assert sum(point.spectrum is not None for point in observation.points) == 2160
+
+
 def test_complete_gfs_artifact_preserves_cycle_grid_horizon_and_partitions(tmp_path):
     path = gfs_artifact(tmp_path)
     assert load_artifact(path, allow_fixture=True)["source"]["grid_id"] == "atlocn.0p16"
@@ -289,6 +375,36 @@ def test_malformed_optional_spectrum_does_not_erase_valid_summary_observations()
     spectrum = next(point.spectrum for point in observation.points if point.spectrum is not None)
     assert spectrum.density_coverage == "unavailable" and spectrum.alpha1_coverage == "complete"
     assert any("data_spec omitted" in item for item in observation.availability.limitations)
+
+
+def test_forecast_horizon_between_adjacent_native_samples_is_covered(tmp_path):
+    composer = WaveComposer(
+        ndbc=NDBCStationAdapter(FixtureRealtime()),
+        gfs_artifact_path=gfs_artifact(tmp_path),
+        allow_fixture_artifact=True,
+    )
+    response = composer.compose(request(
+        horizon_start_utc=AS_OF + timedelta(minutes=15),
+        horizon_end_utc=AS_OF + timedelta(minutes=75),
+    ))
+    forecast = next(item for item in response.manifest.offshore_series if item.role == "forecast")
+    assert forecast.coverage == "complete"
+    assert [point.valid_at_utc for point in forecast.points] == [AS_OF, AS_OF + timedelta(hours=3)]
+    assert all(point.total_sea.significant_height_ft == pytest.approx(1.2 * 3.28084) for point in forecast.points)
+
+
+@pytest.mark.parametrize("offset_hours,gap_hours", [(0, 6), (24, 3)])
+def test_forecast_without_an_inside_sample_requires_a_valid_bracket(tmp_path, offset_hours, gap_hours):
+    composer = WaveComposer(
+        ndbc=NDBCStationAdapter(FixtureRealtime()),
+        gfs_artifact_path=gfs_artifact(tmp_path, gap_hours=gap_hours),
+        allow_fixture_artifact=True,
+    )
+    start = AS_OF + timedelta(hours=offset_hours, minutes=15)
+    response = composer.compose(request(horizon_start_utc=start, horizon_end_utc=start + timedelta(hours=1)))
+    forecast = next(item for item in response.manifest.offshore_series if item.role == "forecast")
+    assert forecast.coverage == "unavailable" and forecast.points == []
+    assert "neither brackets nor has a point" in forecast.availability.reason
 
 
 def test_uncovered_or_unpublished_gfs_artifacts_do_not_claim_complete_guidance(tmp_path):

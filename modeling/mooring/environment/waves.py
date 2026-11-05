@@ -262,10 +262,8 @@ class WaveComposer:
             rows = artifact["rows"]
             row_times = [datetime.fromisoformat(row["valid_at_utc"].replace("Z", "+00:00")).astimezone(UTC) for row in rows]
             inside = [index for index, at in enumerate(row_times) if request.horizon_start_utc <= at <= request.horizon_end_utc]
-            if not inside:
-                raise ProviderError("no_data", "decoded artifact has no point in the requested forecast horizon")
-            first = max((index for index, at in enumerate(row_times) if at <= request.horizon_start_utc), default=inside[0])
-            last = min((index for index, at in enumerate(row_times) if at >= request.horizon_end_utc), default=inside[-1])
+            first = max((index for index, at in enumerate(row_times) if at <= request.horizon_start_utc), default=0)
+            last = min((index for index, at in enumerate(row_times) if at >= request.horizon_end_utc), default=len(rows) - 1)
             selected = list(zip(rows[first:last + 1], row_times[first:last + 1]))
             points = []
             for row, at in selected:
@@ -298,6 +296,8 @@ class WaveComposer:
                 and times[-1] >= request.horizon_end_utc
                 and all(b - a <= maximum_gap for a, b in zip(times, times[1:]))
             )
+            if not complete and not inside:
+                raise ProviderError("no_data", "decoded artifact neither brackets nor has a point in the requested forecast horizon")
             location = artifact["location"]
             if (
                 location["grid_cell"] != APPROVED_GFS_GRID_CELL

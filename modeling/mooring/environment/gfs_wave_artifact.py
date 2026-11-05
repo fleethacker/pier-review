@@ -111,8 +111,11 @@ def load_artifact(
     max_artifact_bytes: int = 1_000_000,
     allow_fixture: bool = False,
 ) -> dict:
+    if type(max_artifact_bytes) is not int or max_artifact_bytes <= 0:
+        raise ValueError("max_artifact_bytes must be a positive integer")
     try:
-        data = path.read_bytes()
+        with path.open("rb") as stream:
+            data = stream.read(max_artifact_bytes + 1)
     except OSError as exc:
         raise ProviderError("unavailable", f"GFS-Wave decoded artifact is unreadable: {exc}") from None
     if len(data) > max_artifact_bytes:

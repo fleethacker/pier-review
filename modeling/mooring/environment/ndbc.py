@@ -111,7 +111,9 @@ def parse_summary(text: str) -> list[OffshoreWavePoint]:
                 period_s=average_period,
                 period_basis="average" if average_period is not None else "unknown",
                 direction_from_true_deg=mean_direction,
-                direction_basis="mean" if mean_direction is not None else "unknown",
+                # NOAA detailed-wave-summary MWD is the direction at the dominant
+                # period, not an all-frequency mean: ndbc.noaa.gov/faq/measdes.shtml#spec.
+                direction_basis="dominant" if mean_direction is not None else "unknown",
             )
         partitions = []
         for component, height, period, direction in (
@@ -319,7 +321,10 @@ class NDBCRealtime:
             text = payload.content.decode("utf-8")
         except UnicodeDecodeError:
             raise ProviderError("malformed", f"NDBC {station_id}.{product} is not UTF-8 text") from None
-        retrieved = self.client.clock.now().astimezone(UTC) - timedelta(seconds=max(payload.age_s, 0.0))
+        retrieved = getattr(payload, "retrieved_at_utc", None)
+        if retrieved is None:
+            raise ProviderError("malformed", f"NDBC {station_id}.{product} has no recorded retrieval time")
+        retrieved = retrieved.astimezone(UTC)
         return FetchedProduct(text=text, retrieved_at_utc=retrieved, source_url=url)
 
 

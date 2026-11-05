@@ -154,7 +154,7 @@ def test_review_reanalyzes_every_condition_with_holding_tugs(monkeypatch):
     rec = SimpleNamespace(plan=plan, scenario=SimpleNamespace(scenario_id="s", ship_class_id="DDG-51-FIIA",
                           loading="full_load", berth_id="b"), env=env, mst="II", holding_tugs=tugs)
     report = SimpleNamespace(planning_conditions=[SimpleNamespace(environment=env), SimpleNamespace(environment=storm)],
-                             mst=SimpleNamespace(exceeds_ship_mst=False, reason="ok"))
+                             mst=SimpleNamespace(ship_mst="II", exceeds_ship_mst=False, reason="ok"))
     monkeypatch.setitem(safety_agent.PLANS, "plan-x", rec)
     monkeypatch.setitem(safety_agent.REPORTS, "intake-x", report)
     monkeypatch.setattr(safety_agent, "_analyze_body",
@@ -232,7 +232,7 @@ def test_supplemental_intake_cannot_erase_original_failures(monkeypatch):
                           env=original, mst='II', holding_tugs=[])
     def report(environment, exceeds):
         return SimpleNamespace(planning_conditions=[SimpleNamespace(environment=environment)],
-            mst=SimpleNamespace(exceeds_ship_mst=exceeds, reason='original storm exceeds ship' if exceeds else 'within ship'),
+            mst=SimpleNamespace(ship_mst='II', exceeds_ship_mst=exceeds, reason='original storm exceeds ship' if exceeds else 'within ship'),
             data_quality=[])
     monkeypatch.setitem(agent.PLANS, 'review-union', rec)
     monkeypatch.setitem(agent.REPORTS, 'original-review-input', report(original, True))
@@ -471,3 +471,13 @@ def test_watch_rejects_an_interval_from_the_first_occurrence_of_a_repeated_hour(
     sample = env(0).model_copy(update={'valid_at_utc': later, 'metadata': meta})
     reasons, invalid = agent._watch_recheck(sample, [sample])
     assert invalid and any('outside' in reason for reason in reasons)
+
+
+def test_unknown_ship_mst_cannot_pass_within_ship_check():
+    from mooring_agents.intake.schemas import MstAssessment
+    from mooring_agents.safety.checks import mst_within_ship
+    report = SimpleNamespace(mst=MstAssessment(mst_required='I', ship_mst=None, exceeds_ship_mst=False,
+        max_wind_kt=5, max_broadside_current_kt=0, reason='Ship capability not supplied.'))
+    result = mst_within_ship(report)
+    assert not result.passed and result.severity == 'AMBER'
+    assert 'unknown' in result.detail.lower()

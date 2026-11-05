@@ -733,3 +733,20 @@ def test_repeated_local_hour_does_not_drop_a_forecast_peak(monkeypatch):
     assert any(w.severity == 'RED' and w.peak_value == 64 for w in report.windows)
     assert report.planning_conditions[0].environment.valid_at_utc == anchor + timedelta(hours=1)
     assert '06:00Z' in report.planning_conditions[0].why
+
+
+@pytest.mark.parametrize('boundary', ['before_start', 'after_end'])
+def test_aggregate_interval_failure_blocks_review_even_on_nonpeak_sample(boundary):
+    from mooring.core.schemas import EnvironmentMetadata
+    from mooring_agents.safety.checks import forecast_coverage
+    tk = FakeToolkit(calm=True)
+    for sample in [tk.current, *tk.series]:
+        sample.quality = []
+    at = tk.series[-1].valid_at_utc
+    interval = ({'valid_from_utc': at + timedelta(minutes=1)} if boundary == 'before_start'
+                else {'valid_to_utc': at - timedelta(minutes=1)})
+    tk.series[-1].metadata = EnvironmentMetadata(source='interval fixture', basis='scenario', quality='good', **interval)
+    report = run(tk=tk)
+    assert any(issue.issue == 'out_of_range' and issue.severity == 'RED' for issue in report.data_quality)
+    assert 'input quality is RED' in report.summary.split('.')[0]
+    assert not forecast_coverage(report).passed

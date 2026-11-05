@@ -149,6 +149,10 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
     for sample in [current, *series]:
         flagged.update(component_issues(sample))
         metadata = sample.metadata
+        if metadata and ((metadata.valid_from_utc and sample.valid_at_utc < metadata.valid_from_utc)
+                         or (metadata.valid_to_utc and sample.valid_at_utc > metadata.valid_to_utc)):
+            flagged.add((metadata.source or "environment", "out_of_range", "RED",
+                         "A supplied environment sample is outside its declared validity interval."))
         if metadata and metadata.quality in ("suspect", "poor"):
             flagged.add((metadata.source or "environment", "flagged", "RED" if metadata.quality == "poor" else "AMBER",
                          f"Provider marks environment quality {metadata.quality}; verify before use."))

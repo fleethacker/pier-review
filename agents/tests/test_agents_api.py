@@ -404,3 +404,18 @@ def test_safety_watch_malformed_modeling_response_emits_terminal_event(planned, 
     event = json.loads(next(line[6:] for line in response.text.splitlines() if line.startswith('data: ')))
     assert event['severity'] == 'RED' and event['retryable']
     assert 'gust_kt' not in event and 'pct_of_wll_limit' not in event
+
+
+def test_berth_only_intake_cannot_pass_ship_mst_review(plan_id):
+    accepted = client.post(f'{P}/intake/reports', json={
+        'berth_id': 'NAVSTA-NORFOLK-P12-N', 'horizon_hours': 2})
+    assert accepted.status_code == 202, accepted.text
+    report = completed_status(accepted.json()['status_url'])['result']
+    assert report['mst']['ship_mst'] is None
+    accepted = client.post(f'{P}/safety/reviews', json={
+        'plan_id': plan_id, 'intake_report_id': report['report_id']})
+    assert accepted.status_code == 202, accepted.text
+    review = completed_status(accepted.json()['status_url'])['result']
+    check = next(item for item in review['checks'] if item['check_id'] == 'MST-WITHIN-SHIP')
+    assert not check['passed'] and check['severity'] == 'AMBER'
+    assert review['verdict'] != 'ready_for_signature'

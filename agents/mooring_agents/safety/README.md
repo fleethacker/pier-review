@@ -94,3 +94,5 @@ The printable sheet includes current flow-toward bearing, assessed MLLW water le
 The printable sheet includes the plan’s assessment assumptions and limits, with escaped source text. Intake’s selected conditions are representative snapshots, not all samples in the forecast; the separate forecast-plan endpoint evaluates arrival/holding intervals. A successful review of selected conditions does not expand that scope.
 
 Safety watch resolves the plan’s saved scenario through `/scenarios/{id}/environment`, matching Intake and Planner. It never substitutes the configured default provider after a source failure; the SSE endpoint emits terminal `source_unavailable`. Temporally unavailable observations/forecasts require reanalysis and suppress the previous gust-limit percentage.
+
+A berth-only Intake report cannot establish the selected ship’s MST capability. If `ship_mst` is unknown, `MST-WITHIN-SHIP` remains failed/AMBER and the review cannot be ready for signature; request ship-specific Intake. A false `exceeds_ship_mst` flag does not imply that an unknown capability was assessed.

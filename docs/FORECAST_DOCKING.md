@@ -75,3 +75,5 @@ Temporal availability is checked in `mooring/core/forecast_provenance.py` and re
 The legacy observation/replay normalizer does not infer provider issuance from a record’s observation time. Its snapshot time, source validity interval and observation age remain available; `issued_at_utc` stays unknown when no independent issue time is supplied. Observation records are not advance forecast guidance.
 
 Intake also normalizes copied sample times to UTC before ordering, coverage and summary formatting. Source validity and issuance/retrieval checks compare absolute instants, including a named zone’s repeated hour. Metadata offsets remain intact; a local offset is never printed as a Z suffix without conversion.
+
+Tide-sweep bounds, tending action times and supplied tide samples also use UTC before interpolation and scheduling. Risk timelines normalize both their start and copied forecast samples, so a two-hour horizon remains two elapsed hours through daylight-saving changes and action text uses actual Z time. Source objects are preserved; no synthetic tidal/weather equations are changed.

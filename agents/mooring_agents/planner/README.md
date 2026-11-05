@@ -41,7 +41,7 @@ are acceptable or it reports that no safe plan exists.
    - add holding tugs (`hold_tugs`).
 
    Explain each move in a `step` event.
-5. **Stop** when every element is GREEN and the highest utilization ≤ target, or when the iteration budget is
+5. **Stop** when no element is RED and the highest utilization ≤ target (AMBER/limited remains explicitly limited), or when the iteration budget is
    spent. In that case, return the best plan with `status` RED or AMBER and say why in `open_questions`.
 6. **Finish:** `plan_tugs` for berthing, `generate_sequence`, `risk_exceedance` at the design condition, and the
    rationale.

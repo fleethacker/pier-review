@@ -65,7 +65,6 @@ XFAIL_ORDER = ("BUG: documented tie-break is lexicographic (tug_id, push_point_i
                "order of available_tug_ids: equal-hp mirror assignments T2@PP-AFT-P+T3@PP-FWD-P vs T2@PP-FWD-P+T3@PP-AFT-P")
 
 
-@pytest.mark.xfail(strict=True, reason=XFAIL_ORDER)
 def test_fleet_order_does_not_matter():
     results = []
     for perm in itertools.permutations(["T2", "T3", "T4"]):
@@ -75,7 +74,6 @@ def test_fleet_order_does_not_matter():
     assert all(x == results[0] for x in results)
 
 
-@pytest.mark.xfail(strict=True, reason=XFAIL_ORDER)
 def test_equal_horsepower_tie_is_broken_by_documented_rule_deterministically():
     # T2 and T3 are both 4000 hp. Whatever the request order, the same plan is chosen, and it is stable on repeat.
     a = plan(available_tug_ids=["T2", "T3"]).json()

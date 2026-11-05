@@ -104,6 +104,29 @@ def test_http_recheck_returns_typed_new_evidence_without_changing_prior(baseline
     assert RESULTS[baseline[1].result_id] == before
 
 
+@pytest.mark.parametrize('legacy_missing_result_tide', [False, True])
+def test_unsuccessful_plan_retains_explicit_installation_tide_when_reassessed(baseline, legacy_missing_result_tide):
+    original = baseline[0].model_copy(deep=True, update={'installed_at_water_level_mllw_ft': 0.0})
+    for sample in original.forecast:
+        sample.wind_speed_kt, sample.wind_gust_kt = 75, 100
+    prior = assess(original)
+    assert prior.status == 'RED' and prior.result.selected_arrival_utc is None
+    assert prior.result.installed_at_water_level_mllw_ft == 0.0
+    assert prior.result.conditions and all(c.installed_at_water_level_mllw_ft == 0.0 for c in prior.result.conditions)
+    prior_id = (copy_result(prior, lambda value: value['result'].update(installed_at_water_level_mllw_ft=None))
+                if legacy_missing_result_tide else prior.result_id)
+    replacement = [s.model_copy(update={'wind_speed_kt': 4, 'wind_gust_kt': 5, 'water_level_mllw_ft': 3})
+                   for s in original.forecast]
+    comparison = recheck(ForecastRecheckRequest(prior_result_id=prior_id,
+        as_of_utc=original.as_of_utc+timedelta(hours=2), forecast=replacement))
+    assert comparison.result.state == 'recheck_required'
+    suggestion = comparison.result.reassessment_request
+    assert suggestion.installed_at_water_level_mllw_ft == 0.0
+    repeated = assess(suggestion)
+    assert repeated.result.installed_at_water_level_mllw_ft == 0.0
+    assert all(c.installed_at_water_level_mllw_ft == 0.0 for c in repeated.result.conditions)
+
+
 @pytest.fixture(scope='module')
 def baseline():
     path = Path(__file__).resolve().parents[2] / 'contract/examples/modeling/mooring_forecast_plan.json'

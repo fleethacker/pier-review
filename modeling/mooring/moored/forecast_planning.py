@@ -175,7 +175,9 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
                        | {item.source for item in component_provenance}),
         config=config, tugs=req.tugs, recommendation_result_id=recommendation_id,
         selected_config=selected_config,
-        installed_at_water_level_mllw_ft=selected.installed_at_water_level_mllw_ft if selected else None,
+        installed_at_water_level_mllw_ft=(req.installed_at_water_level_mllw_ft
+            if req.installed_at_water_level_mllw_ft is not None
+            else selected.installed_at_water_level_mllw_ft if selected else None),
         selected_arrival_utc=selected.arrival_utc if selected else None, windows=windows, conditions=conditions,
         evaluations=evaluations, complete=complete, recheck_triggers=RECHECK,
         limitations=LIMITATIONS + timing_limits + (['Some component issue times are unknown; retrieval establishes only an available-by bound, not issuance or forecast freshness.'] if unknown_issuance else []) + (['Input contains synthetic scenario data; this is not a public weather forecast.']

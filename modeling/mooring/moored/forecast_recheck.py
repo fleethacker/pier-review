@@ -82,6 +82,10 @@ def recheck(req: ForecastRecheckRequest) -> ForecastRecheckResponse:
         return finish('unavailable', ['Prior resolved-input snapshot cannot reconstruct the assessed forecast and operation.'])
     if saved_manifest != previous:
         return finish('unavailable', ['Prior result and resolved-input snapshot disagree about forecast identity.'])
+    if installation_tide is None:
+        # Older unsuccessful assessments omitted the result-level installation
+        # tide even when it was an explicit input. Zero is a valid preserved tide.
+        installation_tide = old_request.installed_at_water_level_mllw_ft
     if req.as_of_utc < old_request.as_of_utc:
         return finish('unavailable', ['Recheck as-of time precedes the original assessment as-of time.'])
 

@@ -16,6 +16,7 @@ from mooring.core.schemas import (
     OffshoreWavePoint,
     OffshoreWaveSeries,
     WaveComposeRequest,
+    WaveBulkParameters,
     WaveSourceLocation,
     WaveSpectrum,
 )
@@ -194,6 +195,27 @@ def test_missing_partitions_and_unknown_sample_bounds_stay_missing():
             valid_at_utc="2026-11-05T16:00:00Z",
             partitions=[{"component": "total_sea", "significant_height_ft": 3.6}],
         )
+
+
+def test_bulk_contract_can_preserve_gfs_native_period_and_direction_semantics():
+    total = WaveBulkParameters(
+        component="total_sea",
+        significant_height_ft=3.6,
+        period_s=8.0,
+        period_basis="primary_mean",
+        direction_from_true_deg=115.0,
+        direction_basis="primary",
+    )
+    partition = WaveBulkParameters(
+        component="wind_sea",
+        significant_height_ft=2.1,
+        period_s=6.0,
+        period_basis="provider_partition_mean",
+        direction_from_true_deg=125.0,
+        direction_basis="provider_partition",
+    )
+    assert total.period_basis == "primary_mean" and total.direction_basis == "primary"
+    assert partition.period_basis == "provider_partition_mean"
 
 
 def test_manifest_requires_all_source_roles_and_distinct_berth_exposures():

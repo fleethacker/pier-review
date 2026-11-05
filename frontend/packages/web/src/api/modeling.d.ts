@@ -5633,7 +5633,7 @@ export interface components {
              * @default unknown
              * @enum {string}
              */
-            period_basis: "dominant" | "average" | "peak" | "provider_partition" | "unknown";
+            period_basis: "dominant" | "average" | "peak" | "primary_mean" | "provider_partition" | "provider_partition_mean" | "unknown";
             /** Direction From True Deg */
             direction_from_true_deg?: number | null;
             /**
@@ -5641,7 +5641,7 @@ export interface components {
              * @default unknown
              * @enum {string}
              */
-            direction_basis: "mean" | "dominant" | "peak" | "provider_partition" | "unknown";
+            direction_basis: "mean" | "dominant" | "peak" | "primary" | "provider_partition" | "unknown";
         };
         /**
          * WaveComposeRequest

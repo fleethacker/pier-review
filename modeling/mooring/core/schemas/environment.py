@@ -485,9 +485,11 @@ class WaveBulkParameters(Model):
     provider_partition_id: str | None = None
     significant_height_ft: float = Field(ge=0)
     period_s: float | None = Field(default=None, gt=0)
-    period_basis: Literal["dominant", "average", "peak", "provider_partition", "unknown"] = "unknown"
+    period_basis: Literal[
+        "dominant", "average", "peak", "primary_mean", "provider_partition", "provider_partition_mean", "unknown"
+    ] = "unknown"
     direction_from_true_deg: float | None = Field(default=None, ge=0, lt=360)
-    direction_basis: Literal["mean", "dominant", "peak", "provider_partition", "unknown"] = "unknown"
+    direction_basis: Literal["mean", "dominant", "peak", "primary", "provider_partition", "unknown"] = "unknown"
 
     @model_validator(mode="after")
     def _partition_identity(self):

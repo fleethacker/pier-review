@@ -9918,7 +9918,9 @@ components:
           - dominant
           - average
           - peak
+          - primary_mean
           - provider_partition
+          - provider_partition_mean
           - unknown
           title: Period Basis
           default: unknown
@@ -9935,6 +9937,7 @@ components:
           - mean
           - dominant
           - peak
+          - primary
           - provider_partition
           - unknown
           title: Direction Basis

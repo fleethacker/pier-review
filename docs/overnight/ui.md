@@ -16,6 +16,16 @@ branch until they say otherwise.
 - Verified in headless Chromium against `make mock`: plan, apply, open motion view, start session, resume, tug command
   and recording replay, with no console errors.
 
+- U3: data-source and capability panel (`status/`), standing "all results limited: seed data" banner.
+- U5: berth-from-image panel (`vision/`): upload, detections overlay, confirmation gate, save and select.
+- U6: `make demo-check` (`scripts/demo_check.py`, `scripts/demo_check_browser.py`): 20 checks on a fresh production
+  build, including the WebSocket through the preview proxy. Screenshots in `docs/overnight/screens/`.
+- U1 (partial): readable errors for 429/502/503/504/timeouts (`describeError`), duplicate React keys fixed in every
+  text-keyed list (the safety sheet repeats rationale sentences).
+- Findings worth knowing: safety-sheet creation can exceed the physics tool's 30 s limit when the CPU is busy
+  (headless software WebGL does that); the UI now says so plainly and the check retries. The simulator allows 4
+  sessions at once, shared by all clients.
+
 ## Decisions
 
 - Motion view draws in an SVG panel fed by the motion store, not in the Cesium scene. The doc allows this fallback; the
@@ -46,3 +56,23 @@ branch until they say otherwise.
 
 - Cesium-scene version of the motion view (shared camera) and the 3D view (U4).
 - Live speed control, once the protocol has it.
+
+## Final report
+
+**What works** (all verified by `make demo-check`, 20 of 20, plus 135 unit tests, `tsc` and `eslint` clean):
+Phase 1 in the browser (plan with SSE steps, safety sheet, approval, print), the 2D motion view for live sessions and
+recordings, the data-source and capability panel, berth from an image, Navy/Metric in the new views.
+
+**How to run it:** `make install && make mock`, then `cd frontend/packages/web && npm install && npm run dev`; or
+`make demo-check` for the headless run (set `DEMO_CHECK_BROWSER_PYTHON` to an interpreter with Playwright).
+
+**Labeled limited, mock or synthetic:** every result (seed data); the motion fixture (mock, authored values); the vision
+backend (mock: it copies the seed Pier 12 berth and says so); environment (mock, "live" mode still serves the mock);
+waves, wake and telemetry (unavailable, never zero).
+
+**Not done:** U4 (3D motion view), live speed control (protocol has none), motion drawn inside the Cesium scene,
+intake agent in the UI, bearer-token support, the accessibility and performance pass in U7 beyond keyboard shortcuts
+and unique keys, 429/503 states for every panel (only the shared error text and the session, vision and sheet paths).
+The live view shows lines, tugs and environment as unavailable until the simulator publishes `rm0-v1` frames and a scene.
+
+**Left unmerged on purpose:** the branch `ui/frontend-updates` has not been merged into `dev`, as asked.

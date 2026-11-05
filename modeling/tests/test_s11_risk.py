@@ -84,6 +84,106 @@ def test_failed_samples_are_counted_and_bound_the_probability():
     assert lower < t.any_wll / (t.n - t.failed) < upper + 1e-12
 
 
+def test_failed_sampling_still_checks_cancellation():
+    calls = []
+    class Cancelled(Exception):
+        pass
+    def progress(i):
+        calls.append(i)
+        if i == 50:
+            raise Cancelled
+    with pytest.raises(Cancelled):
+        risk.monte_carlo(lambda: None, lambda _: None, 1000, progress)
+    assert calls == [0, 50]
+
+
+@pytest.fixture
+def horizon_inputs():
+    from mooring.core.schemas import AnalyzeRequest, ExceedanceRequest
+    req = ExceedanceRequest(**{**EXAMPLES["risk_exceedance"], "n_samples": 10, "n_trajectories": 10, "horizon_hours": 1.1})
+    base = AnalyzeRequest.model_validate(req.model_dump(include=set(AnalyzeRequest.model_fields)))
+    system, sol, specs = risk.solver.solve_request(base)
+    return req, system, specs, sol, unc.SYNTHETIC_DEMO, risk.design_factor(req.mst)
+
+
+def test_horizon_failure_is_unknown_with_bounds_and_endpoint_coverage(monkeypatch, horizon_inputs):
+    calls = []
+    def trajectory(self, base, n_steps, step_min):
+        calls.append((n_steps, step_min))
+        return [base] * n_steps
+    monkeypatch.setattr(unc.Sampler, "trajectory", trajectory)
+    # A whole failed trajectory must not be silently classified as non-exceeding.
+    monkeypatch.setattr(risk, "_eval_env", lambda *args: None)
+    h = risk._horizon(*horizon_inputs)
+    assert h.n_failed == 10 and h.p_event_bounds == [0, 1] and h.p_event_ci95 == [0, 1]
+    assert calls == [(4, 22.0)] * 10
+    assert h.effective_step_min * (calls[0][0] - 1) == pytest.approx(h.horizon_hours * 60)
+
+
+def test_horizon_mixed_results_preserve_failed_bounds(monkeypatch, horizon_inputs):
+    outcomes = iter([None, {"line-1": (2, 1, 3)}] * 5)
+    monkeypatch.setattr(risk, "_eval_env", lambda *args: next(outcomes))
+    h = risk._horizon(*horizon_inputs)
+    assert h.n_failed == 5 and h.p_event == 0.5 and h.p_event_bounds == [0.5, 1]
+    assert h.p_event_ci95[1] == 1 and h.p_event_ci95[0] < 0.5
+
+
+def test_horizon_checks_cancellation_within_a_trajectory(monkeypatch, horizon_inputs):
+    class Cancelled(Exception):
+        pass
+    class Context:
+        count = 0
+        def check_cancelled(self):
+            self.count += 1
+            if self.count == 3:
+                raise Cancelled
+        def progress(self, *args):
+            pass
+    calls = []
+    def evaluate(*args):
+        calls.append(1)
+        return {"line-1": (0, 1, 3)}
+    monkeypatch.setattr(risk, "_eval_env", evaluate)
+    with pytest.raises(Cancelled):
+        risk._horizon(*horizon_inputs, ctx=Context())
+    assert len(calls) == 1
+
+
+def test_all_failed_risk_calculations_are_invalid(monkeypatch, horizon_inputs):
+    monkeypatch.setattr(risk, "_eval_env", lambda *args: None)
+    req = horizon_inputs[0].model_copy(update={"include_horizon": True})
+    response = risk.exceedance(req)
+    assert response.status == "RED" and response.validity.state == "invalid"
+    assert response.result.n_valid == 0 and response.result.p_any_bounds == [0, 1]
+    assert response.result.horizon.p_event_bounds == [0, 1]
+    assert {"NO_VALID_RISK_SAMPLES", "FAILED_TRAJECTORIES"} <= {r.code for r in response.validity.reasons}
+
+
+def test_async_risk_result_schemas_are_published_for_consumers():
+    import re
+    from modeling_api.main import openapi_schema
+    contract = openapi_schema()
+    schemas = contract["components"]["schemas"]
+    assert {"ExceedanceResponse", "TimelineResponse", "HorizonRisk"} <= schemas.keys()
+    assert {"p_event_bounds", "effective_step_min"} <= schemas["HorizonRisk"]["properties"].keys()
+    # Every result promised in a job endpoint's public summary must be usable by consumers.
+    for path, methods in contract["paths"].items():
+        for operation in methods.values():
+            match = re.search(r"(?:result is an? |job result: )(\w+Response)", operation.get("summary", ""))
+            if match:
+                assert match[1] in schemas, (path, match[1])
+
+
+def test_sample_evaluator_includes_loaded_ship_fittings(horizon_inputs):
+    _, system, _, sol, _, df = horizon_inputs
+    evaluated = risk._eval_env(system, sol.pose, df)
+    expected = {rec.ln.ship_fitting_id for rec in system.lines}
+    rated = {f.fitting_id: f.swl_lbf for f in system.ship.fittings if f.swl_lbf}
+    assert expected & rated.keys()
+    for fid in expected & rated.keys():
+        assert evaluated[fid][1:] == (rated[fid], None)
+
+
 # ---------- service ----------
 
 def test_requested_sample_count_is_honored_or_rejected_never_capped():

@@ -5071,6 +5071,190 @@ export interface components {
              */
             provenance: string | null;
         };
+        /** ApproachSimResponse */
+        ApproachSimResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["ApproachSimResult"];
+        };
+        /** ApproachSimResult */
+        ApproachSimResult: {
+            /** Track Url */
+            track_url: string;
+            /** Max Cross Track Ft */
+            max_cross_track_ft: number;
+            /** Min Ukc Ft */
+            min_ukc_ft: number;
+            /** Events */
+            events: components["schemas"]["SimEvent"][];
+        };
+        /** BerthingSimResponse */
+        BerthingSimResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["BerthingSimResult"];
+        };
+        /** BerthingSimResult */
+        BerthingSimResult: {
+            /**
+             * Transitions
+             * @default null
+             */
+            transitions: components["schemas"]["SimulationTransition"][] | null;
+            /** @default null */
+            diagnostics: components["schemas"]["SimulationDiagnostics"] | null;
+            /** Series Url */
+            series_url: string;
+            /** Events */
+            events: components["schemas"]["SimEvent"][];
+            contact: components["schemas"]["ContactSummary"] | null;
+            /** Max Line Tension Lbf */
+            max_line_tension_lbf: number;
+        };
+        /** Candidate */
+        Candidate: {
+            config: components["schemas"]["MooringConfig"];
+            /**
+             * Min Margin Pct Wll
+             * @description Highest utilization over every evaluated case (lower is better).
+             */
+            min_margin_pct_wll: number;
+            /** Limit Wind Kt Worst */
+            limit_wind_kt_worst: number | null;
+            /** Line Count */
+            line_count: number;
+            /** Analysis Result Id */
+            analysis_result_id: string;
+            /** Why */
+            why: string[];
+            /**
+             * Tugs
+             * @description Holding assistance used in every candidate evaluation.
+             */
+            tugs?: components["schemas"]["TugAssignment"][];
+            /**
+             * Feasible
+             * @description True when every case solved and stayed within every line, fitting and fender limit.
+             * @default null
+             */
+            feasible: boolean | null;
+            /**
+             * Worst Case
+             * @default null
+             */
+            worst_case: string | null;
+            /**
+             * Cases Evaluated
+             * @default null
+             */
+            cases_evaluated: number | null;
+        };
+        /** ContactSummary */
+        ContactSummary: {
+            /** Lateral Speed Fps */
+            lateral_speed_fps: number;
+            /** Energy Ftlbf */
+            energy_ftlbf: number;
+            /** Fender Id */
+            fender_id: string;
+            /** Pct Rated */
+            pct_rated: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+        };
         /** DockingArrivalWindow */
         DockingArrivalWindow: {
             /**
@@ -5135,6 +5319,148 @@ export interface components {
             validity: components["schemas"]["Validity"] | null;
             /** Reasons */
             reasons?: string[];
+        };
+        /** ElementRisk */
+        ElementRisk: {
+            /** Element Id */
+            element_id: string;
+            /**
+             * P Exceed Wll
+             * @description Probability the element's limit (WLL, or rated capacity for fittings) is exceeded, among valid samples.
+             */
+            p_exceed_wll: number;
+            /**
+             * P Exceed Mbs
+             * @description Lines only; null for fittings and fenders, which have no MBS.
+             * @default null
+             */
+            p_exceed_mbs: number | null;
+            /**
+             * Tension P50 Lbf
+             * @description Load (lbf) median among valid samples.
+             */
+            tension_p50_lbf: number;
+            /** Tension P95 Lbf */
+            tension_p95_lbf: number;
+            /**
+             * P Exceed Wll Ci95
+             * @description 95% Wilson interval on p_exceed_wll.
+             * @default null
+             */
+            p_exceed_wll_ci95: number[] | null;
+        };
+        /** ExceedanceResponse */
+        ExceedanceResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["ExceedanceResult"];
+        };
+        /** ExceedanceResult */
+        ExceedanceResult: {
+            /**
+             * N Samples
+             * @description Samples requested and run; never silently capped.
+             */
+            n_samples: number;
+            /**
+             * P Any Exceeds Wll
+             * @description Instantaneous probability (pointwise), among valid samples.
+             */
+            p_any_exceeds_wll: number;
+            /** P Any Exceeds Mbs */
+            p_any_exceeds_mbs: number;
+            /** Elements */
+            elements: components["schemas"]["ElementRisk"][];
+            /** Governing Element */
+            governing_element: string;
+            /**
+             * N Valid
+             * @default null
+             */
+            n_valid: number | null;
+            /**
+             * N Failed
+             * @description Samples whose equilibrium solve failed; never dropped from the accounting.
+             * @default null
+             */
+            n_failed: number | null;
+            /**
+             * P Any Ci95
+             * @description 95% Wilson interval on p_any_exceeds_wll (valid samples).
+             * @default null
+             */
+            p_any_ci95: number[] | null;
+            /**
+             * P Any Bounds
+             * @description [exceedances / n, (exceedances + failed) / n]: bounds if every failed sample were safe / exceeding.
+             * @default null
+             */
+            p_any_bounds: number[] | null;
+            /**
+             * Seed
+             * @default null
+             */
+            seed: number | null;
+            /** @default null */
+            uncertainty_model: components["schemas"]["UncertaintyModel"] | null;
+            /**
+             * Pointwise Only
+             * @description True when no horizon probability was computed.
+             * @default null
+             */
+            pointwise_only: boolean | null;
+            /** @default null */
+            horizon: components["schemas"]["HorizonRisk"] | null;
+            /**
+             * Error Criterion
+             * @default null
+             */
+            error_criterion: string | null;
         };
         /** ForecastDockingResponse */
         ForecastDockingResponse: {
@@ -5238,6 +5564,61 @@ export interface components {
             recheck_triggers: string[];
             /** Limitations */
             limitations: string[];
+        };
+        /**
+         * HeldOutValidation
+         * @description Calibration check on data not used for fitting.
+         */
+        HeldOutValidation: {
+            /** N Heldout */
+            n_heldout: number;
+            /** Nominal Coverage */
+            nominal_coverage: number;
+            /**
+             * Observed Coverage
+             * @default null
+             */
+            observed_coverage: number | null;
+        };
+        /**
+         * HorizonRisk
+         * @description Probability of the event over the horizon, from correlated trajectories (not a combination of pointwise values).
+         */
+        HorizonRisk: {
+            /** Event */
+            event: string;
+            /** N Trajectories */
+            n_trajectories: number;
+            /** Step Min */
+            step_min: number;
+            /** Horizon Hours */
+            horizon_hours: number;
+            /**
+             * P Event
+             * @description Known exceedances / all trajectories; a lower bound when solves fail. Consult p_event_bounds.
+             */
+            p_event: number;
+            /**
+             * P Event Ci95
+             * @description 95% Wilson interval widened over both possible outcomes of failed trajectories.
+             */
+            p_event_ci95: number[];
+            /** N Failed */
+            n_failed: number;
+            /** Correlation Time Min */
+            correlation_time_min: number;
+            /**
+             * P Event Bounds
+             * @description [known exceedances / n, (known exceedances + failed) / n]. Failed trajectories are unknown, never safe.
+             * @default null
+             */
+            p_event_bounds: number[] | null;
+            /**
+             * Effective Step Min
+             * @description Actual uniform sampling interval, no larger than step_min, including both horizon endpoints.
+             * @default null
+             */
+            effective_step_min: number | null;
         };
         /**
          * JobDoneEvent
@@ -5373,6 +5754,94 @@ export interface components {
              */
             capacity_lbf: number | null;
         };
+        /** RecommendResponse */
+        RecommendResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["RecommendResult"];
+        };
+        /** RecommendResult */
+        RecommendResult: {
+            /** Candidates */
+            candidates: components["schemas"]["Candidate"][];
+            design_environment: components["schemas"]["EnvironmentSnapshot"];
+            /**
+             * Cases
+             * @description Every environment case each candidate was evaluated against.
+             * @default null
+             */
+            cases: string[] | null;
+            /** @default null */
+            search: components["schemas"]["SearchDiagnostics"] | null;
+        };
+        /** SearchDiagnostics */
+        SearchDiagnostics: {
+            /**
+             * Strategy
+             * @enum {string}
+             */
+            strategy: "exhaustive" | "bounded_descent" | "none";
+            /**
+             * Complete
+             * @description True only when the whole candidate space was evaluated.
+             */
+            complete: boolean;
+            /** Space Size */
+            space_size: number;
+            /** Evaluated */
+            evaluated: number;
+            /** Budget */
+            budget: number;
+            /** Feasible Found */
+            feasible_found: number;
+            /** Notes */
+            notes?: string[];
+        };
         /** ShipPoint */
         ShipPoint: {
             /**
@@ -5401,6 +5870,18 @@ export interface components {
              * @enum {string}
              */
             type: "pause" | "resume" | "reset";
+        };
+        /** SimEvent */
+        SimEvent: {
+            /** T S */
+            t_s: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "fender_contact" | "line_overload" | "speed_exceeded" | "all_fast";
+            /** Detail */
+            detail: string;
         };
         /**
          * SimLifecycle
@@ -5645,6 +6126,189 @@ export interface components {
             force_lbf: number;
             /** Direction Rel Deg */
             direction_rel_deg: number;
+        };
+        /** SimulationTransition */
+        SimulationTransition: {
+            /** T S */
+            t_s: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "contact_start" | "contact_end" | "line_taut" | "line_slack" | "secured" | "tensioned" | "released";
+            /** Element Id */
+            element_id: string;
+        };
+        /** TimelineResponse */
+        TimelineResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["TimelineResult"];
+        };
+        /** TimelineResult */
+        TimelineResult: {
+            /** Steps */
+            steps: components["schemas"]["TimelineStep"][];
+            /** First Amber Utc */
+            first_amber_utc: string | null;
+            /** First Red Utc */
+            first_red_utc: string | null;
+            /** Recommended Actions */
+            recommended_actions: string[];
+        };
+        /** TimelineStep */
+        TimelineStep: {
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Wind Speed Kt */
+            wind_speed_kt: number;
+            /** Wind Gust Kt */
+            wind_gust_kt: number;
+            /**
+             * P Any Exceeds Wll
+             * @description Null unless n_samples_per_step > 0; pointwise, not a horizon probability.
+             * @default null
+             */
+            p_any_exceeds_wll: number | null;
+            /** Governing Element */
+            governing_element: string;
+            /**
+             * Max Pct Wll
+             * @default null
+             */
+            max_pct_wll: number | null;
+            /**
+             * Valid
+             * @default null
+             */
+            valid: boolean | null;
+        };
+        /**
+         * UncertaintyModel
+         * @description A versioned description of what is random in the environment and how it was obtained.
+         *
+         *     `qualification` is 'qualified' only when the minimum-data policy and held-out calibration pass. A synthetic or
+         *     underfit model validates algorithms only: probabilities computed from it are scenario outputs, not risk estimates.
+         */
+        UncertaintyModel: {
+            /** Model Id */
+            model_id: string;
+            /** Revision */
+            revision: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "synthetic" | "fitted";
+            /** Station Ids */
+            station_ids?: string[];
+            /**
+             * Fit Start Utc
+             * @default null
+             */
+            fit_start_utc: string | null;
+            /**
+             * Fit End Utc
+             * @default null
+             */
+            fit_end_utc: string | null;
+            /**
+             * Filters
+             * @description Quality filters applied to the fitting data.
+             */
+            filters?: string[];
+            /**
+             * Gust Factor Mu
+             * @description Log-mean of gust / sustained wind.
+             */
+            gust_factor_mu: number;
+            /** Gust Factor Sigma */
+            gust_factor_sigma: number;
+            /**
+             * Direction Sigma Deg
+             * @description Circular standard deviation of wind direction scatter.
+             */
+            direction_sigma_deg: number;
+            /**
+             * Current Sigma Kt
+             * @description Std. dev. of observed minus predicted current speed.
+             */
+            current_sigma_kt: number;
+            /**
+             * Correlation Time Min
+             * @description e-folding time of the AR(1) wind and current deviations.
+             */
+            correlation_time_min: number;
+            /** N Events */
+            n_events: number;
+            /** N Days */
+            n_days: number;
+            /** @default null */
+            validation: components["schemas"]["HeldOutValidation"] | null;
+            /** Applicability */
+            applicability?: string[];
+            /** Limitations */
+            limitations?: string[];
+            /**
+             * Qualification
+             * @enum {string}
+             */
+            qualification: "qualified" | "unqualified";
+            /** Qualification Reasons */
+            qualification_reasons?: string[];
         };
     };
     responses: never;

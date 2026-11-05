@@ -39,14 +39,18 @@ class ElementRisk(Model):
 class HorizonRisk(Model):
     """Probability of the event over the horizon, from correlated trajectories (not a combination of pointwise values)."""
 
+    wire_omitted_defaults = {"p_event_bounds": None, "effective_step_min": None}
+
     event: str
     n_trajectories: int
     step_min: int
     horizon_hours: float
-    p_event: float = Field(ge=0, le=1)
-    p_event_ci95: list[float]
+    p_event: float = Field(ge=0, le=1, description="Known exceedances / all trajectories; a lower bound when solves fail. Consult p_event_bounds.")
+    p_event_ci95: list[float] = Field(description="95% Wilson interval widened over both possible outcomes of failed trajectories.")
     n_failed: int
     correlation_time_min: float
+    p_event_bounds: list[float] | None = Field(default=None, description="[known exceedances / n, (known exceedances + failed) / n]. Failed trajectories are unknown, never safe.")
+    effective_step_min: float | None = Field(default=None, description="Actual uniform sampling interval, no larger than step_min, including both horizon endpoints.")
 
 
 class ExceedanceResult(Model):

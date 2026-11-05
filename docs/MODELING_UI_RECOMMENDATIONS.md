@@ -35,6 +35,10 @@ Draft sequences use the existing sequence/planner/review interfaces; the forecas
 | Tide/tending timeline | `POST /api/v1/mooring/tide-sweep`, optional `water_level_forecast` | Implemented. No series means explicitly synthetic training tide. Supplied invalid/gapped series is rejected. Wind/current stay fixed; tending is advisory, not an approved deck procedure. |
 | Berth image draft review | Vision upload/job/confirm; optional `berth_id`, pier-face pixel anchors and scale | Implemented. Show `extraction_source`, note, estimated capacities and `needs_confirmation`. No-LLM catalog output is not image extraction. Confirmation registers a selectable runtime berth; durable berth administration remains open. |
 
+## Risk displays
+
+Keep probabilities labeled as scenario outputs when the uncertainty model is unqualified. Show failed-solve counts and bounds beside percentages. Horizon `p_event` is the known-exceedance fraction and only a lower bound when trajectories fail; use `p_event_bounds` and the widened `p_event_ci95`, not a green badge based on the lower bound. An all-failed calculation is invalid/RED. `effective_step_min` gives the actual sampling interval including both horizon endpoints; events between samples remain unresolved. Ship fittings are included alongside lines, pier fittings and fenders.
+
 ## Integration checklist for the UI agent
 
 - Regenerate types after merging `dev`; use generated examples as consumer fixtures. Report missing/ambiguous fields in `docs/overnight/modeling-agents.md` → Requests.

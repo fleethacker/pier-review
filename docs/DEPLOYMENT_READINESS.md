@@ -2,6 +2,85 @@
 
 **The modeling service is not ready for live use.** The controls below are implemented locally, pending review. This is not deployment approval or a completed S21 gate.
 
+## A2: Domino demo launch and rehearsal
+
+**Target rehearsal remains pending.** Validation for this change is local, as requested by Bixler. The supplied
+Domino URL served its management interface; no running-app test or deployment was performed. No target logs
+or clean-`main` deployment evidence were available for this change. The launcher improvements and local lifecycle
+tests do not establish that the hosting proxy supports live streams. Record the deployed commit, app URL, run
+timestamp and check output when completing this gate.
+
+The updated launcher completed a local offline rehearsal on 5 November 2026: both API proxies, four planning
+chains, forecast planning, browser sheet/print controls and live WebSocket controls passed. All services stopped
+after SIGINT. See [local evidence and screenshots](LOCAL_REHEARSAL.md); server-generated PDF was not part of this run.
+
+Configure the app command as `./app.sh`, with the repository root as its working directory. The compute environment
+needs `uv`, Python 3.12 (or permission for `uv` to install the pinned version), and **Node >=22.17.0 with npm**.
+The current lockfile's Cesium packages require that Node version; the old Node 20 image must be updated.
+`app.sh` fails with an installation hint when a runtime is missing instead of downloading a Linux-x64 runtime into
+an arbitrary host. Dependency installation uses the committed Python and npm lockfiles and requires package access
+or prepopulated caches. Runtime data and planning can run offline after installation.
+
+| App environment variable | Demo setting / meaning |
+| --- | --- |
+| `PORT` | `8888` by default; expose only this UI port through the Domino app proxy. |
+| `AGENTS_LLM_PROVIDER` | `none` for the rehearsal without an LLM key. |
+| `MOORING_ENV_SOURCE` | `mock` for the offline rehearsal; preserve the synthetic labels. Public data is a separate opt-in check. |
+| `VITE_MAPBOX_TOKEN` | Optional public `pk.` Mapbox token, configured **before launch/build**. Vite embeds it in browser assets. Restart/rebuild after changing it; no token uses the drawn-water fallback. Do not supply a secret Mapbox token. |
+| `APP_STARTUP_TIMEOUT_S` | Health-readiness deadline per endpoint, default 60 seconds, maximum 600. |
+| `MODELING_PORT`, `AGENTS_PORT` | Local service ports, default `8000` and `8001`. Override for an isolated local rehearsal; both remain bound to loopback. |
+| `PDF_LIBRARY_PATH` | Optional macOS native-library directory, such as `/opt/homebrew/lib`, when Pango is already installed. |
+
+The launcher supervises dependency installation and the build before starting either API, waits for the APIs and
+both UI proxy health routes, then supervises all three services. A backend or UI exit ends the app with an error.
+SIGINT/SIGTERM stops the active installer/build or service process groups, including descendants,
+with a five-second grace period before forced cleanup. This is single-process demo supervision; it does not add
+restart recovery or production service orchestration.
+
+The hosting proxy must forward `api/modeling/*` and `api/agents/*` beneath the app's external path prefix, preserve
+WebSocket upgrade requests to `api/modeling/ws/sim/*`, and stream agent SSE without buffering. Keep the connection
+open for the whole planning/watch session. A successful `/health` request alone does not verify these requirements.
+The browser uses same-origin relative paths; leave `VITE_MODELING_URL` and `VITE_AGENTS_URL` unset for this setup.
+
+Rehearse from a fresh checkout of the release commit on `main`, after its CI has passed:
+
+```bash
+git clone --branch main https://github.com/fleethacker/pier-review.git pier-review-rehearsal
+cd pier-review-rehearsal
+git rev-parse HEAD
+AGENTS_LLM_PROVIDER=none MOORING_ENV_SOURCE=mock ./app.sh
+```
+
+Use that commit for the Domino app as well. From a machine that can reach its external URL, run the target checks
+with the **complete app prefix**, including the trailing slash:
+
+```bash
+uv run --all-packages python scripts/demo_check.py \
+  --base-url 'https://<domino-host>/<app-prefix>/' --no-browser \
+  --logs /tmp/pier-review-target-check
+```
+
+These checks create demo scenarios, plans, reviews, sheets and approvals in the target app. Use the dedicated demo
+instance. The command checks actual HTTP/SSE/WebSocket behavior through the external proxy; it does not establish
+browser completion of Intake/review selection or UI motion controls. Run the browser flow as well where supported,
+then manually follow [the demo script](../frontend/DEMO.md), including print preview and any feature explicitly
+reported as missing by the checks. A gateway login/authorization failure must be resolved using the target's
+supported access mechanism before counting rehearsal as passed. The current browser's authentication boundary
+is documented below.
+
+### PDF and the HTML fallback
+
+The printable HTML sheet is the fallback when native PDF libraries are absent. For an approved demo sheet, open
+`api/agents/api/v1/safety-sheets/<sheet-id>/render?format=html` beneath the app URL, then use the browser's print
+dialog (or Save as PDF). Confirm the review identity, qualification limits and signatures remain visible.
+`format=pdf` returns HTTP 501 with setup instructions when Pango/GObject are unavailable; do not interpret that as
+a rendered PDF. The runtime's `pdf_available()` probe only checks library import, so test an actual sheet render
+on the target if offering server-generated PDF.
+
+For Debian/Ubuntu-based images, the renderer's setup message names `libpango-1.0-0` and `libpangoft2-1.0-0`;
+macOS development uses Pango. Install native libraries in the managed environment image, then test the PDF route.
+If that cannot be completed, state **HTML print supported; server PDF unavailable** in the rehearsal record.
+
 ## Implemented controls
 
 | Control | Configuration / implementation | Limits |

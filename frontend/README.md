@@ -201,12 +201,13 @@ and the shell only deals with the scene model.
 
 ## Deploying as a Domino app
 
-The repo-root [`app.sh`](../app.sh) is the Domino app entry point. It starts the modeling and agents services on
-`127.0.0.1:8000` and `:8001`, builds the UI, and serves it on `0.0.0.0:8888`. Only the UI port is exposed; the UI's
+The repo-root [`app.sh`](../app.sh) is the Domino app entry point. It builds the UI, starts the modeling and agents services on
+`127.0.0.1:8000` and `:8001`, and serves the UI on `0.0.0.0:8888`. Only the UI port is exposed; the UI's
 server proxies `api/modeling/*` and `api/agents/*` to the two services (`MODELING_PROXY_TARGET` and
-`AGENTS_PROXY_TARGET`). Requirements: Python 3.12 with `uv`, and Node 20 with npm (the script downloads Node 20 if the
-environment lacks it). Entry script: `app.sh`; branch: `ui/frontend`. A hardware tier with at least 4 GiB of memory
-is enough for the build. This script has not been run on Domino yet; check the first start's logs.
+`AGENTS_PROXY_TARGET`). Requirements: Python 3.12 with `uv`, and **Node >=22.17 with npm**, installed in the app
+environment. The launcher checks prerequisites, waits for both API proxies and stops all child processes if a
+service exits. Use the reviewed release commit on `main` for a target rehearsal. Current verification is local;
+Domino remains unverified. See the [deployment procedure](../docs/DEPLOYMENT_READINESS.md).
 
 ## Check the integrated demo paths
 
@@ -215,18 +216,18 @@ make demo-check   # repo root
 ```
 
 Starts both services and the built UI on private ports (the way `app.sh` does), then checks through the UI proxy:
-the page and bundled fixtures, health and capabilities, the Phase 1 chain (scenario, agent plan over SSE, safety
-sheet, approval), a berth vision round trip, and a motion session over a WebSocket (resume, command, pause, reset).
+the page and bundled fixtures, health and capabilities, all four planning chains (Intake, Planner SSE, independent
+review, sheet, approve/reject), supplied training forecast planning, berth vision and a live WebSocket session.
 The browser portion requires Playwright and Chromium. Missing Playwright is a failure, not a passing gate.
 Set `DEMO_CHECK_BROWSER_PYTHON` to an interpreter with Playwright; optionally set
 `DEMO_CHECK_BROWSER_EXECUTABLE` to an installed Chrome/Chromium executable. `PLAYWRIGHT_BROWSERS_PATH`
 selects a downloaded browser location. `DEMO_CHECK_SCREEN_DIR` redirects screenshots outside the repository.
 `--skip-build` reuses the built UI; `--no-browser` explicitly reports the browser portion as skipped.
 
-The API check uses the supported-limited named scenario, explicit Intake and independent Safety review,
-and asserts AMBER/limited before sheet approval. The browser checks planning, sheet/print controls, motion,
-units and estimated berth confirmation. These are scoped integration checks: explicit Intake/review UI
-selection and the full four-case browser acceptance flow remain incomplete.
+The API checks preserve each case's initial and final status, review identity and validity. The browser checks
+the supported AMBER/limited planning path, sheet/print controls, motion, units and estimated berth confirmation.
+These are scoped integration checks: full four-case review-selection and advance-planning browser acceptance
+remain incomplete. `make demo-check-readiness` fails explicitly on those and the outstanding S1/D1/A3 requirements.
 
 Verified local example without changing project dependencies:
 

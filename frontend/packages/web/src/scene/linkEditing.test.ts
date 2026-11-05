@@ -34,6 +34,8 @@ describe('neutral connection editing', () => {
     expect(edit).toMatchObject({ linkId: 'line', endpoint: 'from' });
     expect(canDropConnection(store.getState(), edit, 'a2')).toBe(true);
     expect(canDropConnection(store.getState(), edit, 'b2')).toBe(false);
+    store.patchEntity('a2', { connectable: { group: 'a', accepts: ['unrelated'] } });
+    expect(canDropConnection(store.getState(), edit, 'a2')).toBe(false);
     store.patchLink('line', { editableEndpoints: { from: 'a2', to: 'b1' } });
     expect(canDropConnection(store.getState(), edit, 'a2')).toBe(false);
   });

@@ -602,6 +602,8 @@ export class MooringController {
         const shipId = edit.fromEntityId.startsWith('sfit:') ? edit.fromEntityId : edit.toEntityId;
         const pierId = edit.fromEntityId.startsWith('pier:') ? edit.fromEntityId : edit.toEntityId;
         this.addLine(shipId.slice(5), pierId.slice(5));
+        this.state.set({ addLine: { ...this.s.addLine, shipFittingId: null } });
+        this.host.store.select(null);
       }
       return;
     }

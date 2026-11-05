@@ -192,6 +192,18 @@ describe('moving the ship on the canvas', () => {
 });
 
 describe('fitting drags', () => {
+  it('finishes a pending click-to-connect choice after a successful pointer connection', () => {
+    const { c, store } = setup();
+    c.startAddLine();
+    store.select({ type: 'entity', id: 'sfit:BITT-1S' });
+    const edit = beginConnection(store.getState(), 'sfit:BITT-2S')!;
+    c.onEdit({ ...edit, toEntityId: 'pier:P2', final: true });
+    expect(c.state.get().lines).toHaveLength(1);
+    expect(c.state.get().addLine.shipFittingId).toBeNull();
+    store.select({ type: 'entity', id: 'pier:P1' });
+    expect(c.state.get().lines).toHaveLength(1);
+    c.dispose();
+  });
   it.each([['sfit:BITT-1S', 'pier:P2'], ['pier:P2', 'sfit:BITT-1S']])('creates from %s to %s using selected rope and parts', (source, target) => {
     const { c, store } = setup();
     c.setNewLineSpec('SYNTHETIC-TEST', 3);

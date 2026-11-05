@@ -20,7 +20,10 @@ export function canDropConnection(state: SceneState, edit: ConnectionEdit, targe
   if (edit.linkId) {
     const link = state.links[edit.linkId];
     if (!edit.endpoint || link?.editableEndpoints?.[edit.endpoint] !== edit.fromEntityId) return false;
-    return source.group === target.group;
+    const fixedId = link.editableEndpoints[edit.endpoint === 'from' ? 'to' : 'from'];
+    const fixed = state.entities[fixedId]?.connectable;
+    return source.group === target.group && !!fixed
+      && target.accepts.includes(fixed.group) && fixed.accepts.includes(target.group);
   }
   return source.accepts.includes(target.group) && target.accepts.includes(source.group);
 }

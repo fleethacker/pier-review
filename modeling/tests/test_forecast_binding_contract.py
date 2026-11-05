@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from mooring.core.schemas.forecast_planning import (
-    ForecastBinding, ForecastDockingRequest, ForecastResolveRequest,
+    ForecastBinding, ForecastDockingRequest, ForecastDockingResult, ForecastResolveRequest,
 )
 
 
@@ -19,6 +19,20 @@ def _legacy():
 def test_legacy_forecast_request_wire_is_unchanged():
     payload = _legacy()
     assert ForecastDockingRequest.model_validate(payload).model_dump(mode='json') == payload
+
+
+@pytest.mark.parametrize('model,fields', [
+    (ForecastDockingRequest, ['forecast', 'forecast_binding', 'forecast_step_min']),
+    (ForecastDockingResult, ['forecast_manifest', 'result_hash']),
+    (ForecastResolveRequest, ['forecast', 'forecast_binding', 'step_min', 'max_gap_min']),
+])
+def test_optional_wire_fields_stay_optional_for_typescript_generation(model, fields):
+    schema = model.model_json_schema()
+    for name in fields:
+        assert name not in schema.get('required', [])
+        # The generator promotes schema defaults to required properties. Runtime
+        # defaults remain available, but must not contradict wire omission here.
+        assert 'default' not in schema['properties'][name]
 
 
 @pytest.mark.parametrize('binding', [dict(source='scenario'), dict(env_scenario_id='unselected')])

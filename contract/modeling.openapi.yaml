@@ -9629,7 +9629,8 @@ components:
           title: Element Id
           type: string
         p_exceed_wll:
-          description: Probability the element's limit (WLL, or rated capacity for fittings) is exceeded, among valid samples.
+          description: Probability the element's limit (WLL, rated capacity for fittings, or rated energy for fenders) is
+            exceeded, among valid samples.
           maximum: 1
           minimum: 0
           title: P Exceed Wll
@@ -9644,7 +9645,8 @@ components:
           description: Lines only; null for fittings and fenders, which have no MBS.
           title: P Exceed Mbs
         tension_p50_lbf:
-          description: Load (lbf) median among valid samples.
+          description: Force (lbf) median among valid samples; fenders report reaction force, while their exceedance compares
+            energy.
           title: Tension P50 Lbf
           type: number
         tension_p95_lbf:

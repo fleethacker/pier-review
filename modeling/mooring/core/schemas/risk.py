@@ -52,9 +52,9 @@ class ElementRisk(Model):
     wire_omitted_defaults = {"p_exceed_wll_ci95": None}
 
     element_id: str
-    p_exceed_wll: float = Field(ge=0, le=1, description="Probability the element's limit (WLL, or rated capacity for fittings) is exceeded, among valid samples.")
+    p_exceed_wll: float = Field(ge=0, le=1, description="Probability the element's limit (WLL, rated capacity for fittings, or rated energy for fenders) is exceeded, among valid samples.")
     p_exceed_mbs: float | None = Field(default=None, ge=0, le=1, description="Lines only; null for fittings and fenders, which have no MBS.")
-    tension_p50_lbf: float = Field(description="Load (lbf) median among valid samples.")
+    tension_p50_lbf: float = Field(description="Force (lbf) median among valid samples; fenders report reaction force, while their exceedance compares energy.")
     tension_p95_lbf: float
     p_exceed_wll_ci95: list[float] | None = Field(default=None, description="95% Wilson interval on p_exceed_wll.")
 

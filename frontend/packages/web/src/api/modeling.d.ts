@@ -5458,7 +5458,7 @@ export interface components {
             element_id: string;
             /**
              * P Exceed Wll
-             * @description Probability the element's limit (WLL, or rated capacity for fittings) is exceeded, among valid samples.
+             * @description Probability the element's limit (WLL, rated capacity for fittings, or rated energy for fenders) is exceeded, among valid samples.
              */
             p_exceed_wll: number;
             /**
@@ -5469,7 +5469,7 @@ export interface components {
             p_exceed_mbs: number | null;
             /**
              * Tension P50 Lbf
-             * @description Load (lbf) median among valid samples.
+             * @description Force (lbf) median among valid samples; fenders report reaction force, while their exceedance compares energy.
              */
             tension_p50_lbf: number;
             /** Tension P95 Lbf */

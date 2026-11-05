@@ -108,22 +108,14 @@
     .capabilities p { margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.35; }
     .screenshots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 13px; }
     .screenshot {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      min-height: 99px;
-      padding: 13px;
-      border: 1px dashed #a8bddf;
+      overflow: hidden;
+      border: 1px solid var(--line);
       background: #f8faff;
       text-align: center;
     }
-    .screenshot-icon { width: 25px; height: 22px; margin-bottom: 6px; color: #7b96c1; }
-    .screenshot .placeholder { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
-    .screenshot figcaption { margin-top: 3px; color: var(--navy); font-size: 11px; font-weight: 600; }
-    /* Replace a placeholder's contents with an <img> and retain its figcaption.
-       Keep the image within this footprint to preserve the one-page brief. */
-    .screenshot img { width: 100%; height: 63px; object-fit: contain; }
+    .screenshot figcaption { padding: 5px 8px; color: var(--navy); font-size: 11px; font-weight: 600; }
+    /* Preserve proportions; crop the lower panels to retain the app headers and main views. */
+    .screenshot img { display: block; width: 100%; height: 110px; object-fit: cover; object-position: center top; }
     .operations { display: grid; grid-template-columns: 1.18fr 1fr; gap: 24px; }
     .operations h2 { margin-bottom: 6px; }
     .audience p + p { margin-top: 6px; }
@@ -235,24 +227,16 @@
           <p>Explore the berth and surrounding area in a rich, interactive geographic view.</p>
         </li>
       </ul>
-      <div class="screenshots" aria-label="Application screenshot placeholders">
+      <div class="screenshots" aria-label="Pier Review application screenshots">
         <figure class="screenshot">
-          <!-- Replace this icon and placeholder text with the mooring workspace screenshot. -->
-          <svg class="screenshot-icon" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
-            <rect x="1" y="1" width="26" height="21" rx="2"/><circle cx="8" cy="7" r="2"/>
-            <path d="m2 18 7-7 6 5 5-6 7 8"/>
-          </svg>
-          <span class="placeholder">Application screenshot</span>
-          <figcaption>Mooring layout, forces &amp; tug placement</figcaption>
+          <img src="fielding-brief-assets/image2-mooring.png" width="3418" height="1596"
+            alt="Pier Review mooring assistant showing a ship at the pier with mooring lines and wind and current vectors.">
+          <figcaption>Mooring layout &amp; environmental forces</figcaption>
         </figure>
         <figure class="screenshot">
-          <!-- Replace this icon and placeholder text with a sequence or safety-sheet screenshot. -->
-          <svg class="screenshot-icon" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
-            <rect x="1" y="1" width="26" height="21" rx="2"/><circle cx="8" cy="7" r="2"/>
-            <path d="m2 18 7-7 6 5 5-6 7 8"/>
-          </svg>
-          <span class="placeholder">Application screenshot</span>
-          <figcaption>Line sequence &amp; Mooring Evaluation Safety Sheet</figcaption>
+          <img src="fielding-brief-assets/image1-exercise.png" width="3418" height="1596"
+            alt="Pier Review exercise simulator showing a simulated carrier-group scenario with a destroyer storyboard.">
+          <figcaption>Exercise simulation &amp; mission storyboards</figcaption>
         </figure>
       </div>
     </section>

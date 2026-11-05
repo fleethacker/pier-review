@@ -320,6 +320,15 @@ def _watch_recheck(env, assessed) -> tuple[list[str], bool]:
     return reasons, invalid
 
 
+def _bound_watch_time(resolution):
+    """Forecast-ahead messages and polling share the same closed coverage interval."""
+    at = utcnow()
+    manifest = resolution.result.forecast_manifest
+    if not manifest.from_utc <= at <= manifest.to_utc:
+        raise ModelingError(409, "Watch time is outside the assessed forecast interval; explicit reassessment is required")
+    return at
+
+
 async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, limit: int = 0,
                 heartbeat_minutes: float = 5.0) -> AsyncIterator[GustWarning]:
     """Emit changes, weaker-sector escalations, forecast warnings, and periodic heartbeats."""
@@ -328,8 +337,18 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
     if safety_review is None:
         safety_review = await review(SafetyReviewRequest(plan_id=plan_id), PhysicsToolkit(client, "safety", plan_id))
     points = ENVELOPES[safety_review.review_id]
-    berth = await client.berth(rec.scenario.berth_id)
-    heading = (berth.face_bearing_true_deg if rec.scenario.side_to == "starboard"
+    geometry = getattr(rec, "geometry_snapshot", None)
+    if geometry is not None:
+        if geometry.unavailable_reason or getattr(safety_review, "geometry_snapshot_verified", None) is not True:
+            raise ModelingError(409, "Review geometry is not bound to this plan; explicit reassessment is required before watching gust limits")
+        # Threshold sectors were assessed in this frame. A changed catalog heading
+        # must not silently rotate them after the independent review.
+        berth = geometry.berth
+        side_to = geometry.config.side_to
+    else:
+        berth = await client.berth(rec.scenario.berth_id)
+        side_to = rec.scenario.side_to
+    heading = (berth.face_bearing_true_deg if side_to == "starboard"
                else (berth.face_bearing_true_deg + 180) % 360)
     factor = 1.0  # Legacy helper parameter; breaking estimates are deliberately unavailable.
     emitted = 0
@@ -340,6 +359,7 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
         forecast_request = forecast_request.model_copy(deep=True)
         watch_tk = PhysicsToolkit(client, "safety", plan_id, operation_id=new_id("forecast_watch"))
         bound_resolution = await resolve_forecast(watch_tk, forecast_request, rec.plan.forecast_manifest)
+        _bound_watch_time(bound_resolution)
 
     report = REPORTS.get(safety_review.intake_report_id) if safety_review.intake_report_id else None
     report_ids = {value for value in (safety_review.intake_report_id,
@@ -357,6 +377,9 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
             warning = _warning(plan_id, condition.environment, point, factor,
                                prefix=f"Forecast ahead at {forecast_at}: ", recheck_reasons=reasons, invalid_input=invalid)
             if warning.requires_recheck or (warning.pct_of_wll_limit is not None and warning.pct_of_wll_limit >= 80):
+                if bound_resolution is not None:
+                    # A slow SSE consumer can resume after the interval has expired.
+                    _bound_watch_time(bound_resolution)
                 yield warning
                 emitted += 1
                 if limit and emitted >= limit:
@@ -381,9 +404,7 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
             manifest = resolution.result.forecast_manifest
             if manifest.source == "scenario":
                 bound_resolution = None
-            at = utcnow()
-            if not manifest.from_utc <= at <= manifest.to_utc:
-                raise ModelingError(409, "Watch time is outside the assessed forecast interval; explicit reassessment is required")
+            at = _bound_watch_time(resolution)
             samples = [sample for sample in bound_samples(resolution) if sample.valid_at_utc <= at]
             if not samples:
                 raise ModelingError(422, "No assessed forecast sample covers the watch time")

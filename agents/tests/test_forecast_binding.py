@@ -204,6 +204,31 @@ def test_bound_watch_uses_forecast_and_refuses_outside_interval(chain, monkeypat
         asyncio.run(collect())
 
 
+def test_bound_watch_keeps_the_reviewed_berth_frame_after_catalog_changes(chain, monkeypatch):
+    report, record, review = chain
+    assert record.geometry_snapshot is not None and review.geometry_snapshot_verified is True
+    selected = client()
+    async def changed_catalog(*args, **kwargs):
+        pytest.fail("Reviewed watch must not refetch mutable catalog heading")
+    monkeypatch.setattr(selected, "berth", changed_catalog)
+    monkeypatch.setattr(safety, "utcnow", lambda: report.forecast_manifest.from_utc + timedelta(minutes=30))
+    async def first_warning():
+        return await anext(safety.watch(record.plan.plan_id, selected, interval_s=0, limit=1))
+    warning = asyncio.run(first_warning())
+    assert warning.message.startswith("Bound forecast sample:")
+    assert warning.wind_from_true_deg == report.forecast_request.forecast[0].wind_from_true_deg
+
+
+def test_watch_refuses_unverified_geometry_instead_of_rotating_old_thresholds(chain, monkeypatch):
+    _, record, review = chain
+    monkeypatch.setattr(safety, "latest_review", lambda _: review.model_copy(update={"geometry_snapshot_verified": False}))
+    async def first_warning():
+        return await anext(safety.watch(record.plan.plan_id, client(), interval_s=0, limit=1))
+    with pytest.raises(ModelingError, match="Review geometry is not bound") as error:
+        asyncio.run(first_warning())
+    assert error.value.status == 409
+
+
 def test_changed_binding_is_checked_before_forecast_ahead_warning(chain, monkeypatch):
     _, record, review = chain
     changed = record.plan.model_copy(deep=True)
@@ -217,6 +242,37 @@ def test_changed_binding_is_checked_before_forecast_ahead_warning(chain, monkeyp
     with pytest.raises(ModelingError, match="Forecast binding changed") as error:
         asyncio.run(collect())
     assert error.value.status == 409
+
+
+@pytest.mark.parametrize("outside", ["before", "after"])
+def test_bound_watch_cannot_emit_forecast_warning_outside_interval_with_limit_one(chain, monkeypatch, outside):
+    report, record, review = chain
+    at = (report.forecast_manifest.from_utc - timedelta(minutes=1) if outside == "before" else
+          report.forecast_manifest.to_utc + timedelta(minutes=1))
+    monkeypatch.setattr(safety, "utcnow", lambda: at)
+    points = [p.model_copy(update={"limit_gust_kt": 1}) for p in safety.ENVELOPES[review.review_id]]
+    monkeypatch.setitem(safety.ENVELOPES, review.review_id, points)
+    async def first_warning():
+        return await anext(safety.watch(record.plan.plan_id, client(), interval_s=0, limit=1))
+    with pytest.raises(ModelingError, match="outside the assessed forecast interval") as error:
+        asyncio.run(first_warning())
+    assert error.value.status == 409
+
+
+def test_bound_watch_rechecks_time_between_forecast_ahead_yields(chain, monkeypatch):
+    report, record, review = chain
+    at = [report.forecast_manifest.from_utc]
+    monkeypatch.setattr(safety, "utcnow", lambda: at[0])
+    points = [p.model_copy(update={"limit_gust_kt": 1}) for p in safety.ENVELOPES[review.review_id]]
+    monkeypatch.setitem(safety.ENVELOPES, review.review_id, points)
+    async def consume():
+        stream = safety.watch(record.plan.plan_id, client(), interval_s=0, limit=2)
+        first = await anext(stream)
+        assert first.message.startswith("Forecast ahead")
+        at[0] = report.forecast_manifest.to_utc + timedelta(minutes=1)
+        with pytest.raises(ModelingError, match="outside the assessed forecast interval"):
+            await anext(stream)
+    asyncio.run(consume())
 
 
 def test_bound_watch_resolver_failure_does_not_fall_back(chain, monkeypatch):

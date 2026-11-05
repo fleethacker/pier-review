@@ -182,3 +182,20 @@ def test_scenario_source_failure_is_an_explicit_http_error(monkeypatch):
         response = client.post('/api/v1/mooring/forecast/resolve', json=body)
     assert response.status_code == 422
     assert 'archive gap' in response.json()['detail']
+
+
+def test_malformed_scenario_sample_is_rejected_without_a_server_error(monkeypatch):
+    req = _request()
+    scenario = EnvScenario(env_scenario_id='p1-service-invalid', name='Malformed sample', kind='steady',
+        created_at_utc=req.as_of_utc)
+    store.DocStore('env_scenario', EnvScenario)[scenario.env_scenario_id] = scenario
+    def invalid(*args, **kwargs):
+        raise ValueError('negative wind speed in scenario source')
+    monkeypatch.setattr(environment, 'scenario_snapshot', invalid)
+    body = _resolution().model_dump(mode='json')
+    body.pop('forecast')
+    body['forecast_binding'] = {'source': 'scenario', 'env_scenario_id': scenario.env_scenario_id}
+    with TestClient(app) as client:
+        response = client.post('/api/v1/mooring/forecast/resolve', json=body)
+    assert response.status_code == 422
+    assert 'invalid data' in response.json()['detail']

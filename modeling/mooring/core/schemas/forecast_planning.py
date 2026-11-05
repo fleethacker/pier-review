@@ -9,22 +9,29 @@ from .environment import EnvironmentSnapshot
 from .plans import MooringConfig, TugAssignment
 
 
+def _optional_wire_schema(schema):
+    # openapi-typescript treats schema defaults as required output properties.
+    # These additive fields may actually be absent on the wire, so retain their
+    # optionality without changing Pydantic's runtime defaults.
+    schema.pop('default', None)
+
+
 class ForecastBinding(Model):
     """Explicit input selection. Provider acquisition remains outside the planner."""
 
     wire_omitted_defaults = {"source_id": None, "env_scenario_id": None, "revision": None,
                             "expected_content_hash": None, "sample_from_utc": None, "sample_to_utc": None}
-    source: Literal['supplied', 'scenario'] = 'supplied'
-    source_id: str | None = Field(default=None, min_length=1,
+    source: Literal['supplied', 'scenario'] = Field(default='supplied', json_schema_extra=_optional_wire_schema)
+    source_id: str | None = Field(default=None, min_length=1, json_schema_extra=_optional_wire_schema,
         description="Caller-declared dataset/product identity; not proof of provider authenticity.")
-    env_scenario_id: str | None = Field(default=None, min_length=1)
-    revision: str | None = Field(default=None, min_length=1,
+    env_scenario_id: str | None = Field(default=None, min_length=1, json_schema_extra=_optional_wire_schema)
+    revision: str | None = Field(default=None, min_length=1, json_schema_extra=_optional_wire_schema,
         description="Declared provider/scenario revision. Content is hashed independently even when this is unchanged.")
-    expected_content_hash: str | None = Field(default=None, pattern=r'^sha256:[0-9a-f]{64}$',
+    expected_content_hash: str | None = Field(default=None, pattern=r'^sha256:[0-9a-f]{64}$', json_schema_extra=_optional_wire_schema,
         description="Optional pin: reject different content instead of silently evaluating a changed revision.")
-    sample_from_utc: AwareDatetime | None = Field(default=None,
+    sample_from_utc: AwareDatetime | None = Field(default=None, json_schema_extra=_optional_wire_schema,
         description="Scenario-only sampling window retained when rechecking a selected operation from a wider original series.")
-    sample_to_utc: AwareDatetime | None = None
+    sample_to_utc: AwareDatetime | None = Field(default=None, json_schema_extra=_optional_wire_schema)
 
     @field_validator('sample_from_utc', 'sample_to_utc')
     @classmethod
@@ -58,8 +65,8 @@ class ForecastResolutionManifest(Model):
 
     wire_omitted_defaults = {"source_id": None, "env_scenario_id": None}
     source: Literal['supplied', 'scenario']
-    source_id: str | None = None
-    env_scenario_id: str | None = None
+    source_id: str | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    env_scenario_id: str | None = Field(default=None, json_schema_extra=_optional_wire_schema)
     revision: str
     content_hash: str = Field(pattern=r'^sha256:[0-9a-f]{64}$')
     binding_hash: str = Field(pattern=r'^sha256:[0-9a-f]{64}$')
@@ -75,11 +82,11 @@ class ForecastResolveRequest(Model):
     as_of_utc: AwareDatetime
     from_utc: AwareDatetime
     to_utc: AwareDatetime
-    max_gap_min: int = Field(default=60, ge=1, le=180)
-    step_min: int = Field(default=30, ge=10, le=180,
+    max_gap_min: int = Field(default=60, ge=1, le=180, json_schema_extra=_optional_wire_schema)
+    step_min: int = Field(default=30, ge=10, le=180, json_schema_extra=_optional_wire_schema,
         description="Sampling interval for an explicitly selected scenario; supplied series retain every knot.")
-    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721)
-    forecast_binding: ForecastBinding | None = None
+    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721, json_schema_extra=_optional_wire_schema)
+    forecast_binding: ForecastBinding | None = Field(default=None, json_schema_extra=_optional_wire_schema)
 
     @field_validator('as_of_utc', 'from_utc', 'to_utc')
     @classmethod
@@ -117,7 +124,7 @@ class ForecastDockingRequest(Model):
                             "forecast_step_min": 30, "forecast": None,
                             "installed_at_water_level_mllw_ft": None}
 
-    installed_at_water_level_mllw_ft: float | None = Field(default=None,
+    installed_at_water_level_mllw_ft: float | None = Field(default=None, json_schema_extra=_optional_wire_schema,
         description="Preserve an existing installation tide during explicit reassessment; omitted means install at each candidate arrival's tide.")
 
     allow_short_lead: bool = Field(default=False,
@@ -134,9 +141,9 @@ class ForecastDockingRequest(Model):
     arrival_step_min: int = Field(default=60, ge=15, le=360)
     operation_hours: float = Field(default=2, gt=0, le=24)
     holding_hours: float = Field(default=6, ge=0, le=48)
-    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721)
-    forecast_binding: ForecastBinding | None = None
-    forecast_step_min: int = Field(default=30, ge=10, le=180,
+    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721, json_schema_extra=_optional_wire_schema)
+    forecast_binding: ForecastBinding | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    forecast_step_min: int = Field(default=30, ge=10, le=180, json_schema_extra=_optional_wire_schema,
         description="Sampling interval only for an explicitly selected environment scenario.")
     max_gap_min: int = Field(default=60, ge=1, le=180,
         description='Maximum covered interval between snapshots; this is a sampling assumption, not a guarantee against sub-sample peaks.')
@@ -209,8 +216,8 @@ class DockingArrivalWindow(Model):
 class ForecastDockingResult(Model):
     wire_omitted_defaults = {"selected_config": None, "installed_at_water_level_mllw_ft": None, "retrieved_at_utc": [],
                             "forecast_manifest": None, "result_hash": None}
-    forecast_manifest: ForecastResolutionManifest | None = None
-    result_hash: str | None = Field(default=None, pattern=r'^sha256:[0-9a-f]{64}$',
+    forecast_manifest: ForecastResolutionManifest | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    result_hash: str | None = Field(default=None, pattern=r'^sha256:[0-9a-f]{64}$', json_schema_extra=_optional_wire_schema,
         description="Hash of the semantic assessment, excluding newly allocated result IDs and execution timestamps.")
     selected_config: MooringConfig | None = Field(default=None,
         description="Selected arrival's configuration with modeled unstretched paid-out lengths made explicit. Reproduces the static installation assumption; not a deck-handling instruction.")
@@ -243,8 +250,8 @@ class ForecastRecheckRequest(Model):
     wire_omitted_defaults = {"forecast": None, "forecast_binding": None}
     prior_result_id: str = Field(min_length=1)
     as_of_utc: AwareDatetime
-    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721)
-    forecast_binding: ForecastBinding | None = None
+    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721, json_schema_extra=_optional_wire_schema)
+    forecast_binding: ForecastBinding | None = Field(default=None, json_schema_extra=_optional_wire_schema)
 
     @field_validator('as_of_utc')
     @classmethod
@@ -264,12 +271,12 @@ class ForecastRecheckResult(Model):
                             "reassessment_request": None, "installed_at_water_level_mllw_ft": None}
     state: Literal['unchanged', 'recheck_required', 'unavailable']
     prior_result_id: str
-    previous_forecast_manifest: ForecastResolutionManifest | None = None
-    current_forecast_manifest: ForecastResolutionManifest | None = None
+    previous_forecast_manifest: ForecastResolutionManifest | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    current_forecast_manifest: ForecastResolutionManifest | None = Field(default=None, json_schema_extra=_optional_wire_schema)
     reasons: list[str]
-    reassessment_request: ForecastDockingRequest | None = Field(default=None,
+    reassessment_request: ForecastDockingRequest | None = Field(default=None, json_schema_extra=_optional_wire_schema,
         description="Suggested explicit new calculation preserving the installation. This comparison neither runs it nor transfers approval.")
-    installed_at_water_level_mllw_ft: float | None = None
+    installed_at_water_level_mllw_ft: float | None = Field(default=None, json_schema_extra=_optional_wire_schema)
 
 
 class ForecastRecheckResponse(Envelope[ForecastRecheckResult]):

@@ -35,6 +35,8 @@ def resolve_request(req: ForecastResolveRequest):
                 as_of_utc=min(req.as_of_utc, start), from_utc=start, to_utc=end, step_min=req.step_min)
         except ProviderError as exc:
             raise refdata.InvalidReference(f'Scenario source unavailable ({exc.kind}): {exc}') from None
+        except ValueError as exc:
+            raise refdata.InvalidReference(f'Scenario source returned invalid data: {exc}') from None
         revision = revision or scenario_revision
     return resolve_forecast(series, as_of_utc=req.as_of_utc,
         from_utc=req.from_utc, to_utc=req.to_utc, max_gap_min=req.max_gap_min,

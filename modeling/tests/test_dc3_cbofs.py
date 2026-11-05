@@ -42,3 +42,10 @@ def test_missing_declared_datum_variable_is_rejected():
     with pytest.raises(ProviderError, match="zetatomllw"):
         CBOFSSampler().sample(fixture().drop_vars("zetatomllw"), 36.95, -76.33, depth_m=1,
                               issued_at=datetime(2026, 11, 5, tzinfo=UTC), as_of=datetime(2026, 11, 5, tzinfo=UTC))
+
+
+@pytest.mark.parametrize("latitude,longitude,depth", [(91, -76.3, 1), (36.9, -181, 1), (36.9, -76.3, -1)])
+def test_invalid_sampling_location_or_depth_is_rejected(latitude, longitude, depth):
+    with pytest.raises(ValueError, match="outside its valid range"):
+        CBOFSSampler().sample(fixture(), latitude, longitude, depth_m=depth,
+                              issued_at=datetime(2026, 11, 5, tzinfo=UTC), as_of=datetime(2026, 11, 5, tzinfo=UTC))

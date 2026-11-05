@@ -39,6 +39,8 @@ class CBOFSSampler:
 
     def sample(self, dataset: xr.Dataset, latitude: float, longitude: float, *, depth_m: float,
                issued_at: datetime, as_of: datetime) -> list[CBOFSForecast]:
+        if not (-90 <= latitude <= 90 and -180 <= longitude <= 180 and np.isfinite(depth_m) and depth_m >= 0):
+            raise ValueError("latitude/longitude or requested depth is outside its valid range")
         missing = self.required.difference(dataset.variables)
         if missing:
             raise ProviderError("malformed", f"CBOFS dataset lacks variables: {', '.join(sorted(missing))}")
@@ -78,5 +80,5 @@ class CBOFSSampler:
 
 
 def open_subset(url: str) -> xr.Dataset:
-    """Open OPeNDAP lazily; the sampler loads only its selected point/layer."""
+    """Open OPeNDAP lazily; selection loads coordinate grids, then only the chosen data point/layer."""
     return xr.open_dataset(url, engine="netcdf4", drop_variables=["temp", "salt"], cache=True)

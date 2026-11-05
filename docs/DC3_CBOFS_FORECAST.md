@@ -2,7 +2,8 @@
 
 CBOFS runs at 00, 06, 12 and 18 UTC and publishes hourly forecast guidance to
 48 hours. The adapter targets NOAA's regular-grid NetCDF product through
-THREDDS/OPeNDAP and lazily reads only the selected point/layer variables.
+THREDDS/OPeNDAP. It reads the coordinate grids needed to locate the nearest wet
+cell, then lazily reads only the selected point/layer data variables.
 
 The product declares NAD83 latitude/longitude, standard depths in metres
 positive down, `u_eastward` and `v_northward` in m/s, and `zetatomllw` in

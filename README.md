@@ -9,7 +9,7 @@ list are in [docs/PLAN.md](docs/PLAN.md). Current implementation and gaps are tr
 > **Real code, placeholder data.** Implemented: UFC environmental loads, static equilibrium, limiting wind and tide sweep,
 > rated tug allocation, holding-plan checks, bounded line-plan search, draft sequence checks, risk sampling, bounded jobs
 > and optional SQLite persistence. Risk artifacts remain unqualified. Berthing uses a real integrator with an explicitly
-> synthetic vessel body; approach planning/simulation remain mock. CO-OPS observations and individual NWS/chart readers
+> synthetic vessel body; approach planning/simulation remain mock. CO-OPS observations and individual NWS/CBOFS/chart readers
 > exist, but a complete public forecast for docking is not yet wired. Default operation stays offline with labeled
 > synthetic data. Supplied forecast snapshots support planning at least 24 hours before arrival; see
 > [FORECAST_DOCKING.md](docs/FORECAST_DOCKING.md).

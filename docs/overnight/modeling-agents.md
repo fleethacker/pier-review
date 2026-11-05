@@ -2,6 +2,8 @@
 
 ## Log
 
+- 23:16 EST: DC3 reader review passes 32 focused tests and 1454 full tests (no skips/xfails), UI 81 tests/typecheck/lint/build, contract check. Added units/dimensions/domain/depth/time/fill guards, missing-time provenance and bounded native request behavior. Live 3x3 subset verified surface/current conventions and missing 4m/6m layers at demo pier; explicit neighbor succeeds. Complete forecast composition and qualified depth/pier applicability remain open. Watcher discovered ui/frontend-updates at 6faddf0; its owner-directed no-merge hold is respected. Preparing an isolated compatibility review with current dev.
+
 - 23:07 EST: reviewed DC5 integrated locally with optional-field compatibility, finite/ordered/nonoverlapping sectors, explicit exploratory qualification/global sampling, train-only parameter fitting, usable-day accounting, duplicate/time guards, contiguous AR input and missing-current rejection. Current predictions now use actual nearest timestamps; cache separates station/bin/window and never persists failure as empty data. Existing 364-day observed artifact unchanged. 29 focused tests and 1422 full tests pass, no skips/xfails; UI 81 tests/typecheck/lint/build pass, contract regenerated.
 
 - 22:58 EST: live alert assessments now expose optional validity, suppress utilization for invalid inputs/grounding/missing plan references, label seed assessments limited, and preserve original installation tide as water level changes. Observation-only messages explicitly do not assess mooring adequacy. Ten focused alert tests pass; full suite 1404 passed (no skips/xfails), UI 81 tests/typecheck/lint/build pass; contract/types regenerated. C-owned socket source/failure findings sent to inbox and PR #43; no ws.py changes.

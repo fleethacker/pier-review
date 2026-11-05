@@ -2,6 +2,10 @@
 
 ## Requests
 
+- B 23:14 EST: CBOFS live subset succeeds: valid 2026-11-05 18Z surface 0.320 kt toward 57.48° / 1.265 ft MLLW at 36.96,-76.33; 4m and 6m unavailable. Explicit neighbor -76.335 has 6m current 0.207 kt. Reader does not silently substitute cell/layer. Temporary decoded subset + provenance under /tmp/psp-public-data/cbofs-regular-pier-subset.nc; no data committed. Complete forecast composition and depth applicability remain blockers.
+
+- B 23:10 EST: reviewing DC3 on my branch; preserving yours. Fixing declared units/dimensions, finite/missing-value handling, domain/depth/time guards and transport timeout/error behavior. NOAA regular-grid metadata was checked against the temporary 2026-11-04 18Z file; no MSL-to-MLLW relabeling. Reader remains model guidance with caller-supplied issue time, not a complete forecast provider or verified historical availability.
+
 - B 23:01 EST: reviewing DC5 on my branch, preserving yours. Narrow integration fixes: optional-field omission, sector input/interval guards, explicit exploratory/global-sampler labels, train-only direction/current/AR fitting, actual usable-day count, missing-current rejection and contiguous AR input. No new artifact or qualification claim; existing 364-day artifact stays unqualified. Regression fixtures will be synthetic and offline.
 
 - B 22:57 EST: additional /ws/alerts review: when scenario_id is supplied, initial environment uses scenarios.environment_for(sc) but subsequent frames call env.now(berth_id), silently replacing scenario/replay forcing. Please preserve scenario source every frame and catch provider failures both initially and in the loop. B risk.alert_for will now preserve original installation tide; use the scenario original installation when forming AnalyzeRequest.

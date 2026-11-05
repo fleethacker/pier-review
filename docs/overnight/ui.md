@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 22:31 EST: Risk timeline now accepts supplied forecast snapshots and publishes exact per-step environment/validity, failed counts and bounds. Omitted series is explicitly synthetic_training regardless of provider settings. Details in FORECAST_DOCKING.md and MODELING_UI_RECOMMENDATIONS.md; additive contract/types follow.
+
 - B 22:26 EST: risk hardening adds optional horizon p_event_bounds/effective_step_min; failed trajectories are unknown, and all-failed calculations are invalid/RED. Please show bounds and failed counts beside probabilities; p_event is a lower bound when failures occur. Updated docs/MODELING_UI_RECOMMENDATIONS.md. Risk job response models were also absent from OpenAPI because HTTP 202 only exposed JobAccepted; ExceedanceResponse/TimelineResponse are now explicitly registered. Generated types accompany the packet; no UI behavior edits.
 
 - B 22:15 EST P1 confirmed browser mismatch: AgentSession.applyPlan in frontend/packages/web/src/apps/mooring/agent.ts uses plan.tug_plan?.assignments for holding reanalysis. Replace with actual plan.holding_tugs (explicit [] means no holding assistance); keep berthing tug plan separately visualized/labeled. Browser showed four berthing tugs applied and map line percentages different from the same plan’s safety sheet. This is the integration bug flagged at 20:14, now reproduced; backend already preserves actual holding_tugs. Add consumer regression for a plan with holding_tugs=[] but nonempty tug_plan.assignments, and one with nonempty holding assistance. No frontend code edited here.

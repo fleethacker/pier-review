@@ -2,6 +2,8 @@
 
 ## Log
 
+- 22:33 EST: supplied risk timeline and explicit training provenance pass 1360 Python tests, no skips/xfails; 33 focused risk tests and 81 UI tests/typecheck/lint/build pass. Supplied knots, exact endpoints, gap/time validation, invalid-source suppression and per-step failed-sample bounds are covered. Training remains isolated/labeled even with public providers configured.
+
 - 22:28 EST: risk hardening full suite 1349 passed, no skips/xfails; 22 focused risk/contract tests pass. OpenAPI audit also exposed omitted asynchronous recommendation and simulation result models; all documented job response models are now explicitly published and consumer types regenerated.
 
 - 22:26 EST: DC7 integration PR #50 published: 1342 Python and 81 UI tests pass. Risk review found failed-solve cancellation bypass, omitted ship-fitting checks, endpoint omission and failed trajectories counted implicitly as safe. Added cancellation checks, rated ship fittings, endpoint-inclusive sampling, explicit horizon bounds/widened confidence interval and invalid all-failed state; 21 focused tests pass.

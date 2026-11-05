@@ -39,6 +39,8 @@ Draft sequences use the existing sequence/planner/review interfaces; the forecas
 
 Keep probabilities labeled as scenario outputs when the uncertainty model is unqualified. Show failed-solve counts and bounds beside percentages. Horizon `p_event` is the known-exceedance fraction and only a lower bound when trajectories fail; use `p_event_bounds` and the widened `p_event_ci95`, not a green badge based on the lower bound. An all-failed calculation is invalid/RED. `effective_step_min` gives the actual sampling interval including both horizon endpoints; events between samples remain unresolved. Ship fittings are included alongside lines, pier fittings and fenders.
 
+Risk timeline can consume exact supplied `forecast` snapshots with explicit `start_utc`, endpoint coverage and <=60-minute gaps. Show each step’s environment/validity and the result’s `forcing_source`. Omitted forecast is always labeled synthetic training; never call it NOAA output merely because a provider is enabled. Supplied knots are all evaluated, independent of the legacy display interval.
+
 ## Integration checklist for the UI agent
 
 - Regenerate types after merging `dev`; use generated examples as consumer fixtures. Report missing/ambiguous fields in `docs/overnight/modeling-agents.md` → Requests.

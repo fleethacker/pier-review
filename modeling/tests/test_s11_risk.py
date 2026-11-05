@@ -3,7 +3,7 @@
 import copy
 import math
 import random
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -275,6 +275,81 @@ def test_timeline_with_sampling_gives_pointwise_probabilities_labeled_scenario_o
     j = timeline(n_samples_per_step=20, forecast_hours=2)
     assert all(0 <= s["p_any_exceeds_wll"] <= 1 for s in j["result"]["steps"])
     assert "UNQUALIFIED_UNCERTAINTY_MODEL" in {r["code"] for r in j["validity"]["reasons"]}
+
+
+def supplied_timeline():
+    body = copy.deepcopy(EXAMPLES["risk_timeline"])
+    start = datetime(2026, 11, 4, 12, tzinfo=UTC)
+    base = EnvironmentSnapshot.model_validate(body["environment"])
+    body.update(start_utc=start.isoformat(), forecast_hours=1, step_min=60, forecast=[
+        base.model_copy(update={"valid_at_utc": start + timedelta(minutes=i), "source": "scenario",
+            "wind_speed_kt": 10, "wind_gust_kt": 50 if i == 15 else 12}).model_dump(mode="json")
+        for i in (0, 15, 30, 45, 60)
+    ])
+    return body
+
+
+def test_timeline_supplied_knots_preserve_interior_gust_and_never_use_training_fallback(monkeypatch):
+    from mooring.data_simulation import timeline as training
+    def forbidden(*args):
+        raise AssertionError("supplied forecast cannot be replaced by training data")
+    monkeypatch.setattr(training, "sample", forbidden)
+    body = supplied_timeline()
+    response = client.post(f"{P}/risk/timeline", json=body)
+    assert response.status_code == 202
+    result = wait(response.json())["result"]
+    assert result["forcing_source"] == "supplied" and len(result["steps"]) == 5
+    assert [s["wind_gust_kt"] for s in result["steps"]] == [12, 50, 12, 12, 12]
+    assert [s["environment"]["valid_at_utc"] for s in result["steps"]] == [s["valid_at_utc"] for s in body["forecast"]]
+
+
+@pytest.mark.parametrize("change", ["no_start", "naive_start", "naive_sample", "duplicate", "unordered", "missing_end", "gap"])
+def test_timeline_rejects_ambiguous_or_incomplete_forecast(change):
+    body = supplied_timeline()
+    if change == "no_start":
+        body.pop("start_utc")
+    elif change == "naive_start":
+        body["start_utc"] = "2026-11-04T12:00:00"
+    elif change == "naive_sample":
+        body["forecast"][1]["valid_at_utc"] = "2026-11-04T12:15:00"
+    elif change == "duplicate":
+        body["forecast"][1] = body["forecast"][0]
+    elif change == "unordered":
+        body["forecast"].reverse()
+    elif change == "missing_end":
+        body["forecast"].pop()
+    else:
+        body["forecast_hours"] = 2
+        body["forecast"] = [body["forecast"][0], {**body["forecast"][-1], "valid_at_utc": "2026-11-04T14:00:00Z"}]
+    assert client.post(f"{P}/risk/timeline", json=body).status_code == 422
+
+
+def test_legacy_timeline_is_explicit_training_even_when_public_provider_is_enabled(monkeypatch):
+    monkeypatch.setenv("MOORING_ENV_SOURCE", "coops")
+    response = timeline(forecast_hours=1, step_min=45)
+    assert response["result"]["forcing_source"] == "synthetic_training"
+    steps = response["result"]["steps"]
+    assert len(steps) == 3 and steps[-1]["valid_at_utc"] == "2026-11-04T13:00:00Z"
+    assert all(s["environment"]["source"] == "scenario" and s["status"] != "GREEN" for s in steps)
+    assert "SYNTHETIC_TIMELINE" in {r["code"] for r in response["validity"]["reasons"]}
+    assert all("SYNTHETIC_TIMELINE" in {r["code"] for r in s["validity"]["reasons"]} for s in steps)
+
+
+def test_timeline_bad_quality_is_invalid_not_a_usable_percentage():
+    body = supplied_timeline()
+    body["forecast"][1]["metadata"] = {"basis": "prediction", "quality": "poor", "source": "fixture"}
+    response = wait(client.post(f"{P}/risk/timeline", json=body).json())
+    step = response["result"]["steps"][1]
+    assert response["status"] == "RED" and response["validity"]["state"] == "invalid"
+    assert step["status"] == "RED" and step["valid"] is False and step.get("max_pct_wll") is None
+
+
+def test_timeline_failed_sampling_is_reported_with_unknown_probability(monkeypatch):
+    monkeypatch.setattr(risk, "_eval_env", lambda *args: None)
+    response = timeline(forecast_hours=1, step_min=60, n_samples_per_step=20)
+    assert response["validity"]["state"] == "invalid" and response["status"] == "RED"
+    assert all(s["n_failed"] == 20 and s["n_valid"] == 0 and s["p_any_bounds"] == [0, 1]
+               and s["p_any_exceeds_wll"] is None for s in response["result"]["steps"])
 
 
 def test_alert_carries_event_time_provenance_and_staleness():

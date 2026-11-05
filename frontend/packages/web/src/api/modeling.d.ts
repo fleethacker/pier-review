@@ -4684,6 +4684,11 @@ export interface components {
              * @default 0
              */
             n_samples_per_step: number;
+            /**
+             * Forecast
+             * @description Exact supplied snapshots; all knots in the requested window are evaluated. Requires start_utc, both horizon endpoints and gaps <=60 minutes. No interpolation or provider fallback. Omitted means synthetic training forcing.
+             */
+            forecast?: components["schemas"]["EnvironmentSnapshot"][] | null;
         };
         /** TrackPoint */
         TrackPoint: {
@@ -6192,6 +6197,11 @@ export interface components {
         };
         /** TimelineResult */
         TimelineResult: {
+            /**
+             * Forcing Source
+             * @default null
+             */
+            forcing_source: ("synthetic_training" | "supplied") | null;
             /** Steps */
             steps: components["schemas"]["TimelineStep"][];
             /** First Amber Utc */
@@ -6235,6 +6245,25 @@ export interface components {
              * @default null
              */
             valid: boolean | null;
+            /** @default null */
+            environment: components["schemas"]["EnvironmentSnapshot"] | null;
+            /** @default null */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * N Valid
+             * @default null
+             */
+            n_valid: number | null;
+            /**
+             * N Failed
+             * @default null
+             */
+            n_failed: number | null;
+            /**
+             * P Any Bounds
+             * @default null
+             */
+            p_any_bounds: number[] | null;
         };
         /**
          * UncertaintyModel

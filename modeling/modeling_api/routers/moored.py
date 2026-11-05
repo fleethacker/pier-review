@@ -91,7 +91,7 @@ def recommend(req: Annotated[RecommendRequest, Body(openapi_examples=ex("mooring
 
 
 # ---- Advance docking forecast assessment ----
-from mooring.core.schemas.forecast_planning import ForecastDockingRequest
+from mooring.core.schemas.forecast_planning import ForecastDockingRequest, ForecastResolveRequest, ForecastResolvedResponse
 from mooring.moored.forecast_planning import assess as assess_forecast_docking
 
 
@@ -99,3 +99,20 @@ from mooring.moored.forecast_planning import assess as assess_forecast_docking
              summary="Assess arrivals at least 24 hours ahead (job result: ForecastDockingResponse)")
 def forecast_plan(req: ForecastDockingRequest):
     return JOBS.submit_task("mooring.forecast_plan", lambda ctx: assess_forecast_docking(req, ctx))
+
+
+@router.post("/mooring/forecast/resolve", response_model=ForecastResolvedResponse, tags=["M7 Planning"],
+             summary="Freeze an explicit forecast series and its as-of/horizon identity")
+def resolve_forecast(req: ForecastResolveRequest):
+    from mooring.moored.forecast_service import resolve
+    return resolve(req)
+
+
+from mooring.core.schemas.forecast_planning import ForecastRecheckRequest, ForecastRecheckResponse
+
+
+@router.post("/mooring/forecast-plan/recheck", response_model=ForecastRecheckResponse, tags=["M7 Planning"],
+             summary="Compare replacement guidance with a saved plan; never change or approve it")
+def forecast_recheck(req: ForecastRecheckRequest):
+    from mooring.moored.forecast_recheck import recheck
+    return recheck(req)

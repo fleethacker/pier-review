@@ -1,5 +1,7 @@
 # Remaining modeling development: execution plan
 
+> Packet **scope and acceptance** still come from this file. **Priorities, owners and order** for the rest of the build come from [MASTER_PLAN.md](MASTER_PLAN.md), which wins on conflict.
+
 Reviewed 4 November 2026 against `dev` at `5345bdd6e8bb48471463531c500c57e8ba1a0fc3` (PRs #6, #7 and #8 merged).
 
 **This is the implementation authority for remaining modeling work.** [PLAN.md](PLAN.md) remains the product roadmap; its illustrative APIs and module sketches are not implementation specifications. The generated [contract](../contract/README.md) defines the current API. This plan describes changes to make through schemas, tests and regenerated contracts, never by hand-editing generated files.

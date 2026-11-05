@@ -1,8 +1,10 @@
 # Demo walkthrough
 
-A five-minute path through the Phase 1 demo (gate G2): a green plan for a DDG 51 at a mock NAVSTA pier, tug
-horsepower, gust warnings in a storm, and an approved Mooring Evolution Safety Sheet. Everything runs on the mock
-backends, so every screen says **MOCK DATA**; say so out loud when you present it.
+A five-minute path through the demonstration: a supported **AMBER/limited** plan for a DDG 51 at a seed NAVSTA
+pier, an explicitly independent safety review and the sheet built from it, advance arrival planning 24 h+ ahead, and
+a live motion session.
+The modeling and agent workflows are implemented; the reference data and surrogate motion remain unqualified.
+Point out the seed-data and synthetic-source labels when presenting. This is not a completed G2 acceptance gate.
 
 ## Setup
 
@@ -13,36 +15,59 @@ cd frontend/packages/web && npm install && npm run dev      # http://localhost:4
 
 `make demo-check` at the repo root runs the whole demo headlessly and saves screenshots to `docs/overnight/screens/`.
 
-## Script
+## Current acceptance scope
 
-1. **The picture.** The app opens on Mock Pier 12 North with a DDG 51 starboard side to and six recommended lines,
-   colored by how loaded they are. Point out the mock banner, the wind and current arrows, and the compass.
-2. **Move the ship.** Drag the ship along the pier. The lines follow it and the analysis refreshes on release. The
-   slider in the Scenario panel does the same. Switch **3D**, orbit by dragging, then back to **2D**.
-3. **Edit the plan.** Click a line to see tension, % working load and angles. Click **Add line on canvas**, click a
-   ship bitt and then a pier fitting. The new line is analyzed straight away. Change a rope or parts count in the
-   list. **Remove** a line with the ✕.
-4. **Read the analysis.** In the Analysis panel, point at the status, the tightest line, and a finding with its
-   NSTM 582 paragraph.
-5. **Ask the agent.** In *Planning agent* click **Ask the agent to plan**. Watch the steps arrive, then the plan:
-   tug assist (horsepower and force per tug, drawn on the canvas), the line sequence, and the rationale. Click a
-   cited result id to see the stored number behind a claim. **Undo agent changes** restores your own lines.
-6. **Storm.** In the bottom dashboard, **Live** tab, choose *Storm ramp (what-if)*, ramp to 55 kt over 1 minute.
-   Wind and gust climb on the chart, the arrows grow, lines recolor, and the **Alerts** tab lists the warnings with
-   their NSTM references. Open **Wind limits** and **Gust risk** and run them for the limiting wind and the chance of
-   exceeding working load.
-7. **Safety sheet.** Back in the agent panel click **Create safety sheet**. Review the margins, rationale and the explanation for any unavailable plan-bound layout
-   image, press **Print**, then approve as pilot, first lieutenant and CO. The sheet locks after the first approval.
+This script assumes Kori's UI items are merged: U1 (Intake and independent review selection, four demo cases), U2
+(live rm0-v1 session protocol), U3 (per-component availability), U4 (advance planning) and U5 (simulation time).
+`make demo-check` drives the U1 and U4 browser steps and the existing motion steps headlessly.
 
-8. **Motion.** Close the sheet and press **Open motion view**. Press **Replay recording**, then **Play**: a recorded mock
-   fixture shows the hull, fittings, lines, tug and force arrows, and the badges say *limited*, *mock* and *rm0-v1*.
-   Point at the wave rows (*unavailable*, never zero) and at heave (*not simulated*). Drag the scrubber, change the
-   speed. Then press **Start session**, **Resume**, and issue a tug command. Space plays or pauses, R resets, Esc closes.
-9. **Where the data comes from.** In the sidebar open *Data sources and capabilities*: every stream says whether it is
-   mock, replay, typed or live, why, and the capability list says what each module is qualified for (today: none).
-10. **Berth from an image.** In *Berth from an image* choose any picture, press **Analyze image**, tick each amber
-    item, then **Confirm and use this berth**. The header reflects the returned provenance (estimated for a catalog draft). Without an LLM,
-    this is a deterministic metadata/catalog draft, not extraction from the uploaded pixels. Review the source note.
+What stays limited or open, and what to say about it:
+
+- **Seed data everywhere.** Every result is AMBER/limited at best; the banner stays on.
+- **Public forecast (D2) is not connected.** Advance planning runs on a seeded *training scenario*, labeled synthetic
+  and "not a weather forecast". The panel says the public forecast is unavailable.
+- **Live rm0-v1 frames need S1 merged.** Without it a live session sends legacy frames: the view still works, but
+  tugs, lines and environment read *unavailable*, and speed control and session recordings do not appear.
+- **Simulation-time forcing (S2) and tug kinematics/heel (S3) are not built.** The motion view says "forcing time:
+  not reported" and lists roll and pitch under *Not drawn*.
+- **Per-component availability (U3)** shows each component's own provider, basis and age only when the service
+  supplies component provenance; the offline demo serves the mock, which reads *mock*.
+
+[Local rehearsal screenshots](../docs/LOCAL_REHEARSAL.md) show the seed-data workspace, printed independent-review
+identity and authored motion replay. Use them with their qualification labels visible.
+
+## Script (about five minutes)
+
+1. **The picture (20 s).** The app opens on Pier 12 North with a DDG 51 starboard side to and recommended lines
+   colored by load. Point out the seed-data banner, the wind and current arrows, and the compass.
+2. **Pick a demo case (40 s).** In *Demo cases* press **Load** on *DDG moderate weather — limited demonstration*. The
+   panel shows the **initial** outcome of the plan exactly as supplied: AMBER, validity limited, with its result id.
+   Mention the other three: storm (RED, overloaded), inadequate depth (RED, invalid) and the one-line plan that is
+   initially RED/invalid. Its **final** outcome after planning is a repaired AMBER plan, shown separately, never relabeled.
+3. **Data honesty (20 s).** *Data sources and capabilities*: wind, current and water level each say where they came
+   from (here: mock), how old they are and why; waves, wake and telemetry say *unavailable*, never zero. A rejected
+   or failed source turns every component red with *error*. Old values never pass as current.
+4. **Intake, Planner, independent review (75 s).** *Environment intake* → **Assess conditions** (MST, windows of
+   concern, data quality). *Planning agent* → **Ask the agent to plan**: the steps stream in and the plan lands on the
+   canvas. Note that **Create safety sheet** is disabled. Press **Run independent review**: a separate Safety agent
+   re-checks the finished plan against its own threshold and the same Intake report, and shows its verdict
+   (*ready for signature*), each check, and the review id. Back in *Demo cases*, the **final** outcome now shows the
+   Planner status and the review verdict next to the initial one.
+5. **Safety sheet (40 s).** **Create safety sheet**. The sheet names the review it was built from (review id and plan
+   id). Press **Print**, approve as pilot; the sheet locks.
+6. **Advance planning (60 s).** *Advance planning (24 h+)*: as-of now, arrivals 24–30 h ahead, 2 h docking, 6 h
+   holding. The public forecast reads *unavailable*; press **Use training scenario**. The coverage line says the
+   series covers every arrival through holding. **Assess arrivals**: the alternatives table shows each arrival's
+   outcome, peak % WLL and governing line; the selected arrival is starred. **Apply selected configuration** keeps
+   the modeled paid-out lengths and the installation tide (not cutting lengths). Change *Holding* to 12 h:
+   **Recheck required** appears and apply is disabled until you assess again.
+7. **Motion (45 s).** **Open motion view** → **Start session** → **Resume**. Point at sim time vs wall time, the
+   measured rate, the forcing time, and the *training · synthetic forcing* label. Set **Speed** to 4×; the session
+   confirms it. Issue a tug command, **Pause**, **Reset**. Pick the session under **Session recordings** to replay it.
+   **Map 2D/3D** shows the same frames in Cesium; *Not drawn* lists what the frame did not supply.
+
+Keep these for questions: storm ramp (bottom dashboard, *Storm ramp*, 55 kt), wind limits and gust risk, berth from an
+image, and the Navy/Metric toggle.
 
 ## Things to say
 

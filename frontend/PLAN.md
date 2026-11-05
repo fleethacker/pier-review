@@ -1,5 +1,9 @@
 # Frontend plan
 
+> Remaining UI work (U1–U7), owners and sequence: [docs/MASTER_PLAN.md](../docs/MASTER_PLAN.md). The status table below is history plus current state.
+
+Integration update (5 November 2026): the baseline now checks all four API planning chains through independent review and printable sheets, plus supplied training forecast planning. This does not complete U1/U2/U4 browser acceptance. `make demo-check-readiness` reports the open gates explicitly; current UI validation is 227 unit tests, typecheck, lint and production build. The numbered phases below retain their historical overnight IDs, not the master plan's current U1–U7 assignments.
+
 How we turn the drone-simulator in this folder into the mooring assistant UI, as a reusable shell that other
 applications can plug into. Goals, structure and conventions are in [README.md](README.md). The repo-wide plan is
 [`../docs/PLAN.md`](../docs/PLAN.md); the frontend's first milestone is its gate **G0** ("the UI can render a scenario
@@ -20,8 +24,8 @@ from mocks"), and the frontend demo contribution is part of **G2** (approved saf
 | 8 Demo hardening | Done for the mock stack | Error and retry states, accessibility fixes, production build checked, [DEMO.md](DEMO.md). |
 | 9 Motion view, 2D (overnight U2) | Done | SVG plan view in `src/apps/mooring/motion/`: legacy and `rm0-v1` frames, live session and recording replay, badges, commands. Live frames are still legacy until the simulator publishes `rm0-v1` and a scene. Live speed control waits on the protocol. |
 | 10 Data-source honesty (U3) | Done | Status panel, capability list, standing seed-data banner. |
-| 11 Berth from an image (U5) | Done | Upload, detections, confirmation gate, save and select. Against the mock vision backend. |
-| 12 `make demo-check` (U6) | Done | API, proxy and headless-browser checks; see [README](README.md). |
+| 11 Berth from an image (U5) | Done for the catalog/fake-LLM demo | Upload, detections, confirmation gate, save and select. No-LLM path is a labeled catalog draft; optional extraction remains unqualified. |
+| 12 `make demo-check` (U6) | Baseline implemented; full gate pending | API, proxy and existing browser smoke; separate readiness profile lists missing acceptance checks. |
 | 13 3D motion view (U4) | Done (best effort) | Map mode in the Cesium scene with camera presets; position, heading and simulated heave only. Verified with the recorded fixture; live frames still lack positions for tugs and lines. |
 | 14 Intake agent in the UI | Done | Environment intake panel, deterministic summary labeled. |
 | 15 Hardening (U7, partial) | Done | Error boundaries per panel, reduced-motion support, narrow-width layout, per-frame cost test (30 lines, 3 tugs), optional bearer token for REST. |
@@ -34,8 +38,9 @@ swallowed every canvas click was fixed and covered by a test.
 Unused simulator leftovers (carrier models, model-generation script, the old README, the root package.json) and the
 unused lucide-react dependency have been deleted; they are in git history.
 
-Still not done: rotating entities (nothing needs it), real 3D ship models (none in the repo), testing on a real GPU, a
-real backend (mock responses only), and any browser other than Chromium.
+Still not done: rotating entities, real 3D ship models, testing on a real GPU, and any browser other than Chromium.
+The backend now uses implemented modeling/agent workflows with seed data and unqualified dynamics. Composed public
+forecasts, live rm0 frame integration and full planning/review-selection browser acceptance remain open in the master plan.
 
 ## What the simulator gave us, and what it did not (at the start)
 

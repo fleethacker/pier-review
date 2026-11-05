@@ -10,6 +10,8 @@ import { ResultPanel } from './panels/ResultPanel';
 import { ScenarioPanel } from './panels/ScenarioPanel';
 import { SequencePanel } from './panels/SequencePanel';
 import { SetupPanel } from './panels/SetupPanel';
+import { DemoCasesPanel } from './demo/DemoCasesPanel';
+import { AdvancePanel } from './advance/AdvancePanel';
 import { IntakePanel } from './intake/IntakePanel';
 import { StatusPanel } from './status/StatusPanel';
 import { BerthVisionPanel } from './vision/BerthVisionPanel';
@@ -46,6 +48,9 @@ export function Sidebar() {
           </button>
         </div>
       )}
+      <ErrorBoundary name="Demo cases">
+        <DemoCasesPanel />
+      </ErrorBoundary>
       <ErrorBoundary name="Berth, ship and layout">
         <SetupPanel />
       </ErrorBoundary>
@@ -60,6 +65,9 @@ export function Sidebar() {
       </ErrorBoundary>
       <ErrorBoundary name="Environment intake">
         <IntakePanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Advance planning">
+        <AdvancePanel />
       </ErrorBoundary>
       <ErrorBoundary name="Planning agent">
         <AgentPanel />

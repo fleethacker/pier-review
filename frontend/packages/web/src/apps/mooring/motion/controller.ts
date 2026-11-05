@@ -4,6 +4,8 @@ import { openJsonStream } from '../streams';
 import type { StreamHandle, StreamStatus } from '../streams';
 import { adaptFrame, frameIndexAt, parseSimMessage } from './frames';
 import type { SimFrame, SimLifecycle, SimRecording, SimScene, Vec2, ViewFrame } from './frames';
+import { SimClock } from './clock';
+import type { SimClockView } from './clock';
 import { motionSceneParts } from './sceneMapper';
 import type { MotionSceneParts, ShipDims } from './sceneMapper';
 import type { CameraPreset } from '../../../scene/types';
@@ -44,7 +46,29 @@ export interface MotionState {
   playing: boolean;
   speed: number;
   cursorS: number;
+  /** Live sessions: simulation vs wall time and when the forcing applies. Null for recordings and before the first frame. */
+  clock: SimClockView | null;
+  /** Interactive sessions started from this browser whose recording can be replayed (live copy, else persisted). */
+  sessionRecordings: SessionRecordingRef[];
 }
+
+export interface SessionRecordingRef {
+  sessionId: string;
+  recordingUrl: string;
+  sceneUrl: string | null;
+  startedAt: string;
+}
+
+/**
+ * Fields the S1 session protocol adds (ws-e/s1-rm0-live-frames). Optional here so the generated types can follow this
+ * branch's contract: absent means a legacy session, and recordings and confirmed speed simply do not appear.
+ */
+type S1SessionCreated = { recording_url?: string | null };
+type S1Lifecycle = SimLifecycle & { speed?: number | null };
+
+/** Live speeds the session protocol accepts (simulated seconds per wall second; the physics step never changes). */
+export const LIVE_SPEEDS = [0.5, 1, 2, 4, 8, 16] as const;
+const MAX_SESSION_RECORDINGS = 10;
 
 const INITIAL: MotionState = {
   open: false,
@@ -68,6 +92,8 @@ const INITIAL: MotionState = {
   playing: false,
   speed: 1,
   cursorS: 0,
+  sessionRecordings: [],
+  clock: null,
 };
 
 /** What the motion view needs from the mooring setup. */
@@ -120,6 +146,9 @@ export class MotionController {
   private disposed = false;
   private rawFrames: SimFrame[] = [];
   private sessionLayoutKey: string | null = null;
+  /** Newest lifecycle sequence received; a reconnect asks only for lifecycle messages after it. */
+  private lastLifecycleSeq = -1;
+  private readonly simClock = new SimClock();
 
   constructor(
     private readonly host: MotionHost,
@@ -154,7 +183,7 @@ export class MotionController {
       return;
     }
     this.stopEverything();
-    this.state.set({ ...INITIAL });
+    this.state.set({ ...INITIAL, sessionRecordings: this.s.sessionRecordings });
   }
 
   dispose(): void {
@@ -179,6 +208,8 @@ export class MotionController {
   /** Draws one frame now (replay, scrub) or the newest pending frame (live). */
   private show(raw: SimFrame): void {
     const frame = adaptFrame(raw, { faceBearingDeg: this.face() });
+    const clock = this.s.source === 'live' ? this.simClock.observe(raw, Date.now(), this.s.lifecycle === 'running') : null;
+    if (clock || this.s.clock) this.state.set({ clock });
     const p = { x: frame.ship.x_ft, y: frame.ship.y_ft };
     this.state.set((s) => {
       // A new run (reset) starts a fresh trail; time never runs backwards within a run.
@@ -257,7 +288,7 @@ export class MotionController {
     this.stopEverything();
     this.state.set({ busy: true, error: null, source: 'recording', link: 'idle', lifecycle: null, frame: null, trail: [], playing: false, sessionId: null });
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: authHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const rec = (await res.json()) as SimRecording;
       if (!rec.frames?.length) throw new Error('The recording has no frames.');
@@ -323,8 +354,20 @@ export class MotionController {
     this.rawFrames = [];
   }
 
+  /** Recording: playback rate. Live: asks the session to run at this many simulated seconds per wall second. */
   setSpeed(speed: number): void {
     if (this.s.source === 'recording') this.state.set({ speed });
+    else if (this.s.source === 'live' && speed > 0 && speed <= 16) {
+      // The session confirms the applied speed in its next lifecycle message.
+      if (this.send({ type: 'set_speed', speed })) this.state.set({ speed });
+    }
+  }
+
+  /** Replay the recording of a session started from this browser. */
+  async loadSessionRecording(sessionId: string): Promise<void> {
+    const ref = this.s.sessionRecordings.find((r) => r.sessionId === sessionId);
+    if (!ref) return;
+    await this.loadRecording(ref.recordingUrl, ref.sceneUrl, `Session ${sessionId} recording (synthetic dynamics)`);
   }
 
   // ---- live session -----------------------------------------------------------------------------------------
@@ -346,6 +389,9 @@ export class MotionController {
       return;
     }
     this.stopEverything();
+    this.lastLifecycleSeq = -1;
+    this.simClock.reset();
+    this.state.set({ speed: 1, clock: null });
     this.state.set({ busy: true, error: null, source: 'live', link: 'connecting', frame: null, trail: [], lifecycle: null, lifecycleMessage: null, lastSequence: null, droppedForDisplay: 0, recording: null, playing: false });
     try {
       const scenarioId = await this.host.ensureScenario();
@@ -355,7 +401,18 @@ export class MotionController {
       if (inputKey !== this.host.layoutKey()) throw new Error('Inputs changed while creating the session. The new session remains paused; start again.');
       this.sessionLayoutKey = layoutKey;
       this.state.set({ sessionId: created.session_id });
-      await this.loadScene(created.scene_url ? serviceUrl(MODELING_BASE, created.scene_url) : null);
+      const sceneUrl = created.scene_url ? serviceUrl(MODELING_BASE, created.scene_url) : null;
+      const recordingUrl = (created as S1SessionCreated).recording_url;
+      if (recordingUrl) {
+        const ref: SessionRecordingRef = {
+          sessionId: created.session_id,
+          recordingUrl: serviceUrl(MODELING_BASE, recordingUrl),
+          sceneUrl,
+          startedAt: new Date().toISOString(),
+        };
+        this.state.set({ sessionRecordings: [ref, ...this.s.sessionRecordings].slice(0, MAX_SESSION_RECORDINGS) });
+      }
+      await this.loadScene(sceneUrl);
       if (this.disposed) return;
       if (inputKey !== this.host.layoutKey()) throw new Error('Inputs changed while loading the scene. The session remains paused; start again.');
       this.connect(created.session_id);
@@ -374,14 +431,18 @@ export class MotionController {
   }
 
   private connect(sessionId: string): void {
-    const url = wsUrl(MODELING_BASE, `/ws/sim/${encodeURIComponent(sessionId)}`, {});
+    // On reconnect, ask only for lifecycle messages newer than the last one seen; frames are latest-state only.
+    const url = () =>
+      wsUrl(MODELING_BASE, `/ws/sim/${encodeURIComponent(sessionId)}`, {
+        after_sequence: this.lastLifecycleSeq >= 0 ? this.lastLifecycleSeq : undefined,
+      });
     let first = true;
     this.stream = openJsonStream<unknown>(
       url,
       (raw) => {
         const msg = parseSimMessage(raw);
         if (msg.kind === 'frame') this.receive(msg.frame);
-        else if (msg.kind === 'lifecycle') this.state.set({ lifecycle: msg.lifecycle.state, lifecycleMessage: msg.lifecycle.message ?? null });
+        else if (msg.kind === 'lifecycle') this.onLifecycle(msg.lifecycle);
       },
       (link) => {
         if (this.disposed) return;
@@ -394,6 +455,17 @@ export class MotionController {
         if (link === 'error') this.state.set({ notice: 'Connection lost; retrying…' });
       },
     );
+  }
+
+  private onLifecycle(lifecycle: SimLifecycle): void {
+    // Retained lifecycle messages can be resent; never step backwards.
+    if (lifecycle.sequence <= this.lastLifecycleSeq) return;
+    this.lastLifecycleSeq = lifecycle.sequence;
+    this.state.set({
+      lifecycle: lifecycle.state,
+      lifecycleMessage: lifecycle.message ?? null,
+      ...((lifecycle as S1Lifecycle).speed != null ? { speed: (lifecycle as S1Lifecycle).speed! } : {}),
+    });
   }
 
   /** Control messages and commands. Returns false when there is no live session to send to. */

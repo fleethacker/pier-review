@@ -74,4 +74,4 @@ def test_crew_shortage_blocks_all_proposals():
 
 def test_search_route_registered():
     from modeling_api.main import app
-    assert any(getattr(r, "path", "").endswith("/mooring/sequence/search") for r in app.routes)
+    assert any("/mooring/sequence/search" in p for p in app.openapi()["paths"])

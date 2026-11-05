@@ -101,7 +101,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
   const span = Math.max(spanX, spanY * 1.5);
   const pad = span * 0.12;
   const vb = { x: b.minX - pad, y: b.minY - pad, w: b.maxX - b.minX + 2 * pad, h: b.maxY - b.minY + 2 * pad };
-  const font = span / 75;
+  const font = span / 52;
   const lw = span / 600;
   const head = span / 45;
 
@@ -120,7 +120,9 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
   const ship = frame?.ship;
   const hull = scene?.ship_hull_outline && ship ? scene.ship_hull_outline.map((p) => shipToBerth(p, ship)) : null;
 
+  const drawnForces = frame?.forces.filter((f) => f.force) ?? [];
   return (
+    <div className="relative h-full w-full">
     <svg
       role="img"
       aria-label="Plan view of the ship, pier, lines and tugs"
@@ -186,7 +188,10 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
               return <circle key={f.fitting_id} cx={p.x} cy={p.y} r={font * 0.7} fill={st ? STATUS_COLOR[st] : DIM} stroke="#0a1628" strokeWidth={lw} />;
             })}
             <circle cx={ship.x_ft} cy={ship.y_ft} r={font * 0.5} fill="#00e5ff" />
-            <Label at={{ x: ship.x_ft, y: ship.y_ft + font * 2.6 }} text={`hdg ${Math.round(ship.headingTrueDeg)}°`} size={font} color="#00e5ff" anchor="middle" />
+            {(() => {
+              const at = hull ? { x: Math.min(...hull.map((p) => p.x)), y: Math.max(...hull.map((p) => p.y)) + font * 1.4 } : { x: ship.x_ft, y: ship.y_ft + font * 4 };
+              return <Label at={at} text={`ship · hdg ${Math.round(ship.headingTrueDeg)}°`} size={font} color="#00e5ff" />;
+            })()}
             {!hull && <Label at={{ x: ship.x_ft, y: ship.y_ft - font * 4.5 }} text="hull outline not supplied" size={font * 0.85} color={DIM} anchor="middle" />}
           </g>
         )}
@@ -210,7 +215,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
         {ship &&
           frame?.forces.map((f) =>
             f.force ? (
-              <Arrow key={f.key} from={{ x: ship.x_ft, y: ship.y_ft }} vec={{ x: f.force.x * fScale, y: f.force.y * fScale }} color={FORCE_COLOR[f.key]} width={lw * 3} fontSize={font * 0.85} head={head * 0.7} label={f.label} />
+              <Arrow key={f.key} from={{ x: ship.x_ft, y: ship.y_ft }} vec={{ x: f.force.x * fScale, y: f.force.y * fScale }} color={FORCE_COLOR[f.key]} width={lw * 3} fontSize={font * 0.85} head={head * 0.7} />
             ) : null,
           )}
 
@@ -224,15 +229,34 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
                 <polygon points={`${font * 2.4},0 ${-font * 1.6},${font * 1.2} ${-font * 1.6},${-font * 1.2}`} fill="#f59e0b" fillOpacity={0.9} stroke="#0a1628" strokeWidth={lw} />
               </g>
               <Label at={{ x: t.position.x + font * 1.5, y: t.position.y + font * 1.8 }} text={`${t.id}${t.utilizationPct != null ? ` · ${t.utilizationPct.toFixed(0)}%` : ''}`} size={font * 0.9} color="#f59e0b" />
-              {t.velocity && <Arrow from={t.position} vec={{ x: t.velocity.x * vScale, y: t.velocity.y * vScale }} color="#e2e8f0" width={lw * 2} fontSize={font * 0.8} head={head * 0.6} label="v" />}
-              {t.acceleration && <Arrow from={t.position} vec={{ x: t.acceleration.x * vScale * 4, y: t.acceleration.y * vScale * 4 }} color="#fb7185" width={lw * 2} fontSize={font * 0.8} head={head * 0.6} label="a" />}
+              {t.velocity && <Arrow from={t.position} vec={{ x: t.velocity.x * vScale, y: t.velocity.y * vScale }} color="#e2e8f0" width={lw * 2} fontSize={font * 0.8} head={head * 0.6} />}
+              {t.acceleration && <Arrow from={t.position} vec={{ x: t.acceleration.x * vScale * 4, y: t.acceleration.y * vScale * 4 }} color="#fb7185" width={lw * 2} fontSize={font * 0.8} head={head * 0.6} />}
               {t.commandedForce && <Arrow from={t.position} vec={{ x: t.commandedForce.x * fScale, y: t.commandedForce.y * fScale }} color="#f59e0b" dashed width={lw * 2} fontSize={font * 0.8} head={head * 0.6} />}
-              {t.actualForce && <Arrow from={t.position} vec={{ x: t.actualForce.x * fScale, y: t.actualForce.y * fScale }} color="#f59e0b" width={lw * 3} fontSize={font * 0.8} head={head * 0.6} label="push" />}
+              {t.actualForce && <Arrow from={t.position} vec={{ x: t.actualForce.x * fScale, y: t.actualForce.y * fScale }} color="#f59e0b" width={lw * 3} fontSize={font * 0.8} head={head * 0.6} />}
             </g>
           );
         })}
       </g>
     </svg>
+    <div className="pointer-events-none absolute bottom-2 left-3 max-w-[60%] rounded-sm border border-mil-border bg-mil-panel/85 p-2 text-[10px] text-mil-text">
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+        {drawnForces.map((f) => (
+          <span key={f.key} style={{ color: FORCE_COLOR[f.key] }}>■ {f.label}</span>
+        ))}
+        <span style={{ color: '#f59e0b' }}>■ Tug push</span>
+        <span style={{ color: '#e2e8f0' }}>■ Tug velocity</span>
+        <span style={{ color: '#fb7185' }}>■ Tug acceleration</span>
+      </div>
+      <div className="mt-0.5 flex flex-wrap gap-x-3">
+        <span style={{ color: STATUS_COLOR.GREEN }}>— taut line</span>
+        <span style={{ color: DIM }}>- - slack or unknown</span>
+        <span style={{ color: STATUS_COLOR.RED }}>— overloaded</span>
+      </div>
+      <p className="mt-0.5 text-mil-dim">
+        {drawnForces.length || frame?.tugs.some((t) => t.actualForce) ? `Force arrows share one scale: the longest is ${fmt.lbf(maxForce)}.` : 'No force vectors in this frame.'}
+      </p>
+    </div>
+    </div>
   );
 }
 
@@ -254,8 +278,8 @@ export function EnvironmentGlyph({ frame, faceBearingDeg }: { frame: ViewFrame |
     );
   };
   return (
-    <div className="pointer-events-none absolute left-3 top-3 w-[210px] rounded-sm border border-mil-border bg-mil-panel/85 p-2 text-[10px] text-mil-text">
-      <div className="mil-label mb-1">Environment</div>
+    <section className="border-b border-mil-border px-3 py-2 text-[11px] text-mil-text">
+      <h3 className="mil-label mb-1 text-[10px]">Environment</h3>
       <svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Wind, current and north directions in the plan view" className="mx-auto">
         <circle cx={c} cy={c} r={r + 8} fill="none" stroke="#1e3a5f" />
         {/* north tick */}
@@ -281,7 +305,7 @@ export function EnvironmentGlyph({ frame, faceBearingDeg }: { frame: ViewFrame |
           ))}
         </ul>
       )}
-      <p className="mt-1 text-[9px] text-mil-dim">Wind arrow shows where it blows toward; current arrow where it flows toward.</p>
-    </div>
+      <p className="mt-1 text-[9px] text-mil-dim">Arrows point the way the wind blows and the water flows; N is true north.</p>
+    </section>
   );
 }

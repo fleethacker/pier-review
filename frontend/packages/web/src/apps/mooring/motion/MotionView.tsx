@@ -317,7 +317,7 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
   }, [c]);
 
   return (
-    <div className="pointer-events-auto absolute inset-0 flex flex-col bg-mil-bg/95" role="dialog" aria-label="Motion view">
+    <div className="pointer-events-auto fixed inset-0 z-50 flex flex-col bg-mil-bg" role="dialog" aria-label="Motion view">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-mil-border bg-mil-panel px-3 py-2">
         <div className="flex flex-wrap items-center gap-3">
           <span className="mil-label">Motion view</span>
@@ -361,14 +361,14 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
           ) : (
             <>
               <MotionCanvas frame={s.frame} scene={s.scene} trail={s.trail} faceBearingDeg={face} />
-              <EnvironmentGlyph frame={s.frame} faceBearingDeg={face} />
               {s.source === 'live' && s.droppedForDisplay > 0 && (
                 <p className="pointer-events-none absolute bottom-2 left-3 text-[10px] text-mil-dim">Drawing the latest frame; {s.droppedForDisplay} older frames skipped to keep up.</p>
               )}
             </>
           )}
         </div>
-        <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-mil-border bg-mil-panel/60" aria-label="Frame readouts">
+        <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-mil-border bg-mil-panel/60" aria-label="Frame readouts">
+          {s.frame && <EnvironmentGlyph frame={s.frame} faceBearingDeg={face} />}
           <Readouts frame={s.frame} />
         </aside>
       </div>

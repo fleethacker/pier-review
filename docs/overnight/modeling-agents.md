@@ -2,6 +2,8 @@
 
 ## Log
 
+- 20:46 EST: M4 PR #29 published, 1148 Python tests. M5 Anthropic Messages adapter implemented with official current protocol, explicit model/key, no network in tests, existing application guards unchanged. Full suite 1165 passed; contract-check clean; 177 provider/agent focused checks passed. Provider perception/narration quality remains unverified.
+
 - 20:40 EST: safety PR #28 merged after green CI (1136 Python tests). Vision metadata/optional image pipeline implemented: modeling owns projection and estimated catalog capacities; confirmation uses logged toolkit and cannot replace catalog ids or promote provenance. Full suite 1147 passed before one additional confirmation regression; frontend 81 passed, typecheck/lint/build green.
 
 - 20:30 EST: Safety basis corrections targeted 40 tests passed, including real supported demo through sheet. Explicit modeled gust limits replace mislabeled sustained limits; unsupported breaking-speed estimates removed (prior test expectation corrected accordingly). Sheet now carries validity and real source/forecast statements. OpenAI Docs skill applied to optional vision input adapter; claude-api and openai-platform-api-key skills not installed, so provider documentation will be checked directly; no live LLM dependency.

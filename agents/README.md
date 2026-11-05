@@ -55,3 +55,17 @@ tests/            run modeling in-process behind an HTTP transport
    configured, agents fall back to their deterministic behavior so tests and demos run offline.
 5. Keep the API shapes. If one must change, run `make contract` and tag the UI team.
 6. Replace a mock by adding the real agent beside it and switching one import in `backend.py`.
+
+### Optional Anthropic provider
+
+Set `AGENTS_LLM_PROVIDER=anthropic`, `AGENTS_LLM_MODEL` to an explicitly selected model, and
+`ANTHROPIC_API_KEY` in the process environment. No model is selected implicitly. `none` remains the default.
+The Messages adapter supports text, image inputs and tool proposals; the existing code-owned fact, severity,
+unit and plan-adjustment guards still apply. Truncated, refused, malformed and unsupported responses fall
+back through each agent's deterministic path. Tests use a fake transport; live provider quality is unverified.
+
+Protocol references: [Messages](https://platform.claude.com/docs/en/api/http/messages/create),
+[images](https://platform.claude.com/docs/en/build-with-claude/vision), and
+[versioning](https://platform.claude.com/docs/en/api/versioning). The adapter pins API version `2026-10-21`
+and omits sampling parameters, which that version removes. The handoff's `claude-api` skill was not installed;
+implementation was checked against these primary docs instead.

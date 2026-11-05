@@ -10,9 +10,13 @@ function setup(lines = [
   { line_number: 1, role: 'bow', spec_id: 'NYLON', parts: 1, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P-1' },
   { line_number: 2, role: 'stern', spec_id: 'NYLON', parts: 3, ship_fitting_id: 'BITT-6S', pier_fitting_id: 'P-2' },
 ], analysis: unknown = null) {
-  const c = { setAllParts: vi.fn(), updateLine: vi.fn(), setNewLineSpec: vi.fn(), startAddLine: vi.fn(), cancelAddLine: vi.fn(), removeLine: vi.fn(), host: { store: { select: vi.fn() } } };
+  const c = { addLine: vi.fn(), setAllParts: vi.fn(), updateLine: vi.fn(), setNewLineSpec: vi.fn(), startAddLine: vi.fn(), cancelAddLine: vi.fn(), removeLine: vi.fn(), host: { store: { select: vi.fn() } } };
   const state = {
-    ship: { fittings: [{}] }, lines, lineSpecs: [{ spec_id: 'NYLON' }], analysis: { response: analysis },
+    shipClassId: 'S1', loading: 'full_load',
+    ship: { class_id: 'S1', loading_conditions: [{ name: 'full_load' }], fittings: [{ fitting_id: 'BITT-1S', kind: 'bitt', side: 'starboard' },
+      { fitting_id: 'BITT-6S', kind: 'bitt', side: 'starboard' }] },
+    berth: { fittings: [{ fitting_id: 'P-1' }, { fitting_id: 'P-2' }] }, side: 'starboard',
+    lines, lineSpecs: [{ spec_id: 'NYLON' }], analysis: { response: analysis },
     addLine: { active: false, shipFittingId: null, specId: 'NYLON', parts: 1 }, recommend: { state: 'idle' },
   };
   render(
@@ -61,6 +65,18 @@ describe('LinesPanel doubling up', () => {
     fireEvent.click(group.querySelectorAll('button')[2]);
     expect(c.setNewLineSpec).toHaveBeenCalledWith('NYLON', 3);
   });
+});
+
+it('offers labelled keyboard alternatives for creating and reconnecting a line', () => {
+  const c = setup();
+  fireEvent.change(screen.getByLabelText('New line ship fitting'), { target: { value: 'BITT-6S' } });
+  fireEvent.change(screen.getByLabelText('New line pier fitting'), { target: { value: 'P-2' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add selected fittings', hidden: true }));
+  expect(c.addLine).toHaveBeenCalledWith('BITT-6S', 'P-2');
+  fireEvent.change(screen.getByLabelText('Line 1 pier fitting'), { target: { value: 'P-2' } });
+  expect(c.updateLine).toHaveBeenCalledWith(1, { pier_fitting_id: 'P-2' });
+  fireEvent.change(screen.getByLabelText('Line 2 ship fitting'), { target: { value: 'BITT-1S' } });
+  expect(c.updateLine).toHaveBeenCalledWith(2, { ship_fitting_id: 'BITT-1S' });
 });
 
 

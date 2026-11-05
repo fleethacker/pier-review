@@ -3,6 +3,7 @@ import type {
   JobAccepted,
   Mission,
   MissionCreate,
+  MissionTrack,
   MediaItem,
   MediaMetadata,
   Report,
@@ -63,13 +64,30 @@ async function request<T>(method: string, path: string, body?: { json?: unknown;
   return (await res.json()) as T;
 }
 
+/** Fetch protected mission resources with the same bearer credentials as JSON calls.
+ * Never attach a token to an off-service URL returned in response data, or follow redirects.
+ */
+export async function fetchMissionBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+  const url = new URL(serviceUrl(path));
+  const allowed = new URL(serviceUrl('/api/v1/missions/'));
+  if (url.origin !== allowed.origin || !url.pathname.startsWith(allowed.pathname) || url.username || url.password) {
+    throw new Error('Mission resource is outside the configured modeling service.');
+  }
+  const response = await fetch(url.href, { headers: authHeaders(), signal, redirect: 'error' });
+  if (!response.ok) throw new ApiError(response.status, `Could not load mission resource (${response.status}).`);
+  return response.blob();
+}
+
 const enc = encodeURIComponent;
 
 export const missionsApi = {
   listMissions: () => request<Mission[]>('GET', '/api/v1/missions'),
   createMission: (m: MissionCreate) => request<Mission>('POST', '/api/v1/missions', { json: m }),
-  storyboard: (id: string, maxInterpGapS?: number) =>
-    request<Storyboard>('GET', `/api/v1/missions/${enc(id)}/storyboard${maxInterpGapS ? `?max_interp_gap_s=${maxInterpGapS}` : ''}`),
+  storyboard: (id: string, maxInterpGapS?: number, signal?: AbortSignal) =>
+    request<Storyboard>('GET', `/api/v1/missions/${enc(id)}/storyboard${maxInterpGapS ? `?max_interp_gap_s=${maxInterpGapS}` : ''}`, undefined, signal),
+  // Contract maximum: a decimated response must never become playback evidence.
+  track: (id: string, signal?: AbortSignal) =>
+    request<MissionTrack>('GET', `/api/v1/missions/${enc(id)}/track?max_points=200000`, undefined, signal),
   ingestTrackJson: (id: string, fixes: TrackFix[]) => request<TrackIngestResult>('POST', `/api/v1/missions/${enc(id)}/track`, { json: { fixes } }),
   ingestTrackFile: (id: string, form: FormData) => request<TrackIngestResult>('POST', `/api/v1/missions/${enc(id)}/track/file`, { form }),
   uploadMedia: (id: string, form: FormData) => request<MediaItem>('POST', `/api/v1/missions/${enc(id)}/media`, { form }),

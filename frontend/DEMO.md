@@ -17,21 +17,26 @@ cd frontend/packages/web && npm install && npm run dev      # http://localhost:4
 
 ## Current acceptance scope
 
-This script assumes Kori's UI items are merged: U1 (Intake and independent review selection, four demo cases), U2
+This script covers Kori's UI integration through `dev` at `a5a8b2f`: D1/D2/D4 (#13), the exercise application (#21),
+S2/S3/P5/P6/S4/S8 (#22), A3/A8/A11 (#23), tab UI (#26), compatibility (#24) and docs (#20) are merged. The UI includes U1 (Intake and independent review selection, four demo cases), U2
 (live rm0-v1 session protocol), U3 (per-component availability), U4 (advance planning) and U5 (simulation time).
-`make demo-check` drives the U1 and U4 browser steps and the existing motion steps headlessly.
+`make demo-check` drives the U1 and U4 browser steps and the existing motion steps headlessly. The combined
+rerun passed with the tabbed workspace; exact counts and remaining gates are in [delivery evidence](KORI_UI_DELIVERY.md).
 
 What stays limited or open, and what to say about it:
 
 - **Seed data everywhere.** Every result is AMBER/limited at best; the banner stays on.
-- **Public forecast (D2) is not connected.** Advance planning runs on a seeded *training scenario*, labeled synthetic
-  and "not a weather forecast". The panel says the public forecast is unavailable.
-- **Live rm0-v1 frames need S1 merged.** Without it a live session sends legacy frames: the view still works, but
-  tugs, lines and environment read *unavailable*, and speed control and session recordings do not appear.
-- **Simulation-time forcing (S2) and tug kinematics/heel (S3) are not built.** The motion view says "forcing time:
-  not reported" and lists roll and pitch under *Not drawn*.
-- **Per-component availability (U3)** shows each component's own provider, basis and age only when the service
-  supplies component provenance; the offline demo serves the mock, which reads *mock*.
+- **Public forecast (D2) is connected.** Enter the provider's exact current depth/bin, then fetch an immutable
+  composed forecast. Canonical resolution verifies coverage and supplies the content hash used by planning.
+  Partial/missing components block assessment; the UI never falls back to synthetic data automatically. The offline
+  walkthrough below chooses a labeled training scenario explicitly. Live-provider acceptance remains open.
+- **Live rm0-v1 frames and U2 are merged.** The UI consumes runtime scene/recordings, speed and reconnect state.
+  Vessel dynamics remain synthetic; live authentication and deployment acceptance are separate gates.
+- **S2/S3 backend implementation is merged.** Forcing time and motion evidence must be read from the supplied
+  frame and its validity. Missing fields remain *not reported* or *Not drawn*; synthetic dynamics remain unqualified.
+- **Per-component availability (U3)** distinguishes public provider availability from the workspace's selected
+  forcing. Source, basis, age, errors and missing values stay component-specific. Available public data does not
+  silently replace the offline mock used by this demonstration.
 
 [Local rehearsal screenshots](../docs/LOCAL_REHEARSAL.md) show the seed-data workspace, printed independent-review
 identity and authored motion replay. Use them with their qualification labels visible.
@@ -54,9 +59,10 @@ identity and authored motion replay. Use them with their qualification labels vi
    (*ready for signature*), each check, and the review id. Back in *Demo cases*, the **final** outcome now shows the
    Planner status and the review verdict next to the initial one.
 5. **Safety sheet (40 s).** **Create safety sheet**. The sheet names the review it was built from (review id and plan
-   id). Press **Print**, approve as pilot; the sheet locks.
+   id). When assessed layout evidence is available, its HTML includes the frozen SVG; unavailable evidence stays
+   unavailable. Press **Print**, approve as pilot; the sheet locks. U13 sidebar integration and target PDF support remain.
 6. **Advance planning (60 s).** *Advance planning (24 h+)*: as-of now, arrivals 24–30 h ahead, 2 h docking, 6 h
-   holding. The public forecast reads *unavailable*; press **Use training scenario**. The coverage line says the
+   holding. For this offline walkthrough press **Use training scenario** explicitly. The coverage line says the
    series covers every arrival through holding. **Assess arrivals**: the alternatives table shows each arrival's
    outcome, peak % WLL and governing line; the selected arrival is starred. **Apply selected configuration** keeps
    the modeled paid-out lengths and the installation tide (not cutting lengths). Change *Holding* to 12 h:
@@ -68,6 +74,36 @@ identity and authored motion replay. Use them with their qualification labels vi
 
 Keep these for questions: storm ramp (bottom dashboard, *Storm ramp*, 55 kt), wind limits and gust risk, berth from an
 image, and the Navy/Metric toggle.
+
+For a separate public-source rehearsal, enter the source's exact current depth in feet and station bin/model layer,
+then **Fetch public forecast**. Inspect component issuance (including unknown times), retrieval, coverage and the
+manifest revision before assessing. The horizon must cover the latest arrival plus docking and holding. Data retrieved
+after the chosen as-of cutoff can be unavailable; change that cutoff deliberately rather than assuming issuance.
+Source or revision changes require reassessment. A3 canonical binding through the agents is merged; connecting the
+explicit public acquisition selection to that workflow still needs integration. See the [Bixler handoff](../docs/BIXLER_IMPLEMENTATION.md).
+Offline fixture success does not establish public-network availability.
+
+## Canvas and evidence walkthrough
+
+- Drag the DDG along and away from the pier. Previous margins clear during the edit; release requests a fresh analysis.
+  Escape restores the previous placement. Toggle side-to and repeat; yaw continues to follow side-to.
+- Choose a line type, then drag a ship bitt to a pier fitting. Select the numbered line and drag one endpoint to
+  another valid fitting. The line number, type, parts and installed-length fields are preserved. Invalid drops do
+  not alter the plan. Expand **Edit endpoints** for keyboard controls.
+- Select CG-47, LHD-1 or CVN-68. The hull and environmental inputs remain visible, while missing fitting data blocks
+  planning. The previous ship's lines and agent plan must disappear.
+- After planning, inspect the sequence's review state, each intermediate static check, issues, limitations and
+  source link. Partial restraint remains indeterminate; matching geometry does not establish forecast revision binding.
+- **Wind limits** separates the working-limit gust and application advisory from ultimate capacity. The P6 backend
+  exists, but an approved capacity basis and UI basis-selection workflow are still required; no breaking threshold is
+  inferred. **Gust risk** reports scenario statistics and does not turn missing MBS evidence into zero risk.
+- S8's bounded static sequence search is merged; its proposal UI is not connected yet. Existing sequence checks do
+  not establish transient line-handling feasibility. A11 saved sheet graphics merged in #23; U13 sidebar integration
+  and P7 strain remain dependencies. See the [saved-sheet fixture](../agents/tests/fixtures/reviewed_sheet.README.md).
+
+The reproducible pointer check is `frontend/browser_checks/canvas_drag.py`; run it against a Vite development server
+as described in its docstring. [Delivery evidence and remaining dependencies](KORI_UI_DELIVERY.md) distinguish the
+implemented UI from work still assigned to Snyder, Cruz and Bixler.
 
 ## Things to say
 

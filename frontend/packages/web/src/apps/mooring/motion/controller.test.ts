@@ -455,3 +455,70 @@ describe('rm0-v1 session protocol (S1)', () => {
     m.dispose();
   });
 });
+
+it('retains synthetic forcing metadata and surfaces uncovered validity through lifecycle messages', async () => {
+  vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's1', ws_url: '/ws/sim/s1', forcing_revision: 'rev-a', forcing_synthetic: true } } as never);
+  const m = make();
+  await m.startSession();
+  expect(m.s).toMatchObject({ forcingRevision: 'rev-a', forcingSynthetic: true });
+  stream.handlers!.onMessage({ ...legacy(2, 1), forcing_revision: 'rev-a' });
+  flush();
+  expect(m.s).toMatchObject({ forcingRevision: 'rev-a', forcingSynthetic: true });
+  stream.handlers!.onMessage({ type: 'session_lifecycle', schema_version: 'rm0-v1', session_id: 's1', run_id: 'r1', sequence: 2, t_s: 2, state: 'paused', scene_id: 'sc', scene_revision: '1', validity: { state: 'invalid', reasons: [{ code: 'FORCING_UNCOVERED', message: 'Forcing ends before this step.' }] } });
+  expect(m.s.lifecycleInvalid).toBe(true);
+  expect(m.s.lifecycleReasons).toEqual(['FORCING_UNCOVERED: Forcing ends before this step.']);
+  m.dispose();
+});
+
+it('keeps explicit real forcing authoritative even with mock dynamics or component provenance', async () => {
+  vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's1', ws_url: '/ws/sim/s1', forcing_synthetic: false } } as never);
+  const m = make();
+  await m.startSession();
+  stream.handlers!.onMessage({ ...recording.frames[10], sequence: 1 });
+  flush();
+  expect(m.s.forcingSynthetic).toBe(false);
+  expect(m.s.clock?.training).toBe(false);
+  m.dispose();
+});
+
+it('does not apply an old session recording or its provenance after another recording is selected', async () => {
+  let finish!: (value: unknown) => void;
+  const old = new Promise((resolve) => { finish = resolve; });
+  vi.stubGlobal('fetch', vi.fn((url: string) => url === '/old' ? old : Promise.resolve({ ok: true, json: async () => ({ ...recording, recording_id: 'new' }) })));
+  const m = make();
+  m.state.set({ sessionRecordings: [{ sessionId: 'old', recordingUrl: '/old', sceneUrl: null, startedAt: '', forcingRevision: 'old-revision', forcingSynthetic: true }] });
+  const pending = m.loadSessionRecording('old');
+  await m.loadRecording('/new', null, 'New');
+  finish({ ok: true, json: async () => ({ ...recording, recording_id: 'old' }) });
+  await pending;
+  expect(m.s.recording?.id).toBe('new');
+  expect(m.s.forcingRevision).not.toBe('old-revision');
+  m.dispose();
+});
+
+it.each([false, true])('ignores a session creation completing after a recording selection (reject=%s)', async (reject) => {
+  let release!: () => void;
+  let entered!: () => void;
+  const started = new Promise<void>((resolve) => { entered = resolve; });
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  vi.mocked(modeling.POST).mockImplementationOnce(async () => {
+    entered();
+    await pending;
+    if (reject) throw new Error('Old provider failure');
+    return { data: { session_id: 'old', forcing_synthetic: true, forcing_revision: 'old' } } as never;
+  });
+  const m = make();
+  const creating = m.startSession();
+  await started;
+  await m.loadRecording();
+  const selected = m.s.recording!.id;
+  release();
+  await creating;
+  expect(m.s.source).toBe('recording');
+  expect(m.s.recording?.id).toBe(selected);
+  expect(m.s.sessionId).toBeNull();
+  expect(m.s.forcingRevision).not.toBe('old');
+  expect(m.s.error).toBeNull();
+  expect(stream.handlers).toBeNull();
+  m.dispose();
+});

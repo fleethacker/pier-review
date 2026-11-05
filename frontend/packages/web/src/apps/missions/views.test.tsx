@@ -40,7 +40,7 @@ describe('storyboard tab', () => {
     fireEvent.click(screen.getByRole('button', { name: /buoy abeam/ }));
     expect(c.state.selectedEventId).toBe('rep-2');
     expect(screen.getAllByText(/differs from the track by 180 m/).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('link', { name: 'Download GeoJSON' })[0].getAttribute('href')).toContain('/storyboard.geojson');
+    expect((screen.getAllByRole('button', { name: 'Download GeoJSON' })[0] as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole('form', { name: 'Upload track file' })).toBeTruthy();
     expect(screen.getByRole('form', { name: 'Upload image' })).toBeTruthy();
     expect(screen.getByRole('form', { name: 'Add report' })).toBeTruthy();

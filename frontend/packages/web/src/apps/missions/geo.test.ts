@@ -14,7 +14,8 @@ describe('locateOnTrack', () => {
     const p = locateOnTrack(track, T(30), 300);
     expect(p.method).toBe('interpolated');
     expect(p.lon).toBeCloseTo(-75.995, 6);
-    expect(p.sogKt).toBeCloseTo(11, 6);
+    // At 36°N a 0.01° longitude arc is about 899.59 m in 60 s.
+    expect(p.sogKt).toBeCloseTo(29.144, 2);
   });
   it('never extrapolates before or after the track', () => {
     expect(locateOnTrack(track, T(-1), 300)).toEqual({ method: 'before_track', established: false });
@@ -55,4 +56,59 @@ describe('helpers', () => {
     expect(t).toHaveLength(50);
     expect([t[0], t[49]]).toEqual([0, 999]);
   });
+});
+
+
+describe('spherical position evidence', () => {
+  const make = (a: [number, number], b: [number, number]) => prepareTrack([
+    fx('2026-11-05T12:00:00Z', ...a), fx('2026-11-05T12:01:00Z', ...b),
+  ]);
+  it('refuses the nonunique midpoint of antipodal fixes, while retaining exact endpoints', () => {
+    const t = make([0, 0], [0, 180]);
+    expect(locateOnTrack(t, T(30), 300)).toMatchObject({ established: false, reason: expect.stringContaining('Antipodal') });
+    expect(locateOnTrack(t, T(0), 300)).toMatchObject({ established: true, lat: 0, lon: 0 });
+  });
+  it('follows the spherical arc at high latitude, not a latitude/longitude chord', () => {
+    // Symmetry gives longitude 0; normalize midpoint Cartesian vector to obtain latitude.
+    const p = locateOnTrack(make([60, -60], [60, 60]), T(30), 300);
+    expect(p.lat).toBeCloseTo(73.897886248, 7);
+    expect(p.lon).toBeCloseTo(0, 9);
+  });
+  it('handles coincident points without a division by zero', () => {
+    const p = locateOnTrack(make([36, -76], [36, -76]), T(30), 300);
+    expect(p).toMatchObject({ established: true, method: 'interpolated' });
+    expect(p.lat).toBeCloseTo(36, 9);
+    expect(p.lon).toBeCloseTo(-76, 9);
+  });
+});
+
+
+describe('documented location time and speed semantics', () => {
+  it('snaps only within the recorded span, apart from the 1 ms endpoint tolerance', () => {
+    expect(locateOnTrack(track, T(60) - 250, 300)).toMatchObject({ method: 'exact_fix', lon: -75.99 });
+    expect(locateOnTrack(track, T(60) + 250, 300)).toMatchObject({ method: 'exact_fix', lon: -75.99 });
+    expect(locateOnTrack(track, T(0) - 1, 300).method).toBe('exact_fix');
+    expect(locateOnTrack(track, T(0) - 2, 300).method).toBe('before_track');
+    expect(locateOnTrack(track, T(1800) + 1, 300).method).toBe('exact_fix');
+    expect(locateOnTrack(track, T(1800) + 2, 300).method).toBe('after_track');
+  });
+  it('derives interpolated speed from distance/time and does not invent a stationary heading', () => {
+    const stationary = prepareTrack([
+      fx('2026-11-05T12:00:00Z', 36, -76, undefined, 12),
+      fx('2026-11-05T12:01:00Z', 36, -76, undefined, 14),
+    ]);
+    expect(locateOnTrack(stationary, T(30), 300)).toMatchObject({ method: 'interpolated', sogKt: 0, headingDeg: null });
+  });
+  it('does not interpret an unusable timestamp as a located position', () => {
+    expect(locateOnTrack(track, NaN, 300)).toEqual({ method: 'no_time', established: false });
+  });
+});
+
+
+it('does not substitute recorded course for missing interpolated heading', () => {
+  const fixes = prepareTrack([
+    { ...fx('2026-11-05T12:00:00Z', 36, -76), cog_true_deg: 90 },
+    { ...fx('2026-11-05T12:01:00Z', 36, -76), cog_true_deg: 90 },
+  ]);
+  expect(locateOnTrack(fixes, T(30), 300).headingDeg).toBeNull();
 });

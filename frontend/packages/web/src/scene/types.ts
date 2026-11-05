@@ -71,6 +71,8 @@ export interface SceneEntity {
   status?: Status;
   selectable?: boolean;
   editable?: EditPolicy;
+  /** Compatible endpoint groups for pointer-created links. No application semantics live in the shell. */
+  connectable?: { group: string; accepts: string[] };
   /** Clicking or dragging this entity acts on another one (a ship's deckhouse stands in for the ship). */
   selectsId?: string;
   props?: PropRow[];
@@ -96,6 +98,8 @@ export interface SceneLink {
   strands?: number;
   label?: string;
   selectable?: boolean;
+  /** Select the link, then drag either named endpoint to reconnect only this link. */
+  editableEndpoints?: { from: string; to: string };
   props?: PropRow[];
 }
 
@@ -148,4 +152,15 @@ export type SceneEdit = {
   pose: Pose;
   /** False while dragging, true on release. */
   final: boolean;
+  /** A cancelled move restores its original pose; it is not a committed edit. */
+  cancelled?: boolean;
+} | {
+  type: 'connect';
+  fromEntityId: string;
+  toEntityId: string | null;
+  /** Present only when reconnecting an endpoint of the selected link. */
+  linkId?: string;
+  endpoint?: 'from' | 'to';
+  final: boolean;
+  cancelled?: boolean;
 };

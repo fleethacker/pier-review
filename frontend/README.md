@@ -18,24 +18,50 @@ It started from the drone-simulator (Cesium, React, TypeScript, Vite, Tailwind) 
 look. The drone-specific code, models and backends were removed. The demo script is in [DEMO.md](DEMO.md); the build
 plan, decisions and status are in [PLAN.md](PLAN.md).
 
+Current integration includes `dev` through `a5a8b2f`: D1/D2/D4 #13, exercise #21, S2/S3/P5/P6/S4/S8 #22,
+A3/A8/A11 #23, tab UI #26, compatibility #24 and docs #20. Combined validation is recorded below.
+[Kori's delivery record](KORI_UI_DELIVERY.md) separates implemented UI, local evidence and outstanding dependencies;
+the [master plan](../docs/MASTER_PLAN.md#execution-ownership) assigns Kori, Snyder, Cruz and Bixler their next work.
+
 ## What the UI shows
 
 - **Phase 1:** choose a berth on the world map, place the ship, see analyzed colored lines; the planning agent
   streams its steps, then the safety sheet is created, approved and printed.
+- **Canvas editing:** drag a supported ship along or away from the pier; drag between fittings to create a line,
+  or select a line and drag an endpoint to reconnect it. Escape cancels. Numeric placement and keyboard fitting
+  selectors remain available. Edits clear previous margins and trigger a fresh analysis without changing installed lengths.
+- **Class coverage:** the Scenario panel separates hull/load inputs from usable mooring bitts. Classes without
+  bitts on the selected side cannot start planning; catalog presence is not class qualification. A8 capability routes
+  and geometry-based templates are merged; their dedicated UI integration and approved additional-class inputs remain.
+- **Sequence and gust evidence:** steps distinguish failed, unevaluated and partial-restraint states, retain review
+  status and citations, and flag changed layouts. Wind limits distinguish sustained/gust working limits from
+  unavailable ultimate breaking thresholds. P6's assessment backend exists, but approved capacity inputs and the UI
+  basis-selection workflow remain outstanding. S8's bounded static search exists; its proposal UI is not yet connected.
+  Bollard structural strain remains unavailable pending P7. A11 merged in #23: the existing sheet HTML includes
+  saved assessed SVG when evidence supports it. U13 sidebar integration and target PDF setup remain. See the
+  [immutable fixture](../agents/tests/fixtures/reviewed_sheet.README.md); never replace it with the current canvas.
 - **Motion view** (button in the sidebar): a plan view of the berthing simulator. It draws only what a frame
   supplies: hull and pier, fittings and fenders by load, lines by status and tension, tugs with velocity,
   acceleration and push, wind, current and wave glyphs, and the force breakdown. It handles both legacy frames and
   `rm0-v1` frames, shows validity and provenance badges at all times, and shows anything the simulator does not
   supply as *unavailable* or *not simulated*, never as zero. Live sessions have resume, pause, reset, tug and line
   commands; recordings have play, scrub and speed. The bundled mock recording replays with no backend.
-- **Data sources and capabilities** panel and a standing "all results limited: seed data" banner.
+- **Data sources and capabilities:** public per-component availability is separate from the selected workspace
+  forcing. Source, age, basis and unavailable/error states remain explicit, with a standing seed-data limitation.
+- **Advance planning (24 h+):** public acquisition requires the provider's exact current depth and station bin/model
+  layer. The immutable composed manifest is retained; canonical resolution verifies full arrival/docking/holding
+  coverage and supplies the content hash pinned by planning. Partial forecasts block assessment, without an automatic
+  synthetic fallback. Training generation is a separate labeled choice. Changed inputs or revisions require recheck;
+  unknown issue times stay unknown. A3 agent-wide canonical binding also merged in #23; explicit public revision
+  acquisition/selection still needs connecting to that workflow. See [Bixler’s handoff](../docs/BIXLER_IMPLEMENTATION.md).
+  Local tests use offline fixtures, not proof of live-provider availability.
 - **Berth from an image:** upload a picture, get a draft berth with detections and confidence, confirm every flagged
   item, then use the saved berth. The draft is labeled mock or vision data.
 
 The motion view has two modes. **Plan** is an SVG panel. **Map 2D/3D** draws the same frames in the shared Cesium
 scene (ship hull with deckhouse blocks, tugs, lines colored by status) and leaves the map interactive, with camera
-presets (top, bow, port quarter, pier side). The map draws position, heading and heave only when heave is simulated;
-roll, pitch and a water surface are not drawn, and it lists whatever the frame did not supply.
+presets (top, bow, port quarter, pier side). The map draws roll, pitch, heave and water only when the frame supplies
+them, and lists whatever the frame did not supply. Those displays do not qualify the underlying motion model.
 
 - **Environment intake:** assesses the selected saved scenario over 24 hours: MST, windows of concern,
   berthing windows and data quality, with a summary labeled deterministic or model-written. Manual conditions are
@@ -47,10 +73,13 @@ roll, pitch and a water surface are not drawn, and it lists whatever the frame d
   for services run with `MOORING_AUTH_REQUIRED=1`. The token is built into the bundle, so use it for local or trusted
   networks. Browsers cannot attach headers to WebSocket or EventSource, so the live streams, the planner's SSE steps
   and motion sessions still need a trusted gateway in front of an authenticated deployment.
+- **Mission playback:** playback uses a complete recorded track, separately from the thinned display geometry.
+  Gaps and nonunique antipodal paths remain unlocated; dateline crossings use the short arc. Protected images and
+  GeoJSON downloads use authenticated fetches and temporary object URLs, never bearer tokens in URLs.
 
 ## Run it
 
-Prerequisites: Node 20+ and [uv](https://docs.astral.sh/uv/) for the mock services.
+Prerequisites: Node 22 (the CI runtime) and [uv](https://docs.astral.sh/uv/) for the local services.
 
 ```bash
 # repo root: mock modeling (:8000) and agents (:8001)
@@ -82,6 +111,10 @@ the build, from the server, or be pasted into the tab. See that section.
 
 Other scripts in `packages/web`: `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`, and
 `npm run types` (regenerates `src/api/*.d.ts` from `../../contract/`; commit the result when `contract/` changes).
+On local Node 26, run JSDOM tests with `NODE_OPTIONS=--no-experimental-webstorage npm test -- --run`; this prevents
+Node's experimental global storage from masking browser storage. CI remains on Node 22. The incoming exercise
+features are preserved; component filenames/imports were disambiguated for case-insensitive macOS filesystems,
+with only the necessary test-environment compatibility adjustments.
 The repo-root `app.sh` starts both services and serves the built UI on `:8888`; it is the Domino app entry point
 (see [Deploying as a Domino app](#deploying-as-a-domino-app)).
 

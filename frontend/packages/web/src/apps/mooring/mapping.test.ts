@@ -73,6 +73,20 @@ describe('ship placement', () => {
     expect(hullOf(false).editable).toBeUndefined();
   });
 
+  it.each(['starboard', 'port'] as const)('allows both axes within the berth and outside the pier for %s', (side) => {
+    const hull = shipEntities(ship, 'full_load', side, 650, 12, null, true, berth).find((e) => e.id === 'ship')!;
+    expect(hull.editable).toEqual({ moveAxis: 'xy', snapM: ft(1),
+      bounds: { minX: 0, maxX: ft(1000), minY: ft(ship.beam_ft / 2) } });
+  });
+
+  it.each(['chock-only', 'opposite-side', 'missing-loading'])('retains a hull reference without enabling drag for %s', (coverage) => {
+    const candidate: ShipClass = { ...ship, fittings: [{ ...ship.fittings![0],
+      kind: coverage === 'chock-only' ? 'chock' : 'bitt', side: coverage === 'opposite-side' ? 'port' : 'starboard' }] };
+    const entities = shipEntities(candidate, coverage === 'missing-loading' ? 'missing' : 'full_load', 'starboard', 650, 12, null, true, berth);
+    expect(entities.find((entity) => entity.id === 'ship')?.editable).toBeUndefined();
+    expect(entities.filter((entity) => entity.kind === 'ship-fitting').every((entity) => !entity.connectable)).toBe(true);
+  });
+
   it('builds a hull that spans LOA and beam', () => {
     const pts = hullPoints(500, 60);
     const xs = pts.map((p) => p[0]);

@@ -116,6 +116,7 @@ describe('live backend', () => {
     const fetch = vi.fn(async (url: string) => {
       if (url.endsWith('/missions')) return json(200, [mission]);
       if (url.includes('/storyboard')) return json(200, { ...sampleStoryboard, mission });
+      if (url.includes('/track?')) return json(200, { mission_id: mission.mission_id, fixes: sampleStoryboard.track, fix_count: sampleStoryboard.track.length, decimated: false });
       if (url.endsWith('/transit/presets')) return json(200, []);
       return json(404, {});
     });
@@ -142,7 +143,7 @@ describe('live backend', () => {
         return json(200, {});
       }
       if (path === '/api/v1/missions') return json(200, [{ ...sampleStoryboard.mission, mission_id: 'm1' }]);
-      if (path.includes('/storyboard')) return json(200, sampleStoryboard);
+      if (path.includes('/storyboard')) return json(200, { ...sampleStoryboard, mission: { ...sampleStoryboard.mission, mission_id: path.split('/')[4] } });
       if (path.includes('/transit/presets')) return json(200, []);
       return json(404, {});
     });
@@ -154,4 +155,165 @@ describe('live backend', () => {
     expect(posts).toEqual(['create:MOCK-A', 'track:m1:true', 'create:MOCK-B', 'track:m2:true']);
     expect(c.state.tab).toBe('storyboard');
   });
+});
+
+
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => { resolve = r; });
+  return { promise, resolve };
+};
+const storyboardFor = (id: string) => ({ ...sampleStoryboard, mission: { ...sampleStoryboard.mission, mission_id: id } });
+const fullTrackFor = (id: string) => ({ mission_id: id, fixes: sampleStoryboard.track, fix_count: sampleStoryboard.stats.fix_count, decimated: false });
+
+describe('mission evidence ownership', () => {
+  it('keeps the latest selection when earlier requests complete last, including busy state', async () => {
+    const a = deferred<ReturnType<typeof json>>();
+    const b = deferred<ReturnType<typeof json>>();
+    vi.stubGlobal('fetch', vi.fn((url: string) => url.includes('/track?')
+      ? Promise.resolve(json(200, fullTrackFor(url.includes('/A/') ? 'A' : 'B')))
+      : url.includes('/A/') ? a.promise : b.promise));
+    const { c } = make();
+    const first = c.selectMission('A');
+    const second = c.selectMission('B');
+    a.resolve(json(200, storyboardFor('A')));
+    await first;
+    expect(c.state.missionId).toBe('B');
+    expect(c.state.busy).toBe('Loading storyboard');
+    b.resolve(json(200, storyboardFor('B')));
+    await second;
+    expect(c.state.storyboard?.mission.mission_id).toBe('B');
+    expect(c.state.busy).toBeNull();
+    c.dispose();
+  });
+
+  it('clears the old scene and evidence as soon as another selection starts, including failure', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('/good/')
+      ? json(200, url.includes('/track?') ? fullTrackFor('good') : storyboardFor('good'))
+      : json(404, { detail: 'not found' })));
+    const { c, store } = make();
+    await c.selectMission('good');
+    expect(Object.keys(store.getState().entities).length).toBeGreaterThan(0);
+    const request = c.selectMission('missing');
+    expect(Object.keys(store.getState().entities)).toHaveLength(0);
+    await request;
+    expect(c.state).toMatchObject({ missionId: 'missing', storyboard: null, shipPosition: null, selectedEventId: null, trackResult: null });
+    expect(Object.keys(store.getState().links)).toHaveLength(0);
+    c.dispose();
+  });
+
+  it('does not apply a request after disposal', async () => {
+    const pending = deferred<ReturnType<typeof json>>();
+    vi.stubGlobal('fetch', vi.fn(() => pending.promise));
+    const { c, store } = make();
+    const request = c.selectMission('A');
+    c.dispose();
+    pending.resolve(json(200, storyboardFor('A')));
+    await request;
+    expect(c.state.storyboard).toBeNull();
+    expect(Object.keys(store.getState().entities)).toHaveLength(0);
+  });
+
+  it('uses every recorded fix for playback, independent of a misleading display decimation', async () => {
+    const start = Date.parse('2026-11-05T12:00:00Z');
+    const fixes = Array.from({ length: 2001 }, (_, i) => ({
+      t_utc: new Date(start + i * 100).toISOString(), lat: 0,
+      lon: i <= 1000 ? 0 : (i - 1000) * 1e-6, quality: 'good' as const,
+    }));
+    const sb = { ...storyboardFor('dense'), track: [fixes[0], fixes.at(-1)!], max_interp_gap_s: 1,
+      mission: { ...storyboardFor('dense').mission, fix_count: fixes.length },
+      stats: { ...sampleStoryboard.stats, fix_count: fixes.length, start_utc: fixes[0].t_utc, end_utc: fixes.at(-1)!.t_utc } };
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => json(200, url.includes('/track?')
+      ? { mission_id: 'dense', fixes, fix_count: fixes.length, decimated: false } : sb)));
+    const { c } = make();
+    await c.selectMission('dense');
+    c.setScrub(start + 50_000);
+    expect(c.state.shipPosition).toMatchObject({ established: true, method: 'exact_fix', lon: 0 });
+    c.setScrub(start + 50_050);
+    // Documented 0.5 s tolerance snaps this dense interval to an original fix.
+    expect(c.state.shipPosition).toMatchObject({ established: true, method: 'exact_fix', lon: 0 });
+    c.dispose();
+  });
+
+  it.each(['decimated', 'missing', 'mismatched'])('withholds playback when full track is %s', async (reason) => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('/track?')
+      ? reason === 'missing' ? json(404, {}) : json(200, { ...fullTrackFor('A'), decimated: reason === 'decimated', mission_id: reason === 'mismatched' ? 'other' : 'A' })
+      : json(200, storyboardFor('A'))));
+    const { c, store } = make();
+    await c.selectMission('A');
+    expect(c.state.storyboard).not.toBeNull();
+    expect(c.state.shipPosition?.established).toBe(false);
+    expect(c.state.notice).toMatch(/Playback position unavailable/);
+    expect(store.getState().entities['mission-ship']).toBeUndefined();
+    c.dispose();
+  });
+
+  it('does not let an upload for the previous selection reload or show success on the new mission', async () => {
+    const upload = deferred<ReturnType<typeof json>>();
+    const fetch = vi.fn((url: string, init?: RequestInit) => init?.method === 'POST' ? upload.promise
+      : Promise.resolve(json(200, url.includes('/track?') ? fullTrackFor('B') : storyboardFor('B'))));
+    vi.stubGlobal('fetch', fetch);
+    const { c } = make();
+    c.store.setState({ missionId: 'A' });
+    const request = c.addReport({ t_utc: '2026-11-05T12:00:00Z', title: 'A report', body: '', tags: [] });
+    await c.selectMission('B');
+    upload.resolve(json(201, {}));
+    await request;
+    expect(c.state.missionId).toBe('B');
+    expect(c.state.notice).toBeNull();
+    expect(fetch.mock.calls).toHaveLength(3);
+    c.dispose();
+  });
+});
+
+
+it('retains upload counts and warnings while reloading the same mission', async () => {
+  const sb = storyboardFor('A');
+  const result = { mission_id: 'A', format: 'csv', accepted: 3, rejected: 1, duplicates: 0,
+    reordered: 0, fix_count: sb.stats.fix_count, issues: [] };
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method === 'POST') return json(200, result);
+    if (url.endsWith('/missions')) return json(200, [sb.mission]);
+    return json(200, url.includes('/track?') ? fullTrackFor('A') : sb);
+  }));
+  const { c } = make();
+  await c.selectMission('A');
+  await c.uploadTrack({ file: new Blob(['track']), filename: 'track.csv', format: 'csv' });
+  expect(c.state.trackResult).toMatchObject({ accepted: 3, rejected: 1 });
+  expect(c.state.storyboard?.mission.mission_id).toBe('A');
+  c.dispose();
+});
+
+it('does not let a late earlier success or failure overwrite an already loaded selection', async () => {
+  for (const status of [200, 404]) {
+    const pending = deferred<ReturnType<typeof json>>();
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/A/') && url.includes('/storyboard')) return pending.promise;
+      const id = url.includes('/A/') ? 'A' : 'B';
+      return json(200, url.includes('/track?') ? fullTrackFor(id) : storyboardFor(id));
+    }));
+    const { c } = make();
+    const first = c.selectMission('A');
+    await c.selectMission('B');
+    pending.resolve(json(status, status === 200 ? storyboardFor('A') : { detail: 'missing' }));
+    await first;
+    expect(c.state.storyboard?.mission.mission_id).toBe('B');
+    expect(c.state.error).toBeNull();
+    c.dispose();
+  }
+});
+
+
+it.each(['count', 'bounds', 'geometry'])('withholds playback when %s metadata disproves track consistency', async (kind) => {
+  const sb = structuredClone(storyboardFor('A'));
+  const full = structuredClone(fullTrackFor('A'));
+  if (kind === 'count') sb.mission.fix_count++;
+  if (kind === 'bounds') sb.stats.end_utc = '2026-11-05T15:00:00Z';
+  if (kind === 'geometry') full.fixes[0].lon += 0.01;
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => json(200, url.includes('/track?') ? full : sb)));
+  const { c } = make();
+  await c.selectMission('A');
+  expect(c.state.shipPosition?.established).toBe(false);
+  expect(c.state.notice).toMatch(/complete recorded track could not be verified/);
+  c.dispose();
 });

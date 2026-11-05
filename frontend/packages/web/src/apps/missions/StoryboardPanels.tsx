@@ -1,6 +1,6 @@
 import { cn } from '../../lib/cn';
 import { Button } from '../../shell/ui';
-import { missionsApi, serviceUrl } from './api';
+import { AuthenticatedImage, GeoJsonDownload } from './media';
 import { timeSpan } from './controller';
 import { useController, useMissions } from './context';
 import { CreateMissionForm, ImageUploadForm, ReportForm, TrackResult, TrackUploadForm } from './forms';
@@ -73,6 +73,7 @@ export function StoryboardSidebar() {
 
 export function MissionSummary() {
   const sb = useMissions((s) => s.storyboard);
+  const sample = useMissions((s) => s.sampleStoryboard);
   if (!sb) return null;
   const st = sb.stats;
   const rows: [string, string][] = [
@@ -99,14 +100,13 @@ export function MissionSummary() {
           </div>
         ))}
       </dl>
-      <a className="mt-2 inline-block text-[11px] text-mil-cyan underline" href={missionsApi.geojsonUrl(sb.mission.mission_id)} download={`${sb.mission.mission_id}.geojson`}>
-        Download GeoJSON
-      </a>
+      <GeoJsonDownload key={sb.mission.mission_id} missionId={sb.mission.mission_id} disabled={sample} />
     </section>
   );
 }
 
 export function EventDetail() {
+  const sample = useMissions((s) => s.sampleStoryboard);
   const sb = useMissions((s) => s.storyboard);
   const id = useMissions((s) => s.selectedEventId);
   const ev = sb?.events.find((e) => e.event_id === id);
@@ -120,7 +120,7 @@ export function EventDetail() {
       <p className="text-[11px] text-mil-dim">{fmtUtc(ev.t_utc)}</p>
       {ev.kind === 'image' &&
         (ev.media_url ? (
-          <img src={serviceUrl(ev.media_url)} alt={ev.title} className="mt-2 max-h-56 w-full rounded-sm border border-mil-border object-contain" />
+          <AuthenticatedImage path={ev.media_url} alt={ev.title} sample={sample} />
         ) : (
           <p className="mt-2 text-[11px] text-mil-dim">No image bytes available for this event.</p>
         ))}
@@ -156,7 +156,7 @@ export function StoryboardSide() {
       <section aria-label="Map key" className="text-[11px] text-mil-text">
         <Heading>Key</Heading>
         <ul className="space-y-0.5">
-          <li>Blue line: recorded track (thin grey: recording gap)</li>
+          <li>Blue line: recorded track geometry (thin grey: segment includes a gap or unverified coverage)</li>
           <li>Cyan marker: image; amber marker: report</li>
           <li>Large marker: exact fix; smaller: interpolated; amber ring: stated position far from track</li>
           <li>White arrow-point: ship at the scrubber time (hidden where position is not established)</li>
@@ -213,7 +213,7 @@ export function Scrubber() {
   if (!sb || !span || ms == null) return <p className="p-3 text-[11px] text-mil-dim">Select a mission with a track to use the timeline.</p>;
   const text = pos?.established
     ? `ship at ${pos.lat?.toFixed(5)}, ${pos.lon?.toFixed(5)} (${pos.method === 'exact_fix' ? 'exact fix' : 'interpolated'})`
-    : 'position not established';
+    : `position not established${pos?.reason ? `: ${pos.reason}` : ''}`;
   return (
     <div className="flex items-center gap-3 px-3 py-2">
       <Button size="sm" variant="secondary" aria-label="Previous event" onClick={() => c.stepEvent(-1)}>

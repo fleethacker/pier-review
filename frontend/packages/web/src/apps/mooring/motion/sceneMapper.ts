@@ -56,7 +56,7 @@ export interface MotionSceneParts {
 export function motionSceneParts(frame: ViewFrame, scene: SimScene | null, dims: ShipDims | null): MotionSceneParts {
   const notDrawn: string[] = [];
   const { ship } = frame;
-  const heave = ship.heaveMllwFt;
+  const heave = DRAWABLE_DOF.has(ship.dofs.heave) ? ship.heaveMllwFt : null;
   const { rollDeg, pitchDeg } = drawableAttitude(ship);
   const tilted = !!(rollDeg || pitchDeg);
   const levelPose = { x: ft(ship.x_ft), y: ft(ship.y_ft), z: heave != null ? ft(heave) : 0, headingDeg: ship.yawDeg };

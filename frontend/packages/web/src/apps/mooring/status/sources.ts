@@ -25,6 +25,8 @@ export interface SourceRow {
   basis?: string | null;
   /** Provider quality flag for this component, when stated. */
   quality?: string | null;
+  /** Independent provider status; it never replaces selected manual/replay/training forcing. */
+  availabilityNote?: string | null;
 }
 
 export interface SourceInput {
@@ -65,31 +67,37 @@ function componentRow(base: SourceRow, comp: Component, nowMs: number): SourceRo
   };
 }
 
-function forecastRow(availability: EnvironmentAvailability | null | undefined): SourceRow {
-  const component = availability?.components.find((item) => item.component === 'forecast');
+type AvailableComponent = EnvironmentAvailability['components'][number];
+
+function availableRow(id: SourceRow['id'], label: string, component: AvailableComponent | undefined,
+  availability: EnvironmentAvailability | null | undefined, nowMs: number): SourceRow {
   if (!component) {
     return {
-      id: 'forecast', label: 'Forecast', provider: 'none', state: 'unavailable', ageS: null,
-      reason: 'Forecast availability has not been reported.',
+      id, label, provider: 'none', state: 'unavailable', ageS: null,
+      reason: `${label} availability has not been reported; missing data are never shown as zero.`,
     };
   }
   const notes = [component.reason, ...(component.limitations ?? [])].filter((item): item is string => Boolean(item));
   let state: SourceState = component.state;
-  if (state === 'live') {
-    if (component.basis === 'prediction') state = 'prediction';
-    else {
-      state = 'unavailable';
-      notes.push('Forecast status did not identify a prediction basis, so it is not shown as live.');
-    }
+  if (state === 'live' && component.basis === 'prediction') state = 'prediction';
+  if (state === 'live' && component.basis === 'scenario') state = 'mock';
+  if (state === 'live' && id === 'forecast') {
+    state = 'unavailable';
+    notes.push('Forecast status did not identify a prediction basis, so it is not shown as live.');
   }
   if (state === 'prediction' && !notes.length) notes.push('Predicted values, not observations.');
-  if (state === 'unavailable' && !notes.length) notes.push('No forecast source is available.');
+  if (state === 'unavailable' && !notes.length) notes.push(`No ${label.toLowerCase()} source is available.`);
+  const checked = availability?.checked_at_utc ? Date.parse(availability.checked_at_utc) : NaN;
+  const reportedAge = component.age_s;
+  const ageS = reportedAge == null ? null : reportedAge + (Number.isFinite(checked) ? Math.max(0, (nowMs - checked) / 1000) : 0);
+  if (component.age_basis) notes.push(`Age basis: ${component.age_basis === 'valid_time' ? 'valid time' : 'provider issue time'}.`);
+  if (component.quality === 'poor' || component.quality === 'suspect') notes.push(`Provider quality ${component.quality}.`);
   return {
-    id: 'forecast',
-    label: 'Forecast',
+    id,
+    label,
     provider: component.source ?? 'none',
     state,
-    ageS: component.age_s ?? null,
+    ageS,
     reason: notes.length ? notes.join(' ') : null,
     basis: component.basis ?? null,
     quality: component.quality,
@@ -154,10 +162,25 @@ export function deriveSources({ env, availability, envMode, capabilities, envErr
   const row = (id: SourceRow['id'], label: string, component?: Component['component']): SourceRow => {
     const base: SourceRow = { id, label, ...core, ageS: core.state === 'unavailable' || core.state === 'error' ? null : age, basis: aggregateBasis };
     const comp = component ? components.find((x) => x.component === component) : undefined;
-    return comp ? componentRow(base, comp, nowMs) : base;
+    const selected = comp ? componentRow(base, comp, nowMs) : base;
+    const reported = availability?.components.find((item) => item.component === component);
+    if (!reported) return selected;
+    const available = availableRow(id, label, reported, availability, nowMs);
+    const independentNote = `Provider availability: ${available.state} · ${available.provider}${available.reason ? `. ${available.reason}` : ''}`;
+    // A saved/typed/training/replay/forecast or ship-sensor snapshot remains the selected forcing even if a public provider is live.
+    const preserveSelected = !!env && (env.source !== 'live' || core.state === 'mock' || envMode.kind === 'replay' || envMode.kind === 'storm');
+    if (preserveSelected || feedFailed) return { ...selected, availabilityNote: independentNote };
+    return { ...available, reason: [available.reason,
+      (!env || envError || !availability?.complete_snapshot_available)
+        ? 'Provider status only: a complete current snapshot is unavailable for modeling. Displayed older values are not current.' : null,
+      envError ? `Snapshot request failed: ${envError}` : null,
+    ].filter(Boolean).join(' ') || null };
   };
 
-  const forecast = forecastRow(availability);
+  const forecast = availableRow('forecast', 'Forecast', availability?.components.find((item) => item.component === 'forecast'), availability, nowMs);
+  forecast.reason = [forecast.reason, 'Provider forecast availability is independent of the selected planning forcing.'].filter(Boolean).join(' ');
+  const waves = availableRow('waves', 'Waves', availability?.components.find((item) => item.component === 'waves'), availability, nowMs);
+  waves.reason = [waves.reason, 'Provider wave evidence does not establish berth applicability or simulated wave forcing.'].filter(Boolean).join(' ');
 
   return [
     row('wind', 'Wind', 'wind'),
@@ -165,14 +188,7 @@ export function deriveSources({ env, availability, envMode, capabilities, envErr
     row('current', 'Current', 'current'),
     row('water', 'Water level', 'water_level'),
     forecast,
-    {
-      id: 'waves',
-      label: 'Waves',
-      provider: 'none connected',
-      state: 'unavailable',
-      ageS: null,
-      reason: 'No wave source is connected, so wave height is not reported (never shown as zero). Approved order: NDBC 44099 observations, then GFS-Wave forecast.',
-    },
+    waves,
     {
       id: 'wake',
       label: 'Wake',

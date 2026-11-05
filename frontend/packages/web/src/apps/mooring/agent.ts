@@ -87,6 +87,7 @@ export class AgentSession {
   private context: string | null = null;
   private sheetRequest = 0;
   private reviewRequest = 0;
+  private planRequest = 0;
 
   constructor(private readonly parent: MooringController) {}
 
@@ -96,9 +97,21 @@ export class AgentSession {
 
   dispose(): void {
     this.disposed = true;
+    this.planRequest++;
     this.sheetRequest++;
     this.reviewRequest++;
     this.source?.close();
+  }
+
+  /** A different ship, berth or side-to must not retain the previous selection's plan or late responses. */
+  resetForSelection(): void {
+    this.planRequest++;
+    this.sheetRequest++;
+    this.reviewRequest++;
+    this.source?.close();
+    this.source = null;
+    this.context = null;
+    this.state.set({ ...INITIAL, objective: this.s.objective, targetMarginPct: this.s.targetMarginPct });
   }
 
   setObjective(objective: Objective): void {
@@ -111,6 +124,8 @@ export class AgentSession {
 
   async run(): Promise<void> {
     if (this.s.phase === 'running' || this.s.phase === 'saving') return;
+    const request = ++this.planRequest;
+    const current = () => !this.disposed && request === this.planRequest;
     this.sheetRequest++;
     this.reviewRequest++;
     this.source?.close();
@@ -132,7 +147,7 @@ export class AgentSession {
       const inputs = this.parent.scenarioKey();
       const intakeReportId = this.parent.intake.reportId();
       const scenarioId = await this.parent.ensureScenario(`Agent run ${new Date().toISOString().slice(11, 19)}Z`);
-      if (this.disposed) return;
+      if (!current()) return;
       if (inputs !== this.parent.scenarioKey()) throw new Error('Inputs changed while saving. Run a new plan.');
       if (!scenarioId) throw new Error('Choose a ship and berth first.');
       const accepted = unwrap(
@@ -146,10 +161,11 @@ export class AgentSession {
           },
         }),
       );
+      if (!current()) return;
       this.state.set({ phase: 'running', planId: accepted.plan_id, intakeReportId });
       this.listen(accepted.events_url, accepted.plan_id);
     } catch (e) {
-      this.state.set({ phase: 'error', error: message(e) });
+      if (current()) this.state.set({ phase: 'error', error: message(e) });
     }
   }
 
@@ -157,41 +173,48 @@ export class AgentSession {
     this.source?.close();
     const source = new EventSource(`${AGENTS_BASE}${eventsUrl}`);
     this.source = source;
+    const request = this.planRequest;
+    const current = () => !this.disposed && this.source === source && request === this.planRequest;
     const parse = <T,>(ev: Event): T => JSON.parse((ev as MessageEvent).data) as T;
 
     source.addEventListener('step', (ev) => {
+      if (!current()) return;
       const d = parse<{ iteration: number; thought_summary: string; tool: string; result_id: string | null }>(ev);
       this.state.set({
         steps: [...this.s.steps, { iteration: d.iteration, tool: d.tool, summary: d.thought_summary, resultId: d.result_id }],
       });
     });
     source.addEventListener('proposal', (ev) => {
+      if (!current()) return;
       this.state.set({ proposal: parse<NonNullable<AgentState['proposal']>>(ev) });
     });
     source.addEventListener('message', (ev) => {
+      if (!current()) return;
       const d = parse<{ text: string; cites: string[] }>(ev);
       this.state.set({ chat: [...this.s.chat, { role: 'agent', text: d.text, cites: d.cites }] });
     });
     source.addEventListener('done', () => {
+      if (!current()) return;
       source.close();
-      void this.finish(planId);
+      void this.finish(planId, request);
     });
     source.onerror = () => {
       // EventSource retries by itself; only give up if the stream never produced anything.
-      if (source.readyState === EventSource.CLOSED && this.s.phase === 'running') {
+      if (current() && source.readyState === EventSource.CLOSED && this.s.phase === 'running') {
         this.state.set({ phase: 'error', error: 'The agent event stream closed unexpectedly.' });
       }
     };
   }
 
-  private async finish(planId: string): Promise<void> {
+  private async finish(planId: string, request: number): Promise<void> {
+    const current = () => !this.disposed && request === this.planRequest && this.s.planId === planId;
     try {
       const plan = unwrap(await agents.GET('/api/v1/agent/plans/{plan_id}', { params: { path: { plan_id: planId } } }));
-      if (this.disposed) return;
+      if (!current()) return;
       this.state.set({ phase: 'done', plan });
       this.applyPlan(plan);
     } catch (e) {
-      this.state.set({ phase: 'error', error: message(e) });
+      if (current()) this.state.set({ phase: 'error', error: message(e) });
     }
   }
 
@@ -230,8 +253,15 @@ export class AgentSession {
 
   async ask(text: string): Promise<void> {
     const planId = this.s.planId;
-    if (!planId || !text.trim()) return;
-    this.state.set({ chat: [...this.s.chat, { role: 'user', text, cites: [] }] });
+    if (!planId || !text.trim() || this.s.phase !== 'done') return;
+    const request = ++this.planRequest;
+    const current = () => !this.disposed && request === this.planRequest && this.s.planId === planId;
+    this.source?.close();
+    this.source = null;
+    this.sheetRequest++;
+    this.reviewRequest++;
+    this.state.set({ phase: 'saving', chat: [...this.s.chat, { role: 'user', text, cites: [] }],
+      review: INITIAL.review, sheet: INITIAL.sheet });
     try {
       unwrap(
         await agents.POST('/api/v1/agent/plans/{plan_id}/messages', {
@@ -239,13 +269,14 @@ export class AgentSession {
           body: { text },
         }),
       );
+      if (!current()) return;
       // A follow-up can change the plan: the old review and sheet no longer describe it.
       this.sheetRequest++;
       this.reviewRequest++;
       this.state.set({ phase: 'running', steps: [], review: INITIAL.review, sheet: INITIAL.sheet });
       this.listen(`/api/v1/agent/plans/${planId}/events`, planId);
     } catch (e) {
-      this.state.set({ error: message(e) });
+      if (current()) this.state.set({ phase: 'error', error: message(e) });
     }
   }
 

@@ -5,6 +5,7 @@ import { fmt, useUnitSystem } from '../units';
 import { useAgent, useController, useMooring } from './context';
 import { ResultLink } from './ResultLink';
 import { ReviewSection } from './ReviewSection';
+import { classSupport } from '../classSupport';
 
 const OBJECTIVES: { value: Objective; label: string }[] = [
   { value: 'moor_for_forecast', label: 'Moor for the forecast' },
@@ -16,7 +17,8 @@ export function AgentPanel() {
   useUnitSystem();
   const c = useController();
   const a = useAgent((s) => s);
-  const canRun = useMooring((s) => (s.ship?.fittings?.length ?? 0) > 0);
+  const s = useMooring((state) => state);
+  const support = classSupport(s.ship, s.shipClassId, s.loading, s.side);
   const [question, setQuestion] = useState('');
   const busy = a.phase === 'saving' || a.phase === 'running';
 
@@ -38,7 +40,7 @@ export function AgentPanel() {
         </Field>
       </div>
       <div className="flex gap-2">
-        <Button size="sm" disabled={!canRun || busy} onClick={() => void c.agent.run()}>
+        <Button size="sm" disabled={!support.canPlan || busy} onClick={() => void c.agent.run()}>
           {a.phase === 'saving' ? 'Saving scenario…' : a.phase === 'running' ? 'Agent working…' : 'Ask the agent to plan'}
         </Button>
         {a.undo && (
@@ -47,6 +49,7 @@ export function AgentPanel() {
           </Button>
         )}
       </div>
+      {support.reason && <p className="text-[11px] text-mil-amber">{support.reason}</p>}
       {a.error && <p className="text-[11px] text-mil-red">{a.error}</p>}
 
       {a.steps.length > 0 && (

@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { cn } from '../../../lib/cn';
 import { BackendBadge, Button, Citation, Field, Select, StatusChip, inputClass, toStatus } from '../../../shell/ui';
-import type { EnvMode } from '../controller';
+import type { EnvMode, EnvelopePoint } from '../controller';
+import type { ModelingSchemas } from '../types';
 import { fmt, useUnitSystem } from '../units';
 import { LineChart, PolarEnvelope, ProbabilityBars } from './charts';
 import { useController, useMooring } from './context';
+import { ResultLink } from './ResultLink';
 
 type Tab = 'live' | 'alerts' | 'forecast' | 'limits' | 'exceedance';
 const TABS: { id: Tab; label: string }[] = [
@@ -111,8 +113,8 @@ function LiveTab() {
           <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
             <Reading label="Wind" value={`${fmt.kt(env.wind_speed_kt)} from ${fmt.deg(env.wind_from_true_deg)}`} />
             <Reading label="Gust" value={fmt.kt(env.wind_gust_kt)} />
-            <Reading label="Current" value={`${env.current_speed_kt.toFixed(1)} kt toward ${fmt.deg(env.current_set_true_deg)}`} />
-            <Reading label="Water level" value={`${env.water_level_mllw_ft.toFixed(1)} ft MLLW${env.tide_stage ? ` · ${env.tide_stage}` : ''}`} />
+            <Reading label="Current" value={`${fmt.kt(env.current_speed_kt, 1)} toward ${fmt.deg(env.current_set_true_deg)}`} />
+            <Reading label="Water level" value={`${fmt.ft(env.water_level_mllw_ft, 1)} MLLW${env.tide_stage ? ` · ${env.tide_stage}` : ''}`} />
           </dl>
         )}
       </div>
@@ -240,13 +242,40 @@ function ForecastTab() {
   );
 }
 
+// These additive wire fields exist in the generated contract; older responses may omit them.
+type LimitPoint = EnvelopePoint & Pick<ModelingSchemas['LimitEnvelopePoint'],
+  'limit_gust_kt' | 'advisory_gust_kt' | 'outcome' | 'search_max_kt' | 'undetermined_at_kt'>;
+
+function limitOutcome(point: LimitPoint): string {
+  switch (point.outcome) {
+    case 'fails_at_zero_wind': return 'Fails with no wind; other assessed loads remain.';
+    case 'no_failure_in_range': return `No limit established${point.search_max_kt != null ? ` through ${fmt.kt(point.search_max_kt)}` : ' within the search range'}. Capacity above that range is unknown.`;
+    case 'undetermined': return `Indeterminate solve${point.undetermined_at_kt != null ? ` at ${fmt.kt(point.undetermined_at_kt)}` : ''}; no usable limit.`;
+    case 'invalid_inputs': return 'Invalid inputs; no usable limit.';
+    case 'limit_found': return 'Conservative verified edge of the search bracket.';
+    default: return 'Search outcome not recorded in this response.';
+  }
+}
+
+function UltimateLimitUnavailable() {
+  return (
+    <div className="border-l-2 border-mil-amber bg-mil-amber/5 p-2 text-[11px]">
+      <p className="text-mil-amber">Ultimate-load / breaking gust: unavailable</p>
+      <p className="text-mil-dim">No supported ultimate-capacity gust assessment is available here. A working-load limit or sampled MBS exceedance does not predict line rupture.</p>
+    </div>
+  );
+}
+
 function LimitsTab() {
   const env = useMooring((s) => s.risk.envelope);
   const current = useMooring((s) => s.env?.wind_speed_kt);
   const usable = env && (env.validity?.state === 'valid' || env.validity?.state === 'limited');
+  const worst: LimitPoint | null = env?.result.worst ?? null;
   return (
-    <div>
-      <RunBar kind="envelope" label="Compute wind limits" />
+    <div className="space-y-2">
+      <RunBar kind="envelope" label="Compute working-load wind limits" />
+      <p className="text-[11px] text-mil-text">Working-load and element limits apply to the assessed line layout, assistance and conditions. They are not ultimate-capacity thresholds.</p>
+      <UltimateLimitUnavailable />
       {env && (
         <div className="grid grid-cols-[160px_1fr] gap-4">
           <div className="h-36">
@@ -261,17 +290,25 @@ function LimitsTab() {
               <StatusChip status={env.status} />
               <BackendBadge backend={env.backend} />
             </div>
-            {usable && env.result.worst && (
-              <p className="text-white">
-                Weakest direction: wind at {fmt.deg(env.result.worst.wind_rel_deg)} limits at{' '}
-                {env.result.worst.limit_wind_kt != null ? fmt.kt(env.result.worst.limit_wind_kt) : 'n/a'}, first failing{' '}
-                {env.result.worst.first_failure_element ?? 'n/a'} ({env.result.worst.failure_mode}).
-              </p>
-            )}
+            {usable && worst && <>
+              <p className="text-white">Governing relative wind-from direction: {fmt.deg(worst.wind_rel_deg)} · element {worst.first_failure_element ?? 'not established'} · {worst.failure_mode === 'none' ? 'failure mode not established' : worst.failure_mode}.</p>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                <Reading label="Sustained wind limit" value={worst.limit_wind_kt != null ? fmt.kt(worst.limit_wind_kt, 1) : 'Unavailable'} />
+                <Reading label="Corresponding working-limit gust" value={worst.limit_gust_kt != null ? fmt.kt(worst.limit_gust_kt, 1) : 'Unavailable'} />
+                <Reading label="Application gust advisory" value={worst.advisory_gust_kt != null ? fmt.kt(worst.advisory_gust_kt, 1) : 'Unavailable'} />
+              </dl>
+              <p className="text-mil-text">{limitOutcome(worst)}</p>
+            </>}
             <p className="text-mil-text">Validity: {env.validity?.state ?? 'unknown'}</p>
             {env.result.points.some((p) => p.limit_wind_kt == null) && <p className="text-mil-text">Limits are unavailable for some bearings; gaps are not connected.</p>}
-            <p className="text-mil-dim">The dashed ring is the current sustained wind speed. Sampled limits apply only to the assessed conditions.</p>
-            <p className="text-mil-dim">Angles are as reported by the modeling service (wind direction relative to the ship). Result {env.result_id}</p>
+            <p className="text-mil-dim">{current != null ? 'The dashed ring is the current sustained wind speed.' : 'Current sustained wind unavailable; no comparison ring.'} Sampled limits apply only to the assessed conditions.</p>
+            <p className="text-mil-dim">Gust values use the service's held gust-to-sustained ratio. The application advisory is 80% of that gust limit, not 80% line utilization or a physical failure threshold. Omitted values remain unavailable.</p>
+            <p className="text-mil-dim">Angles are wind FROM relative to the bow, clockwise. Speeds are in knots in both display unit systems.</p>
+            {env.assumptions?.length ? <details className="text-mil-dim">
+              <summary className="cursor-pointer">Model assumptions and wind basis</summary>
+              <ul className="list-inside list-disc">{env.assumptions.map((text, i) => <li key={i}>{text}</li>)}</ul>
+            </details> : <p className="text-mil-amber">Averaging time and reference-height basis were not supplied in this response.</p>}
+            <ResultLink id={env.result_id} />
           </div>
         </div>
       )}
@@ -282,16 +319,18 @@ function LimitsTab() {
 function ExceedanceTab() {
   const ex = useMooring((s) => s.risk.exceedance);
   const usable = ex && (ex.validity?.state === 'valid' || ex.validity?.state === 'limited') && (ex.result.n_valid ?? 0) > 0;
+  const hasMbsSamples = ex?.result.elements.some((element) => element.p_exceed_mbs != null);
   return (
     <div>
       <RunBar kind="exceedance" label="Run pointwise gust scenario" />
+      <UltimateLimitUnavailable />
       {ex && (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-4 text-[11px]">
             <StatusChip status={ex.status} />
             {usable ? <>
-              <span className="text-white">Any modeled element exceeds its limit: {(ex.result.p_any_exceeds_wll * 100).toFixed(1)}%</span>
-              <span className="text-mil-text">Line MBS exceedance: {(ex.result.p_any_exceeds_mbs * 100).toFixed(1)}%</span>
+              <span className="text-white">Any modeled element exceeds its working limit: {(ex.result.p_any_exceeds_wll * 100).toFixed(1)}%</span>
+              <span className="text-mil-text">Sampled line strength (MBS) exceedance: {hasMbsSamples ? `${(ex.result.p_any_exceeds_mbs * 100).toFixed(1)}%` : 'unavailable; no line MBS samples'}.</span>
             </> : <span className="text-mil-red">Probability unavailable: input validity or successful samples are not established.</span>}
             <span className="text-mil-dim">{ex.result.n_samples} samples · governing {ex.result.governing_element ?? 'n/a'}</span>
             <BackendBadge backend={ex.backend} />
@@ -322,6 +361,7 @@ function ExceedanceTab() {
               ))}
             </tbody>
           </table>}
+          <ResultLink id={ex.result_id} />
         </div>
       )}
     </div>

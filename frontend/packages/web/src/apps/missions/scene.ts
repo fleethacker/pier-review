@@ -1,5 +1,5 @@
 import type { LocalFrame, SceneEntity, SceneLink, SceneVector } from '../../scene/types';
-import { haversineM, thin } from './geo';
+import { ambiguousSphericalInterval, haversineM, thin, wrapLongitude, type TimedFix } from './geo';
 import { KIND_COLOR, DISCREPANCY_WARN_M, hasMarker, locateStyle } from './styling';
 import type { Storyboard, StoryboardEvent, TransitTugState, TransitVesselState } from './types';
 
@@ -32,7 +32,10 @@ export const sceneHeading = (trueDeg: number): number => 90 - trueDeg;
 export function centroid(points: { lat: number; lon: number }[]): { lat: number; lon: number } {
   if (points.length === 0) return { lat: 0, lon: 0 };
   const lat = points.reduce((s, p) => s + p.lat, 0) / points.length;
-  const lon = points.reduce((s, p) => s + p.lon, 0) / points.length;
+  // Circular centering keeps a short dateline crossing near the dateline.
+  const sin = points.reduce((s, p) => s + Math.sin(p.lon * Math.PI / 180), 0);
+  const cos = points.reduce((s, p) => s + Math.cos(p.lon * Math.PI / 180), 0);
+  const lon = Math.hypot(sin, cos) < 1e-12 ? points[0].lon : wrapLongitude(Math.atan2(sin, cos) * 180 / Math.PI);
   return { lat, lon };
 }
 
@@ -113,29 +116,28 @@ export function fitAnchors(points: { lat: number; lon: number }[], p: Projector,
 export const SHIP_ID = 'mission-ship';
 
 /** Storyboard map content: the track polyline, event markers (never for unlocated events). */
-export function storyboardContent(sb: Storyboard, p: Projector, selectedEventId: string | null): { entities: SceneEntity[]; links: SceneLink[] } {
+export function storyboardContent(sb: Storyboard, p: Projector, selectedEventId: string | null, evidence: TimedFix[] = []): { entities: SceneEntity[]; links: SceneLink[] } {
   const pts = thin(sb.track, MAX_TRACK_SEGMENTS + 1);
-  // Break the polyline across gaps so the line does not imply a position where none is established.
-  const links: SceneLink[] = [];
-  let run: { lat: number; lon: number }[] = [];
-  let seg = 0;
-  const flush = () => {
-    links.push(...polyline(`track${seg++}`, 'track', run, p, '#4fc3f7', 3));
-    run = [];
-  };
-  let prevT = 0;
-  for (const f of pts) {
-    const t = Date.parse(f.t_utc);
-    if (run.length && (t - prevT) / 1000 > sb.max_interp_gap_s) {
-      // Dashed look is not available on links; draw the gap as a thin dim line so it reads as "not recorded".
-      const last = run[run.length - 1];
-      links.push(...polyline(`gap${seg}`, 'track-gap', [last, f], p, '#6b7f99', 1));
-      flush();
-    }
-    run.push(f);
-    prevT = t;
+  // Gap evidence comes only from original fixes, never from the display sampling interval.
+  const gaps: { start: number; end: number }[] = [];
+  for (let i = 1; i < evidence.length; i++) {
+    if ((evidence[i].tMs - evidence[i - 1].tMs) / 1000 > sb.max_interp_gap_s ||
+      ambiguousSphericalInterval(evidence[i - 1], evidence[i]))
+      gaps.push({ start: evidence[i - 1].tMs, end: evidence[i].tMs });
   }
-  flush();
+  const links: SceneLink[] = [];
+  let gapIndex = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const start = Date.parse(pts[i - 1].t_utc);
+    const end = Date.parse(pts[i].t_utc);
+    while (gapIndex < gaps.length && gaps[gapIndex].end <= start) gapIndex++;
+    const gap = gaps[gapIndex];
+    const covered = evidence.length > 0 && start >= evidence[0].tMs && end <= evidence[evidence.length - 1].tMs;
+    const uncertain = !covered || (gap && gap.start < end && gap.end > start);
+    // A thinned display segment can contain a gap: dim the whole segment, rather than imply continuity.
+    links.push(...polyline(`track${i}`, uncertain ? 'track-gap' : 'track', [pts[i - 1], pts[i]], p,
+      uncertain ? '#6b7f99' : '#4fc3f7', uncertain ? 1 : 3));
+  }
   const entities = sb.events.map((e) => eventEntity(e, p, e.event_id === selectedEventId)).filter((x): x is SceneEntity => x !== null);
   return { entities, links };
 }

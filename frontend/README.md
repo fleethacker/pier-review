@@ -18,6 +18,22 @@ It started from the drone-simulator (Cesium, React, TypeScript, Vite, Tailwind) 
 look. The drone-specific code, models and backends were removed. The demo script is in [DEMO.md](DEMO.md); the build
 plan, decisions and status are in [PLAN.md](PLAN.md).
 
+## What the UI shows
+
+- **Phase 1:** choose a berth on the world map, place the ship, see analyzed colored lines; the planning agent
+  streams its steps, then the safety sheet is created, approved and printed.
+- **Motion view** (button in the sidebar): a plan view of the berthing simulator. It draws only what a frame
+  supplies: hull and pier, fittings and fenders by load, lines by status and tension, tugs with velocity,
+  acceleration and push, wind, current and wave glyphs, and the force breakdown. It handles both legacy frames and
+  `rm0-v1` frames, shows validity and provenance badges at all times, and shows anything the simulator does not
+  supply as *unavailable* or *not simulated*, never as zero. Live sessions have resume, pause, reset, tug and line
+  commands; recordings have play, scrub and speed. The bundled mock recording replays with no backend.
+- **Data sources and capabilities** panel and a standing "all results limited: seed data" banner.
+- **Berth from an image:** upload a picture, get a draft berth with detections and confidence, confirm every flagged
+  item, then use the saved berth. The draft is labeled mock or vision data.
+
+Not drawn yet: the motion view is an SVG panel, not part of the Cesium scene, and there is no 3D motion view.
+
 ## Run it
 
 Prerequisites: Node 20+ and [uv](https://docs.astral.sh/uv/) for the mock services.
@@ -34,7 +50,7 @@ npm run dev          # http://localhost:4000
 
 The browser only talks to its own origin. Vite forwards `api/modeling/*` to the modeling service and `api/agents/*`
 to the agents service (set `MODELING_PROXY_TARGET` and `AGENTS_PROXY_TARGET` in `frontend/.env` to override
-`http://localhost:8000` and `:8001`). REST is under `/api/v1`, WebSockets under `/ws`. Set `VITE_MODELING_URL` or
+`http://127.0.0.1:8000` and `:8001`; use the numeric address, because `localhost` can resolve to IPv6 where the services do not listen). REST is under `/api/v1`, WebSockets under `/ws`. Set `VITE_MODELING_URL` or
 `VITE_AGENTS_URL` to an absolute URL to bypass the proxy.
 
 The default local demo needs no credentials. This UI does not yet implement bearer authentication for HTTP, SSE or WebSockets; authenticated deployments require a separate reviewed integration. The 2D and 3D views are drawn from the berth data itself.
@@ -178,3 +194,17 @@ server proxies `api/modeling/*` and `api/agents/*` to the two services (`MODELIN
 `AGENTS_PROXY_TARGET`). Requirements: Python 3.12 with `uv`, and Node 20 with npm (the script downloads Node 20 if the
 environment lacks it). Entry script: `app.sh`; branch: `ui/frontend`. A hardware tier with at least 4 GiB of memory
 is enough for the build. This script has not been run on Domino yet; check the first start's logs.
+
+## Check the whole demo
+
+```bash
+make demo-check   # repo root
+```
+
+Starts both services and the built UI on private ports (the way `app.sh` does), then checks through the UI proxy:
+the page and bundled fixtures, health and capabilities, the Phase 1 chain (scenario, agent plan over SSE, safety
+sheet, approval), a berth vision round trip, and a motion session over a WebSocket (resume, command, pause, reset).
+If Playwright is available it also drives the UI in headless Chromium and saves screenshots to
+`docs/overnight/screens/`; set `DEMO_CHECK_BROWSER_PYTHON` to an interpreter that has Playwright, and
+`PLAYWRIGHT_BROWSERS_PATH` if its Chromium is somewhere unusual. Without a browser the browser part is reported as
+skipped. `--skip-build` reuses `frontend/packages/web/dist`; `--no-browser` runs the API part only.

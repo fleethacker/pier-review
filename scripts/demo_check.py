@@ -281,11 +281,47 @@ def api_checks(stack: Stack) -> dict:
 
         return asyncio.run(run())
 
+    def berth_vision():
+        import base64
+        import uuid
+
+        # A 1x1 PNG: the deterministic fallback does not read pixels, so any valid image exercises the flow.
+        png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==")
+        boundary = uuid.uuid4().hex
+        meta = json.dumps({"image_kind": "satellite", "berth_name": "Demo check pier"})
+        body = (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="image"; filename="pier.png"\r\nContent-Type: image/png\r\n\r\n'.encode()
+            + png
+            + f'\r\n--{boundary}\r\nContent-Disposition: form-data; name="metadata"\r\n\r\n{meta}\r\n--{boundary}--\r\n'.encode()
+        )
+        req = urllib.request.Request(f"{agents}/berth-vision/analyze", data=body, method="POST", headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            accepted = json.loads(resp.read())
+        job = None
+        for _ in range(60):
+            _, job = http("GET", f"{agents}/jobs/{accepted['job_id']}")
+            if job["state"] in ("succeeded", "failed", "cancelled"):
+                break
+            time.sleep(0.5)
+        assert job and job["state"] == "succeeded", f"vision job: {job and job['state']}"
+        res = job["result"]
+        draft = res["result"]
+        assert res["backend"] in ("mock", "real") and draft["draft_berth"]["fittings"], "no draft berth"
+        flagged = [d for d in draft["detections"] if d["needs_confirmation"]]
+        assert flagged and draft["questions"], "an unconfirmed draft must ask for confirmation"
+        assert (res.get("validity") or {}).get("state", "unknown") != "valid", "a draft must not claim to be valid"
+        draft["draft_berth"]["name"] = "Demo check pier"
+        _, created = http("POST", f"{agents}/berth-vision/{accepted['job_id']}/confirm", {"berth": draft["draft_berth"]})
+        _, berth = http("GET", f"{modeling}/berths/{created['berth_id']}")
+        assert berth["berth_id"] == created["berth_id"]
+        return f"backend={res['backend']}; {len(flagged)} items needed confirmation; confirmed berth {created['berth_id']} is usable"
+
     check("UI page served by the preview server", page)
     check("Motion fixtures bundled for offline replay", fixtures)
     check("Health through the UI proxy (REST)", health)
     check("Capabilities report limits honestly", capabilities)
     check("Environment source is labeled; waves are not invented", environment_honesty)
+    check("Berth vision: image to draft berth, flagged items, confirmed and saved", berth_vision)
     if check("Phase 1: save scenario", scenario):
         if check("Phase 1: agent plan streams over SSE through the proxy", plan):
             check("Phase 1: safety sheet renders and can be approved", sheet_and_approval)
@@ -296,7 +332,7 @@ def api_checks(stack: Stack) -> dict:
 # ---- browser checks ------------------------------------------------------------------------------------------------
 
 
-def browser_checks(stack: Stack, browser_python: str | None) -> None:
+def browser_checks(stack: Stack, browser_python: str | None, browser_timeout: float) -> None:
     script = ROOT / "scripts" / "demo_check_browser.py"
     py = browser_python or os.environ.get("DEMO_CHECK_BROWSER_PYTHON") or sys.executable
     probe = subprocess.run([py, "-c", "import playwright"], capture_output=True)
@@ -304,14 +340,38 @@ def browser_checks(stack: Stack, browser_python: str | None) -> None:
         record("SKIP", "Browser flow (headless Chromium)", "Playwright is not installed; API and proxy checks above are all that ran (set DEMO_CHECK_BROWSER_PYTHON)")
         return
     SCREENS.mkdir(parents=True, exist_ok=True)
-    proc = subprocess.run([py, str(script), stack.ui, str(SCREENS)], capture_output=True, text=True, timeout=600)
-    for line in proc.stdout.splitlines():
+    # Stream the child's results as they arrive: a timeout must not lose what already passed.
+    proc = subprocess.Popen([py, "-u", str(script), stack.ui, str(SCREENS)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    deadline = time.time() + browser_timeout
+    seen_fail = False
+    import selectors
+
+    sel = selectors.DefaultSelector()
+    sel.register(proc.stdout, selectors.EVENT_READ)
+    tail: list[str] = []
+    while proc.poll() is None or sel.get_map():
+        if time.time() > deadline:
+            proc.kill()
+            record("FAIL", "Browser flow", f"did not finish within {browser_timeout:.0f} s (software-rendered WebGL is slow; raise --browser-timeout)")
+            return
+        if not sel.select(timeout=1.0):
+            if proc.poll() is not None:
+                break
+            continue
+        line = proc.stdout.readline()
+        if not line:
+            sel.unregister(proc.stdout)
+            break
+        line = line.rstrip("\n")
+        tail = (tail + [line])[-6:]
         if line.startswith(("PASS ", "FAIL ", "SKIP ")):
             status, rest = line.split(" ", 1)
             name, _, detail = rest.partition(" | ")
             record(status, f"Browser: {name}", detail)
-    if proc.returncode != 0 and not any(s == "FAIL" and n.startswith("Browser") for s, n, _ in RESULTS):
-        record("FAIL", "Browser flow", (proc.stderr or proc.stdout)[-300:])
+            seen_fail = seen_fail or status == "FAIL"
+    code = proc.wait()
+    if code != 0 and not seen_fail:
+        record("FAIL", "Browser flow", " / ".join(tail)[-300:])
 
 
 def main() -> int:
@@ -319,6 +379,7 @@ def main() -> int:
     ap.add_argument("--skip-build", action="store_true", help="reuse frontend/packages/web/dist")
     ap.add_argument("--no-browser", action="store_true", help="API and proxy checks only")
     ap.add_argument("--browser-python", help="interpreter that has Playwright (default: DEMO_CHECK_BROWSER_PYTHON or this one)")
+    ap.add_argument("--browser-timeout", type=float, default=1500, help="seconds allowed for the whole browser flow (default 1500)")
     ap.add_argument("--logs", default=str(ROOT / "docs" / "overnight" / "demo-check-logs"))
     args = ap.parse_args()
 
@@ -334,7 +395,7 @@ def main() -> int:
         if args.no_browser:
             record("SKIP", "Browser flow (headless Chromium)", "--no-browser")
         else:
-            browser_checks(stack, args.browser_python)
+            browser_checks(stack, args.browser_python, args.browser_timeout)
     except Exception as exc:  # noqa: BLE001
         record("FAIL", "Stack start-up", f"{type(exc).__name__}: {exc}"[:300])
     finally:

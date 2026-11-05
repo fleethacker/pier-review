@@ -11,6 +11,8 @@ make install && make mock                 # repo root
 cd frontend/packages/web && npm install && npm run dev      # http://localhost:4000
 ```
 
+`make demo-check` at the repo root runs the whole demo headlessly and saves screenshots to `docs/overnight/screens/`.
+
 ## Script
 
 1. **The picture.** The app opens on Mock Pier 12 North with a DDG 51 starboard side to and six recommended lines,
@@ -31,6 +33,15 @@ cd frontend/packages/web && npm install && npm run dev      # http://localhost:4
    exceeding working load.
 7. **Safety sheet.** Back in the agent panel click **Create safety sheet**. Review the margins, rationale and layout
    image, press **Print**, then approve as pilot, first lieutenant and CO. The sheet locks after the first approval.
+
+8. **Motion.** Close the sheet and press **Open motion view**. Press **Replay recording**, then **Play**: a recorded mock
+   fixture shows the hull, fittings, lines, tug and force arrows, and the badges say *limited*, *mock* and *rm0-v1*.
+   Point at the wave rows (*unavailable*, never zero) and at heave (*not simulated*). Drag the scrubber, change the
+   speed. Then press **Start session**, **Resume**, and issue a tug command. Space plays or pauses, R resets, Esc closes.
+9. **Where the data comes from.** In the sidebar open *Data sources and capabilities*: every stream says whether it is
+   mock, replay, typed or live, why, and the capability list says what each module is qualified for (today: none).
+10. **Berth from an image.** In *Berth from an image* choose any picture, press **Analyze image**, tick each amber
+    item, then **Confirm and use this berth**. The header changes to *berth data: vision*. Say it is a mock draft.
 
 ## Things to say
 

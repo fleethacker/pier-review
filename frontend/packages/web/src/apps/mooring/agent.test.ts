@@ -8,6 +8,7 @@ vi.mock('./api', () => ({
   agents: { GET: vi.fn(), POST: vi.fn() },
   unwrap: <T,>(r: { data: T }) => r.data,
   awaitJob: vi.fn(),
+  describeError: (e: unknown) => (e instanceof Error ? e.message : String(e)),
 }));
 
 import { MooringController } from './controller';

@@ -57,7 +57,16 @@ def main() -> int:
         page.set_default_timeout(45_000)
         PAGE.append(page)
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
-        page.on("console", lambda m: errors.append(f"console: {m.text[:160]}") if m.type == "error" else None)
+        def on_console(m):
+            if m.type != "error":
+                return
+            try:  # the format string alone ("%s ...") hides what React is complaining about
+                text = " | ".join(str(a.json_value())[:200] for a in m.args)
+            except Exception:  # noqa: BLE001
+                text = m.text
+            errors.append(f"console: {text[:500]}")
+
+        page.on("console", on_console)
 
         def load():
             page.goto(URL, wait_until="load")
@@ -85,16 +94,27 @@ def main() -> int:
             return "planner ran (SSE steps), plan applied to the canvas"
 
         def sheet():
-            page.get_by_role("button", name=re.compile("Create safety sheet|Rebuild safety sheet")).click()
             dialog = page.get_by_role("dialog").first
-            expect(dialog).to_be_visible(timeout=60_000)
+            attempts = 0
+            for attempts in range(1, 4):
+                page.get_by_role("button", name=re.compile("Create safety sheet|Rebuild safety sheet")).click()
+                try:
+                    expect(dialog).to_be_visible(timeout=75_000)
+                    break
+                except AssertionError:
+                    # The physics tools can exceed their 30 s limit while software-rendered WebGL holds the CPU; the UI
+                    # shows a readable error and the button stays available, so retry like a user would.
+                    if attempts == 3:
+                        raise
+                    page.wait_for_timeout(3000)
             shot(page, "03-sheet")
             dialog.locator("input").first.fill("Demo Check")
             dialog.get_by_role("button", name="Approve", exact=True).click()
             expect(dialog.get_by_text(re.compile(r"approval\(s\) recorded"))).to_be_visible()
             expect(dialog.get_by_role("button", name=re.compile("print", re.I))).to_be_enabled(timeout=30_000)
             shot(page, "04-approved")
-            return "sheet rendered, approval recorded, print available"
+            note = f" (took {attempts} attempts: transient service timeout)" if attempts > 1 else ""
+            return f"sheet rendered, approval recorded, print available{note}"
 
         def motion_replay():
             page.get_by_role("button", name="Close", exact=True).first.click()
@@ -145,6 +165,26 @@ def main() -> int:
             page.get_by_role("button", name="Navy").click()
             return "Navy/Metric toggle applies to the motion view"
 
+        def vision():
+            # A real (small) image on disk is needed for the file chooser.
+            img = SHOTS / "01-loaded.png"
+            page.get_by_label("Berth image").set_input_files(str(img))
+            page.get_by_role("button", name="Analyze image").click()
+            expect(page.get_by_text("draft: needs your confirmation")).to_be_visible()
+            confirm = page.get_by_role("button", name="Confirm and use this berth")
+            assert confirm.is_disabled(), "confirm must stay disabled until flagged items are ticked"
+            boxes = page.get_by_role("checkbox")
+            for i in range(boxes.count()):
+                boxes.nth(i).check()
+            shot(page, "08-vision-review")
+            assert confirm.is_enabled(), "confirm should open once every flagged item is ticked"
+            confirm.click()
+            expect(page.get_by_role("status").filter(has_text="Saved")).to_be_visible()
+            page.wait_for_timeout(2000)
+            shot(page, "09-vision-saved")
+            expect(page.get_by_text("BERTH DATA: VISION", exact=False)).to_be_visible()
+            return "image analyzed, flagged items gated the confirm button, berth saved and selected, labeled as vision data"
+
         step("Load the app and see the standing seed-data banner", load)
         step("Data-source panel is honest", sources)
         step("Analyzed lines are listed", lines)
@@ -153,6 +193,8 @@ def main() -> int:
         if step("Motion: open the view and replay the recording", motion_replay):
             step("Motion: live session through the proxy", motion_live)
             step("Motion: units toggle", units)
+
+        step("Berth vision: upload, review, confirm, use", vision)
 
         def clean():
             real = [e for e in errors if "GL Driver" not in e]

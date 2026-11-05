@@ -18,6 +18,11 @@ from mocks"), and the frontend demo contribution is part of **G2** (approved saf
 | 6 Agent plan | Done | SSE steps, proposal preview, apply with undo, tugs on canvas, line sequence, follow-ups. |
 | 7 Safety sheet | Done | Service-rendered sheet, margins, rationale links, layout image, approvals, print. |
 | 8 Demo hardening | Done for the mock stack | Error and retry states, accessibility fixes, production build checked, [DEMO.md](DEMO.md). |
+| 9 Motion view, 2D (overnight U2) | Done | SVG plan view in `src/apps/mooring/motion/`: legacy and `rm0-v1` frames, live session and recording replay, badges, commands. Live frames are still legacy until the simulator publishes `rm0-v1` and a scene. Live speed control waits on the protocol. |
+| 10 Data-source honesty (U3) | Done | Status panel, capability list, standing seed-data banner. |
+| 11 Berth from an image (U5) | Done | Upload, detections, confirmation gate, save and select. Against the mock vision backend. |
+| 12 `make demo-check` (U6) | Done | API, proxy and headless-browser checks; see [README](README.md). |
+| 13 3D motion view (U4) | Not started | Needs the 2D view fed by live `rm0-v1` frames first. |
 
 Verified in headless Chromium (software WebGL) against the running mock servers, plus 41 unit tests, type checking and
 lint. Since the first pass: Cesium is lazy-loaded and split from the app (app code 251 kB, Cesium its own chunk), a

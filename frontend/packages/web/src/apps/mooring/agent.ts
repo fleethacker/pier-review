@@ -1,5 +1,5 @@
 import { Store } from '../../lib/store';
-import { agents, AGENTS_BASE, modeling, unwrap } from './api';
+import { agents, AGENTS_BASE, modeling, unwrap, describeError } from './api';
 import type { MooringController } from './controller';
 import type {
   AgentPlan,
@@ -60,7 +60,7 @@ const INITIAL: AgentState = {
   sheet: { state: 'idle', error: null, sheet: null, html: null, image: null },
 };
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const message = describeError;
 
 /** The planning agent and safety sheet flow. Reads and writes the mooring plan through the controller. */
 export class AgentSession {

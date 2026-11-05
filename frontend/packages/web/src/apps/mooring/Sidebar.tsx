@@ -11,6 +11,7 @@ import { ScenarioPanel } from './panels/ScenarioPanel';
 import { SequencePanel } from './panels/SequencePanel';
 import { SetupPanel } from './panels/SetupPanel';
 import { StatusPanel } from './status/StatusPanel';
+import { BerthVisionPanel } from './vision/BerthVisionPanel';
 
 export function Sidebar() {
   useUnitSystem();
@@ -45,6 +46,7 @@ export function Sidebar() {
         </div>
       )}
       <SetupPanel />
+      <BerthVisionPanel />
       <EnvPanel />
       <StatusPanel />
       <AgentPanel />

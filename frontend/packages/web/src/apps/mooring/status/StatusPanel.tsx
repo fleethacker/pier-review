@@ -78,11 +78,11 @@ export function StatusPanel() {
                     {cap.backend} · {cap.qualification}
                   </span>
                 </div>
-                {cap.limitations.map((l) => (
-                  <div key={l} className="text-[10px] text-mil-dim">Limit: {l}</div>
+                {cap.limitations.map((l, i) => (
+                  <div key={`${i}-${l}`} className="text-[10px] text-mil-dim">Limit: {l}</div>
                 ))}
-                {cap.blockers.map((b) => (
-                  <div key={b} className="text-[10px] text-mil-red/80">Blocker: {b}</div>
+                {cap.blockers.map((b, i) => (
+                  <div key={`${i}-${b}`} className="text-[10px] text-mil-red/80">Blocker: {b}</div>
                 ))}
               </li>
             ))}

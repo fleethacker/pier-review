@@ -207,8 +207,8 @@ function LiveControls({ c, s, tugIds, lineNumbers }: { c: MotionController; s: M
   const [force, setForce] = useState(5000);
   const [side, setSide] = useState<90 | 270>(90);
   const [line, setLine] = useState<number | ''>('');
-  const tugChoices = frame?.tugs.length ? frame.tugs.map((t) => t.id) : tugIds;
-  const lineChoices = frame?.lines.length ? frame.lines.map((l) => l.lineNumber) : lineNumbers;
+  const tugChoices = [...new Set(frame?.tugs.length ? frame.tugs.map((t) => t.id) : tugIds)];
+  const lineChoices = [...new Set(frame?.lines.length ? frame.lines.map((l) => l.lineNumber) : lineNumbers)];
   const tugId = tugChoices.includes(tug) ? tug : (tugChoices[0] ?? '');
   const lineNo: number | null = line !== '' && lineChoices.includes(line) ? line : (lineChoices[0] ?? null);
   const connected = s.link === 'open';

@@ -1,7 +1,7 @@
 import { Store } from '../../lib/store';
 import type { AppHost } from '../../scene/app';
 import type { SceneEdit, SceneState } from '../../scene/types';
-import { awaitJob, modeling, MODELING_BASE, unwrap, wsUrl } from './api';
+import { awaitJob, describeError, modeling, MODELING_BASE, unwrap, wsUrl } from './api';
 import { AgentSession } from './agent';
 import { MotionController } from './motion/controller';
 import type { Capability } from './status/sources';
@@ -198,8 +198,9 @@ export class MooringController {
   readonly agent: AgentSession = new AgentSession(this);
   readonly motion: MotionController = new MotionController({
     faceBearingDeg: () => this.s.berth?.face_bearing_true_deg ?? null,
-    tugIds: () => this.s.tugAssignments.map((t) => t.tug_id),
-    lineNumbers: () => this.s.lines.map((l) => l.line_number),
+    // A tug can hold several push points and a layout can repeat a line number while it is being edited: list each once.
+    tugIds: () => [...new Set(this.s.tugAssignments.map((t) => t.tug_id))],
+    lineNumbers: () => [...new Set(this.s.lines.map((l) => l.line_number))],
     layoutKey: () => JSON.stringify([this.contextKey(), this.s.lines, this.s.tugAssignments]),
     ensureScenario: async () => this.s.scenarioId ?? this.saveScenario(`Motion session ${new Date().toISOString().slice(11, 16)}Z`),
     initialState: (offsetFt) => {
@@ -362,6 +363,15 @@ export class MooringController {
   }
 
   // ---- setup actions ---------------------------------------------------------------------------------------
+
+  /** A berth was just saved elsewhere (e.g. confirmed from an image): refresh the lists and select it. */
+  async adoptBerth(berthId: string): Promise<void> {
+    const berths = unwrap(await modeling.GET('/api/v1/berths'));
+    if (this.disposed) return;
+    this.state.set({ berths });
+    void this.loadBerthSites(berths.map((b) => b.berth_id));
+    await this.setBerth(berthId);
+  }
 
   async setBerth(berthId: string): Promise<void> {
     await this.setEnvMode('manual');
@@ -908,7 +918,7 @@ export class MooringController {
 }
 
 function message(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
+  return describeError(e);
 }
 
 export type { SceneState };

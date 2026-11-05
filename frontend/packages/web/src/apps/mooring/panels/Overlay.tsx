@@ -94,8 +94,8 @@ function ResultViewer({ id }: { id: string }) {
           <details>
             <summary className="cursor-pointer text-mil-dim">Assumptions</summary>
             <ul className="mt-1 list-disc pl-4 text-mil-text">
-              {(data.assumptions ?? []).map((a) => (
-                <li key={a}>{a}</li>
+              {(data.assumptions ?? []).map((a, i) => (
+                <li key={`${i}-${a}`}>{a}</li>
               ))}
             </ul>
           </details>
@@ -191,8 +191,8 @@ function SheetViewer() {
 
           <div>
             <div className="mil-label mb-1">Rationale (cited results)</div>
-            {s.rationale.map((r) => (
-              <p key={r.text} className="mb-1 text-white">
+            {s.rationale.map((r, i) => (
+              <p key={`${i}-${r.text}`} className="mb-1 text-white">
                 {r.text}
                 <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
                   {r.cites.map((id) => (

@@ -1,4 +1,5 @@
 import { at, minefield, OCEAN_CENTER, station } from './scenarioKit';
+import { stock } from './stockImages';
 import { offsetM } from './geo';
 import type { ClassId, LonLat, OutcomeSpec, Perturbation, ScenarioConfig, Side, UnitConfig } from './types';
 
@@ -273,6 +274,17 @@ function droneSwarm(): ScenarioConfig {
     seaState: true,
     environment: { windFromDeg: 230, windKt: 12, currentToDeg: 30, currentKt: 0.6 },
     units: [...blue, ...red],
+    storyboard: [
+      { id: 'sb1', atS: 0, holdS: 150, at: OCEAN_CENTER, title: 'Drone swarm defence', caption: 'An amphibious group with three destroyers and two frigates, and magazines that will not last the evening.', image: stock.formation },
+      { id: 'sb2', unitId: 'aew1', atS: 25, holdS: 150, title: 'Early warning — both carriers seen', caption: 'T+00:00:00 The early-warning aircraft finds both trawlers at once, north and south, long before either launches.', image: stock.jet },
+      { id: 'sb3', unitId: 'rf1', atS: 180, holdS: 150, title: 'Raiders open', caption: 'T+00:03:00 Two raiders fire first, to make the screen spend shots before the drones arrive.', image: stock.launch },
+      { id: 'sb4', unitId: 'rmotherN', atS: 210, holdS: 170, title: 'First wave away', caption: 'T+00:03:20 Sixteen drones leave the northern trawler, ten seconds apart. Sixteen more follow from the south.', image: stock.uav },
+      { id: 'sb5', unitId: 'ddg1', atS: 363, holdS: 160, title: 'Destroyer 1 — engaging', caption: 'T+00:06:03 The missiles are stopped, but every shot is one the magazine does not have later.', image: stock.destroyer },
+      { id: 'sb6', unitId: 'ffg1', atS: 936, holdS: 170, title: 'Frigate 1 — hit', caption: 'T+00:15:36 The tenth drone of the northern wave gets through. 55 of 80 hit points left.', image: stock.frigate },
+      { id: 'sb7', unitId: 'ffg2', atS: 1035, holdS: 150, title: 'Frigate 2 — hit', caption: 'T+00:17:15 The southern wave reaches the other frigate. Both are now below half strength and slowing.', image: stock.burning },
+      { id: 'sb8', unitId: 'ffg1', atS: 1107, holdS: 200, title: 'Frigate 1 — lost', caption: 'T+00:18:27 Enough drones reach her to finish the job. Cheap weapons, one expensive ship.', image: stock.burning },
+      { id: 'sb9', atS: 1350, holdS: 300, at: OCEAN_CENTER, title: 'What it cost', caption: 'Thirty weapons shot down, ten through, one frigate lost. Open Red team and sweep the number of drones: the answer turns on how many shots the screen has.', image: stock.satellite },
+    ],
     redTeam: {
       runs: 30,
       seed: 4,

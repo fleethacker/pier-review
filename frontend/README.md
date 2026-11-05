@@ -212,8 +212,13 @@ unit replaces an earlier one, and different units can have bubbles up at the sam
 
 Pictures you capture or load are kept inside the scenario, so a scenario travels as one file with its storyboard in it;
 the panel shows how much they weigh, since the shared library refuses a scenario over about a megabyte. Stock pictures
-are references, so they cost nothing to save. **Missile salvo on a carrier group** ships with a nine-moment storyboard,
-so the feature can be seen without building one.
+are references, so they cost nothing to save.
+
+Four presets ship with a written storyboard, so the feature can be seen without building one: **Missile salvo on a
+carrier group** (a salvo gets one hit through the screen), **Submarine ambush** (she hears them first and is never
+found), **Over the horizon** (finding the group costs the attacker seven minutes and the shot) and **Drone swarm
+defence** (cheap drones against magazines that run out). Every time quoted in those captions is an event the simulation
+really produces, and a test holds them to it, so retuning a scenario cannot quietly leave the words wrong.
 
 ### Red team: how likely is it?
 

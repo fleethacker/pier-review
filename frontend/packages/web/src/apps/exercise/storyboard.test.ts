@@ -275,17 +275,47 @@ describe('the storyboard in a scenario file', () => {
     expect(() => parseScenario(malformed)).toThrow(/storyboard\[0\]\.id/);
   });
 
-  it('ships with the salvo preset, in order, with a picture on every moment', () => {
-    const s = PRESET_SCENARIOS.find((p) => p.id === 'salvo-defense')!;
+  const WITH_STORY = PRESET_SCENARIOS.filter((p) => p.storyboard?.length).map((p) => p.id);
+
+  it('ships on several presets, not just one', () => {
+    expect(WITH_STORY).toEqual(expect.arrayContaining(['salvo-defense', 'sub-ambush', 'over-the-horizon', 'drone-swarm']));
+  });
+
+  it.each(WITH_STORY)('%s has a storyboard in order, inside the run, with a picture on every moment', (id) => {
+    const s = PRESET_SCENARIOS.find((p) => p.id === id)!;
     const moments = s.storyboard!;
     expect(moments.length).toBeGreaterThanOrEqual(8);
     expect(validateStoryboard(s, moments)).toEqual([]);
     expect(moments.every((m) => m.image)).toBe(true);
+    expect(moments.every((m) => m.caption)).toBe(true);
+    expect(new Set(moments.map((m) => m.id)).size).toBe(moments.length);
     expect(moments.map((m) => m.atS)).toEqual([...moments.map((m) => m.atS)].sort((a, b) => a - b));
-    expect(moments.every((m) => m.atS <= s.durationS)).toBe(true);
-    // The beat about the carrier being hit lands when the carrier is actually hit.
+    expect(moments.every((m) => m.atS + m.holdS <= s.durationS)).toBe(true);
+    // It opens on something and ends on something: the first beat is at the top, the last well into the run.
+    expect(moments[0].atS).toBe(0);
+    expect(moments.at(-1)!.atS).toBeGreaterThan(s.durationS / 3);
+  });
+
+  it.each(WITH_STORY)('%s: every time a caption quotes is a thing that really happens in the run', (id) => {
+    const s = PRESET_SCENARIOS.find((p) => p.id === id)!;
+    const times = new Set(runScenario(s).events.map((e) => Math.round(e.tS)));
+    const quoted = s.storyboard!.flatMap((m) => {
+      const found = /T\+(\d\d):(\d\d):(\d\d)/.exec(m.caption ?? '');
+      return found ? [{ m, at: Number(found[1]) * 3600 + Number(found[2]) * 60 + Number(found[3]) }] : [];
+    });
+    expect(quoted.length).toBeGreaterThanOrEqual(3);
+    for (const { m, at } of quoted) {
+      // The caption must name a moment the simulation actually produced, and the beat must come up around it.
+      expect(times.has(at), `${id} ${m.id} quotes T+${at}, which is not an event`).toBe(true);
+      expect(Math.abs(at - m.atS), `${id} ${m.id} comes up far from the moment it describes`).toBeLessThanOrEqual(60);
+    }
+  });
+
+  it('the salvo storyboard names the carrier being hit at the time it is hit', () => {
+    const s = PRESET_SCENARIOS.find((p) => p.id === 'salvo-defense')!;
     const hit = runScenario(s).events.find((e) => e.type === 'hit' && e.otherId === 'cvn1')!;
-    const beatAboutIt = moments.find((m) => /hit/i.test(m.title))!;
+    const beatAboutIt = s.storyboard!.find((m) => /hit/i.test(m.title))!;
+    expect(beatAboutIt.unitId).toBe('cvn1');
     expect(Math.abs(beatAboutIt.atS - hit.tS)).toBeLessThan(30);
   });
 });

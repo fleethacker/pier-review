@@ -3227,6 +3227,12 @@ components:
           $ref: '#/components/schemas/EnvStations'
         provenance:
           $ref: '#/components/schemas/Provenance'
+        clear_stretch:
+          anyOf:
+          - $ref: '#/components/schemas/ClearStretch'
+          - type: 'null'
+          description: 'Where the face was free of moored ships in the satellite imagery used to place it; the UI starts the
+            ship there. A display default only: not a booking, and not evidence the berth is free now.'
       additionalProperties: false
       type: object
       required:
@@ -3950,6 +3956,31 @@ components:
       - assets
       title: CatalogAudit
       description: Whole-catalog integrity (duplicate ids, dangling references) and per-asset qualification.
+    ClearStretch:
+      properties:
+        start_ft:
+          type: number
+          minimum: 0.0
+          title: Start Ft
+          description: Distance along the face from the origin, feet.
+        end_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: End Ft
+          description: Distance along the face from the origin, feet.
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+          description: What was seen, e.g. the length available against the ship.
+      additionalProperties: false
+      type: object
+      required:
+      - start_ft
+      - end_ft
+      title: ClearStretch
+      description: Part of a berth face that was free of moored ships in the satellite imagery used to place the berth.
     ComposedForecast:
       properties:
         manifest:

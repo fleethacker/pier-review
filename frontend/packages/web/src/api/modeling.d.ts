@@ -1545,6 +1545,8 @@ export interface components {
             structure: "open_pile" | "solid";
             env_station_ids: components["schemas"]["EnvStations"];
             provenance: components["schemas"]["Provenance"];
+            /** @description Where the face was free of moored ships in the satellite imagery used to place it; the UI starts the ship there. A display default only: not a booking, and not evidence the berth is free now. */
+            clear_stretch?: components["schemas"]["ClearStretch"] | null;
         };
         /** BerthAcceleration */
         BerthAcceleration: {
@@ -1968,6 +1970,27 @@ export interface components {
             problems?: components["schemas"]["QualificationIssue"][];
             /** Assets */
             assets: components["schemas"]["AssetQualification"][];
+        };
+        /**
+         * ClearStretch
+         * @description Part of a berth face that was free of moored ships in the satellite imagery used to place the berth.
+         */
+        ClearStretch: {
+            /**
+             * Start Ft
+             * @description Distance along the face from the origin, feet.
+             */
+            start_ft: number;
+            /**
+             * End Ft
+             * @description Distance along the face from the origin, feet.
+             */
+            end_ft: number;
+            /**
+             * Note
+             * @description What was seen, e.g. the length available against the ship.
+             */
+            note?: string | null;
         };
         /**
          * ComposedForecast

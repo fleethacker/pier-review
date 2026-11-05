@@ -20,7 +20,8 @@ JOBS = JobStore(API_PREFIX, workers=_workers, queue_size=_queue)
 
 def get_client() -> ModelingClient:
     """Overridden in tests to talk to an in-process modeling app."""
-    return ModelingClient()
+    from .security import credential
+    return ModelingClient(authorization=credential.get())
 
 
 Client = Annotated[ModelingClient, Depends(get_client)]

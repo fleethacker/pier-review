@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from mooring import refdata
+from mooring.core import access
 from mooring.core.jobs import sse
 from mooring.core.schemas import JobAccepted
 
@@ -37,7 +38,7 @@ async def create_review(tk: SafetyTools, req: Annotated[SafetyReviewRequest, Bod
 
 @router.get("/safety/reviews/{review_id}", response_model=SafetyReview)
 def get_review(review_id: str):
-    if review_id not in safety.REVIEWS:
+    if not access.allowed("agent_review", review_id) or review_id not in safety.REVIEWS:
         raise refdata.NotFound(f"Review '{review_id}' not found")
     return safety.REVIEWS[review_id]
 
@@ -64,7 +65,7 @@ async def create_sheet(req: SafetySheetCreate, tk: SafetyTools):
         return JSONResponse(status_code=409, content={"detail": "Plan is still running"})
     if req.review_id:
         rv = safety.REVIEWS.get(req.review_id)
-        if rv is None or rv.plan_id != req.plan_id:
+        if not access.allowed("agent_review", req.review_id) or rv is None or rv.plan_id != req.plan_id:
             raise refdata.NotFound(f"Review '{req.review_id}' not found for plan '{req.plan_id}'")
     else:
         rv = await safety.review(SafetyReviewRequest(plan_id=req.plan_id), tk)
@@ -74,7 +75,7 @@ async def create_sheet(req: SafetySheetCreate, tk: SafetyTools):
 
 
 def _sheet(sheet_id: str) -> SafetySheet:
-    if sheet_id not in sheet.SHEETS:
+    if not access.allowed("agent_sheet", sheet_id) or sheet_id not in sheet.SHEETS:
         raise refdata.NotFound(f"Safety sheet '{sheet_id}' not found")
     return sheet.SHEETS[sheet_id]
 

@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Body
 
 from mooring import refdata
+from mooring.core import access
 
 from ...backend import intake
 from ...intake.schemas import IntakeReport, IntakeRequest
@@ -25,6 +26,6 @@ async def create_intake_report(tk: IntakeTools, req: Annotated[IntakeRequest, Bo
 
 @router.get("/intake/reports/{report_id}", response_model=IntakeReport)
 def get_intake_report(report_id: str):
-    if report_id not in intake.REPORTS:
+    if not access.allowed("agent_report", report_id) or report_id not in intake.REPORTS:
         raise refdata.NotFound(f"Intake report '{report_id}' not found")
     return intake.REPORTS[report_id]

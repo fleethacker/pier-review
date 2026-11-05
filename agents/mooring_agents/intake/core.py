@@ -3,6 +3,7 @@
 import math
 from datetime import timedelta
 
+from mooring.core import access
 from mooring.core.envelopes import new_id, utcnow
 from mooring.core.schemas import EnvironmentSnapshot
 
@@ -45,6 +46,7 @@ def _mst(max_wind: float, max_cur: float) -> str:
 
 async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[IntakeReport, list[EnvironmentSnapshot]]:
     report_id = new_id("intake")
+    access.claim("agent_report", report_id)
     tk.plan_id = tk.plan_id or report_id  # ties this report's tool calls together in the ledger
     berth_id, ship_id, side = req.berth_id, req.ship_class_id, req.side_to
     env_scenario_id = req.env_scenario_id

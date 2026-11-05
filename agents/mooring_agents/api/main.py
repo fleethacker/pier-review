@@ -22,6 +22,7 @@ from ..vision.schemas import VisionMetadata, VisionResponse
 from ..intake.schemas import IntakeReport
 from ..safety.schemas import SafetyReview
 from .routers import intake, physics, planner, safety, system, vision
+from .security import Controls
 from .state import API_PREFIX, JOBS, get_client  # noqa: F401  (tests override get_client)
 
 TAGS = [
@@ -50,6 +51,7 @@ async def lifespan(app):
 app = FastAPI(lifespan=lifespan, title="Mooring Assistant: Agents API", version="1.1.0", description=DESCRIPTION, openapi_tags=TAGS,
               separate_input_output_schemas=False)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(Controls)
 
 
 @app.middleware("http")

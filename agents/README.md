@@ -83,3 +83,13 @@ checkpoints and async deadlines are cooperative: a cancelled worker retains capa
 The legacy `MOCK_JOB_DELAY_S` does not control agent jobs. Shutdown fails unfinished work. Agent job,
 plan/report/sheet stores remain process-local in this packet; a restart loses them. Modeling result
 persistence and the optional tool ledger do not make those agent objects durable.
+
+### Opt-in authentication
+
+Agent HTTP requests inherit `MOORING_API_KEYS` / `MOORING_AUTH_REQUIRED`, or use `AGENTS_API_KEYS` /
+`AGENTS_AUTH_REQUIRED` overrides. Unset means open local-demo mode; required without valid configuration
+fails closed. Use matching principal/key mappings across agents and modeling: the validated caller token is
+forwarded, never replaced with a shared service identity. Jobs, plans, reports, reviews, sheets, vision jobs and
+ledger reads are owner-scoped. `/health` is public. `AGENTS_MAX_BODY_BYTES` defaults to 9000000 (8 MB image
+plus multipart/metadata); `AGENTS_RATE_PER_MINUTE` defaults to 600 with auth, otherwise 0. See
+[deployment boundaries](../docs/DEPLOYMENT_READINESS.md); this is not a role system or deployment approval.

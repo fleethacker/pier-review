@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body, Header
 from fastapi.responses import StreamingResponse
 
 from mooring import refdata
+from mooring.core import access
 from mooring.core.envelopes import new_id
 from mooring.core.jobs import TERMINAL, sse
 
@@ -22,7 +23,7 @@ PLAN_REQUESTS: dict[str, AgentPlanRequest] = {}
 
 
 def _job(plan_id: str):
-    job = JOBS.get(PLAN_JOBS[plan_id]) if plan_id in PLAN_JOBS else None
+    job = JOBS.get(PLAN_JOBS[plan_id]) if plan_id in PLAN_JOBS and access.allowed("agent_plan", plan_id) else None
     if job is None:
         raise refdata.NotFound(f"Plan '{plan_id}' not found")
     return job
@@ -47,6 +48,7 @@ async def create_plan(tk: PlannerTools, req: Annotated[AgentPlanRequest, Body(op
     if req.constraints or req.objective != 'moor_for_forecast':
         raise ModelingError(422, 'Only moor_for_forecast without unsupported constraints is implemented')
     plan_id = new_id('plan')
+    access.claim('agent_plan', plan_id)
     tk.plan_id = plan_id
     scenario = await tk.scenario(req.scenario_id)
 

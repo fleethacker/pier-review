@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from mooring.core import access
 from mooring.core.envelopes import new_id
 from mooring.core.schemas import AnalyzeResponse, EnvironmentSnapshot, MooringConfig, MooringLine, Scenario
 
@@ -212,6 +213,7 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None 
     if req.objective != "moor_for_forecast":
         raise ModelingError(422, "Only moor_for_forecast is currently supported")
     plan_id = plan_id or new_id("plan")
+    access.claim("agent_plan", plan_id)
     tk.plan_id = plan_id
     llm, model_id = _safe()
     events: list[tuple[str, dict]] = EventLog(on_event)
@@ -232,7 +234,7 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None 
     if req.intake_report_id:
         try:
             from ..intake.agent import REPORTS
-            report = REPORTS.get(req.intake_report_id)
+            report = REPORTS.get(req.intake_report_id) if access.allowed("agent_report", req.intake_report_id) else None
         except ImportError:
             report = None
         if report is None:

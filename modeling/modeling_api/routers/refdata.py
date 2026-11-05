@@ -2,8 +2,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException
 
-from mooring import refdata
+from mooring import qualification, refdata
 from mooring.core.schemas import (
+    AssetQualification,
     Berth,
     EnvironmentSnapshot,
     BerthCreated,
@@ -35,6 +36,20 @@ def list_ships():
 @router.get("/ships/{class_id}", response_model=ShipClass)
 def get_ship(class_id: str):
     return refdata.ship(class_id)
+
+
+@router.get("/ships/{class_id}/capabilities", response_model=AssetQualification,
+            summary="Class-specific capability gates and input limitations")
+def ship_capabilities(class_id: str):
+    return qualification.qualify_ship(refdata.ship(class_id), {s.spec_id for s in refdata.lines()})
+
+
+@router.post("/ships/validate", response_model=AssetQualification,
+             summary="Assess an unsaved ship input; does not register data or grant engineering approval")
+def validate_ship_input(candidate: ShipClass):
+    # Uses the existing bounded/authenticated API controls. No global catalog mutation:
+    # operators review supplied data and its report before a separately reviewed catalog change.
+    return qualification.qualify_ship(candidate, {s.spec_id for s in refdata.lines()})
 
 
 @router.get("/lines", response_model=list[LineSpec])

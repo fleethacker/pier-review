@@ -75,37 +75,81 @@ def qualify_line(spec: LineSpec) -> AssetQualification:
 # ---------- Ships ----------
 
 def qualify_ship(ship: ShipClass, line_ids: set[str] | None = None) -> AssetQualification:
+    from mooring.templates import TemplateUnsupported, ship_template_slots
+
     issues: list[QualificationIssue] = []
     ids = [f.fitting_id for f in ship.fittings]
     if d := _dups(ids):
         issues.append(_issue("DUPLICATE_SHIP_FITTING", "Duplicate ship fitting ids.", d, True))
-    known = set(ids)
+    known = {f.fitting_id: f for f in ship.fittings}
     for f in ship.fittings:
+        if not f.fitting_id.strip():
+            issues.append(_issue("EMPTY_FITTING_ID", "Fitting IDs must not be blank.", [ship.class_id], True))
         if f.paired_chock_id and f.paired_chock_id not in known:
             issues.append(_issue("DANGLING_CHOCK", f"{f.fitting_id} refers to missing chock {f.paired_chock_id}.", [f.fitting_id], True))
-    no_swl = [f.fitting_id for f in ship.fittings if f.kind in ("bitt", "recessed_bitt", "cleat") and f.swl_lbf is None]
+        elif f.paired_chock_id:
+            chock = known[f.paired_chock_id]
+            if chock.kind != "chock" or chock.side not in (f.side, "centerline"):
+                issues.append(_issue("INVALID_CHOCK", "A paired chock must be a chock on the same side (or centerline).", [f.fitting_id, chock.fitting_id], True))
+        if (f.side == "port" and f.y_ft < 0 or f.side == "starboard" and f.y_ft > 0
+                or f.side == "centerline" and f.y_ft != 0):
+            issues.append(_issue("FITTING_FRAME_CONFLICT", "Fitting side conflicts with ship-frame +y to port.", [f.fitting_id], True))
+        if abs(f.x_ft) > ship.loa_ft / 2 or abs(f.y_ft) > ship.beam_ft / 2:
+            issues.append(_issue("FITTING_OUTSIDE_HULL", "Fitting coordinates exceed the declared hull dimensions; verify frame and units.", [f.fitting_id], True))
+        if f.max_rope_circ_in is not None and f.max_rope_circ_in <= 0:
+            issues.append(_issue("INVALID_ROPE_SIZE_LIMIT", "Maximum rope circumference must be positive.", [f.fitting_id], True))
+    no_swl = [f.fitting_id for f in ship.fittings if f.kind in ("bitt", "recessed_bitt", "cleat") and (f.swl_lbf is None or f.swl_lbf <= 0)]
     if no_swl:
-        issues.append(_issue("MISSING_SWL", "Bitts/cleats without a safe working load cannot be checked.", no_swl))
+        issues.append(_issue("MISSING_SWL", "Bitts/cleats require a positive safe working load.", no_swl, True))
     if not ship.fittings:
         issues.append(_issue("NO_FITTINGS", "No fitting layout: static mooring is unsupported for this class.", [ship.class_id]))
     if _dups([p.push_point_id for p in ship.push_points]):
         issues.append(_issue("DUPLICATE_PUSH_POINT", "Duplicate push point ids.", _dups([p.push_point_id for p in ship.push_points]), True))
+    for p in ship.push_points:
+        if not p.push_point_id.strip() or abs(p.x_ft) > ship.loa_ft / 2:
+            issues.append(_issue("INVALID_PUSH_POINT", "Push points need an ID and a station inside the hull.", [p.push_point_id], True))
+    if d := _dups([i.spec_id for i in ship.standard_line_outfit]):
+        issues.append(_issue("DUPLICATE_LINE_INVENTORY", "Line inventory specs must be unique; counts cannot be silently combined.", d, True))
     if line_ids is not None:
         missing = [i.spec_id for i in ship.standard_line_outfit if i.spec_id not in line_ids]
         if missing:
             issues.append(_issue("DANGLING_LINE_SPEC", "Standard outfit refers to unknown line specs.", missing, True))
     if len({lc.name for lc in ship.loading_conditions}) != len(ship.loading_conditions):
         issues.append(_issue("DUPLICATE_LOADING", "Duplicate loading condition names.", [ship.class_id], True))
+    if not ship.loading_conditions or any(not lc.name.strip() for lc in ship.loading_conditions):
+        issues.append(_issue("MISSING_LOADING", "At least one named loading condition is required.", [ship.class_id], True))
+    if not ship.provenance.source.strip():
+        issues.append(_issue("MISSING_SOURCE", "An input source must be recorded; receipt is not approval.", [ship.class_id], True))
+    if not ship.standard_line_outfit:
+        issues.append(_issue("MISSING_LINE_INVENTORY", "Line inventory has not been supplied; automatic planning cannot assume available lines.", [ship.class_id]))
     issues.append(_issue("FITTING_HEIGHT_LOADING_UNSPECIFIED",
                          "Fitting heights are above the waterline at an unrecorded reference loading; other loadings are not corrected.",
                          [ship.class_id]))
     issues.append(_issue("NO_DYNAMIC_COEFFICIENTS", "Mass, added mass, damping and maneuvering coefficients are not held.", [ship.class_id]))
     static = "unsupported" if not ship.fittings or any(i.blocking for i in issues) else "limited"
+    templates = {}
+    for side in ("port", "starboard"):
+        try:
+            slots = ship_template_slots(ship, side)
+            # The current default search uses one line spec per candidate, not an
+            # arbitrary mixture of a few pieces of unrelated products.
+            available = max((i.count for i in ship.standard_line_outfit), default=0)
+            if available < len(slots):
+                raise TemplateUnsupported("INSUFFICIENT_LINE_INVENTORY", f"{side} draft needs at least {len(slots)} line parts; inventory has {available}")
+        except TemplateUnsupported as exc:
+            templates[f"template_{side}"] = "unsupported"
+            issues.append(_issue(f"TEMPLATE_{side.upper()}_UNSUPPORTED", str(exc), [ship.class_id]))
+        else:
+            templates[f"template_{side}"] = static
+    environmental = "unsupported" if any(i.code in ("MISSING_LOADING", "DUPLICATE_LOADING") for i in issues) else (
+        "limited" if ship.provenance.confidence != "published" else "supported")
     return AssetQualification(
         asset_kind="ship", asset_id=ship.class_id, level=_level(issues, ship.provenance.confidence),
         provenance_confidence=ship.provenance.confidence, issues=issues,
-        capabilities={"static_mooring": static, "environmental_loads": "limited" if ship.provenance.confidence != "published" else "supported",
-                      "tug_allocation": "limited" if ship.push_points else "unsupported", "berthing_dynamics": "unsupported"})
+        capabilities={"static_mooring": static, "environmental_loads": environmental,
+                      "line_sequence": "limited" if static != "unsupported" and "limited" in templates.values() else "unsupported",
+                      **templates, "tug_allocation": "limited" if ship.push_points and not any(i.code in ("DUPLICATE_PUSH_POINT", "INVALID_PUSH_POINT") for i in issues) else "unsupported",
+                      "berthing_dynamics": "unsupported"})
 
 
 # ---------- Berths ----------

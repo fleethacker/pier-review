@@ -1074,7 +1074,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Ready-made prediction requests for demos */
+        /** Ready-made prediction requests built from real recorded NOAA conditions */
         get: operations["presets_api_v1_predict_presets_get"];
         put?: never;
         post?: never;

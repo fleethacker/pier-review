@@ -336,7 +336,8 @@ def test_session_routes_created_fields_and_ownership(client, fake_rich):
         persisted = client.get(body["recording_url"], headers=A)
         assert persisted.status_code == 200 and persisted.json()["lifecycle"][-1]["state"] == "paused"
         assert client.get(body["recording_url"], headers=B).status_code == 404
-        assert client.get(body["scene_url"], headers=A).status_code == 404  # scene needs a live session
+        assert client.get(body["scene_url"], headers=A).json() == scene.json()
+        assert client.get(body["scene_url"], headers=B).status_code == 404
     finally:
         state.SESSIONS.pop(sid, None)
 

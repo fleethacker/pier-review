@@ -257,6 +257,28 @@ class SimRecording(Model):
         return self
 
 
+class SimRecordingSummary(Model):
+    """Small saved-recording index entry; frames are fetched separately."""
+
+    recording_id: str
+    session_id: str
+    scene_id: str
+    scene_revision: str
+    duration_s: float = Field(ge=0)
+    frame_count: int = Field(ge=1, le=10000)
+    validity: Validity
+    scene_url: str
+    recording_url: str
+
+
+class SimRecordingList(Model):
+    """Owner-scoped keyset page, ordered by session ID, not creation time."""
+
+    wire_omitted_defaults = {"next_cursor": None}
+    recordings: list[SimRecordingSummary] = Field(max_length=100)
+    next_cursor: str | None = Field(default=None, description="Pass as after_session_id for the next page.")
+
+
 class SimSessionCreate(Model):
     wire_omitted_defaults = {"dt_s": None, "duration_s": None, "record_interval_s": None}
     dt_s: float | None = Field(default=None, ge=0.0001, le=1)

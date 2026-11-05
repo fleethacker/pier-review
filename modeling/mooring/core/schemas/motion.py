@@ -279,12 +279,14 @@ class MotionEnvironment(Model):
 
 
 class MotionLineState(MotionEvidence):
+    wire_omitted_defaults = {"chock_id": None}
     measurement_fields = ("tension_lbf", "status", "ship_end", "pier_end", "polyline")
 
     line_number: int = Field(ge=1)
     tension_lbf: float | None = Field(default=None, ge=0)
     status: Literal["slack", "taut", "overloaded", "unknown"] = "unknown"
     ship_fitting_id: str | None = None
+    chock_id: str | None = Field(default=None, description="Intermediate ship lead fitting, when the line routes through a chock.")
     pier_fitting_id: str | None = None
     ship_end: BerthPosition | None = None
     pier_end: BerthPosition | None = None

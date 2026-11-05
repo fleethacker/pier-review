@@ -130,8 +130,8 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence:
             return
         session=SESSIONS[session_id]
         try:
-            session.attach(connection)
-            session.resync(after_sequence)
+            await asyncio.to_thread(session.attach,connection)
+            await asyncio.to_thread(session.resync,after_sequence)
         except ValueError:
             await ws.close(code=4409,reason="Session already controlled")
             return
@@ -150,7 +150,7 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence:
                     return
                 try:
                     msg=SimClientMessage.validate_json(text)
-                    session.receive(connection,msg)
+                    await asyncio.to_thread(session.receive,connection,msg)
                 except (ValidationError,ValueError) as exc:
                     # Invalid commands close the controller; no partial application.
                     await ws.close(code=1008,reason=("Invalid command schema" if isinstance(exc,ValidationError) else str(exc))[:120])
@@ -163,7 +163,7 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence:
             sent=0; last_lifecycle=after_sequence; last_frame=-1
             while limit==0 or sent<limit:
                 session.changed.clear()
-                for message in session.pending_messages(last_lifecycle,last_frame):
+                for message in await asyncio.to_thread(session.pending_messages,last_lifecycle,last_frame):
                     await asyncio.wait_for(ws.send_json(message.model_dump(mode="json")),timeout=2.0)
                     sent+=1
                     if isinstance(message,SimLifecycle): last_lifecycle=message.sequence
@@ -189,11 +189,12 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence:
         pass  # ASGI disconnect/server cancellation still performs ownership cleanup.
     finally:
         if session is not None and session.connection==connection:
-            session.detach(connection)
             if ticker:
                 ticker.cancel()
                 with anyio.CancelScope(shield=True):
                     await asyncio.gather(ticker,return_exceptions=True)
+            with anyio.CancelScope(shield=True):
+                await asyncio.to_thread(session.detach,connection)
         access.principal.reset(token); access.enforced.reset(enforcement)
 
 

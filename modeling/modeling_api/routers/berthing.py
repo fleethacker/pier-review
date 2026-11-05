@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Query
 
 from mooring import refdata
 from mooring.core import access
@@ -17,6 +17,7 @@ from mooring.core.schemas import (
     SequenceResponse,
     SequenceValidateRequest,
     SimRecording,
+    SimRecordingList,
     SimScene,
     SimSeries,
     SimSessionCreate,
@@ -107,10 +108,23 @@ def _owned_session(session_id):
 @router.get("/berthing/sessions/{session_id}/scene", response_model=SimScene, tags=["M11 Berthing simulator"],
             summary="Static rm0-v1 scene (berth, hull, fittings, fenders) for an interactive session")
 def session_scene(session_id: str):
+    from ..sim_sessions import SCENES
     session = _owned_session(session_id)
-    if session is None or not session.rich:
+    if session is not None and session.rich:
+        return session.scene
+    try:
+        return SCENES[session_id]
+    except KeyError:
         raise refdata.NotFound(f"No simulation session '{session_id}'")
-    return session.scene
+
+
+@router.get("/berthing/recordings", response_model=SimRecordingList, tags=["M11 Berthing simulator"],
+            summary="Owner-scoped saved recordings, including expired sessions; stable session-ID order")
+def recordings(limit: int = Query(default=20, ge=1, le=100),
+               after_session_id: str = Query(default="", max_length=256)):
+    from ..sim_sessions import list_recordings
+    items, cursor = list_recordings(limit, after_session_id)
+    return SimRecordingList(recordings=items, next_cursor=cursor)
 
 
 @router.get("/berthing/sessions/{session_id}/recording", response_model=SimRecording, tags=["M11 Berthing simulator"],

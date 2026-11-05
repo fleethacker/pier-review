@@ -165,18 +165,34 @@ def _line_states_and_loads(model, pose):
     water = model.env.water_level_mllw_ft
     lines, ship_acc, pier_acc, wrench_f, moment = [], {}, {}, [0.0, 0.0], 0.0
     ship_cap = {f.fitting_id: f.swl_lbf for f in model.ship.fittings}
+    ship_fit = {f.fitting_id: f for f in model.ship.fittings}
+    unsupported_routing = set()
     pier_cap = {f.fitting_id: f.capacity_nominal_lbf for f in model.berth.fittings}
     for rec, st, tension in model.system.line_tensions(pose):
         ln = rec.ln
-        ship_end = _pos(st.lead_berth[0], st.lead_berth[1], water + rec.lead_height_ft)
+        bitt = ship_fit[ln.ship_fitting_id]
+        chock_id = ln.chock_id or bitt.paired_chock_id
+        lead = ship_fit.get(chock_id, bitt) if chock_id else bitt
+        routed = lead.fitting_id != bitt.fitting_id
+        ship_end = _pos(*model.system.frame.to_berth(bitt.x_ft, bitt.y_ft, pose), water + bitt.z_ft)
+        lead_end = _pos(st.lead_berth[0], st.lead_berth[1], water + rec.lead_height_ft)
         pier_end = _pos(*rec.pier_xyz)
         # No working-limit field exists on the line model; "overloaded" is therefore never claimed.
         lines.append({**_live(f"line-{ln.line_number}"), "line_number": ln.line_number, "tension_lbf": tension,
                       "status": "slack" if tension == 0 else "taut", "ship_fitting_id": ln.ship_fitting_id,
+                      "chock_id": lead.fitting_id if routed else None,
                       "pier_fitting_id": ln.pier_fitting_id, "ship_end": ship_end, "pier_end": pier_end,
-                      "polyline": [ship_end, pier_end]})
+                      "polyline": [ship_end, lead_end, pier_end] if routed else [ship_end, pier_end]})
         vec = (tension * st.ux, tension * st.uy, tension * st.uz)   # line pull on the ship fitting, toward the pier
-        for acc, fid, sign in ((ship_acc, ln.ship_fitting_id, 1.0), (pier_acc, ln.pier_fitting_id, -1.0)):
+        accumulators = [(pier_acc, ln.pier_fitting_id, -1.0)]
+        if routed:
+            # The integrator applies the external lead-to-pier wrench. It does not solve the inner segment's
+            # tension/friction or the resultant reaction at a redirecting chock; do not label that wrench a
+            # bitt/chock reaction. Geometry is still the catalog-supported bitt -> chock -> pier route.
+            unsupported_routing.update((bitt.fitting_id, lead.fitting_id))
+        else:
+            accumulators.append((ship_acc, ln.ship_fitting_id, 1.0))
+        for acc, fid, sign in accumulators:
             v = acc.setdefault(fid, [0.0, 0.0, 0.0])
             for i in range(3):
                 v[i] += sign * vec[i]
@@ -205,10 +221,19 @@ def _line_states_and_loads(model, pose):
     loads = []
     for owner, acc, cap in (("pier", pier_acc, pier_cap), ("ship", ship_acc, ship_cap)):
         for fid, v in acc.items():
+            if owner == "ship" and fid in unsupported_routing:
+                continue  # A known partial sum is not the total load on a fitting with an unmodeled lead.
             load, capacity = math.sqrt(sum(c * c for c in v)), cap.get(fid)
             loads.append({**_live(f"{owner}-{fid}"), "fitting_id": fid, "owner": owner, "load_lbf": load,
                           "capacity_lbf": capacity, "utilization_pct": 100 * load / capacity if capacity else None,
                           "force": _force(*v), "status": None})
+    for fid in sorted(unsupported_routing):
+        loads.append({"availability": "unavailable", "fitting_id": fid, "owner": "ship",
+                      "validity": {"state": "unknown", "reasons": [{"code": "ROUTING_REACTION_UNMODELED",
+                          "message": "Bitt/chock routing reactions are not resolved by the external line-segment model.",
+                          "affected_components": [fid]}]},
+                      "provenance": {"kind": "unknown", "source": SOURCE, "references": [], "notes": []},
+                      "load_lbf": None, "capacity_lbf": None, "utilization_pct": None, "force": None, "status": None})
     return lines, loads, (wrench_f[0], wrench_f[1], moment)
 
 

@@ -154,23 +154,33 @@ def test_line_geometry_and_fitting_loads(setup):
     assert [l.line_number for l in frame.line_states] == [l.line_number for l in frame.lines]
     for ls in frame.line_states:
         rec = by_number[ls.line_number]
+        bitt = next(f for f in m.ship.fittings if f.fitting_id == ls.ship_fitting_id)
+        bx, by = m.system.frame.to_berth(bitt.x_ft, bitt.y_ft, pose)
         lx, ly = m.system.frame.to_berth(rec.lead_xy[0], rec.lead_xy[1], pose)
-        assert (ls.ship_end.x_ft, ls.ship_end.y_ft) == pytest.approx((lx, ly))
-        assert ls.ship_end.z_mllw_ft == pytest.approx(m.env.water_level_mllw_ft + rec.lead_height_ft)
+        assert (ls.ship_end.x_ft, ls.ship_end.y_ft) == pytest.approx((bx, by))
+        assert ls.ship_end.z_mllw_ft == pytest.approx(m.env.water_level_mllw_ft + bitt.z_ft)
         assert (ls.pier_end.x_ft, ls.pier_end.y_ft, ls.pier_end.z_mllw_ft) == pytest.approx(rec.pier_xyz)
         assert ls.pier_end.z_mllw_ft == pytest.approx(m.berth.deck_height_mllw_ft + PIER_FITTING_HEIGHT_FT)
-        assert ls.polyline == [ls.ship_end, ls.pier_end]
+        assert ls.chock_id == bitt.paired_chock_id
+        assert len(ls.polyline) == 3 and ls.polyline[0] == ls.ship_end and ls.polyline[-1] == ls.pier_end
+        assert (ls.polyline[1].x_ft, ls.polyline[1].y_ft) == pytest.approx((lx, ly))
+        assert ls.polyline[1].z_mllw_ft == pytest.approx(m.env.water_level_mllw_ft + rec.lead_height_ft)
         assert ls.status in ("slack", "taut") and (ls.status == "slack") == (ls.tension_lbf == 0)
         assert ls.ship_fitting_id == rec.ln.ship_fitting_id and ls.pier_fitting_id == rec.ln.pier_fitting_id
-    # Each fitting load equals the vector sum of its lines; ship and pier forces are equal and opposite.
+    # The external line segment establishes pier loads and the ship's total wrench, but does not establish
+    # each redirected ship fitting reaction (inner-segment tension/friction is not modeled).
     for fl in frame.fitting_loads:
         assert fl.status is None
+        if fl.owner == "ship":
+            assert fl.availability == "unavailable" and fl.load_lbf is None and fl.force is None
+            assert fl.utilization_pct is None and fl.validity.reasons[0].code == "ROUTING_REACTION_UNMODELED"
+            continue
         assert fl.load_lbf == pytest.approx(math.sqrt(fl.force.x_lbf**2 + fl.force.y_lbf**2 + fl.force.z_lbf**2))
         assert fl.utilization_pct == pytest.approx(100 * fl.load_lbf / fl.capacity_lbf)
     ships = {f.fitting_id: f for f in frame.fitting_loads if f.owner == "ship"}
     piers = {f.fitting_id: f for f in frame.fitting_loads if f.owner == "pier"}
     assert ships and piers
-    assert sum(f.force.y_lbf for f in ships.values()) == pytest.approx(-sum(f.force.y_lbf for f in piers.values()))
+    assert frame.forces.lines.force.y_lbf == pytest.approx(-sum(f.force.y_lbf for f in piers.values()))
     assert sum(l.tension_lbf for l in frame.line_states) > 0
 
 
@@ -190,6 +200,22 @@ def test_fender_reaction_under_contact(setup):
     for fs in frame.fender_states:
         if fs.compression_ft == 0:
             assert fs.reaction_lbf == 0
+
+
+def test_direct_bitt_leads_still_report_resolved_fitting_loads(setup, monkeypatch):
+    ship = refdata.ship(setup[0].ship_class_id)
+    for fitting in ship.fittings:
+        fitting.paired_chock_id = None
+    monkeypatch.setattr(refdata, "ship", lambda _: ship.model_copy(deep=True))
+    model = contact_model(setup)
+    frame, _ = frame_of(model)
+    assert all(line.chock_id is None and len(line.polyline) == 2 for line in frame.line_states)
+    assert all(load.availability == "available" and load.force is not None for load in frame.fitting_loads)
+    ship_force = [sum(getattr(load.force, axis) for load in frame.fitting_loads if load.owner == "ship")
+                  for axis in ("x_lbf", "y_lbf", "z_lbf")]
+    pier_force = [sum(getattr(load.force, axis) for load in frame.fitting_loads if load.owner == "pier")
+                  for axis in ("x_lbf", "y_lbf", "z_lbf")]
+    assert ship_force == pytest.approx([-force for force in pier_force])
 
 
 def test_waves_unavailable_not_zero(setup):
@@ -314,6 +340,7 @@ def test_released_and_unmade_lines_are_listed_unavailable(setup):
         assert "not yet made fast" in r.validity.reasons[0].message and r.tension_lbf is None
     # Fitting loads only for fittings carrying active lines; legacy lines are exactly the active ones.
     active_ids = {rec.ln.ship_fitting_id for rec in m.system.lines} | {rec.ln.pier_fitting_id for rec in m.system.lines}
+    active_ids |= {l.chock_id for l in frame.line_states if l.chock_id is not None}
     assert {f.fitting_id for f in frame.fitting_loads} == active_ids
     assert frame.lines == m.frame().lines
     assert [l.line_number for l in frame.lines] == [second]

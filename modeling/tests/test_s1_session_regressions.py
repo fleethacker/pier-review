@@ -175,10 +175,10 @@ def test_ticker_survives_a_scheduler_exception(setup, fake_rich, monkeypatch):
     clock = Clock(); s = make(setup, clock, "s1-sched")
     original = Session.tick
     calls = []
-    def flaky(self):
+    def flaky(self, **kwargs):
         calls.append(1)
         if len(calls) == 1: raise RuntimeError("scheduler boom")
-        return original(self)
+        return original(self, **kwargs)
     monkeypatch.setattr(Session, "tick", flaky)
     async def exercise():
         s.attach("a")

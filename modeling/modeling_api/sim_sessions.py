@@ -16,10 +16,11 @@ from collections import deque
 from mooring.berthing import rich
 from mooring.core import access
 from mooring.core.envelopes import new_id
-from mooring.core.schemas import (MotionProvenance, SimLifecycle, SimRecording, SimSamplingPolicy, Validity,
-                                  ValidityReason)
+from mooring.core.schemas import (MotionProvenance, SimLifecycle, SimRecording, SimRecordingSummary,
+                                  SimSamplingPolicy, SimScene, Validity, ValidityReason)
 from mooring.core.store import DocStore
 from .backend import berthing_sim
+from .state import API_PREFIX
 
 log = logging.getLogger(__name__)
 
@@ -32,8 +33,11 @@ PUBLISH_MIN_S = 0.05        # display frames at most 20 per wall second; physics
 PERSIST_MIN_S = 2.0         # pause/reset persistence is throttled; detach/end/error always persist
 MIN_TICK_S = 0.005          # scheduler sleep floor, so tiny physics steps cannot spin the event loop
 MAX_STEPS_PER_TICK = 2000   # bounded work per tick; falling behind is reported as lag, never skipped
+RUNTIME_STEPS_PER_TICK = 10 # worker chunks stay short; commands/other sessions get a chance between chunks
 LAG_ALERT_S = 1.0
 RECORDINGS = DocStore("simulation_recordings", SimRecording)
+SCENES = DocStore("simulation_scenes", SimScene)
+RECORDING_INDEX = DocStore("simulation_recording_index", SimRecordingSummary)
 
 
 def _compact(model) -> str:
@@ -59,6 +63,19 @@ def load_recording_json(session_id: str) -> str:
     return rows[0][0]
 
 
+def list_recordings(limit=20, after_session_id=""):
+    """Bounded keyset page; filter ownership in SQL before reading document bodies."""
+    from mooring.core.store import db
+    query = "SELECT d.key,d.body FROM docs d WHERE d.namespace=? AND d.key>?"
+    params = [RECORDING_INDEX.namespace, after_session_id]
+    if access.enforced.get():
+        query += " AND EXISTS (SELECT 1 FROM ownership o WHERE o.kind=d.namespace AND o.key=d.key AND o.principal=?)"
+        params.append(access.principal.get())
+    rows = db().execute(query + " ORDER BY d.key LIMIT ?", (*params, limit + 1))
+    return ([SimRecordingSummary.model_validate_json(row[1]) for row in rows[:limit]],
+            rows[limit - 1][0] if len(rows) > limit else None)
+
+
 class Session:
     """`session_id=None` is the legacy mode: unsequenced legacy frames, no lifecycle, no recording.
 
@@ -80,6 +97,7 @@ class Session:
         self.anchor_sim=0.0
         self.lag_s=0.0
         self.changed=asyncio.Event()
+        self.event_loop=None
         self.last_access=clock()
         self.received=0
         self.window_start=clock()
@@ -94,6 +112,8 @@ class Session:
         self.rec_frames_truncated=self.rec_lifecycle_truncated=False
         self.rec_failure=None
         self.rec_dirty=False; self.last_persist_wall=-math.inf
+        self.rec_validity=None
+        self.rec_reasons={}
         self.next_record_t=0.0
         self.last_publish_wall=-math.inf; self.last_alerts=None
         self.latest=None
@@ -111,6 +131,22 @@ class Session:
     def next_sequence(self):
         self.sequence+=1
         return self.sequence
+
+    def notify(self):
+        # Session mutations run in workers; asyncio.Event itself is not thread-safe.
+        if self.event_loop is not None and self.event_loop.is_running():
+            self.event_loop.call_soon_threadsafe(self.changed.set)
+        else:
+            self.changed.set()
+
+    def remember_validity(self, validity):
+        """Only retained messages contribute; reset never erases historical failure evidence."""
+        state = validity.state if validity is not None else "unknown"
+        rank = {"valid": 0, "limited": 1, "unknown": 2, "invalid": 3}
+        if self.rec_validity is None or rank[state] > rank[self.rec_validity]:
+            self.rec_validity = state
+        for reason in validity.reasons if validity is not None else []:
+            self.rec_reasons[_compact(reason)] = reason.model_copy(deep=True)
 
     def make_frame(self, state=None, t=None, alerts=None):
         if self.error: alerts=[*(alerts or []), self.error]
@@ -133,8 +169,10 @@ class Session:
         self.lifecycle.append(item)
         if not self.rec_lifecycle_truncated:
             if len(self.rec_lifecycle)>=RECORDING_LIFECYCLE: self.rec_lifecycle_truncated=True
-            else: self.rec_lifecycle.append(_compact(item)); self.rec_dirty=True
-        self.changed.set()
+            else:
+                self.rec_lifecycle.append(_compact(item)); self.rec_dirty=True
+                self.remember_validity(item.validity)
+        self.notify()
 
     def resync(self, after_sequence):
         """A reconnecting client that missed evicted lifecycle history gets an explicit restatement, never silence."""
@@ -154,6 +192,7 @@ class Session:
         if len(self.rec_frames)>=RECORDING_FRAMES or self.rec_bytes+len(raw)>RECORDING_MAX_BYTES:
             self.rec_frames_truncated=True; self.rec_dirty=True; return
         self.rec_frames.append(raw); self.rec_bytes+=len(raw)
+        self.remember_validity(frame.validity)
         self.rec_run_end[frame.run_id]=frame.t_s; self.rec_last_t=frame.t_s
         self.rec_dirty=True
 
@@ -178,8 +217,7 @@ class Session:
     def recording_parts(self):
         with self.lock:
             if not self.rich or not self.rec_frames: raise ValueError("session has no recording")
-            validity=self.model.validity()
-            reasons=list(validity.reasons)
+            reasons=list(self.rec_reasons.values())
             if self.rec_frames_truncated or self.rec_lifecycle_truncated:
                 reasons.append(ValidityReason(code="RECORDING_TRUNCATED",
                     message=f"Recording stopped at {len(self.rec_frames)} frames ({self.rec_bytes} bytes) / "
@@ -192,7 +230,7 @@ class Session:
                   "duration_s":sum(self.rec_run_end.values()),
                   "sampling":SimSamplingPolicy(physics_dt_s=self.model.dt,display_interval_s=self.record_interval_s,
                                                max_pending_frames=1).model_dump(mode="json"),
-                  "validity":Validity(state=validity.state,reasons=reasons).model_dump(mode="json"),
+                  "validity":Validity(state=self.rec_validity or "unknown",reasons=reasons).model_dump(mode="json"),
                   "provenance":self.provenance().model_dump(mode="json")}
             return head,list(self.rec_frames),list(self.rec_lifecycle)
 
@@ -212,9 +250,21 @@ class Session:
             now=self.clock()
             if not force and now-self.last_persist_wall<PERSIST_MIN_S: return  # stays dirty for the next persist
             raw=self.recording_json()
+            head, frames, _ = self.recording_parts()
+            summary=SimRecordingSummary(**{name: head[name] for name in
+                ("recording_id", "session_id", "scene_id", "scene_revision", "duration_s", "validity")},
+                frame_count=len(frames), scene_url=f"{API_PREFIX}/berthing/sessions/{self.session_id}/scene",
+                recording_url=f"{API_PREFIX}/berthing/sessions/{self.session_id}/recording")
             self.rec_dirty=False; self.last_persist_wall=now
         try:
+            # Geometry is immutable for the session, even across reset. Save it before making the record discoverable.
+            if self.session_id in SCENES:
+                if SCENES[self.session_id] != self.scene:
+                    raise ValueError("the recording's immutable scene changed")
+            else:
+                SCENES[self.session_id]=self.scene
             store_recording_json(self.session_id,raw)
+            RECORDING_INDEX[self.session_id]=summary
         except Exception:  # noqa: BLE001 - persistence must not break the live session
             log.exception("could not persist recording for %s",self.session_id)
             with self.lock: self.rec_dirty=True
@@ -235,6 +285,9 @@ class Session:
 
     def reanchor(self):
         self.anchor_wall=self.clock(); self.anchor_sim=self.model.t; self.lag_s=0.0
+
+    def scheduled_time(self, now):
+        return min(self.model.duration, self.anchor_sim + max(0, now-self.anchor_wall)*self.speed)
 
     def attach(self, connection):
         with self.lock:
@@ -257,6 +310,10 @@ class Session:
 
     def fail(self, code, message, exc):
         """Stop advancing with an explicit error frame and lifecycle message; each step is guarded."""
+        with self.lock:
+            self._fail(code, message, exc)
+
+    def _fail(self, code, message, exc):
         self.model.invalid=True
         self.model.reasons.append(ValidityReason(code=code,message=str(exc)[:500] or code))
         self.error=message
@@ -265,17 +322,18 @@ class Session:
         try: self.emit("error",f"{message} ({exc})"[:1000])
         except Exception: log.exception("error lifecycle failed for %s",self.session_id)
         self.persist(force=True)
-        self.changed.set()
+        self.notify()
 
-    def tick(self):
+    def tick(self, *, max_steps=MAX_STEPS_PER_TICK):
         with self.lock:
             if self.connection is None or self.paused or self.error: return
             dt=self.model.dt
-            elapsed=max(0,self.clock()-self.anchor_wall)
-            wanted=min(self.model.duration,self.anchor_sim+math.floor((elapsed*self.speed+1e-9)/dt)*dt)
+            demand=self.scheduled_time(self.clock())
+            wanted=(self.model.duration if demand>=self.model.duration-1e-9
+                    else math.floor((demand+1e-9)/dt)*dt)
             # Bounded work per iteration (contact may subdivide). Incoming messages never call this.
             # Original step cap, plus twice the wall-time demand of one tick so small dt can keep up; bounded steps.
-            cap_s=min(MAX_STEPS_PER_TICK*dt,max(max(10,math.ceil(10*self.speed))*dt,2*self.speed*self.tick_period()))
+            cap_s=min(max_steps*dt,max(max(10,math.ceil(10*self.speed))*dt,2*self.speed*self.tick_period()))
             target=min(wanted,self.model.t+cap_s)
             self.lag_s=max(0.0,wanted-target)/self.speed  # wall seconds the scheduler is behind; never skipped
             if target<=self.model.t+1e-9: return
@@ -296,7 +354,7 @@ class Session:
                     self.record_now(); self.emit("ended"); self.persist(force=True)
             except Exception as exc:  # noqa: BLE001 - frame production faults are not integration faults
                 self.fail("FRAME_PRODUCTION_FAILED","Frame production failed; reset or create a new session.",exc); return
-            if published: self.changed.set()
+            if published: self.notify()
 
     def receive(self, connection, msg):
         with self.lock:
@@ -316,21 +374,28 @@ class Session:
                         self.run_id=new_id("run"); self.rec_last_t=None
                         self.emit("reset")
                     self.publish(); self.record_now(); self.persist()
-                    self.changed.set()
+                    self.notify()
                     return
-                elif msg.type=="pause": self.paused=True
-                elif not self.error: self.paused=False
+                elif msg.type=="pause":
+                    if self.paused: return
+                    self.paused=True
+                elif not self.error:
+                    if not self.paused: return
+                    self.paused=False
                 self.reanchor()
                 if msg.type=="pause" and self.state in ("created","running"): self.emit("paused")
                 elif msg.type=="resume" and not self.error and self.state in ("created","paused","reset"): self.emit("running")
                 self.publish()
                 if msg.type=="pause": self.persist()
-                self.changed.set()
+                self.notify()
             elif msg.type=="set_speed":
+                if float(msg.speed)==self.speed: return
+                # Preserve demand accumulated at the previous speed, including fractional steps and lag.
+                self.anchor_sim=self.model.t if self.paused or self.error else self.scheduled_time(now)
+                self.anchor_wall=now
                 self.speed=float(msg.speed)
-                self.reanchor()
                 self.emit(self.state,self.error if self.state=="error" else None)
-                self.changed.set()
+                self.notify()
             else:
                 # Omitted timestamp targets the next boundary. Explicit times are
                 # ordered by timestamp then arrival sequence, never retroactive.
@@ -339,12 +404,20 @@ class Session:
                 self.model.schedule(msg)
 
     async def run(self):
+        self.event_loop=asyncio.get_running_loop()
         while self.connection is not None:
             try:
-                self.tick()
+                work=asyncio.create_task(asyncio.to_thread(self.tick, max_steps=RUNTIME_STEPS_PER_TICK))
+                try:
+                    await asyncio.shield(work)
+                except asyncio.CancelledError:
+                    # A cancelled asyncio wrapper cannot stop its thread. Join the short current chunk before
+                    # releasing controller ownership so reconnect/reset can never race a previous ticker.
+                    await asyncio.gather(work, return_exceptions=True)
+                    raise
             except Exception as exc:  # noqa: BLE001 - the ticker must never die silently
                 log.exception("session scheduler failed for %s",self.session_id)
-                with self.lock: self.fail("SESSION_SCHEDULER_FAILED","Session scheduler failed; reset or create a new session.",exc)
+                await asyncio.to_thread(self.fail,"SESSION_SCHEDULER_FAILED","Session scheduler failed; reset or create a new session.",exc)
             await asyncio.sleep(self.tick_period())
 
 

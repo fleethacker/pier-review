@@ -461,7 +461,10 @@ function ForcesPanel() {
   );
 }
 
-export function Sidebar() {
+export type ExerciseTab = 'scenario' | 'environment' | 'forces';
+
+/** With a tab, only that tab's panel; without one (tests, embedding), all three in order. */
+export function Sidebar({ tab }: { tab?: ExerciseTab } = {}) {
   const c = useController();
   const errors = useExercise((s) => s.errors);
   const notice = useExercise((s) => s.notice);
@@ -481,9 +484,9 @@ export function Sidebar() {
           </button>
         </div>
       )}
-      <ScenarioPanel />
-      <EnvironmentPanel />
-      <ForcesPanel />
+      {(!tab || tab === 'scenario') && <ScenarioPanel />}
+      {(!tab || tab === 'environment') && <EnvironmentPanel />}
+      {(!tab || tab === 'forces') && <ForcesPanel />}
     </div>
   );
 }

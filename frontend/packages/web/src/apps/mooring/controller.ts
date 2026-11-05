@@ -5,6 +5,7 @@ import { awaitJob, describeError, modeling, MODELING_BASE, unwrap, wsUrl } from 
 import { AgentSession } from './agent';
 import { DemoCaseSession } from './demo/cases';
 import { AdvanceSession } from './advance/session';
+import type { MooringTab } from './tabs';
 import { IntakeSession } from './intake/controller';
 import { MotionController } from './motion/controller';
 import { MOTION_KINDS } from './motion/sceneMapper';
@@ -122,6 +123,8 @@ export interface WindSample {
 export type RiskKind = 'timeline' | 'envelope' | 'exceedance';
 
 export interface MooringState {
+  /** Which tab's panels the sidebar shows; the shell's tab bar sets it. */
+  tab: MooringTab;
   phase: 'loading' | 'ready' | 'error';
   error: string | null;
   ships: ShipClassSummary[];
@@ -173,6 +176,7 @@ export interface MooringState {
 }
 
 const INITIAL: MooringState = {
+  tab: 'setup',
   phase: 'loading',
   error: null,
   ships: [],

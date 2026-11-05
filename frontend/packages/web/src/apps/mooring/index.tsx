@@ -8,6 +8,7 @@ import { DataKey } from './panels/DataKey';
 import { Overlay } from './panels/Overlay';
 import { ControllerContext } from './panels/context';
 import { Sidebar } from './Sidebar';
+import { MOORING_TABS, isMooringTab } from './tabs';
 
 function withController(controller: MooringController, Component: ComponentType, name: string): ComponentType {
   const Wrapped = () => (
@@ -23,8 +24,11 @@ function withController(controller: MooringController, Component: ComponentType,
 
 export const mooringApp: AppDefinition = {
   id: 'mooring',
-  title: 'Mooring assistant',
-  description: 'Plan a mooring: ship, pier, lines, tugs and the safety sheet.',
+  title: 'Mooring Assistant',
+  description:
+    'Plan a mooring at a berth: ship, lines and tugs analyzed against wind, current and tide; an agent plan with an independent safety review and sheet; arrivals 24 h ahead; live berthing motion.',
+  tabs: MOORING_TABS,
+  physics: ['Mooring line equilibrium', 'Wind and current loads', 'Berthing dynamics', 'Forecast planning'],
   start(host): AppInstance {
     const controller = new MooringController(host);
     void controller.init();
@@ -35,6 +39,9 @@ export const mooringApp: AppDefinition = {
       Banner: withController(controller, Banner, 'Banner'),
       Overlay: withController(controller, Overlay, 'Overlay'),
       onEdit: (edit) => controller.onEdit(edit),
+      setTab: (id) => {
+        if (isMooringTab(id)) controller.state.set({ tab: id });
+      },
       dispose: () => controller.dispose(),
     };
   },

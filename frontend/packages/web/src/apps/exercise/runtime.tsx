@@ -10,6 +10,8 @@ import { RedTeamPanel } from './RedTeam';
 import { Side } from './Side';
 import { StoryboardPanel } from './Storyboard';
 import { Sidebar } from './Sidebar';
+import type { ExerciseTab } from './Sidebar';
+import { Store } from '../../lib/store';
 
 /** The panels that float over the map. Both can be opened, but each sits in the same place, so only one shows at a time. */
 function Overlays() {
@@ -36,9 +38,15 @@ export function startExercise(host: AppHost): AppInstance {
   const controller = new ExerciseController(host);
   controller.startLoop();
   const stopReporting = installErrorReporting();
+  const view = new Store<{ tab: ExerciseTab }>({ tab: 'scenario' });
+  const TabbedSidebar = () => <Sidebar tab={view.use((v) => v.tab)} />;
+  TabbedSidebar.displayName = 'ExerciseSidebar';
   return {
     Canvas: withController(controller, MapCanvas),
-    Sidebar: withController(controller, Sidebar),
+    Sidebar: withController(controller, TabbedSidebar),
+    setTab: (id) => {
+      if (id === 'scenario' || id === 'environment' || id === 'forces') view.set({ tab: id });
+    },
     Side: withController(controller, Side),
     Bottom: withController(controller, Bottom),
     Banner: withController(controller, Banner),

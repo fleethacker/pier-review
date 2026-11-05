@@ -85,6 +85,12 @@ initial transit-based S7 prediction endpoint and U8 camera overlay. The original
 see the [finding disposition](MODELING_BUILDOUT_STATUS.md#pr-10-review-disposition). Kori's U1–U7 UI landed in #18.
 #12 added R1–R9 specifications; #16 added the camera demo script. Merged implementation is not physical qualification.
 
+**Implemented on PR #22 (Snyder lane), merged to `dev` via PR #22 (not yet cross-reviewed):** S2 forcing, S3 wiring, S4 surrogate, P5 horsepower
+plan, P6 ultimate gust (basis-required), S8 sequence search and the P3 S2/S3 benchmarks, with regenerated contract. Details and
+limits are in the [integration status](#integration-status) rows and the
+[capability ledger](MODELING_BUILDOUT_STATUS.md#snyder-lane-additions-pr-22). Merged is not qualified: all of it is synthetic and
+unqualified, and it adds no sourced ultimate capacity, GM, roll/pitch or tug-position physics.
+
 **Provider implementation merged:** Cruz's D1–D4 providers, composition, replay and waves landed in
 [PR #13](https://github.com/fleethacker/pier-review/pull/13). PR #21 adds the exercise UI and source-honesty integration.
 Use the merged contracts; complete agent/UI acquisition and source-availability acceptance remain distinct work.
@@ -93,7 +99,7 @@ Offshore waves remain evidence, not qualified berth forcing.
 | Remaining work | Lead and dependency |
 | --- | --- |
 | Close remaining S5/S6 findings with independent evidence | Snyder backend/physics; Kori UI; [finding ledger](MODELING_BUILDOUT_STATUS.md#pr-10-review-disposition) |
-| S2 forcing; S3 tug/vertical motion; S7 state fidelity, berthing engine, hazard coverage and uncertainty gates | Snyder; S1/P1 exist, D2/D8 as they land; retain current camera limits |
+| S2/S3 cross-review and merge (PR #22); S7 state fidelity, berthing engine, hazard coverage and uncertainty gates | Snyder; S2/S3 implemented on #22 pending review; S7 engine/forcing handoff, D2/D8 as they land; retain current camera limits |
 | D1–D4 source acceptance and U3/U4 integration with merged provider contracts | Cruz source evidence; Kori/Bixler integration |
 | A3 public revision discovery and UI selection | Supplied/scenario agent binding implemented on Bixler branch; Cruz D2 and Kori integration remain |
 | D8 own-ship state; D5 refit/telemetry; D6 charts/UKC | Cruz; source/age/quality contracts and physical evidence required |
@@ -802,9 +808,9 @@ was `91ac18a`. Implementation acceptance remains open. Use the primary leads and
 | R2 / U9 canvas editing | Kori | planned | Two-axis request updates and pointer-drag browser proof |
 | R3 / A8 U9 class coverage | Bixler / Kori | validation/capability/template software implemented; class data required | Approved CG-47/LHD-1/CVN-68 inputs, loading-height/review metadata, controlled registration and U9 capability display remain |
 | R4 / P4 NSTM/directional limits | Snyder / Bixler | planned; source verification required | Edition/rating method and rule-by-rule evidence |
-| R5 / P5 fleet horsepower | Snyder | planned | Objective contract and independently enumerated optima |
-| R6 / P6 A9 U10 ultimate gusts | Snyder / Bixler / Kori | planned; physical evidence required | Supported capacity/material model, thresholds and alert-chain proof |
-| R7 / S8 U11 sequences | Snyder / Kori | planned | Feasible-order search and intermediate-state/review display |
+| R5 / P5 fleet horsepower | Snyder | endpoint implemented on PR #22, awaiting review; sourced fleet data and consumers remain | Objective contract and independently enumerated optima |
+| R6 / P6 A9 U10 ultimate gusts | Snyder / Bixler / Kori | P6 basis-required endpoint implemented on PR #22, awaiting review; physical evidence and A9/U10 remain | Supported capacity/material model, thresholds and alert-chain proof |
+| R7 / S8 U11 sequences | Snyder / Kori | S8 search endpoint implemented on PR #22, awaiting review; U11 display remains | Feasible-order search and intermediate-state/review display |
 | R8 / P7 U12 structural strain | Snyder / Bixler / Kori | planned; model/data required | Reviewed structural specification and asset properties |
 | R9 / A10 acceptance | Bixler / Kori / Snyder | incremental checks implemented; closure open | Four planning chains with checked saved-layout or unavailable states, forecast binding, narration and runtime evidence; remaining R2/R4–R8, browser/source and qualification gates stay open |
 
@@ -817,15 +823,18 @@ resuming a packet; a merged feature with unresolved review findings is not accep
 | --- | --- | --- | --- | --- |
 | A0 remote cut-over | Bixler | cut-over done; admin protection confirmation remains | #1–#3, #7 | Default `main`; feature PRs target `dev`. UI-to-main #15 was reverted by #17; #18 is the correct integration. |
 | S1 rm0 live frames | Snyder M-SIM; M-PLAN review | merged | #6 | Rich frames, scene, lifecycle/speed/reconnect, bounded workers and recordings; synthetic dynamics |
-| S2 simulation-time forcing | Snyder M-SIM | remaining | | Immutable stage-time forcing and batch/interactive equivalence; P1/D2 and P3 interfaces |
-| S3 tug/vertical motion | Snyder M-SIM | remaining | | Supported geometry/data first; no inferred GM or unavailable DOFs |
-| S4 wave surrogate | Snyder M-PLAN | remaining; D4 dependency | | Labeled synthetic response; offshore availability is not berth forcing |
+| S2 simulation-time forcing | Snyder M-SIM | implemented on PR #22 (`ws-e/snyder-demo-sprint`), merged to `dev` via PR #22 (not yet cross-reviewed) | #22 | Immutable `ForcingSpec` (steady/ramp/gusts/replay, synthetic tide, optional apparent wind, `on_uncovered` stop/invalidate) resolved at stage time on batch and interactive paths; `forcing_revision` on frames/sessions. Tests: `test_s2_forcing.py`, `test_p3_s2_s3_benchmarks.py`. NOT done: no live/D2 composed-forecast feed (forcing is supplied or synthetic), no waves in forcing, current never made vessel-relative, no qualified vessel coefficients, no subject-matter review |
+| S3 tug/vertical motion | Snyder M-SIM | implemented on PR #22, merged to `dev` via PR #22 (not yet cross-reviewed) | #22 | Push-point binding, capacity clamp and slew via `s3_tug_geometry`, wired into the berthing model and rm0 frames; heave is `prescribed` from the S2 water level only when a series supplies it, else null/`not_simulated`. Tests: `test_s3_geometry_vertical.py`, `test_s3_wiring.py`, `test_p3_s2_s3_benchmarks.py`. NOT done: roll/pitch not simulated (no GM or displacement supplied or invented), tug position/velocity not simulated (null), no sourced tug/push-point data |
+| S4 wave surrogate | Snyder M-PLAN | implemented on PR #22, merged to `dev` via PR #22 (not yet cross-reviewed) | #22 | `POST /loads/wave-surrogate`: seeded JONSWAP-shaped scalar elevation series, total XOR partitions (no double count), always `qualified=false`. Tests: `test_s4_wave_surrogate.py`, `test_api_p5_p6_s4.py`. NOT done: visualization only; not wired into berthing/mooring forces, no direction/berth transfer, gamma is a scenario parameter, not fitted to D4 data; offshore availability is not berth forcing |
 | S5 storyboarding | Snyder backend; Kori UI | implemented; findings remain | #10 | [Finding disposition](MODELING_BUILDOUT_STATUS.md#pr-10-review-disposition); #14 did not fix S5 paths |
 | S6 transit | Snyder M-SIM | implemented; fixes merged, closure incomplete | #10, #14 | Future tug takeover and chart/route evidence remain; some findings have regressions; always limited |
 | S7 prediction | Snyder M-SIM; M-PLAN benchmarks | initial transit service merged; full gates open | #14 | Endpoint/presets exist; state approximation, missing berthing/coastline and illustrative uncertainty; [details](PREDICTION.md) |
 | P1 resolver | Snyder M-PLAN | merged | #4 | Immutable supplied/scenario resolution, hashes and coverage; public composer in #13 |
 | P2 recheck | Snyder M-PLAN | merged | #8 | Explicit revision reassessment; historical results immutable |
-| P3 benchmarks | Snyder M-PLAN | initial suite merged; continuous | #5 | Extend for S2/S3/S7 and R packets; not physical qualification |
+| P3 benchmarks | Snyder M-PLAN | initial suite merged (#5); S2/S3 extension implemented on PR #22, merged to `dev` via PR #22 (not yet cross-reviewed); continuous | #5, #22 | Added `test_p3_s2_s3_benchmarks.py` (closed-form forcing, tug force/yaw-moment geometry, tide heave) beside `test_p3_dynamics_benchmarks.py`. NOT done: S7 and R-packet benchmarks beyond P5/P6/S4/S8 unit tests; synthetic numerical-consistency evidence, not physical qualification; the author of P3 also authored the code reviewed, so independent review is pending |
+| P5 tug horsepower | Snyder M-PLAN | implemented on PR #22, merged to `dev` via PR #22 (not yet cross-reviewed) | #22 | `POST /tugs/horsepower-plan`: exhaustive minimum-total-hp placement-feasible assignment (<=8 tugs), deterministic tie-break, margins and infeasibility reasons. Tests: `test_p5_tug_horsepower.py` (independent brute force), `test_api_p5_p6_s4.py`. NOT done: catalog bollard pull/hp are seed/synthetic (validity `limited`), horsepower is never converted to force, normal forces only (surge infeasible), no sourced fleet or push-point inputs, no agent/UI consumer |
+| P6 ultimate gust | Snyder M-PLAN | implemented on PR #22, merged to `dev` via PR #22 (not yet cross-reviewed) | #22 | `POST /risk/ultimate-gust`: threshold search against a caller-supplied `capacity_basis`; without one returns 200 `unavailable`. Tests: `test_p6_ultimate_gust.py`, `test_api_p5_p6_s4.py`. NOT done: no sourced ultimate-capacity or material-law data in the repository (only `synthetic_test_fixture` bases are exercised), no invented breaking threshold, `validated_rupture_prediction` always false, A9/U10 consumers not built |
+| S8 / R7 sequence search | Snyder M-SIM | implemented on PR #22, merged to `dev` via PR #22 (not yet cross-reviewed) | #22 | `POST /mooring/sequence/search`: bounded (<=60 candidates) search over line orders with caller-supplied `must_precede`/`first_line`, intermediate static checks, ranked proposals. Tests: `test_s8_sequence_search.py`. NOT done: handling constraints are caller-supplied, not sourced; static only; durations and rule table unreviewed; always `draft_unreviewed`; U11 display and Bixler planner handoff not built
 | U1–U7 planning/motion/forecast UI | Kori | implementation merged; combined acceptance remains | #18, #21 | Review selection, runtime motion, source/forecast panels, clocks, tooling and conditional scene enhancements; final source/coverage acceptance remains |
 | U8 camera overlay | Kori | initial missions/Transit overlay merged | #14 | Limited S7 results; further live-state/engine/uncertainty behavior follows S7/D8 |
 | D1–D4 provider/forecast/replay/waves | Cruz | merged; source/integration acceptance remains | #13 | Provider/composition contracts available; waves offshore-only, not load-ready |

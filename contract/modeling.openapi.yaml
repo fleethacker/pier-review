@@ -5357,6 +5357,69 @@ components:
       - mz_ftlbf
       title: ForceSet
       description: Forces and moment in the ship frame (+x forward, +y to port, yaw positive counterclockwise).
+    ForcingBasis:
+      properties:
+        kind:
+          type: string
+          enum:
+          - fixed_environment
+          - time_varying
+          title: Kind
+          default: fixed_environment
+        revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Revision
+          description: S2 series revision (frc-...); null for a fixed environment.
+        synthetic:
+          type: boolean
+          title: Synthetic
+          description: True when the series is generated (steady/ramp/gusts), not observed.
+          default: false
+        series_kind:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Series Kind
+        coverage:
+          anyOf:
+          - $ref: '#/components/schemas/ForcingCoverage'
+          - type: 'null'
+          description: Prediction-relative seconds the series is defined over.
+        requested_horizon_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Requested Horizon S
+        horizon_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Horizon S
+          description: Horizon actually predicted; less than requested when truncated.
+        truncated:
+          type: boolean
+          title: Truncated
+          default: false
+      additionalProperties: false
+      type: object
+      title: ForcingBasis
+      description: 'What the environment over the horizon was: fixed, or sampled from an immutable forcing series.'
+    ForcingCoverage:
+      properties:
+        start_s:
+          type: number
+          title: Start S
+        end_s:
+          type: number
+          title: End S
+      additionalProperties: false
+      type: object
+      required:
+      - start_s
+      - end_s
+      title: ForcingCoverage
     ForcingSample:
       properties:
         t_s:
@@ -9512,6 +9575,24 @@ components:
           - type: 'null'
           title: As Of Utc
           description: Prediction time; default now.
+        forcing:
+          anyOf:
+          - $ref: '#/components/schemas/ForcingSpec'
+          - type: 'null'
+          description: 'S7b: time-varying forcing (S2 ForcingSpec), sampled at prediction-relative time (t = 0 is as_of_utc)
+            through the S2 resolver around `environment` (null = calm base). Absent = fixed environment, unchanged behavior.
+            A replay series that ends before the horizon is rejected (on_uncovered ''stop'') or the horizon is truncated,
+            with a validity reason (''invalidate''); it is never extrapolated.'
+        engine:
+          anyOf:
+          - type: string
+            enum:
+            - transit
+            - berthing
+          - type: 'null'
+          title: Engine
+          description: Requested engine. Never switched automatically. 'berthing' (S1-S3) has no validated state/parameter
+            handoff and is answered 501 unsupported.
         horizon_s:
           type: number
           maximum: 900.0
@@ -9663,6 +9744,9 @@ components:
           minItems: 1
           title: Alternatives
           description: '''hold'' first, then what-ifs in request order.'
+        forcing_basis:
+          $ref: '#/components/schemas/ForcingBasis'
+          description: Omitted on the wire for the default fixed environment; absent means fixed_environment.
       additionalProperties: false
       type: object
       required:
@@ -14192,7 +14276,7 @@ components:
         sampling_step_kt:
           type: number
           maximum: 20.0
-          exclusiveMinimum: 0.0
+          minimum: 0.1
           title: Sampling Step Kt
           default: 5.0
         tolerance_kt:

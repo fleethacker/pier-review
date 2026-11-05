@@ -101,6 +101,7 @@ def horsepower_plan(req: HorsepowerRequest):
             fleet = [refdata.tug(i) for i in req.available_tug_ids]
         except refdata.NotFound as e:
             raise refdata.InvalidReference(str(e)) from None
+    fleet = sorted(fleet, key=lambda t: t.tug_id)  # request order must not change the plan
     w = req.required_wrench
     return minimize_horsepower(ship, (w.fx_lbf, w.fy_lbf, w.mz_ftlbf), fleet, efficiency=req.efficiency, margin=req.margin)
 

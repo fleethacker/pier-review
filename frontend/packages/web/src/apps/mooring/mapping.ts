@@ -176,6 +176,7 @@ export function pierEntities(berth: Berth, analysis: AnalyzeResponse | null): Sc
       color: fittingColor(f.condition),
       status: r ? statusOf(r.status) : undefined,
       selectable: true,
+      connectable: { group: 'pier-fitting', accepts: ['ship-fitting'] },
       props: usageProps(
         [
           { label: 'Type', value: f.kind },
@@ -407,9 +408,9 @@ export function shipEntities(
     selectable: true,
     editable: editable
       ? {
-          moveAxis: 'x',
+          moveAxis: 'xy',
           snapM: ft(1),
-          bounds: { minX: -ft(ship.loa_ft / 4), maxX: ft(berth.face_length_ft + ship.loa_ft / 4) },
+          bounds: { minX: 0, maxX: ft(berth.face_length_ft), minY: ft(ship.beam_ft / 2) },
         }
       : undefined,
     props: [
@@ -438,6 +439,7 @@ export function shipEntities(
         color: '#e0e6ee',
         status: r ? statusOf(r.status) : undefined,
         selectable: true,
+        connectable: editable ? { group: 'ship-fitting', accepts: ['pier-fitting'] } : undefined,
         props: usageProps(
           [
             { label: 'Type', value: f.kind },
@@ -508,6 +510,7 @@ export function lineLinks(
       strands: line.parts,
       label: `L${line.line_number}${line.parts > 1 ? ` ×${line.parts}` : ''}${r ? ` ${fmt.pct(r.pct_wll)}` : ''}`,
       selectable: true,
+      editableEndpoints: { from: IDS.shipFitting(sf.fitting_id), to: IDS.pierFitting(pf.fitting_id) },
       props: [
         { label: 'Line', value: `#${line.line_number}${line.role ? ` ${line.role}` : ''}` },
         { label: 'Rope', value: `${line.spec_id} (${partsName(line.parts)})` },

@@ -1,6 +1,7 @@
 import * as Cesium from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import { constrainMove, entityToFrame, isTilted, resolveAnchor, sceneBounds, tiltedPolygonRing } from '../../scene/geometry';
+import { beginConnection, canDropConnection, type ConnectionEdit } from '../../scene/linkEditing';
 import type { SceneStore } from '../../scene/store';
 import type { SceneEdit, SceneEntity, SceneLink, SceneState, SceneVector } from '../../scene/types';
 import { COLORS, STATUS_COLOR, colorFor } from '../theme';
@@ -33,8 +34,10 @@ export class SceneRenderer {
   private lastFitRevision = 0;
   private hoverId: string | null = null;
   private drag: Drag | null = null;
+  private connection: { edit: ConnectionEdit; moved: boolean } | null = null;
+  private preview: Cesium.Entity | null = null;
   private pan: { lastX: number; lastY: number; button: number } | null = null;
-  private pointerDown: { x: number; y: number; id: string | null } | null = null;
+  private pointerDown: { x: number; y: number; id: string | null; pointerId: number } | null = null;
   private disposed = false;
   private kicking = false;
   private kickUntil = 0;
@@ -126,6 +129,7 @@ export class SceneRenderer {
     this.unsubscribe();
     this.effects.dispose();
     this.store.capture = () => null;
+    window.removeEventListener('keydown', this.onKeyDown);
     this.viewer.destroy();
   }
 
@@ -155,6 +159,7 @@ export class SceneRenderer {
     const state = this.store.getState();
     const prev = this.lastState;
     this.lastState = state;
+    if (prev && state.contentRevision !== prev.contentRevision) this.cancelGesture(false);
 
     if (state.frame && (!prev || prev.frame !== state.frame)) {
       this.tf = new FrameTransform(state.frame);
@@ -445,21 +450,27 @@ export class SceneRenderer {
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
     canvas.addEventListener('pointerup', this.onPointerUp);
-    canvas.addEventListener('pointercancel', this.onPointerUp);
+    canvas.addEventListener('pointercancel', this.onPointerCancel);
+    canvas.addEventListener('lostpointercapture', this.onPointerCancel);
+    window.addEventListener('keydown', this.onKeyDown);
     canvas.addEventListener('wheel', this.onWheel, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
   private onPointerDown = (ev: PointerEvent): void => {
+    if (this.pointerDown || ev.isPrimary === false) return;
     const canvas = this.viewer.scene.canvas;
     canvas.setPointerCapture(ev.pointerId);
     const pos = this.canvasPoint(ev);
-    const id = this.pickId(pos);
-    this.pointerDown = { x: ev.clientX, y: ev.clientY, id };
+    const fitting = ev.button === 0 ? this.nearestEndpoint(ev.clientX, ev.clientY, 12) : null;
+    const id = fitting ? `e:${fitting}` : this.pickId(pos);
+    this.pointerDown = { x: ev.clientX, y: ev.clientY, id, pointerId: ev.pointerId };
     const state = this.store.getState();
 
     if (ev.button === 0 && id?.startsWith('e:')) {
       const entity = this.resolveEntity(id.slice(2), state);
+      const edit = entity ? beginConnection(state, entity.id) : null;
+      if (edit) { this.connection = { edit, moved: false }; return; }
       if (entity?.editable) {
         const grab = this.ground(pos);
         if (grab) {
@@ -472,10 +483,22 @@ export class SceneRenderer {
   };
 
   private onPointerMove = (ev: PointerEvent): void => {
+    if (this.pointerDown && ev.pointerId !== this.pointerDown.pointerId) return;
     const pos = this.canvasPoint(ev);
     const state = this.store.getState();
+    const moved = this.pointerDown && Math.hypot(ev.clientX - this.pointerDown.x, ev.clientY - this.pointerDown.y) >= 4;
+
+    if (this.connection) {
+      if (!moved && !this.connection.moved) return;
+      if (!this.connection.moved) { this.connection.moved = true; this.onEdit(this.connection.edit); }
+      const target = this.nearestEndpoint(ev.clientX, ev.clientY, 18, this.connection.edit);
+      this.drawConnectionPreview(this.connection.edit, target, this.ground(pos));
+      this.viewer.scene.canvas.style.cursor = target ? 'copy' : 'crosshair';
+      return;
+    }
 
     if (this.drag) {
+      if (!moved && !this.drag.moved) return;
       const entity = state.entities[this.drag.entityId];
       const g = this.ground(pos);
       if (!entity?.editable || !g) return;
@@ -520,12 +543,20 @@ export class SceneRenderer {
   };
 
   private onPointerUp = (ev: PointerEvent): void => {
+    if (this.pointerDown && ev.pointerId !== this.pointerDown.pointerId) return;
     const canvas = this.viewer.scene.canvas;
-    if (canvas.hasPointerCapture(ev.pointerId)) canvas.releasePointerCapture(ev.pointerId);
     const down = this.pointerDown;
     const clicked = down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) < 4;
 
-    if (this.drag) {
+    if (this.connection) {
+      const connection = this.connection;
+      this.connection = null;
+      this.clearPreview();
+      if (connection.moved) {
+        const target = this.nearestEndpoint(ev.clientX, ev.clientY, 18, connection.edit);
+        this.onEdit({ ...connection.edit, toEntityId: target, final: true, cancelled: target === null });
+      } else if (clicked) this.store.select({ type: 'entity', id: connection.edit.fromEntityId });
+    } else if (this.drag) {
       const d = this.drag;
       this.drag = null;
       const entity = this.store.getState().entities[d.entityId];
@@ -545,7 +576,70 @@ export class SceneRenderer {
     }
     this.pan = null;
     this.pointerDown = null;
+    if (canvas.hasPointerCapture(ev.pointerId)) canvas.releasePointerCapture(ev.pointerId);
+    canvas.style.cursor = 'default';
   };
+
+  private onPointerCancel = (ev: PointerEvent): void => {
+    if (!this.pointerDown || ev.pointerId === this.pointerDown.pointerId) this.cancelGesture(true);
+  };
+  private onKeyDown = (ev: KeyboardEvent): void => {
+    if (ev.key === 'Escape' && (this.drag || this.connection)) { ev.preventDefault(); this.cancelGesture(true); }
+  };
+
+  private cancelGesture(notify: boolean): void {
+    const drag = this.drag;
+    const connection = this.connection;
+    this.drag = null;
+    this.connection = null;
+    this.pan = null;
+    this.pointerDown = null;
+    this.clearPreview();
+    if (notify && drag?.moved) {
+      this.store.moveEntity(drag.entityId, drag.startPose);
+      this.onEdit({ type: 'move', entityId: drag.entityId, pose: drag.startPose, final: true, cancelled: true });
+    }
+    if (notify && connection?.moved) this.onEdit({ ...connection.edit, final: true, cancelled: true });
+    this.viewer.scene.canvas.style.cursor = 'default';
+  }
+
+  private nearestEndpoint(x: number, y: number, radius: number, edit?: ConnectionEdit): string | null {
+    const rect = this.viewer.scene.canvas.getBoundingClientRect();
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
+    const state = this.store.getState();
+    let nearest: string | null = null;
+    let distance = radius;
+    for (const entity of Object.values(state.entities)) {
+      if (!entity.connectable || (edit && !canDropConnection(state, edit, entity.id))) continue;
+      const point = this.screenPositionOf(entity.id);
+      if (!point) continue;
+      const delta = Math.hypot(point.x - x, point.y - y);
+      if (delta < distance) { distance = delta; nearest = entity.id; }
+    }
+    return nearest;
+  }
+
+  private clearPreview(): void {
+    if (this.preview) this.viewer.entities.remove(this.preview);
+    this.preview = null;
+  }
+
+  private drawConnectionPreview(edit: ConnectionEdit, target: string | null, ground: [number, number] | null): void {
+    if (!this.tf) return;
+    const state = this.store.getState();
+    const link = edit.linkId ? state.links[edit.linkId] : undefined;
+    const fixedId = link?.editableEndpoints && edit.endpoint
+      ? link.editableEndpoints[edit.endpoint === 'from' ? 'to' : 'from'] : edit.fromEntityId;
+    const source = state.entities[fixedId]?.pose;
+    const end = target ? state.entities[target]?.pose : ground ? { x: ground[0], y: ground[1], z: source?.z ?? 1 } : null;
+    if (!source || !end) return;
+    this.clearPreview();
+    this.preview = this.viewer.entities.add({ id: 'edit:connection-preview', polyline: {
+      positions: [this.tf.toWorld(source.x, source.y, source.z), this.tf.toWorld(end.x, end.y, end.z)], width: 3,
+      material: new Cesium.PolylineDashMaterialProperty({ color: css(target ? COLORS.selection : '#ffffff') }),
+    } });
+    this.kick();
+  }
 
   private onWheel = (ev: WheelEvent): void => {
     ev.preventDefault();

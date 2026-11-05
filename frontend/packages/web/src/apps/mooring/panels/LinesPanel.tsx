@@ -1,17 +1,26 @@
+import { useState } from 'react';
 import { cn } from '../../../lib/cn';
-import { Button, Panel, Select, StatusChip } from '../../../shell/ui';
+import { Button, Field, Panel, Select, StatusChip } from '../../../shell/ui';
 import { hasUsableAnalysis, IDS } from '../mapping';
 import { fmt } from '../units';
 import { useController, useMooring } from './context';
 import { PartsControl } from './PartsControl';
+import { classSupport } from '../classSupport';
 
 export function LinesPanel() {
   const c = useController();
   const s = useMooring((x) => x);
-  const canEdit = (s.ship?.fittings?.length ?? 0) > 0;
+  const canEdit = classSupport(s.ship, s.shipClassId, s.loading).canPlan;
   const analysis = s.analysis.response;
   const results = new Map((hasUsableAnalysis(analysis) ? analysis?.result.lines ?? [] : []).map((l) => [l.line_number, l]));
   const specs = s.lineSpecs.map((l) => ({ value: l.spec_id, label: l.spec_id }));
+  const shipFittings = (s.ship?.fittings ?? []).filter((f) => f.kind === 'bitt' && f.side === s.side)
+    .map((f) => ({ value: f.fitting_id, label: f.fitting_id }));
+  const pierFittings = (s.berth?.fittings ?? []).map((f) => ({ value: f.fitting_id, label: f.fitting_id }));
+  const [shipChoice, chooseShip] = useState('');
+  const [pierChoice, choosePier] = useState('');
+  const shipId = shipFittings.some((f) => f.value === shipChoice) ? shipChoice : shipFittings[0]?.value ?? '';
+  const pierId = pierFittings.some((f) => f.value === pierChoice) ? pierChoice : pierFittings[0]?.value ?? '';
 
   return (
     <Panel title="Mooring lines" className="space-y-3 p-4">
@@ -32,7 +41,7 @@ export function LinesPanel() {
           <div className="rounded-sm border border-mil-cyan/40 bg-mil-cyan/10 p-2 text-[11px] text-mil-cyan">
             {s.addLine.shipFittingId
               ? `Ship fitting ${s.addLine.shipFittingId} chosen. Click a pier fitting to finish the line.`
-              : 'Click a ship bitt, then a pier fitting.'}
+              : 'Click a ship bitt, then a pier fitting, or drag between them.'}
             <Button size="sm" variant="ghost" className="ml-2" onClick={() => c.cancelAddLine()}>
               Done
             </Button>
@@ -42,6 +51,15 @@ export function LinesPanel() {
             Add line on canvas
           </Button>
         )}
+        <p className="text-[11px] text-mil-dim">Drag between ship and pier fittings to add a line. Select a line, then drag either endpoint to reconnect it. Escape cancels. Installed lengths stay unchanged.</p>
+        <details className="text-[11px] text-mil-dim">
+          <summary className="cursor-pointer">Choose fittings without dragging</summary>
+          <div className="mt-2 space-y-2">
+            <Field label="New line ship fitting"><Select value={shipId} onChange={chooseShip} options={shipFittings} disabled={!canEdit} /></Field>
+            <Field label="New line pier fitting"><Select value={pierId} onChange={choosePier} options={pierFittings} disabled={!canEdit} /></Field>
+            <Button size="sm" disabled={!canEdit || !shipId || !pierId} onClick={() => c.addLine(shipId, pierId)}>Add selected fittings</Button>
+          </div>
+        </details>
       </div>
 
       {analysis && !hasUsableAnalysis(analysis) && (
@@ -99,6 +117,19 @@ export function LinesPanel() {
                     </button>
                   </div>
                   <div className="mt-1.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                    <details className="text-mil-dim">
+                      <summary className="cursor-pointer">Edit endpoints</summary>
+                      <div className="mt-2 space-y-2">
+                        <Field label={`Line ${l.line_number} ship fitting`}>
+                          <Select value={l.ship_fitting_id} options={shipFittings}
+                            onChange={(v) => c.updateLine(l.line_number, { ship_fitting_id: v })} disabled={!canEdit} />
+                        </Field>
+                        <Field label={`Line ${l.line_number} pier fitting`}>
+                          <Select value={l.pier_fitting_id} options={pierFittings}
+                            onChange={(v) => c.updateLine(l.line_number, { pier_fitting_id: v })} disabled={!canEdit} />
+                        </Field>
+                      </div>
+                    </details>
                     <Select
                       value={l.spec_id}
                       options={specs}
@@ -109,6 +140,7 @@ export function LinesPanel() {
                       value={l.parts as 1 | 2 | 3}
                       onChange={(n) => c.updateLine(l.line_number, { parts: n })}
                     />
+                    {l.paid_out_unstretched_length_ft != null && <p className="text-mil-dim">Installed unstretched length: {fmt.ft(l.paid_out_unstretched_length_ft, 1)} · preserved on reconnect</p>}
                   </div>
                   {r && (
                     <div className="mt-1.5 flex items-center gap-2">

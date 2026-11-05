@@ -12,6 +12,8 @@ vi.mock('./api', () => ({
 
 import { MooringController, type Candidate } from './controller';
 import { modeling } from './api';
+import { beginConnection } from '../../scene/linkEditing';
+import { ft } from './units';
 import type { Berth, Environment, ShipClass, TugAssignment } from './types';
 
 const berth = {
@@ -112,6 +114,48 @@ describe('adding lines by clicking fittings', () => {
 });
 
 describe('moving the ship on the canvas', () => {
+  it.each(['starboard', 'port'] as const)('updates both request axes without changing heading for %s side to', (side) => {
+    const { store, c } = setup();
+    c.state.set({ side });
+    // A stored installation is preserved even when moving it makes its geometry unsuitable.
+    const line = { line_number: 17, spec_id: 'NYLON', parts: 3 as const, ship_fitting_id: 'BITT-1S',
+      pier_fitting_id: 'P1', paid_out_unstretched_length_ft: 199, condition: 'wet' as const };
+    c.state.set({ lines: [line] });
+    c.pushScene('full');
+    const pose = { ...store.getState().entities.ship.pose, x: ft(725), y: ft(ship.beam_ft / 2 + 43) };
+    c.onEdit({ type: 'move', entityId: 'ship', pose, final: false });
+    expect(c.buildAnalyzeRequest()?.config).toMatchObject({ side_to: side, ship_x_ft: 725, standoff_ft: 43, lines: [line] });
+    expect(store.getState().entities.ship.pose.headingDeg).toBe(side === 'starboard' ? 0 : 180);
+    expect(c.state.get().analysis.state).toBe('idle');
+    c.onEdit({ type: 'move', entityId: 'ship', pose, final: true });
+    expect(c.state.get().analysis.state).toBe('pending');
+    c.dispose();
+  });
+
+  it('clamps pointer placement to the berth and prevents hull penetration; ignores nonfinite input', () => {
+    const { store, c } = setup();
+    const pose = { ...store.getState().entities.ship.pose, x: ft(1200), y: -100 };
+    c.onEdit({ type: 'move', entityId: 'ship', pose, final: true });
+    expect(c.state.get()).toMatchObject({ shipXFt: 1000, standoffOverrideFt: 0 });
+    c.onEdit({ type: 'move', entityId: 'ship', pose: { ...pose, x: NaN }, final: true });
+    c.setShipX(NaN);
+    c.setStandoff(-4);
+    c.setStandoff(NaN);
+    expect(c.state.get()).toMatchObject({ shipXFt: 1000, standoffOverrideFt: 0 });
+    c.dispose();
+  });
+
+  it.each([null, 12.5])('cancellation restores the exact original placement and standoff %s', (standoffOverrideFt) => {
+    const { store, c } = setup();
+    c.state.set({ shipXFt: 500.5, standoffOverrideFt });
+    c.pushScene('full');
+    const initialPose = store.getState().entities.ship.pose;
+    c.onEdit({ type: 'move', entityId: 'ship', pose: { ...initialPose, x: ft(700), y: ft(80) }, final: false });
+    c.onEdit({ type: 'move', entityId: 'ship', pose: initialPose, final: true, cancelled: true });
+    expect(c.state.get()).toMatchObject({ shipXFt: 500.5, standoffOverrideFt });
+    expect(store.getState().entities.ship.pose).toEqual(initialPose);
+    c.dispose();
+  });
   it('updates the position, the ship and its bitts, and re-analyzes only on release', () => {
     const { store, c } = setup();
     c.addLine('BITT-1S', 'P1');
@@ -144,6 +188,131 @@ describe('moving the ship on the canvas', () => {
     expect(post).not.toHaveBeenCalled();
     expect(c.state.get().analysis.state).toBe('idle');
     c.dispose();
+  });
+});
+
+describe('fitting drags', () => {
+  it.each([['sfit:BITT-1S', 'pier:P2'], ['pier:P2', 'sfit:BITT-1S']])('creates from %s to %s using selected rope and parts', (source, target) => {
+    const { c, store } = setup();
+    c.setNewLineSpec('SYNTHETIC-TEST', 3);
+    const edit = beginConnection(store.getState(), source)!;
+    c.onEdit(edit);
+    expect(c.state.get().lines).toEqual([]);
+    c.onEdit({ ...edit, toEntityId: target, final: true });
+    expect(c.buildAnalyzeRequest()?.config.lines).toEqual([{ line_number: 1, spec_id: 'SYNTHETIC-TEST', parts: 3,
+      ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P2' }]);
+    c.dispose();
+  });
+
+  it.each([['sfit:BITT-1S', 'sfit:BITT-2S', 'ship_fitting_id', 'BITT-2S'],
+    ['pier:P1', 'pier:P2', 'pier_fitting_id', 'P2']])('reconnects %s while retaining every installation field', (source, target, field, value) => {
+    const { c, store } = setup();
+    const line = { line_number: 8, spec_id: 'NYLON', parts: 2 as const, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1',
+      role: 'bow' as const, chock_id: 'EXPLICIT-CHOCK', paid_out_unstretched_length_ft: 178.5, condition: 'dry' as const };
+    c.state.set({ lines: [line] });
+    c.pushScene('full');
+    store.select({ type: 'link', id: 'line-8' });
+    const edit = beginConnection(store.getState(), source)!;
+    expect(edit.linkId).toBe('line-8');
+    c.onEdit({ ...edit, toEntityId: target, final: true });
+    expect(c.state.get().lines).toEqual([{ ...line, [field]: value }]);
+    c.dispose();
+  });
+
+  it.each([{ target: null, cancelled: true }, { target: 'sfit:BITT-2S', cancelled: false },
+    { target: 'pier:missing', cancelled: false }])('invalid or cancelled drops leave configuration unchanged: %j', ({ target, cancelled }) => {
+    const { c, store } = setup();
+    c.addLine('BITT-1S', 'P1');
+    const before = c.buildAnalyzeRequest()?.config;
+    const edit = beginConnection(store.getState(), 'sfit:BITT-1S')!;
+    c.onEdit({ ...edit, toEntityId: target, final: true, cancelled });
+    expect(c.buildAnalyzeRequest()?.config).toEqual(before);
+    c.dispose();
+  });
+
+  it('rejects foreign fitting ids and a drag completed after the selected class changes', () => {
+    const { c, store } = setup();
+    c.addLine('OTHER-SHIP', 'P1');
+    c.addLine('BITT-1S', 'OTHER-PIER');
+    const edit = beginConnection(store.getState(), 'sfit:BITT-1S')!;
+    c.state.set({ shipClassId: 'NEW-CLASS' });
+    c.onEdit({ ...edit, toEntityId: 'pier:P1', final: true });
+    expect(c.state.get().lines).toEqual([]);
+    c.dispose();
+  });
+});
+
+describe('selection changes during editing', () => {
+  it('cannot restore an old scenario after a newer class selection', async () => {
+    const { c } = setup();
+    let finish!: (value: unknown) => void;
+    const pending = new Promise((resolve) => { finish = resolve; });
+    const get = vi.mocked(modeling.GET);
+    get.mockImplementation(async (path) => {
+      if (path === '/api/v1/scenarios/{scenario_id}') return pending as never;
+      return { data: path === '/api/v1/ships/{class_id}' ? { ...ship, class_id: 'NEW', fittings: [] } : berth } as never;
+    });
+    try {
+      const oldScenario = c.loadScenario('old');
+      await c.setShip('NEW');
+      finish({ data: { scenario_id: 'old', ship_class_id: 'S1', berth_id: 'B1' } });
+      await oldScenario;
+      expect(c.state.get().shipClassId).toBe('NEW');
+      expect(c.state.get().scenarioId).toBeNull();
+      expect(get).not.toHaveBeenCalledWith('/api/v1/scenarios/{scenario_id}/environment', expect.anything());
+    } finally { get.mockReset(); c.dispose(); }
+  });
+
+  it('clears old lines and agent plan immediately, and ignores a late class response', async () => {
+    const { c, store } = setup();
+    c.addLine('BITT-1S', 'P1');
+    c.startAddLine();
+    store.select({ type: 'entity', id: 'sfit:BITT-1S' });
+    c.agent.state.set({ planId: 'stale', plan: {} as never });
+    let finishA!: (value: unknown) => void;
+    const pendingA = new Promise((resolve) => { finishA = resolve; });
+    const get = vi.mocked(modeling.GET);
+    get.mockImplementation(async (path, options) => {
+      if (path === '/api/v1/berths/{berth_id}') return { data: berth } as never;
+      const classId = (options as { params: { path: { class_id: string } } }).params.path.class_id;
+      if (classId === 'A') return pendingA as never;
+      return { data: { ...ship, class_id: 'B', fittings: [] } } as never;
+    });
+    try {
+      const first = c.setShip('A');
+      expect(c.state.get().lines).toEqual([]);
+      expect(c.state.get().analysis.response).toBeNull();
+      expect(c.state.get().addLine.active).toBe(false);
+      expect(c.agent.state.get().plan).toBeNull();
+      expect(store.getState().links).toEqual({});
+      expect(store.getState().entities.ship.editable).toBeUndefined();
+      await c.setShip('B');
+      finishA({ data: { ...ship, class_id: 'A' } });
+      await first;
+      expect(c.state.get().ship?.class_id).toBe('B');
+      expect(store.getState().entities.ship.editable).toBeUndefined();
+    } finally { get.mockReset(); c.dispose(); }
+  });
+
+  it('clears foreign pier connections before the new berth finishes loading', async () => {
+    const { c, store } = setup();
+    c.addLine('BITT-1S', 'P1');
+    const get = vi.mocked(modeling.GET);
+    let finishBerth!: (value: unknown) => void;
+    const pending = new Promise((resolve) => { finishBerth = resolve; });
+    get.mockImplementation(async (path) => {
+      if (path === '/api/v1/berths/{berth_id}') return pending as never;
+      return { data: path === '/api/v1/ships/{class_id}' ? { ...ship, fittings: [] } : env } as never;
+    });
+    vi.spyOn(c, 'startAlerts').mockImplementation(() => {});
+    try {
+      const loading = c.setBerth('B2');
+      expect(c.state.get().lines).toEqual([]);
+      expect(store.getState().links).toEqual({});
+      finishBerth({ data: { ...berth, berth_id: 'B2' } });
+      await loading;
+      expect(c.state.get().berth?.berth_id).toBe('B2');
+    } finally { get.mockReset(); c.dispose(); }
   });
 });
 

@@ -1,6 +1,6 @@
 import { cn } from '../../../lib/cn';
 import { Button, Panel, Select, StatusChip } from '../../../shell/ui';
-import { IDS } from '../mapping';
+import { hasUsableAnalysis, IDS } from '../mapping';
 import { fmt } from '../units';
 import { useController, useMooring } from './context';
 import { PartsControl } from './PartsControl';
@@ -9,7 +9,8 @@ export function LinesPanel() {
   const c = useController();
   const s = useMooring((x) => x);
   const canEdit = (s.ship?.fittings?.length ?? 0) > 0;
-  const results = new Map((s.analysis.response?.result.lines ?? []).map((l) => [l.line_number, l]));
+  const analysis = s.analysis.response;
+  const results = new Map((hasUsableAnalysis(analysis) ? analysis?.result.lines ?? [] : []).map((l) => [l.line_number, l]));
   const specs = s.lineSpecs.map((l) => ({ value: l.spec_id, label: l.spec_id }));
 
   return (
@@ -43,6 +44,9 @@ export function LinesPanel() {
         )}
       </div>
 
+      {analysis && !hasUsableAnalysis(analysis) && (
+        <p className="text-[11px] text-mil-amber">Line loads unavailable: analysis validity is {analysis.validity?.state ?? 'unknown'}. Inspect the analysis findings before rechecking.</p>
+      )}
       {s.lines.length === 0 ? (
         <p className="text-[11px] text-mil-dim">
           {s.recommend.state === 'running' ? 'Recommending a layout…' : 'No lines yet.'}

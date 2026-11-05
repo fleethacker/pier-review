@@ -143,9 +143,12 @@ def _environment_provenance_html(environment) -> str:
 
 def render_html(s: SafetySheet) -> str:
     e = html.escape
+    usable = s.validity is not None and s.validity.state in ('valid', 'limited')
     lines = "".join(f"<tr><td>{r.line_number}</td><td>{e(r.role)}</td><td>{e(r.spec_id)}</td><td>{r.parts}</td>"
-                    f"<td>{e(r.ship_fitting_id)}</td><td>{e(r.pier_fitting_id)}</td><td>{r.tension_lbf:,.0f}</td>"
-                    f"<td>{r.pct_wll:.0f}%</td><td>{r.status}</td></tr>" for r in s.line_plan)
+                    f"<td>{e(r.ship_fitting_id)}</td><td>{e(r.pier_fitting_id)}</td>"
+                    + (f"<td>{r.tension_lbf:,.0f}</td><td>{r.pct_wll:.0f}%</td><td>{r.status}</td>"
+                       if usable else "<td>Unavailable</td><td>Unavailable</td><td>Unavailable</td>")
+                    + "</tr>" for r in s.line_plan)
     steps = "".join(f"<li>{e(st.action.replace('_', ' '))} line {st.line_number or '-'} ({e(st.station)}): "
                     f"{e(st.trigger)}{(' <em>' + e(st.caution) + '</em>') if st.caution else ''}"
                     + (f" <strong>Static check: {'within limits (draft)' if st.state_ok is True else 'blocking' if st.state_ok is False else 'undetermined'}.</strong> {e(st.state_note or '')}" if st.state_ok is not None or st.state_note else "")
@@ -164,14 +167,16 @@ def render_html(s: SafetySheet) -> str:
     why = "".join(f"<li>{e(r.text)} <small>[{e(', '.join(r.cites))}]</small></li>" for r in s.rationale)
     appr = "".join(f"<li>{e(a.role.upper())}: {e(a.name)}, {a.decision} {a.at_utc:%Y-%m-%d %H:%MZ}</li>" for a in s.approvals)
     thresholds = "".join(
-        f"<tr><td>{row.wind_rel_deg:.0f}°</td><td>{e(row.governing_element or '-')}</td>"
-        + (f"<td>{row.limit_wll_gust_kt:.0f} kt</td>" if row.limit_wll_gust_kt is not None else "<td>Unavailable</td>")
+        f"<tr><td>{row.wind_rel_deg:.0f}°</td><td>{e(row.governing_element or '-') if usable else 'Unavailable'}</td>"
+        + (f"<td>{row.limit_wll_gust_kt:.0f} kt</td>" if usable and row.limit_wll_gust_kt is not None else "<td>Unavailable</td>")
         + (f"<td>{row.estimated_breaking_gust_kt:.0f} kt (legacy estimate)</td></tr>"
-           if row.estimated_breaking_gust_kt is not None else "<td>Unavailable; not established</td></tr>")
+           if usable and row.estimated_breaking_gust_kt is not None else "<td>Unavailable; not established</td></tr>")
         for row in s.directional_thresholds)
     tug = s.tug_plan
     tug_line = (f"{tug.recommended_tug_count} tugs, {tug.total_power_hp:,.0f} hp, {tug.total_bollard_pull_lbf:,.0f} lbf "
                 f"bollard pull" if tug else "None")
+    if not usable:
+        tug_line = "Unavailable: sheet validity does not establish a usable tug assessment."
     holding = "".join(f"<li>{e(t.tug_id)}: {e(t.mode)} at {e(t.push_point_id)}, {t.force_lbf:,.0f} lbf"
         + (f", direction {t.direction_true_deg:.0f}° true" if t.direction_true_deg is not None else ", push-point direction")
         + "</li>" for t in (s.holding_tugs or []))

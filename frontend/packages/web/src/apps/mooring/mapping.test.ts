@@ -275,3 +275,33 @@ describe('doubled-up lines', () => {
     expect(doubled.widthPx!).toBeGreaterThan(single.widthPx!);
   });
 });
+
+
+it.each(['invalid', 'unknown', undefined])('does not color lines/fittings from %s analysis as passing', (state) => {
+  const analysis = { status: 'RED', validity: state ? { state } : undefined, result: {
+    lines: [{ line_number: 1, status: 'GREEN', tension_lbf: 0, pct_wll: 0, pct_mbs: 0, length_ft: 1, horiz_angle_deg: 0, vert_angle_deg: 0 }],
+    pier_fittings: [{ fitting_id: 'P1', status: 'GREEN', load_lbf: 0, pct: 0, lines: [1] }],
+    ship_fittings: [{ fitting_id: 'BITT-1S', status: 'GREEN', load_lbf: 0, pct: 0, lines: [1] }],
+  } } as never;
+  const links = lineLinks(berth, ship, [{ line_number: 1, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1', spec_id: 'S', parts: 1 }], analysis);
+  expect(links[0].status).toBeUndefined();
+  expect(links[0].label).not.toContain('%');
+  expect(links[0].props?.some(p => p.label === 'Tension')).toBe(false);
+  const pier = pierEntities(berth, analysis).find(e => e.id === mapping.IDS.pierFitting('P1'))!;
+  const fitting = shipEntities(ship, 'full_load', 'starboard', 650, 12, analysis, true, berth).find(e => e.id === 'sfit:BITT-1S')!;
+  for (const entity of [pier, fitting]) {
+    expect(entity.status).toBeUndefined();
+    expect(entity.props?.some(p => p.label === 'Load')).toBe(false);
+  }
+});
+
+
+it.each(['valid', 'limited'])('retains evaluated line values for %s analysis', (state) => {
+  const analysis = { validity: { state }, result: { lines: [
+    { line_number: 1, status: 'GREEN', tension_lbf: 100, pct_wll: 12, pct_mbs: 4, length_ft: 30, horiz_angle_deg: 25, vert_angle_deg: 15 },
+  ] } } as never;
+  const [link] = lineLinks(berth, ship, [{ line_number: 1, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1', spec_id: 'S', parts: 1 }], analysis);
+  expect(link.status).toBe('GREEN');
+  expect(link.label).toContain('12%');
+  expect(link.props?.find(p => p.label === 'Tension')?.value).toBe('100 lbf');
+});

@@ -451,6 +451,7 @@ export class MooringController {
 
   onEdit(edit: SceneEdit): void {
     if (edit.type !== 'move' || edit.entityId !== IDS.ship) return;
+    if (this.s.analysis.state !== 'idle') this.resetAnalysis();
     this.state.set({ shipXFt: Math.round(toFt(edit.pose.x)) });
     this.pushScene('ship');
     if (edit.final) this.scheduleAnalyze();
@@ -465,6 +466,7 @@ export class MooringController {
     clearTimeout(this.analyzeTimer);
     this.analyzeAbort?.abort();
     this.state.set({ analysis: { state: 'idle', response: null, error: null } });
+    this.pushScene('update');
   }
 
   private scheduleAnalyze(): void {

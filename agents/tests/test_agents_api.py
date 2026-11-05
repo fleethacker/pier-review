@@ -307,6 +307,10 @@ def test_sheet_preserves_holding_assistance_and_visible_result_references(plan_i
     from mooring_agents.safety import sheet as renderer
     from mooring_agents.safety.agent import latest_review
     from mooring_agents.planner.schemas import RationaleItem
+    # Establish the review explicitly; this test must not depend on another test creating one.
+    accepted = client.post(f'{P}/safety/reviews', json={'plan_id': plan_id})
+    assert accepted.status_code == 202, accepted.text
+    completed_status(accepted.json()['status_url'])
     # Exercise the document boundary with an assessment record declaring continuous assistance.
     record = replace(PLANS[plan_id], holding_tugs=[{'tug_id':'T4', 'push_point_id':'PP-FWD-P',
         'mode':'push', 'force_lbf':1000}])
@@ -419,3 +423,29 @@ def test_berth_only_intake_cannot_pass_ship_mst_review(plan_id):
     check = next(item for item in review['checks'] if item['check_id'] == 'MST-WITHIN-SHIP')
     assert not check['passed'] and check['severity'] == 'AMBER'
     assert review['verdict'] != 'ready_for_signature'
+
+
+@pytest.mark.parametrize('state', ['invalid', 'unknown', None, 'valid', 'limited'])
+def test_printed_sheet_withholds_unusable_computed_margins(plan_id, state):
+    from mooring.core.schemas import Validity
+    from mooring_agents.planner.agent import PLANS
+    from mooring_agents.safety import sheet as renderer
+    from mooring_agents.safety.agent import latest_review
+    sheet = renderer.build(PLANS[plan_id], latest_review(plan_id))
+    sheet.validity = Validity(state=state, reasons=[] if state == 'valid' else [
+        {'code':'TEST', 'message':'Synthetic validity fixture'}]) if state else None
+    sheet.line_plan = [sheet.line_plan[0].model_copy(update={'tension_lbf':12345, 'pct_wll':67.8, 'status':'GREEN'})]
+    from mooring_agents.safety.schemas import DirectionalThreshold
+    sheet.directional_thresholds = [DirectionalThreshold(wind_rel_deg=90, governing_element='fixture-line',
+        limit_wll_gust_kt=123, estimated_breaking_gust_kt=234)]
+    text = renderer.render_html(sheet)
+    thresholds = text.split('<h2>Directional gust thresholds</h2>')[1].split('<h2>Line plan</h2>')[0]
+    table = text.split('<h2>Line plan</h2>')[1].split('<h2>Holding assistance</h2>')[0]
+    if state in ('valid', 'limited'):
+        assert '12,345' in table and '68%' in table and 'GREEN' in table
+        assert '123 kt' in thresholds and '234 kt' in thresholds
+    else:
+        assert '12,345' not in table and '68%' not in table and 'GREEN' not in table
+        assert 'Unavailable' in table
+        assert '123 kt' not in thresholds and '234 kt' not in thresholds
+        assert 'Unavailable: sheet validity does not establish a usable tug assessment.' in text

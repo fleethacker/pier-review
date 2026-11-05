@@ -16,7 +16,17 @@ from .forecast_hashing import canonical_bytes
 SCHEMA_VERSION = "gfs-wave-decoded-v1"
 MODEL_ID = "gfs-wave"
 GRID_ID = "atlocn.0p16"
-GRID_RESOLUTION_DEG = 0.16
+# NOAA's Model_Description.pdf defines atlocn.0p16 as 10 arcminutes, not
+# exactly 0.16 degrees. Its GRIB2 template 3.0 has 301 x 331 points spanning
+# longitude 260..310 and latitude 55..0, scanning east then south.
+GRID_RESOLUTION_DEG = 1 / 6
+GRID_COLUMNS = 301
+GRID_ROWS = 331
+GRID_NORTH_DEG = 55.0
+GRID_WEST_DEG_EAST = 260.0
+# GRIB stores the 1/6-degree increment rounded to 166667 microdegrees. Allow
+# only the accumulated representation error across this finite grid.
+GRID_COORDINATE_TOLERANCE_DEG = max(GRID_COLUMNS, GRID_ROWS) * abs(0.166667 - GRID_RESOLUTION_DEG) + 1e-6
 MAX_FORECAST_LEAD = timedelta(hours=384)
 _PRODUCT_ID = re.compile(
     r"gfswave\.t(?P<cycle>00|06|12|18)z\.atlocn\.0p16(?:\.[A-Za-z0-9._-]+)?$"
@@ -69,6 +79,20 @@ def _finite(value, *, name: str) -> float:
     if not math.isfinite(result):
         raise ProviderError("malformed", f"GFS-Wave {name} is not finite")
     return result
+
+
+def grid_cell_for_coordinates(latitude: float, longitude: float) -> str:
+    longitude_east = longitude % 360
+    row = round((GRID_NORTH_DEG - latitude) / GRID_RESOLUTION_DEG)
+    column = round((longitude_east - GRID_WEST_DEG_EAST) / GRID_RESOLUTION_DEG)
+    if (
+        not 0 <= row < GRID_ROWS
+        or not 0 <= column < GRID_COLUMNS
+        or abs(latitude - (GRID_NORTH_DEG - row * GRID_RESOLUTION_DEG)) > GRID_COORDINATE_TOLERANCE_DEG
+        or abs(longitude_east - (GRID_WEST_DEG_EAST + column * GRID_RESOLUTION_DEG)) > GRID_COORDINATE_TOLERANCE_DEG
+    ):
+        raise ProviderError("malformed", "GFS-Wave coordinates are not on the native atlocn.0p16 grid lattice")
+    return f"{GRID_ID}:row{row},col{column}"
 
 
 def _validate_component(
@@ -161,12 +185,7 @@ def load_artifact(
     grid_cell = location.get("grid_cell")
     if not -90 <= latitude <= 90 or not -180 <= longitude <= 180 or not isinstance(grid_cell, str) or not grid_cell:
         raise ProviderError("malformed", "GFS-Wave artifact has invalid grid-cell coordinates")
-    if (
-        abs(latitude / GRID_RESOLUTION_DEG - round(latitude / GRID_RESOLUTION_DEG)) > 1e-6
-        or abs(longitude / GRID_RESOLUTION_DEG - round(longitude / GRID_RESOLUTION_DEG)) > 1e-6
-    ):
-        raise ProviderError("malformed", "GFS-Wave coordinates are not on the atlocn.0p16 grid lattice")
-    expected_cell = f"{GRID_ID}:{latitude:.2f},{longitude:.2f}"
+    expected_cell = grid_cell_for_coordinates(latitude, longitude)
     if grid_cell != expected_cell:
         raise ProviderError("malformed", f"GFS-Wave grid_cell must bind its coordinates as {expected_cell}")
 

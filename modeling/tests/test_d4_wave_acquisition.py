@@ -15,7 +15,7 @@ from mooring.core.schemas import WaveComposeRequest
 from mooring.environment import waves
 from mooring.environment.errors import ProviderError
 from mooring.environment.forecast_hashing import component_content_sha256, manifest_revision
-from mooring.environment.gfs_wave_artifact import artifact_revision, load_artifact
+from mooring.environment.gfs_wave_artifact import artifact_revision, grid_cell_for_coordinates, load_artifact
 from mooring.environment.ndbc import (
     FetchedProduct,
     NDBCRealtime,
@@ -38,7 +38,7 @@ class FixtureRealtime:
         self.fail_stations = set(fail_stations)
         self.retrieved_at = retrieved_at
 
-    def fetch(self, station_id, product):
+    def fetch(self, station_id, product, **_budget):
         if station_id in self.fail_stations:
             raise ProviderError("unavailable", f"fixture outage for {station_id}")
         path = FIXTURES / f"{station_id}.{product}"
@@ -52,8 +52,8 @@ class FixtureRealtime:
 
 
 class MalformedSpectrumRealtime(FixtureRealtime):
-    def fetch(self, station_id, product):
-        fetched = super().fetch(station_id, product)
+    def fetch(self, station_id, product, **budget):
+        fetched = super().fetch(station_id, product, **budget)
         if station_id == "44099" and product == "data_spec":
             return FetchedProduct("not a native NDBC row\n", fetched.retrieved_at_utc, fetched.source_url)
         return fetched
@@ -118,9 +118,9 @@ def gfs_artifact(tmp_path, *, end=END, retrieved_at=AS_OF - timedelta(minutes=10
             "publication_evidence": "fixture: decoded GFS-Wave unit-test artifact",
         },
         "location": {
-            "latitude_deg": 36.96,
-            "longitude_deg": -75.68,
-            "grid_cell": "atlocn.0p16:36.96,-75.68",
+            "latitude_deg": 55 - 109 / 6,
+            "longitude_deg": 260 + 146 / 6 - 360,
+            "grid_cell": "atlocn.0p16:row109,col146",
         },
         "rows": rows,
         "limitations": ["Decoded unit-test artifact; no harbor transformation."],
@@ -210,6 +210,20 @@ def test_gfs_artifact_size_limit_bounds_the_read(monkeypatch):
         load_artifact(Path("unused"), max_artifact_bytes=32)
 
 
+def test_gfs_native_grid_uses_ten_arcminutes_and_native_indices():
+    # NOAA Model_Description.pdf: atlocn spans 0..55N / 260..310E in
+    # 10-arcminute increments. The 2026-11-05 12Z FH003 GRIB confirms Ni=301,
+    # Nj=331, north-to-south scan and Di=Dj=166667 microdegrees.
+    assert grid_cell_for_coordinates(55.0, -100.0) == "atlocn.0p16:row0,col0"
+    assert grid_cell_for_coordinates(0.0, -50.0) == "atlocn.0p16:row330,col300"
+    assert grid_cell_for_coordinates(55 - 109 / 6, 260 + 146 / 6 - 360) == "atlocn.0p16:row109,col146"
+    assert grid_cell_for_coordinates(55 - 109 * 0.166667, 260 + 146 * 0.166667 - 360) == "atlocn.0p16:row109,col146"
+    with pytest.raises(ProviderError, match="native.*grid lattice"):
+        grid_cell_for_coordinates(36.96, -75.68)
+    with pytest.raises(ProviderError, match="native.*grid lattice"):
+        grid_cell_for_coordinates(-1.0, -75.0)
+
+
 def test_ndbc_live_reader_bounds_response_size_and_station_elapsed_time():
     client = SimpleNamespace(
         clock=SimpleNamespace(now=lambda: AS_OF),
@@ -248,6 +262,28 @@ def test_ndbc_retrieval_time_is_the_cached_acquisition_not_the_reader_clock():
     payload.retrieved_at_utc = None
     with pytest.raises(ProviderError, match="no recorded retrieval time"):
         reader.fetch("44099", "spec")
+
+
+def test_ndbc_station_budget_reaches_the_shared_provider_client():
+    clock = lambda: 100.0
+    budgets = []
+
+    def get(_url, **budget):
+        budgets.append(budget)
+        return SimpleNamespace(
+            status_code=200,
+            content=(FIXTURES / "44099.spec").read_bytes(),
+            stale=False,
+            retrieved_at_utc=AS_OF - timedelta(minutes=1),
+        )
+
+    client = SimpleNamespace(get=get)
+    adapter = NDBCStationAdapter(NDBCRealtime(client), monotonic=clock, total_timeout_s=20)
+    acquired = adapter.acquire(
+        "44099", as_of_utc=AS_OF, lookback_hours=24, include_spectrum=False, max_elapsed_s=3,
+    )
+    assert acquired.points
+    assert budgets == [{"deadline_monotonic": 103.0, "monotonic": clock}]
 
 
 def test_default_http_transport_stops_streaming_at_the_byte_limit(monkeypatch):
@@ -317,9 +353,9 @@ def test_full_observation_lookback_preserves_offset_summary_and_spectral_times()
         density.append(spectral_at.strftime("%Y %m %d %H %M") + " 9.999 0.2 (0.090)")
 
     class LongRealtime(FixtureRealtime):
-        def fetch(self, station_id, product):
+        def fetch(self, station_id, product, **budget):
             if station_id != "44099":
-                return super().fetch(station_id, product)
+                return super().fetch(station_id, product, **budget)
             rows = {"spec": summary, "data_spec": density}.get(product)
             if rows is None:
                 raise ProviderError("no_data", "optional product unavailable")
@@ -354,7 +390,7 @@ def test_complete_gfs_artifact_preserves_cycle_grid_horizon_and_partitions(tmp_p
     assert forecast.coverage == "complete"
     assert forecast.reference_time_utc == datetime(2026, 11, 5, 12, tzinfo=UTC)
     assert forecast.availability.issued_at_utc == datetime(2026, 11, 5, 12, 30, tzinfo=UTC)
-    assert forecast.availability.grid_cell == "atlocn.0p16:36.96,-75.68"
+    assert forecast.availability.grid_cell == "atlocn.0p16:row109,col146"
     assert forecast.points[0].total_sea.significant_height_ft == pytest.approx(1.2 * 3.28084)
     assert forecast.points[0].total_sea.period_basis == "primary_mean"
     assert forecast.points[0].total_sea.direction_basis == "primary"
@@ -428,7 +464,7 @@ def test_uncovered_or_unpublished_gfs_artifacts_do_not_claim_complete_guidance(t
 
     malformed_path = gfs_artifact(tmp_path)
     malformed = json.loads(malformed_path.read_text())
-    malformed["location"]["grid_cell"] = "atlocn.0p16:0.00,0.00"
+    malformed["location"]["grid_cell"] = "atlocn.0p16:row108,col146"
     malformed["revision"] = artifact_revision(malformed)
     malformed_path.write_text(json.dumps(malformed, sort_keys=True, separators=(",", ":")) + "\n")
     with pytest.raises(ProviderError, match="bind its coordinates"):
@@ -439,9 +475,9 @@ def test_gfs_artifact_requires_approved_target_and_native_variable_inventory(tmp
     wrong_target_path = gfs_artifact(tmp_path)
     wrong_target = json.loads(wrong_target_path.read_text())
     wrong_target["location"] = {
-        "latitude_deg": 0.0,
-        "longitude_deg": 0.0,
-        "grid_cell": "atlocn.0p16:0.00,0.00",
+        "latitude_deg": 37.0,
+        "longitude_deg": 260 + 146 / 6 - 360,
+        "grid_cell": "atlocn.0p16:row108,col146",
     }
     wrong_target["revision"] = artifact_revision(wrong_target)
     wrong_target_path.write_text(json.dumps(wrong_target, sort_keys=True, separators=(",", ":")) + "\n")
@@ -465,9 +501,9 @@ def test_gfs_artifact_requires_approved_target_and_native_variable_inventory(tmp
     off_lattice_path = gfs_artifact(tmp_path)
     off_lattice = json.loads(off_lattice_path.read_text())
     off_lattice["location"] = {
-        "latitude_deg": 36.95,
+        "latitude_deg": 36.96,
         "longitude_deg": -75.68,
-        "grid_cell": "atlocn.0p16:36.95,-75.68",
+        "grid_cell": "atlocn.0p16:row109,col146",
     }
     off_lattice["revision"] = artifact_revision(off_lattice)
     off_lattice_path.write_text(json.dumps(off_lattice, sort_keys=True, separators=(",", ":")) + "\n")
@@ -584,6 +620,23 @@ def test_wave_composition_total_deadline_skips_remaining_sources(tmp_path):
     assert by_role["forecast"].coverage == "unavailable"
     assert by_role["independent_check"].coverage == "unavailable"
     assert "total deadline" in by_role["forecast"].availability.reason
+
+
+def test_independent_wave_check_receives_only_the_remaining_composition_budget():
+    budgets = []
+
+    class RecordingAdapter(NDBCStationAdapter):
+        def acquire(self, station_id, **kwargs):
+            budgets.append(kwargs["max_elapsed_s"])
+            return super().acquire(station_id, **kwargs)
+
+    ticks = iter([0.0, 18.0, 22.0, 23.0])
+    response = WaveComposer(
+        ndbc=RecordingAdapter(FixtureRealtime()),
+        monotonic=lambda: next(ticks),
+    ).compose(request())
+    assert budgets == [25.0, 3.0]
+    assert response.manifest.offshore_series[2].availability.state == "live"
 
 
 def test_wave_source_applicability_is_rejected_for_an_unreviewed_berth():

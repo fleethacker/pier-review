@@ -1,16 +1,9 @@
-import { offsetM, stationFrom } from './geo';
-import { makeRng } from './sim';
+import { LARGE_SCENARIOS } from './scenariosLarge';
+import { at, minefield, OCEAN_CENTER, station, wp } from './scenarioKit';
+import { offsetM } from './geo';
 import type { LonLat, RedTeamSpec, ScenarioConfig, UnitConfig, Waypoint } from './types';
 
-/** Open Atlantic, well clear of land and shipping lanes. */
-export const OCEAN_CENTER = { lon: -62, lat: 33 };
-
-const at = (eastM: number, northM: number) => offsetM(OCEAN_CENTER, eastM, northM);
-const wp = (eastM: number, northM: number, speedKt?: number): Waypoint => ({ ...at(eastM, northM), speedKt });
-
-/** Where an escort starts so it is already on its station when the leader is at `leader` on `headingDeg`. */
-const station = (leader: LonLat, headingDeg: number, aheadM: number, abeamM: number): LonLat =>
-  stationFrom(leader, headingDeg, aheadM, abeamM);
+export { OCEAN_CENTER };
 
 const CALM = { windFromDeg: 250, windKt: 12, currentToDeg: 45, currentKt: 0.8 };
 
@@ -221,21 +214,6 @@ const drill: ScenarioConfig = {
   ],
 };
 
-
-/** Mines scattered over a box (meters east and north of the ocean center), always in the same places for a given seed. */
-function minefield(count: number, eastM: number, northM: number, halfWidthM: number, halfHeightM: number, seed: number): UnitConfig[] {
-  const rng = makeRng(seed);
-  return Array.from({ length: count }, (_, i) => ({
-    id: `mine${String(i + 1).padStart(2, '0')}`,
-    name: `Mine ${i + 1}`,
-    classId: 'MINE' as const,
-    side: 'RED' as const,
-    start: at(eastM + (rng() * 2 - 1) * halfWidthM, northM + (rng() * 2 - 1) * halfHeightM),
-    headingDeg: 0,
-    speedKt: 0,
-    behavior: { type: 'hold' as const },
-  }));
-}
 
 const blueGroup = (origin: LonLat, speedKt: number): UnitConfig[] => [
   {
@@ -691,7 +669,7 @@ const overTheHorizon: ScenarioConfig = {
   },
 };
 
-export const PRESET_SCENARIOS: ScenarioConfig[] = [transit, encounter, drill, salvoDefense, minefieldTransit, airRaid, subAmbush, overTheHorizon];
+export const PRESET_SCENARIOS: ScenarioConfig[] = [transit, encounter, drill, salvoDefense, minefieldTransit, airRaid, subAmbush, overTheHorizon, ...LARGE_SCENARIOS];
 
 export type { RedTeamSpec };
 

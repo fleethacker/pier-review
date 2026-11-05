@@ -557,10 +557,10 @@ describe('Sidebar for aircraft, missiles and mines', () => {
 
   it('adds an aircraft, a missile or a mine from the menu', () => {
     const { controller } = withController(<Sidebar />, salvoController());
-    const menu = screen.getByDisplayValue('Add aircraft, submarine, missile or mine…');
+    const menu = screen.getByDisplayValue('Add aircraft, drone, submarine, missile or mine…');
     fireEvent.change(menu, { target: { value: 'MINE' } });
     expect(controller.state.get().scenario.units.at(-1)!.classId).toBe('MINE');
-    fireEvent.change(screen.getByDisplayValue('Add aircraft, submarine, missile or mine…'), { target: { value: 'FIGHTER' } });
+    fireEvent.change(screen.getByDisplayValue('Add aircraft, drone, submarine, missile or mine…'), { target: { value: 'FIGHTER' } });
     expect(controller.state.get().scenario.units.at(-1)!.classId).toBe('FIGHTER');
     expect(controller.state.get().selectedId).toBe(controller.state.get().scenario.units.at(-1)!.id);
   });

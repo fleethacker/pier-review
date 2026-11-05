@@ -443,8 +443,8 @@ function ForcesPanel() {
             value=""
             onChange={(v) => v && c.addUnit(v as ClassId)}
             options={[
-              { value: '', label: 'Add aircraft, submarine, missile or mine…' },
-              ...(['FIGHTER', 'HELO', 'SSN', 'ASM', 'SAM', 'TORP', 'MINE'] as ClassId[]).map((id) => ({ value: id, label: SHIP_CLASSES[id].name })),
+              { value: '', label: 'Add aircraft, drone, submarine, missile or mine…' },
+              ...(['FIGHTER', 'HELO', 'AEW', 'UAV', 'DRONE', 'SSN', 'SSK', 'ASM', 'SAM', 'TORP', 'MINE'] as ClassId[]).map((id) => ({ value: id, label: SHIP_CLASSES[id].name })),
             ]}
           />
         </div>

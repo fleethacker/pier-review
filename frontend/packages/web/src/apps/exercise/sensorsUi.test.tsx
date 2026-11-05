@@ -81,7 +81,7 @@ describe('sensors and countermeasures on a unit', () => {
 describe('submarines and torpedoes in the editor', () => {
   it('adds a submarine and a torpedo from the menu', () => {
     const { c } = mount(<Sidebar />, 'sub-ambush');
-    const menu = () => screen.getByDisplayValue('Add aircraft, submarine, missile or mine…');
+    const menu = () => screen.getByDisplayValue('Add aircraft, drone, submarine, missile or mine…');
     const before = c.state.get().scenario.units.length;
     fireEvent.change(menu(), { target: { value: 'SSN' } });
     expect(c.state.get().scenario.units).toHaveLength(before + 1);
@@ -91,6 +91,22 @@ describe('submarines and torpedoes in the editor', () => {
     expect(torp).toMatchObject({ classId: 'TORP', behavior: { type: 'strike' } });
     expect(torp.launch).toBeTruthy();
     expect(c.state.get().errors).toEqual([]);
+  });
+
+  it('adds each new class from the menu with a sensible default, and the scenario still runs', () => {
+    const { c } = mount(<Sidebar />, 'sub-ambush');
+    const menu = () => screen.getByDisplayValue('Add aircraft, drone, submarine, missile or mine…');
+    for (const id of ['AEW', 'UAV', 'DRONE', 'SSK']) {
+      fireEvent.change(menu(), { target: { value: id } });
+      expect(c.state.get().scenario.units.at(-1)!.classId).toBe(id);
+      expect(c.state.get().errors, id).toEqual([]);
+    }
+    const [aew, uav, drone, ssk] = c.state.get().scenario.units.slice(-4);
+    expect(aew.behavior.type).toBe('route');
+    expect(uav.behavior.type).toBe('route');
+    expect(drone).toMatchObject({ behavior: { type: 'strike' } });
+    expect(drone.launch).toBeTruthy();
+    expect(ssk.behavior.type).toBe('route');
   });
 
   it('shows depth, decoys and signature in the readout of a ship', () => {

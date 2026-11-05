@@ -5,7 +5,7 @@ export interface LonLat {
   lat: number;
 }
 
-export type ClassId = 'CVN' | 'LHD' | 'CG' | 'DDG' | 'FAC' | 'CARGO' | 'FIGHTER' | 'HELO' | 'ASM' | 'SAM' | 'MINE' | 'SSN' | 'TORP';
+export type ClassId = 'CVN' | 'LHD' | 'CG' | 'DDG' | 'FAC' | 'CARGO' | 'FIGHTER' | 'HELO' | 'ASM' | 'SAM' | 'MINE' | 'SSN' | 'TORP' | 'FFG' | 'SSK' | 'UAV' | 'DRONE' | 'AEW';
 export type Side = 'BLUE' | 'RED' | 'NEUTRAL';
 
 export interface Waypoint extends LonLat {

@@ -83,6 +83,7 @@ export const SEA_KEEPING: Partial<Record<ClassId, { limit: number; slope: number
   DDG: { limit: 5, slope: 0.06 },
   FAC: { limit: 3, slope: 0.12 },
   CARGO: { limit: 5, slope: 0.08 },
+  FFG: { limit: 5, slope: 0.07 },
 };
 
 export const SENSORS: Partial<Record<ClassId, SensorSpec>> = {
@@ -98,6 +99,14 @@ export const SENSORS: Partial<Record<ClassId, SensorSpec>> = {
   SAM: { rcsM2: 0.5, noise: 0 },
   SSN: { sonarRangeM: 25_000, heightM: 0, rcsM2: 100, noise: 0.35 },
   TORP: { rcsM2: 0, noise: 0.9 },
+  FFG: { radarRangeM: 90_000, heightM: 20, sonarRangeM: 25_000, rcsM2: 3_000, noise: 0.9 },
+  SSK: { sonarRangeM: 20_000, heightM: 0, rcsM2: 60, noise: 0.18 },
+  // A medium-altitude surveillance drone: a small radar that sees a long way from up high.
+  UAV: { radarRangeM: 40_000, heightM: 2, rcsM2: 0.5, noise: 0 },
+  // An armed drone: small, slow and low, hard to pick out.
+  DRONE: { rcsM2: 0.05, noise: 0 },
+  // Airborne early warning: a big radar on a slow aircraft.
+  AEW: { radarRangeM: 250_000, heightM: 2, rcsM2: 40, noise: 0 },
 };
 
 const surface = { domain: 'surface' as const, visualBoost: 1, trailScale: 1 };
@@ -329,6 +338,105 @@ export const SHIP_CLASSES: Record<ClassId, ShipClass> = {
     cruiseAltM: -15,
     weapon: { damage: 120, fuzeM: 20, pHit: 0.75, rangeM: 28_000 },
   },
+  FFG: {
+    ...surface,
+    id: 'FFG',
+    name: 'Frigate (FFG)',
+    loaM: 135,
+    beamM: 16,
+    freeboardM: 6,
+    maxSpeedKt: 29,
+    accelKtPerS: 0.2,
+    turnRateDegPerS: 2.3,
+    windage: 0.006,
+    sensorRangeNm: 80,
+    hullColor: '#7b838a',
+    deckColor: '#a3abb2',
+    hp: 80,
+    defence: { rangeM: 8000, pKill: 0.4, shots: 2, reloadS: 12, magazine: 20 },
+  },
+  SSK: {
+    id: 'SSK',
+    name: 'Diesel submarine (SSK)',
+    domain: 'sub',
+    loaM: 70,
+    beamM: 8,
+    freeboardM: 1,
+    maxSpeedKt: 17,
+    accelKtPerS: 0.06,
+    turnRateDegPerS: 2.5,
+    windage: 0,
+    sensorRangeNm: 10,
+    hullColor: '#1d2328',
+    deckColor: '#262d33',
+    hp: 90,
+    visualBoost: 3,
+    trailScale: 0.2,
+  },
+  UAV: {
+    id: 'UAV',
+    name: 'Surveillance drone (UAV)',
+    domain: 'air',
+    loaM: 11,
+    beamM: 20,
+    freeboardM: 1,
+    maxSpeedKt: 180,
+    accelKtPerS: 2,
+    turnRateDegPerS: 6,
+    windage: 1,
+    sensorRangeNm: 60,
+    hullColor: '#c9ced2',
+    deckColor: '#9aa3aa',
+    hp: 12,
+    visualBoost: 6,
+    trailScale: 0.2,
+    cruiseAltM: 3000,
+    minSpeedKt: 60,
+    climbRateMps: 6,
+  },
+  AEW: {
+    id: 'AEW',
+    name: 'Airborne early warning (AEW)',
+    domain: 'air',
+    loaM: 18,
+    beamM: 25,
+    freeboardM: 2,
+    maxSpeedKt: 320,
+    accelKtPerS: 3,
+    turnRateDegPerS: 4,
+    windage: 1,
+    sensorRangeNm: 200,
+    hullColor: '#a9b0b6',
+    deckColor: '#7d868d',
+    hp: 40,
+    visualBoost: 5,
+    trailScale: 0.3,
+    cruiseAltM: 8000,
+    minSpeedKt: 120,
+    climbRateMps: 15,
+  },
+  DRONE: {
+    id: 'DRONE',
+    name: 'Attack drone',
+    domain: 'air',
+    loaM: 3.5,
+    beamM: 2.6,
+    freeboardM: 0.4,
+    maxSpeedKt: 110,
+    accelKtPerS: 10,
+    turnRateDegPerS: 12,
+    windage: 0.5,
+    sensorRangeNm: 0,
+    hullColor: '#3b4147',
+    deckColor: '#2b3036',
+    hp: 1,
+    visualBoost: 14,
+    trailScale: 0.4,
+    cruiseAltM: 60,
+    minSpeedKt: 0,
+    climbRateMps: 15,
+    weapon: { damage: 25, fuzeM: 15, pHit: 0.6, rangeM: 90_000 },
+  },
   MINE: {
     id: 'MINE',
     name: 'Naval mine',
@@ -416,6 +524,10 @@ const HULL_PROFILE: [number, number][] = [
 
 const OUTLINES: Partial<Record<ClassId, [number, number][]>> = {
   SSN: [[-0.5, 0], [-0.46, 0.45], [-0.3, 0.9], [0.1, 1], [0.38, 0.8], [0.5, 0]],
+  SSK: [[-0.5, 0], [-0.46, 0.45], [-0.3, 0.9], [0.1, 1], [0.38, 0.8], [0.5, 0]],
+  UAV: [[-0.5, 0.1], [-0.3, 0.14], [0, 0.14], [0.3, 0.1], [0.5, 0]],
+  AEW: [[-0.5, 0.15], [-0.3, 0.2], [0.1, 0.22], [0.35, 0.14], [0.5, 0]],
+  DRONE: [[-0.5, 0.4], [0.1, 0.5], [0.5, 0]],
   TORP: [[-0.5, 0.5], [0.3, 0.5], [0.5, 0]],
   FIGHTER: [[-0.5, 0.2], [-0.3, 0.24], [0, 0.24], [0.25, 0.16], [0.4, 0.08], [0.5, 0]],
   HELO: [[-0.5, 0.05], [-0.25, 0.1], [0.1, 0.15], [0.3, 0.13], [0.5, 0]],
@@ -520,6 +632,7 @@ function profile(id: ClassId): Block[] {
         ...parkedAircraft([[-0.34, 0.2], [-0.28, 0.28], [-0.22, 0.2], [0.28, -0.1], [0.34, 0.25]], '#8f989f'),
       ];
     case 'CG':
+    case 'FFG':
     case 'DDG': {
       const cg = id === 'CG';
       return [
@@ -583,7 +696,31 @@ function profile(id: ClassId): Block[] {
     case 'SAM':
       return missileParts('#c0522d');
     case 'SSN':
+    case 'SSK':
       return [b(0.1, 0.07, 0, 0.1, 6, { lift: 0.4, color: '#2b333a' })];
+    case 'UAV':
+      return [
+        // Long thin wings, a fuselage, a V-tail and a sensor ball.
+        b(0, 0.12, 0, 1, 0.12, { lift: -0.4, color: '#aeb6bc' }),
+        b(-0.46, 0.1, 0, 0.35, 0.1, { lift: -0.2, color: '#9aa3aa' }),
+        b(-0.4, 0.14, 0.1, 0.04, 0.9, { lift: -0.2, rot: 20, color: '#8a939a' }),
+        b(0.32, 0.1, 0, 0.1, 0.5, { lift: -0.3, color: '#2b333a' }),
+      ];
+    case 'AEW':
+      return [
+        b(-0.05, 0.2, 0, 1, 0.3, { lift: -1.2, color: '#a9b0b6' }),
+        b(-0.44, 0.1, 0, 0.5, 0.2, { lift: -0.6, color: '#8f979d' }),
+        b(-0.44, 0.1, 0.22, 0.05, 2.4, { lift: -0.6, color: '#7d868d' }),
+        b(-0.44, 0.1, -0.22, 0.05, 2.4, { lift: -0.6, color: '#7d868d' }),
+        // The rotodome.
+        b(-0.02, 0.4, 0, 0.5, 0.7, { lift: 1.4, color: '#dfe3e6' }),
+      ];
+    case 'DRONE':
+      return [
+        b(0, 0.9, 0, 0.3, 0.2, { lift: -0.1, color: '#4a5258' }),
+        b(0.1, 0.25, 0, 1, 0.08, { lift: -0.1, color: '#50585e' }),
+        b(-0.42, 0.12, 0, 0.7, 0.08, { lift: -0.1, color: '#50585e' }),
+      ];
     case 'TORP':
       return missileParts('#9fb0bd');
     case 'MINE':

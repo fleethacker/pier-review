@@ -155,10 +155,16 @@ the tab says so if Mapbox refuses.
 - Look: the light preset (dawn, day, dusk, night) lights the sea, and at dusk and night the ships' navigation and deck
   lights glow. Dusk and night are the most dramatic; the presets use them.
 
-Eight presets ship with it: a carrier group transit, a surface contact intercept at night, a formation drill, a **missile
+Eleven presets ship with it: a carrier group transit, a surface contact intercept at night, a formation drill, a **missile
 salvo on a carrier group**, a **minefield transit**, an **air raid with SAM defence**, a **submarine ambush** and
 **over the horizon** (a hostile destroyer that cannot see the carrier group sends a helicopter to find it; sweep the
-helicopter's altitude in the red team). The last five include red-team setups. Use **Edit as JSON** or **Download** in the Scenario panel to save or load your own, or **Saved scenarios** to keep them
+helicopter's altitude in the red team). The last five include red-team setups. Three more are large (60 to 130 units) and use
+everything: a **joint task force** (carrier group with fighters, early warning, ASW helicopters and a scouting drone
+against destroyers, fast attack craft, raiders, two submarines, twenty attack drones and a minefield), a **convoy
+through a submarine strait** (sweep the number of escorts) and a **drone swarm defence** (sweep the number of drones
+against ships with limited magazines). Newer unit classes: frigate (good sonar), diesel submarine (quiet), surveillance
+drone, attack drone and airborne early warning. Each large one takes a few seconds per run, so batches of them are
+best on a machine with several cores (the red team uses worker threads). Use **Edit as JSON** or **Download** in the Scenario panel to save or load your own, or **Saved scenarios** to keep them
 in this browser or in a **shared library** on the server that everyone using the app can open (saving over a scenario
 someone else changed since you opened it is refused, so nobody's work is lost). The shared library is one JSON file per
 scenario in `EXERCISE_DATA_DIR` (default `/mnt/data/exercise` if it can be written, else `.exercise-data`); in a container

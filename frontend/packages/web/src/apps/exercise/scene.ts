@@ -348,7 +348,9 @@ export function buildStaticData(scenario: ScenarioConfig, view: ViewOptions, sel
           });
         }
       }
+      // Only the selected route shows its waypoints: with dozens of units the rest would bury the map.
       route.points.forEach((p, n) => {
+        if (!selected) return;
         waypoints.push({
           type: 'Feature',
           properties: { id: unit.id, index: n + 1, n, color, selected },

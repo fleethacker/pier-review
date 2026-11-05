@@ -231,7 +231,7 @@ describe('main group', () => {
 });
 
 describe('shapes of aircraft, missiles and mines', () => {
-  const OTHERS = (Object.keys(SHIP_CLASSES) as ClassId[]).filter((id) => SHIP_CLASSES[id].domain !== 'surface' && id !== 'SSN');
+  const OTHERS = (Object.keys(SHIP_CLASSES) as ClassId[]).filter((id) => SHIP_CLASSES[id].domain !== 'surface' && id !== 'SSN' && id !== 'SSK');
 
   it('are a single body with parts, small enough to need the size boost', () => {
     for (const id of OTHERS) {

@@ -120,3 +120,5 @@ Underlying mock/stale quality findings remain visible. The generated contract in
 the two optional provenance fields; all existing fields and endpoints remain.
 
 Declared per-component quality and validity intervals are checked across current and forecast samples, independently of aggregate quality. Poor/out-of-interval inputs produce RED data-quality findings, suspect AMBER; unknown quality, unknown prediction issue time and source limitations remain INFO. Retrieval time is not an issue time or proof of freshness. Safety review consumes these findings and Safety watch rechecks when component quality changes.
+
+The code-owned headline qualifies blocking input-quality findings even if no physical threshold windows are detected. This qualification is retained with or without model narration. Missing coverage continues to state that future exceedance is unknown.

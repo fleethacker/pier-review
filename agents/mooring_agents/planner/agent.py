@@ -486,7 +486,7 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None 
     assumptions = [f"Configured model: {model_id}; adjustment mode: {mode}.", *([budget_note] if budget_note else []),
                    "Model text is not used as factual rationale; physics results govern status.",
                    f"Line installation is fixed at the first planning condition water level ({installation_tide:g} ft MLLW); no implicit tending between conditions.",
-                   "Forecast-only planning checks the supplied conditions; it does not establish MST design-condition compliance."]
+                   "Forecast-only planning checks the supplied conditions; it does not establish MST design-condition compliance. Intake selects representative snapshots, not every forecast sample; use the forecast-plan endpoint for an arrival/holding interval assessment."]
     assumptions.extend(dict.fromkeys(a for result in [*checks, *tug_plans, sequence, *risks]
                                      for a in result.assumptions))
     if invalid_assistance_note:

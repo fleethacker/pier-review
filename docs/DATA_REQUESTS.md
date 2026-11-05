@@ -105,3 +105,5 @@ crew procedure. These supplement the asset and sensor inventory above.
 Tug wash remains outside tonight's model. Missing wake or dynamics inputs mean unavailable/unqualified,
 never zero. Synthetic training records cannot qualify an asset. Numeric or configuration changes invalidate
 affected recommendations and require fresh independent review.
+
+Current seed inventory limitation (5 November 2026): CG-47, LHD-1 and CVN-68 have hull/load inputs but no vessel fitting layouts. The template service refuses to construct their line plans. DDG-51-FIIA has a seed layout for limited demonstrations. Prioritize approved fitting coordinates and ratings for any additional class before promising mooring/sequence support; do not borrow the DDG layout.

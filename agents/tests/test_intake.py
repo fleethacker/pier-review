@@ -326,22 +326,22 @@ def test_model_cannot_replace_risk_headline(monkeypatch, sentence):
     install(monkeypatch, data)
     result = run()
     assert result.summary == baseline.summary
-    assert result.summary.startswith("Highest window severity is RED; MST required is II; it does not exceed the ship's MST II.")
+    assert result.summary.startswith("Highest window severity is RED; MST required is II; it does not exceed the ship's MST II; input quality is AMBER; review is required before relying on this assessment.")
     assert result.summary_source == "deterministic"
     assert result.narration_note == "guardrail: risk language"
 
 
 def test_risk_headline_covers_calm_exceedance_and_unknown_ship():
     calm = run(tk=FakeToolkit(calm=True))
-    assert calm.summary.startswith("No windows of concern; MST required is I; it does not exceed the ship's MST II.")
+    assert calm.summary.startswith("No windows of concern; MST required is I; it does not exceed the ship's MST II; input quality is AMBER; review is required before relying on this assessment.")
     tk = FakeToolkit()
     tk.current.wind_speed_kt = 80
     tk.current.wind_gust_kt = 90
     high = run(tk=tk)
-    assert high.summary.startswith("Highest window severity is RED; MST required is III; it exceeds the ship's MST II.")
+    assert high.summary.startswith("Highest window severity is RED; MST required is III; it exceeds the ship's MST II; input quality is AMBER; review is required before relying on this assessment.")
     req = IntakeRequest(berth_id="NAVSTA-NORFOLK-P12-N", horizon_hours=2)
     unknown = run(req)
-    assert "ship MST is unknown, so exceedance cannot be assessed." in unknown.summary
+    assert "ship MST is unknown, so exceedance cannot be assessed; input quality is AMBER; review is required" in unknown.summary
 
 
 @pytest.mark.parametrize("suffix", ["kt", "knots", "m/s", "mph", "deg", "°", "ft"])
@@ -601,3 +601,24 @@ def test_out_of_interval_component_blocks_review_even_when_not_the_worst_gust():
     assert any(issue.issue == 'out_of_range' and issue.severity == 'RED' for issue in report.data_quality)
     check = forecast_coverage(report)
     assert not check.passed and check.severity == 'RED'
+
+
+@pytest.mark.parametrize("use_llm", [False, True])
+@pytest.mark.parametrize("quality, severity", [("poor", "RED"), ("suspect", "AMBER"), ("unknown", None)])
+def test_code_headline_preserves_quality_qualification(monkeypatch, use_llm, quality, severity):
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    tk = FakeToolkit(calm=True)
+    for sample in [tk.current, *tk.series]:
+        sample.quality = []
+    tk.series[-1].metadata = EnvironmentMetadata(basis="prediction", quality="good", components=[
+        EnvironmentComponentProvenance(component="current", source="fixture", basis="prediction", quality=quality)])
+    if use_llm:
+        install(monkeypatch, proposal(summary_sentences=["Review the observations before planning.",
+                                                        "Confirm the available forecast with the mooring team."]))
+    report = run(tk=tk)
+    headline = report.summary.split(".", 1)[0]
+    assert "No windows of concern" in headline
+    assert ("input quality is" in headline) == (severity is not None)
+    if severity:
+        assert f"input quality is {severity}; review is required" in headline
+    assert report.summary_source == ("llm" if use_llm else "deterministic")

@@ -58,3 +58,7 @@ Unknown quantities are `null`. NaN and infinity are rejected on input (`422`) an
 ## Result manifest
 
 `manifest` (`ResultManifest`): `resolved_inputs_hash`, `code_version`, resolved `records` (kind, id, revision), `environment_hash`, `numerical_settings`, `rng_seed`, `rng_model_revision`. `inputs_hash` preserves its legacy serialization: typed requests include existing defaults/nulls, while dictionary requests use sorted JSON. It is not a hash of raw HTTP bytes. Omitting inactive new fields preserves legacy typed hashes; populated additions participate in the hash. `resolved_inputs_hash()` hashes canonical key-sorted JSON after defaults and references are resolved. Mocks leave the manifest empty.
+
+## Berth reference identity
+
+`POST /berths` registers immutable shared reference data. Retrying identical data under the same ID returns the existing ID; different data under a seed or runtime ID returns HTTP409. Submit revised geometry, depth, ratings or provenance under a new `berth_id` and explicitly select it in a new/revised scenario. This prevents a catalog write from silently changing another saved scenario's physical reference. Vision confirmation preserves its draft ID, so changed data after confirmation requires a new draft. Runtime reference storage remains process-local; this is not a durable revision registry or an engineering approval workflow.

@@ -184,7 +184,7 @@ export interface paths {
         /** List Berths */
         get: operations["list_berths_api_v1_berths_get"];
         put?: never;
-        /** Add or replace a berth (from the canvas or a confirmed vision draft) */
+        /** Register an immutable berth; identical retries are accepted, changed data requires a new ID */
         post: operations["create_berth_api_v1_berths_post"];
         delete?: never;
         options?: never;
@@ -6823,6 +6823,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BerthCreated"];
                 };
+            };
+            /** @description Existing berth ID has different data; register a new revision ID */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

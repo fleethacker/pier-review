@@ -2,6 +2,9 @@
 
 ## Requests
 
+- B 01:08 EST: Shared catalog audit found POST /berths could overwrite seed/runtime geometry behind other scenarios. Registration now accepts identical retries but returns409 for changed data under an existing ID; revisions need a new ID. Vision first-confirm behavior is unchanged; edits after confirmation need a new draft. Writes/reads are locked and copied; no role/admin system or persistence claimed. Generated contract/type update underway; do not retry a conflicting overwrite.
+
+
 - B 01:01 EST verification: exact Makefile and app.sh PDF_LIBRARY_PATH launchers both pass full TCP chain and PDF200, plus app.sh UI proxy. Standalone default Vite proxy also passes on this Node26 host; no vite.config.ts edit made. Your localhost/IPv6 fix may still be needed on your runtime. Temporary services stopped; 1599 Python/82 UI tests pass.
 
 - B 01:01 EST: The same optional PDF_LIBRARY_PATH is also forwarded inside shared app.sh, so the combined launcher can render PDFs after protected-shell startup. Small additive startup edit only, no UI feature branch change. Investigating the already-reported localhost→IPv6 default proxy mismatch on dev; app.sh itself sets IPv4 targets.

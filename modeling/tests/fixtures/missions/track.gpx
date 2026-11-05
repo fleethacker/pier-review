@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<gpx version="1.1" creator="t" xmlns="http://www.topografix.com/GPX/1/1">
+<trk><trkseg>
+<trkpt lat="36.9" lon="-76.3"><time>2025-06-01T12:00:00Z</time><hdop>1.0</hdop></trkpt>
+<trkpt lat="36.9005" lon="-76.3"><time>2025-06-01T12:00:10Z</time></trkpt>
+<trkpt lat="36.901" lon="-76.3"></trkpt>
+<trkpt lat="36.9015" lon="-76.3"><time>2025-06-01T12:00:30+00:00</time><speed>5.144444</speed></trkpt>
+</trkseg></trk>
+<wpt lat="36.95" lon="-76.3"><time>2025-06-01T12:01:00Z</time></wpt>
+</gpx>

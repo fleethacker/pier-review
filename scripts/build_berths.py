@@ -37,6 +37,22 @@ FACES = [
     dict(id="ROTA-PIER-1", file="rota-pier-1.yaml", prefix="RT1", way=478953761,
          name="Pier, southwest face (Naval Station Rota)", lat=36.618824, lon=-6.321448, bearing=320.5, length_m=246.3,
          note="Mapped as a centreline; pier half width estimated at 6 m. Unnamed in OSM."),
+    # Commercial ports, added for lesser-known harbours. Same method: OSM face, water side from the way's geometry.
+    dict(id="ADEN-MAALLA-JETTY", file="aden-maalla-jetty.yaml", prefix="ADN", way=485538999,
+         name="Ma'alla Jetty, northeast face (Port of Aden, Yemen)", lat=12.79955, lon=45.001593, bearing=126.8,
+         length_m=260.1, note="Polygon long edge facing northeast, away from the pier area. Commercial wharf."),
+    dict(id="DJIBOUTI-DORALEH-MP-1", file="djibouti-doraleh-mp-1.yaml", prefix="DJI", way=235934450,
+         name="Doraleh Multipurpose Port, north quay, west berth (Port of Djibouti)", lat=11.600402, lon=43.063122,
+         bearing=82.9, length_m=420.0,
+         note="West 420 m of the 1206 m straight north quay edge, where the OSM coastline and the port boundary "
+              "(way 480879281) coincide; water is on the coastline's right. The split into a 420 m berth is ours, not the port's."),
+    dict(id="CARTAGENA-MANGA-MUELLE-2", file="cartagena-manga-muelle-2.yaml", prefix="CTG", way=166292803,
+         name="Muelle 2, east face (Port of Cartagena, Colombia)", lat=10.404956, lon=-75.531215, bearing=211.5,
+         length_m=203.8,
+         note="Mapped as a line; Muelle 3 (way 166292804), 42 m to the west, is the other face of the same finger pier."),
+    dict(id="CURACAO-TULA-PIER", file="curacao-tula-pier.yaml", prefix="CUR", way=563308681,
+         name="Tula pier, south face (Willemstad, Curacao)", lat=12.105333, lon=-68.9445, bearing=287.1,
+         length_m=189.6, note="Polygon long edge facing south (seamark berth 'Tulapier')."),
 ]
 
 FT_PER_M = 3.28084

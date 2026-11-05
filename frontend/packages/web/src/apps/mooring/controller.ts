@@ -204,6 +204,8 @@ const INITIAL: MooringState = {
 };
 
 const ANALYZE_DEBOUNCE_MS = 250;
+/** The demo opens here; the berth list is alphabetical, so the first entry is not a stable default. */
+export const DEFAULT_BERTH_ID = 'NAVSTA-NORFOLK-P12-N';
 
 /** Owns the mooring app's state, talks to the modeling API and keeps the shared scene in sync. */
 export class MooringController {
@@ -339,7 +341,7 @@ export class MooringController {
         berths,
         lineSpecs,
         tugs,
-        berthId: berths[0]?.berth_id ?? '',
+        berthId: (berths.find((b) => b.berth_id === DEFAULT_BERTH_ID) ?? berths[0])?.berth_id ?? '',
         shipClassId: defaultShip?.class_id ?? '',
         addLine: { ...this.s.addLine, specId: lineSpecs[0]?.spec_id ?? '' },
       });

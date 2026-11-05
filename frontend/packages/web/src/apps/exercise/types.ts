@@ -112,7 +112,12 @@ export interface Perturbation {
   dist: Dist;
 }
 
-export type OutcomeSpec = { id: string; label?: string } & (
+export type OutcomeSpec = {
+  id: string;
+  label?: string;
+  /** Only counts if it happens by this time (seconds into the run). */
+  beforeS?: number;
+} & (
   /** The unit is destroyed. */
   | { type: 'destroyed'; unitId: string }
   /** The unit is hit by anything. */
@@ -127,6 +132,12 @@ export type OutcomeSpec = { id: string; label?: string } & (
   | { type: 'intercepts'; atLeast: number }
   /** Two units come within this distance of each other at some point. */
   | { type: 'closest_approach'; aId: string; bId: string; withinM: number }
+  /** Every one of these earlier outcomes happens. It happens when the last of them does. */
+  | { type: 'all'; of: string[] }
+  /** At least one of these earlier outcomes happens. It happens when the first of them does. */
+  | { type: 'any'; of: string[] }
+  /** The earlier outcome does not happen. */
+  | { type: 'not'; of: string }
 );
 
 /** Sweep one setting over a list of values, running the whole batch at each: "how does it change with salvo size?" */
@@ -142,6 +153,8 @@ export interface RedTeamSpec {
   perturbations: Perturbation[];
   outcomes: OutcomeSpec[];
   sweep?: SweepSpec;
+  /** Stop early once every outcome's 95% interval is this narrow on each side (a fraction, 0.02 is ±2 points). */
+  targetHalfWidth?: number;
 }
 
 export interface ScenarioConfig {

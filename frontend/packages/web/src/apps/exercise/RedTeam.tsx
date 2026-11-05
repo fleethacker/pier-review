@@ -3,8 +3,9 @@ import { cn } from '../../lib/cn';
 import { Button, Field, Panel, Select, inputClass } from '../../shell/ui';
 import { useController, useExercise } from './context';
 import { formatClock } from './geo';
-import { defaultRedTeam, ENV_FIELDS, UNIT_FIELDS } from './montecarlo';
-import type { McGroup, OutcomeStat } from './montecarlo';
+import { downloadText, fileSafe, openReport, reportHtml, resultCsv, resultJson } from './exportResults';
+import { compareResults, defaultRedTeam, ENV_FIELDS, UNIT_FIELDS } from './montecarlo';
+import type { McGroup, OutcomeDelta, OutcomeStat, TracePoint } from './montecarlo';
 import { NumField } from './NumField';
 import { parseRedTeam } from './scenarioJson';
 import { SHIP_CLASSES, isMissile } from './ships';
@@ -44,6 +45,9 @@ const OUTCOME_TYPES: { value: OutcomeSpec['type']; label: string }[] = [
   { value: 'mine_strike', label: 'A mine goes off' },
   { value: 'intercepts', label: 'Missiles are shot down' },
   { value: 'closest_approach', label: 'Two units come close' },
+  { value: 'all', label: 'All of several outcomes' },
+  { value: 'any', label: 'Any of several outcomes' },
+  { value: 'not', label: 'An outcome does not happen' },
 ];
 
 const DIST_TYPES: { value: Dist['type']; label: string }[] = [
@@ -187,7 +191,7 @@ function VariationRow({ p, onChange, onRemove }: { p: Perturbation; onChange: (p
   );
 }
 
-function makeOutcome(type: OutcomeSpec['type'], id: string, label: string | undefined, units: ScenarioConfig['units']): OutcomeSpec {
+function makeOutcome(type: OutcomeSpec['type'], id: string, label: string | undefined, units: ScenarioConfig['units'], earlier: string[] = []): OutcomeSpec {
   const unitId = units[0]?.id ?? '';
   const base = { id, ...(label ? { label } : {}) };
   switch (type) {
@@ -204,17 +208,22 @@ function makeOutcome(type: OutcomeSpec['type'], id: string, label: string | unde
       return { ...base, type, atLeast: 1 };
     case 'closest_approach':
       return { ...base, type, aId: unitId, bId: units[1]?.id ?? unitId, withinM: 2000 };
+    case 'all':
+    case 'any':
+      return { ...base, type, of: earlier.slice(0, 2) };
+    case 'not':
+      return { ...base, type, of: earlier[0] ?? '' };
   }
 }
 
-function OutcomeRow({ o, onChange, onRemove }: { o: OutcomeSpec; onChange: (o: OutcomeSpec) => void; onRemove: () => void }) {
+function OutcomeRow({ o, earlier, onChange, onRemove }: { o: OutcomeSpec; earlier: { id: string; label: string }[]; onChange: (o: OutcomeSpec) => void; onRemove: () => void }) {
   const { units, options } = useUnits();
   return (
     <div className="space-y-2 border border-mil-border p-2">
       <div className="flex items-end gap-2">
         <div className="min-w-0 flex-1">
           <Field label="Measure how often">
-            <Select value={o.type} onChange={(v) => onChange(makeOutcome(v as OutcomeSpec['type'], o.id, o.label, units))} options={OUTCOME_TYPES} />
+            <Select value={o.type} onChange={(v) => onChange({ ...makeOutcome(v as OutcomeSpec['type'], o.id, o.label, units, earlier.map((e) => e.id)), ...(o.beforeS !== undefined ? { beforeS: o.beforeS } : {}) } as OutcomeSpec)} options={OUTCOME_TYPES} />
           </Field>
         </div>
         <button aria-label={`Remove outcome ${o.label ?? o.id}`} className="pb-2 text-mil-dim hover:text-mil-red" onClick={onRemove}>
@@ -253,10 +262,34 @@ function OutcomeRow({ o, onChange, onRemove }: { o: OutcomeSpec; onChange: (o: O
             <NumField label="Within (m)" value={o.withinM} min={1} step={100} onCommit={(v) => v !== undefined && onChange({ ...o, withinM: v })} />
           </>
         )}
+        <NumField optional label="Only if by this time (s)" value={o.beforeS} min={1} step={60} placeholder="any time" onCommit={(v) => onChange({ ...o, beforeS: v })} />
         <Field label="Name for the results">
           <input className={inputClass} value={o.label ?? ''} placeholder="(automatic)" onChange={(e) => onChange({ ...o, label: e.target.value || undefined })} />
         </Field>
       </div>
+      {(o.type === 'all' || o.type === 'any') && (
+        <fieldset className="space-y-1">
+          <legend className="mil-label mb-1">Outcomes to combine (must be listed above this one)</legend>
+          {earlier.length === 0 && <p className="text-[10px] text-mil-dim">Add an outcome above this one first.</p>}
+          <div className="flex flex-col gap-1">
+            {earlier.map((e) => (
+              <label key={e.id} className="flex items-center gap-1.5 text-[11px] text-mil-text">
+                <input
+                  type="checkbox"
+                  checked={o.of.includes(e.id)}
+                  onChange={(ev) => onChange({ ...o, of: ev.target.checked ? [...o.of, e.id] : o.of.filter((x) => x !== e.id) })}
+                />
+                {e.label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {o.type === 'not' && (
+        <Field label="The outcome that does not happen">
+          <Select value={o.of} onChange={(v) => onChange({ ...o, of: v })} options={[{ value: '', label: 'Choose…' }, ...earlier.map((e) => ({ value: e.id, label: e.label }))]} />
+        </Field>
+      )}
     </div>
   );
 }
@@ -384,10 +417,19 @@ function Setup() {
         <NumField label="Seed" value={spec.seed} step={1} onCommit={(v) => v !== undefined && update((s) => (s.seed = Math.round(v)))} />
       </div>
       <p className="text-[10px] leading-snug text-mil-dim">The same seed repeats the same batch exactly, and every run in it can be replayed on the map.</p>
+      <div className="grid grid-cols-2 items-end gap-3">
+        <label className="flex items-center gap-2 pb-2 text-[11px] text-mil-text">
+          <input type="checkbox" checked={spec.targetHalfWidth !== undefined} onChange={(e) => update((s) => (e.target.checked ? (s.targetHalfWidth = 0.02) : delete s.targetHalfWidth))} />
+          Stop early when sure enough
+        </label>
+        {spec.targetHalfWidth !== undefined && (
+          <NumField label="Sure to within ± (points)" value={Number((spec.targetHalfWidth * 100).toFixed(2))} min={0.1} max={50} step={0.5} decimals={2} onCommit={(v) => v !== undefined && update((s) => (s.targetHalfWidth = v / 100))} />
+        )}
+      </div>
 
       <Panel title="Outcomes to measure" className="space-y-2 p-3">
         {spec.outcomes.map((o, i) => (
-          <OutcomeRow key={o.id} o={o} onChange={(next) => update((s) => (s.outcomes[i] = next))} onRemove={() => update((s) => s.outcomes.splice(i, 1))} />
+          <OutcomeRow key={o.id} o={o} earlier={spec.outcomes.slice(0, i).map((x) => ({ id: x.id, label: x.label ?? x.id }))} onChange={(next) => update((s) => (s.outcomes[i] = next))} onRemove={() => update((s) => s.outcomes.splice(i, 1))} />
         ))}
         <Button size="sm" variant="secondary" onClick={() => update((s) => s.outcomes.push(makeOutcome('hit', nextId('o', s.outcomes.map((x) => x.id)), undefined, scenario.units)))}>
           + Add outcome
@@ -505,7 +547,46 @@ function Histogram({ o, durationS }: { o: OutcomeStat; durationS: number }) {
   );
 }
 
-function Detail({ group, groupIndex, outcome, durationS }: { group: McGroup; groupIndex: number; outcome: OutcomeStat; durationS: number }) {
+/** The chance as runs accumulated, with its 95% band narrowing around it. */
+function Convergence({ points, target }: { points: TracePoint[]; target: number }) {
+  if (points.length < 2) return null;
+  const W = 480;
+  const H = 70;
+  const pad = { l: 34, r: 8, t: 6, b: 14 };
+  const maxN = points[points.length - 1].n;
+  const x = (n: number) => pad.l + (n / maxN) * (W - pad.l - pad.r);
+  const lo = Math.max(0, Math.min(...points.map((p) => p.lo)) - 0.02);
+  const hi = Math.min(1, Math.max(...points.map((p) => p.hi)) + 0.02);
+  const y = (p: number) => pad.t + (1 - (p - lo) / Math.max(hi - lo, 1e-6)) * (H - pad.t - pad.b);
+  const band = [...points.map((p) => `${x(p.n)},${y(p.hi)}`), ...[...points].reverse().map((p) => `${x(p.n)},${y(p.lo)}`)].join(' ');
+  const last = points[points.length - 1];
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`The chance settling at ${pct(last.p, 1)} after ${last.n} runs`}>
+        <polygon points={band} fill="#00e5ff" opacity={0.18} />
+        <polyline fill="none" stroke="#00e5ff" strokeWidth={1.5} points={points.map((p) => `${x(p.n)},${y(p.p)}`).join(' ')} />
+        <text x={pad.l - 4} y={y(hi) + 8} textAnchor="end" fontSize={8} fill="#8ba4c4">
+          {pct(hi)}
+        </text>
+        <text x={pad.l - 4} y={y(lo)} textAnchor="end" fontSize={8} fill="#8ba4c4">
+          {pct(lo)}
+        </text>
+        <text x={pad.l} y={H - 2} fontSize={8} fill="#8ba4c4">
+          0
+        </text>
+        <text x={W - pad.r} y={H - 2} textAnchor="end" fontSize={8} fill="#8ba4c4">
+          {maxN} runs
+        </text>
+      </svg>
+      <p className="text-[10px] text-mil-dim">
+        {(Math.round((last.hi - last.lo) * 500) / 10).toFixed(1)} points either side now.
+        {(last.hi - last.lo) / 2 <= target ? ` Within the ±${(target * 100).toFixed(0)} point target.` : ' Still settling: more runs would narrow it.'}
+      </p>
+    </div>
+  );
+}
+
+function Detail({ group, groupIndex, outcome, durationS, target }: { group: McGroup; groupIndex: number; outcome: OutcomeStat; durationS: number; target: number }) {
   const c = useController();
   const rows = group.sensitivity
     .filter((r) => r.outcomeId === outcome.id)
@@ -527,6 +608,11 @@ function Detail({ group, groupIndex, outcome, durationS }: { group: McGroup; gro
         {outcome.label}: {outcome.hits} of {outcome.n} runs ({pct(outcome.p, 1)}, 95% interval {pct(outcome.lo, 1)} to {pct(outcome.hi, 1)}).
         {outcome.meanTimeS !== null && ` On average it happens at T+${formatClock(outcome.meanTimeS)}.`}
       </p>
+      <div>
+        <p className="mil-label mb-1">How sure the number is</p>
+        <Convergence points={group.trace[outcome.id] ?? []} target={target} />
+        {outcome.halfWidth > target && <p className="text-[10px] text-mil-dim">About {outcome.runsNeeded.toLocaleString('en-US')} runs in all would get within ±{(target * 100).toFixed(0)} points.</p>}
+      </div>
       {outcome.hits > 0 && (
         <div>
           <p className="mil-label mb-1">When it happens</p>
@@ -581,8 +667,49 @@ function Detail({ group, groupIndex, outcome, durationS }: { group: McGroup; gro
   );
 }
 
+function DeltaChip({ d }: { d: OutcomeDelta }) {
+  const pts = d.delta * 100;
+  const color = !d.significant ? 'text-mil-dim' : pts > 0 ? 'text-mil-red' : 'text-mil-green';
+  return (
+    <span className={cn('tabular-nums', color)} title={`${pct(d.before, 1)} before; the change is ${pts >= 0 ? '+' : ''}${pts.toFixed(1)} points (95% interval ${(d.lo * 100).toFixed(1)} to ${(d.hi * 100).toFixed(1)})${d.significant ? '' : ', which could be chance'}`}>
+      {pts >= 0 ? '▲' : '▼'} {Math.abs(pts).toFixed(1)} pts{d.significant ? '' : ' (within noise)'}
+    </span>
+  );
+}
+
+function ExportBar() {
+  const c = useController();
+  const mc = useExercise((s) => s.mc);
+  const baseline = useExercise((s) => s.baseline);
+  const [blocked, setBlocked] = useState(false);
+  if (!mc.result || !mc.spec || !mc.base) return null;
+  const { result, spec, base } = mc;
+  const stem = `red-team-${fileSafe(base.name)}`;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="secondary" onClick={() => downloadText(`${stem}.csv`, 'text/csv', resultCsv(result))}>
+          Download CSV
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => downloadText(`${stem}.json`, 'application/json', resultJson(base, spec, result))}>
+          Download JSON
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => setBlocked(!openReport(reportHtml(base, spec, result, baseline?.result)))}>
+          Report to print
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => c.pinBaseline()}>
+          Keep as baseline
+        </Button>
+      </div>
+      {blocked && <p role="alert" className="text-[10px] text-mil-amber">The browser blocked the report window. Allow pop-ups for this page and try again.</p>}
+    </div>
+  );
+}
+
 function Results() {
   const mc = useExercise((s) => s.mc);
+  const baseline = useExercise((s) => s.baseline);
+  const c = useController();
   const scenario = useExercise((s) => s.scenario);
   const [outcomeId, setOutcomeId] = useState<string | null>(null);
   const [groupIndex, setGroupIndex] = useState<number | null>(null);
@@ -593,13 +720,28 @@ function Results() {
   const outcome = group.outcomes.find((o) => o.id === outcomeId) ?? group.outcomes[0];
   const sweep = result.groups.length > 1;
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  const deltas = baseline && baseline.result !== result ? compareResults(baseline.result, result) : [];
+  const groupDeltas = deltas.find((d) => d.label === group.label);
   const stale = !same({ ...scenario, redTeam: undefined }, { ...mc.base, redTeam: undefined }) || !same(scenario.redTeam, mc.spec);
   return (
     <div className="space-y-3">
       {stale && <p role="status" className="border border-mil-amber/40 bg-mil-amber/10 p-2 text-[10px] text-mil-amber">The scenario or the settings have changed since this batch ran. Run it again to measure the new setup. Replays still show the setup that was measured.</p>}
       <p className="text-[10px] text-mil-dim">
-        {result.totalRuns.toLocaleString('en-US')} runs in {(result.elapsedMs / 1000).toFixed(1)} s{result.stopped ? ', stopped early' : ''}. Bars show the chance; the line is the 95% interval.
+        {result.totalRuns.toLocaleString('en-US')} runs in {(result.elapsedMs / 1000).toFixed(1)} s{result.stopped ? ', stopped early' : ''}
+        {result.converged ? ', stopped once every chance was pinned down to the target' : ''}. Bars show the chance; the line is the 95% interval.
       </p>
+      <ExportBar />
+      {baseline && (
+        <div className="flex items-start justify-between gap-2 border border-mil-border p-2 text-[10px] text-mil-text">
+          <span>
+            {baseline.result === result ? 'This batch is the baseline: ' : 'Comparing with the baseline: '}
+            {baseline.label}.{baseline.result !== result && ' Arrows show how each chance moved; grey means the move could be chance.'}
+          </span>
+          <button className="shrink-0 text-mil-dim hover:text-white" onClick={() => c.clearBaseline()}>
+            Clear
+          </button>
+        </div>
+      )}
       {sweep && (
         <div className="space-y-2">
           <p className="mil-label">Chance against {mc.spec.sweep && mc.spec.sweep.target.kind === 'salvo' ? 'salvo size' : 'the swept setting'}</p>
@@ -620,15 +762,20 @@ function Results() {
               <div className="flex items-baseline justify-between gap-2 text-[11px]">
                 <span className="truncate text-white">{o.label}</span>
                 <span className="tabular-nums text-mil-cyan">
-                  {pct(o.p, o.n >= 1000 ? 1 : 0)} <span className="text-mil-dim">({pct(o.lo)}–{pct(o.hi)})</span>
+                  {pct(o.p, o.n >= 1000 ? 1 : 0)} <span className="text-mil-dim">±{(o.halfWidth * 100).toFixed(1)} ({pct(o.lo)}–{pct(o.hi)})</span>
                 </span>
               </div>
               <Interval o={o} />
+              {groupDeltas?.rows.find((r) => r.id === o.id) && (
+                <div className="text-[10px]">
+                  <DeltaChip d={groupDeltas.rows.find((r) => r.id === o.id)!} />
+                </div>
+              )}
             </button>
           </li>
         ))}
       </ul>
-      <Detail group={group} groupIndex={gi} outcome={outcome} durationS={mc.base.durationS} />
+      <Detail group={group} groupIndex={gi} outcome={outcome} durationS={mc.base.durationS} target={mc.spec.targetHalfWidth ?? 0.02} />
       <div>
         <p className="mil-label mb-1">Average per run{sweep ? `, ${group.label}` : ''}</p>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px]">

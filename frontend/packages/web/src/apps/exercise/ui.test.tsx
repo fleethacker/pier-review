@@ -873,7 +873,7 @@ describe('RedTeamPanel', () => {
     const list = await waitFor(() => dialog().getByRole('list', { name: 'Outcome chances' }), { timeout: 30_000 });
     const items = within(list).getAllByRole('listitem');
     expect(items).toHaveLength(c.state.get().scenario.redTeam!.outcomes.length);
-    expect(items[0].textContent).toMatch(/Carrier is hit\d+%\s*\(\d+%–\d+%\)/);
+    expect(items[0].textContent).toMatch(/Carrier is hit\d+%\s*±[\d.]+\s*\(\d+%–\d+%\)/);
     expect(within(items[0]).getByRole('img').getAttribute('aria-label')).toMatch(/95% interval/);
     expect(dialog().getByText(/12 runs in/)).toBeTruthy();
     expect(dialog().getByRole('button', { name: 'Run again 12 runs' })).toBeTruthy();

@@ -154,6 +154,13 @@ function perturbation(v: unknown, i: number): Perturbation {
 
 function outcome(v: unknown, i: number): OutcomeSpec {
   const what = `redTeam.outcomes[${i}]`;
+  const parsed = outcomeCore(v, i);
+  const before = obj(v, what).beforeS;
+  return before === undefined ? parsed : { ...parsed, beforeS: num(before, `${what}.beforeS`) };
+}
+
+function outcomeCore(v: unknown, i: number): OutcomeSpec {
+  const what = `redTeam.outcomes[${i}]`;
   const o = obj(v, what);
   const base = { id: str(o.id, `${what}.id`), ...(typeof o.label === 'string' && o.label ? { label: o.label } : {}) };
   switch (o.type) {
@@ -170,8 +177,13 @@ function outcome(v: unknown, i: number): OutcomeSpec {
       return { ...base, type: 'intercepts', atLeast: num(o.atLeast, `${what}.atLeast`) };
     case 'closest_approach':
       return { ...base, type: 'closest_approach', aId: str(o.aId, `${what}.aId`), bId: str(o.bId, `${what}.bId`), withinM: num(o.withinM, `${what}.withinM`) };
+    case 'all':
+    case 'any':
+      return { ...base, type: o.type, of: list(o.of, `${what}.of`).map((x, k) => str(x, `${what}.of[${k}]`)) };
+    case 'not':
+      return { ...base, type: 'not', of: str(o.of, `${what}.of`) };
     default:
-      throw new Error(`${what}.type must be destroyed, hit, hp_below, side_losses, mine_strike, intercepts or closest_approach.`);
+      throw new Error(`${what}.type must be destroyed, hit, hp_below, side_losses, mine_strike, intercepts, closest_approach, all, any or not.`);
   }
 }
 
@@ -192,6 +204,7 @@ export function parseRedTeam(v: unknown): RedTeamSpec {
     outcomes: list(o.outcomes, 'redTeam.outcomes').map(outcome),
   };
   if (o.sweep !== undefined) spec.sweep = sweep(o.sweep);
+  if (o.targetHalfWidth !== undefined) spec.targetHalfWidth = num(o.targetHalfWidth, 'redTeam.targetHalfWidth');
   return spec;
 }
 

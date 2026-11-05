@@ -69,6 +69,11 @@ export interface McUi {
   base: ScenarioConfig | null;
 }
 
+export interface Baseline {
+  label: string;
+  result: McResult;
+}
+
 const MC_IDLE: McUi = { status: 'idle', done: 0, total: 0, result: null, error: null, spec: null, base: null };
 
 /** What the map is showing when it is replaying one run of a red-team batch instead of the scenario. */
@@ -97,6 +102,8 @@ export interface ExerciseState {
   /** The red-team panel is open. */
   redTeamOpen: boolean;
   mc: McUi;
+  /** A finished batch kept to compare the next one against. */
+  baseline: Baseline | null;
   replay: ReplayInfo | null;
   /** Bumps when a different scenario is loaded, so the map re-frames it. */
   scenarioRevision: number;
@@ -134,6 +141,7 @@ export class ExerciseController {
       presenting: false,
       redTeamOpen: false,
       mc: MC_IDLE,
+      baseline: null,
       replay: null,
       scenarioRevision: 0,
       fitRevision: 0,
@@ -524,6 +532,17 @@ export class ExerciseController {
 
   stopRedTeam(): void {
     this.mcStop = true;
+  }
+
+  /** Keep the finished batch to compare the next one against: change the scenario or a setting, run again, and see what moved. */
+  pinBaseline(): void {
+    const { mc } = this.state.get();
+    if (!mc.result || !mc.base) return;
+    this.state.set({ baseline: { label: `${mc.base.name}, ${mc.result.totalRuns.toLocaleString('en-US')} runs`, result: mc.result } });
+  }
+
+  clearBaseline(): void {
+    this.state.set({ baseline: null });
   }
 
   /** Show one run of the finished batch on the map: the same random draws, the same chance rolls. */

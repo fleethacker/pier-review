@@ -1,4 +1,4 @@
-import { offsetM } from './geo';
+import { formatClock, offsetM } from './geo';
 import { SHIP_CLASSES, isMine, isMissile, isPlatform } from './ships';
 import { closestApproachM, makeRng, readSample, runScenario, unitHp, validateScenario } from './sim';
 import type { Trajectory } from './sim';
@@ -268,26 +268,60 @@ export function evaluateOutcome(scenario: ScenarioConfig, traj: Trajectory, o: O
       const tS = closestApproachTime(traj, a, b, o.withinM);
       return tS === undefined ? { hit: false } : { hit: true, tS };
     }
+    case 'all':
+    case 'any':
+    case 'not':
+      // Built from other outcomes, so it needs their results: see evaluateOutcomes.
+      return { hit: false };
   }
 }
 
-export function describeOutcome(o: OutcomeSpec, name: (id: string) => string): string {
+/** Every outcome of a run, in order. Combinations (all, any, not) read the results of the outcomes listed before them. */
+export function evaluateOutcomes(scenario: ScenarioConfig, traj: Trajectory, outcomes: OutcomeSpec[]): OutcomeResult[] {
+  const byId = new Map<string, OutcomeResult>();
+  return outcomes.map((o) => {
+    let r: OutcomeResult;
+    if (o.type === 'all' || o.type === 'any') {
+      const parts = o.of.map((id) => byId.get(id) ?? { hit: false });
+      const hits = parts.filter((p) => p.hit);
+      const times = hits.map((p) => p.tS).filter((t): t is number => t !== undefined);
+      if (o.type === 'all') r = parts.length > 0 && hits.length === parts.length ? { hit: true, tS: times.length ? Math.max(...times) : undefined } : { hit: false };
+      else r = hits.length > 0 ? { hit: true, tS: times.length ? Math.min(...times) : undefined } : { hit: false };
+    } else if (o.type === 'not') {
+      r = byId.get(o.of)?.hit ? { hit: false } : { hit: true };
+    } else {
+      r = evaluateOutcome(scenario, traj, o);
+    }
+    if (o.beforeS !== undefined && r.hit && (r.tS ?? 0) > o.beforeS) r = { hit: false };
+    byId.set(o.id, r);
+    return r;
+  });
+}
+
+export function describeOutcome(o: OutcomeSpec, name: (id: string) => string, outcomeName: (id: string) => string = (id) => id): string {
   if (o.label) return o.label;
+  const when = o.beforeS !== undefined ? ` before T+${formatClock(o.beforeS)}` : '';
   switch (o.type) {
     case 'destroyed':
-      return `${name(o.unitId)} destroyed`;
+      return `${name(o.unitId)} destroyed${when}`;
     case 'hit':
-      return `${name(o.unitId)} hit`;
+      return `${name(o.unitId)} hit${when}`;
     case 'hp_below':
-      return `${name(o.unitId)} below ${Math.round(o.frac * 100)}% strength`;
+      return `${name(o.unitId)} below ${Math.round(o.frac * 100)}% strength${when}`;
     case 'side_losses':
-      return `${o.atLeast}+ ${o.side.toLowerCase()} losses`;
+      return `${o.atLeast}+ ${o.side.toLowerCase()} losses${when}`;
     case 'mine_strike':
-      return o.unitId ? `${name(o.unitId)} strikes a mine` : 'A mine goes off';
+      return `${o.unitId ? `${name(o.unitId)} strikes a mine` : 'A mine goes off'}${when}`;
     case 'intercepts':
-      return `${o.atLeast}+ missiles shot down`;
+      return `${o.atLeast}+ missiles shot down${when}`;
     case 'closest_approach':
-      return `${name(o.aId)} within ${o.withinM} m of ${name(o.bId)}`;
+      return `${name(o.aId)} within ${o.withinM} m of ${name(o.bId)}${when}`;
+    case 'all':
+      return `${o.of.map(outcomeName).join(' and ')}${when}`;
+    case 'any':
+      return `${o.of.map(outcomeName).join(' or ')}${when}`;
+    case 'not':
+      return `Not: ${outcomeName(o.of)}${when}`;
   }
 }
 
@@ -331,6 +365,18 @@ export interface OutcomeStat {
   meanTimeS: number | null;
   /** How many runs had the outcome happen in each twelfth of the scenario. */
   timeHist: number[];
+  /** Half the width of the 95% interval: the "±" on the chance. */
+  halfWidth: number;
+  /** Runs in all this outcome needs for the interval to be as narrow as the target (the spec's, or ±2 points), at the chance seen so far. */
+  runsNeeded: number;
+}
+
+/** The chance of an outcome as the batch went on, so it can be seen settling. */
+export interface TracePoint {
+  n: number;
+  p: number;
+  lo: number;
+  hi: number;
 }
 
 export interface SensitivityRow {
@@ -353,11 +399,15 @@ export interface McGroup {
   hitRuns: Record<string, number[]>;
   missRuns: Record<string, number[]>;
   metrics: { label: string; mean: number }[];
+  /** How each outcome's chance settled as runs accumulated, by outcome id. */
+  trace: Record<string, TracePoint[]>;
 }
 
 export interface McResult {
   groups: McGroup[];
   stopped: boolean;
+  /** The batch ended early because every interval reached the target precision. */
+  converged: boolean;
   elapsedMs: number;
   totalRuns: number;
 }
@@ -365,6 +415,8 @@ export interface McResult {
 export interface McOptions {
   onProgress?: (done: number, total: number) => void;
   shouldStop?: () => boolean;
+  /** Worker threads to use. 0 keeps everything on the calling thread. Default: as many as the machine has to spare. */
+  workers?: number;
 }
 
 export function validateRedTeam(base: ScenarioConfig, spec: RedTeamSpec): string[] {
@@ -376,11 +428,19 @@ export function validateRedTeam(base: ScenarioConfig, spec: RedTeamSpec): string
   if (!Number.isInteger(spec.runs) || spec.runs < 1 || spec.runs > MAX_RUNS) errors.push(`Runs must be a whole number from 1 to ${MAX_RUNS}.`);
   if (!Number.isFinite(spec.seed)) errors.push('The seed must be a number.');
   if (spec.outcomes.length === 0) errors.push('Add at least one outcome to measure.');
+  if (spec.targetHalfWidth !== undefined && !(spec.targetHalfWidth > 0 && spec.targetHalfWidth <= 0.5)) errors.push('The target precision must be above 0 and at most 50 points.');
   const outcomeIds = new Set<string>();
   for (const o of spec.outcomes) {
+    const earlier = new Set(outcomeIds);
     if (outcomeIds.has(o.id)) errors.push(`Two outcomes share the id "${o.id}".`);
     outcomeIds.add(o.id);
     const what = `Outcome "${o.label ?? o.id}"`;
+    if (o.beforeS !== undefined && !(o.beforeS > 0)) errors.push(`${what}: the time limit must be above zero.`);
+    if (o.type === 'all' || o.type === 'any' || o.type === 'not') {
+      const refs = o.type === 'not' ? [o.of] : o.of;
+      if (refs.length === 0) errors.push(`${what}: pick at least one outcome to combine.`);
+      for (const r of refs) if (!earlier.has(r)) errors.push(`${what}: "${r}" is not an outcome listed before it.`);
+    }
     if ('unitId' in o && o.unitId !== undefined) needUnit(o.unitId, what);
     if (o.type === 'hp_below' && !(o.frac > 0 && o.frac <= 1)) errors.push(`${what}: the fraction must be above 0 and at most 1.`);
     if ((o.type === 'side_losses' || o.type === 'intercepts') && !(Number.isInteger(o.atLeast) && o.atLeast >= 1)) errors.push(`${what}: "at least" must be a whole number, 1 or more.`);
@@ -449,18 +509,7 @@ export function defaultRedTeam(s: ScenarioConfig): RedTeamSpec {
 
 const yieldToUi = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-interface Acc {
-  hits: number[];
-  times: number[][];
-  values: number[][];
-  flags: number[][];
-  hitRuns: number[][];
-  missRuns: number[][];
-  metricSums: number[];
-  n: number;
-}
-
-const METRICS = ['Hits on ships per run', 'Missiles shot down per run', 'Blue losses per run', 'Red losses per run', 'Mines triggered per run'];
+export const METRICS = ['Hits on ships per run', 'Missiles shot down per run', 'Blue losses per run', 'Red losses per run', 'Mines triggered per run'];
 
 function metricsOf(s: ScenarioConfig, traj: Trajectory): number[] {
   const units = new Map(s.units.map((u) => [u.id, u]));
@@ -486,6 +535,133 @@ function metricsOf(s: ScenarioConfig, traj: Trajectory): number[] {
   return [hits, intercepts, blue, red, mines];
 }
 
+/** What one run contributes to a batch. Plain data, so a worker can send it back. */
+export interface RunRecord {
+  k: number;
+  /** Which sweep value (index) it was run at. */
+  g: number;
+  /** 1 where each outcome happened. */
+  flags: number[];
+  /** When each outcome happened, or -1. */
+  times: number[];
+  values: number[];
+  metrics: number[];
+}
+
+export function simulateRun(base: ScenarioConfig, spec: RedTeamSpec, k: number, g: number, sweepValue?: number): RunRecord {
+  const run = prepareRun(base, spec, k, sweepValue);
+  const traj = runScenario(run.scenario, { seed: run.seed });
+  const results = evaluateOutcomes(run.scenario, traj, spec.outcomes);
+  return {
+    k,
+    g,
+    flags: results.map((r) => (r.hit ? 1 : 0)),
+    times: results.map((r) => (r.hit && r.tS !== undefined ? r.tS : -1)),
+    values: spec.perturbations.map((p) => run.values[p.id]),
+    metrics: metricsOf(run.scenario, traj),
+  };
+}
+
+/** Run `k0` up to (not including) `k1` at every sweep value. This is the unit of work handed to a worker. */
+export function simulateChunk(base: ScenarioConfig, spec: RedTeamSpec, k0: number, k1: number): RunRecord[] {
+  const sweepValues = spec.sweep ? spec.sweep.values : [undefined];
+  const out: RunRecord[] = [];
+  for (let k = k0; k < k1; k++) sweepValues.forEach((sv, g) => out.push(simulateRun(base, spec, k, g, sv)));
+  return out;
+}
+
+// ---- running a batch ----
+
+/** Somewhere to run chunks: the calling thread, or a pool of workers. */
+interface Backend {
+  slots: number;
+  run(slot: number, k0: number, k1: number): Promise<RunRecord[]>;
+  close(): void;
+}
+
+function mainBackend(base: ScenarioConfig, spec: RedTeamSpec): Backend {
+  return {
+    slots: 1,
+    run: async (_slot, k0, k1) => {
+      await yieldToUi();
+      return simulateChunk(base, spec, k0, k1);
+    },
+    close: () => undefined,
+  };
+}
+
+function workerCount(requested?: number): number {
+  if (requested !== undefined) return Math.max(0, Math.floor(requested));
+  if (typeof Worker === 'undefined') return 0;
+  const cores = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 4;
+  return Math.max(1, Math.min(8, cores - 1));
+}
+
+function poolBackend(size: number, base: ScenarioConfig, spec: RedTeamSpec): Backend | null {
+  if (size < 1 || typeof Worker === 'undefined') return null;
+  try {
+    type Pending = { resolve: (r: RunRecord[]) => void; reject: (e: Error) => void };
+    const workers: Worker[] = [];
+    const pending: (Pending | null)[] = [];
+    for (let i = 0; i < size; i++) {
+      const w = new Worker(new URL('./mcWorker.ts', import.meta.url), { type: 'module' });
+      const slot = i;
+      pending.push(null);
+      w.onmessage = (e: MessageEvent<{ records?: RunRecord[]; error?: string }>) => {
+        const p = pending[slot];
+        pending[slot] = null;
+        if (!p) return;
+        if (e.data.error) p.reject(new Error(e.data.error));
+        else p.resolve(e.data.records ?? []);
+      };
+      w.onerror = (e) => {
+        const p = pending[slot];
+        pending[slot] = null;
+        p?.reject(new Error(e.message || 'A worker failed.'));
+      };
+      w.postMessage({ type: 'init', base, spec });
+      workers.push(w);
+    }
+    return {
+      slots: size,
+      run: (slot, k0, k1) =>
+        new Promise<RunRecord[]>((resolve, reject) => {
+          pending[slot] = { resolve, reject };
+          workers[slot].postMessage({ type: 'chunk', k0, k1 });
+        }),
+      close: () => workers.forEach((w) => w.terminate()),
+    };
+  } catch {
+    return null;
+  }
+}
+
+interface Acc {
+  hits: number[];
+  times: number[][];
+  values: number[][];
+  flags: number[][];
+  hitRuns: number[][];
+  missRuns: number[][];
+  metricSums: number[];
+  trace: { n: number; hits: number[] }[];
+  n: number;
+}
+
+const halfWidthOf = (hits: number, n: number) => {
+  const { lo, hi } = wilson(hits, n);
+  return (hi - lo) / 2;
+};
+
+/** Runs in all needed for a 95% half-width of `target` when the chance is `p` (normal approximation, with p kept off 0 and 1). */
+export function runsNeeded(p: number, target: number): number {
+  const q = Math.min(0.95, Math.max(0.05, p));
+  return Math.ceil((1.96 * 1.96 * q * (1 - q)) / (target * target));
+}
+
+const MIN_RUNS_TO_CONVERGE = 40;
+const CHUNK_TASKS = 8;
+
 export async function runMonteCarlo(base: ScenarioConfig, spec: RedTeamSpec, options: McOptions = {}): Promise<McResult> {
   const problems = [...validateScenario(base), ...validateRedTeam(base, spec)];
   if (problems.length) throw new Error(problems[0]);
@@ -501,60 +677,128 @@ export async function runMonteCarlo(base: ScenarioConfig, spec: RedTeamSpec, opt
     hitRuns: spec.outcomes.map(() => []),
     missRuns: spec.outcomes.map(() => []),
     metricSums: METRICS.map(() => 0),
+    trace: [],
     n: 0,
   }));
+  const traceEvery = Math.max(1, Math.floor(spec.runs / 24));
+
+  const kPer = Math.max(1, Math.ceil(CHUNK_TASKS / sweepValues.length));
+  const nChunks = Math.ceil(spec.runs / kPer);
+  let backend: Backend = poolBackend(workerCount(options.workers), base, spec) ?? mainBackend(base, spec);
 
   let done = 0;
   let stopped = false;
-  let lastYield = performance.now();
-  // Interleave the sweep values run by run, so stopping early leaves every group with about the same number of runs.
-  outer: for (let k = 0; k < spec.runs; k++) {
-    for (let g = 0; g < sweepValues.length; g++) {
-      const run = prepareRun(base, spec, k, sweepValues[g]);
-      const traj = runScenario(run.scenario, { seed: run.seed });
-      const acc = accs[g];
-      spec.outcomes.forEach((o, i) => {
-        const r = evaluateOutcome(run.scenario, traj, o);
-        acc.flags[i].push(r.hit ? 1 : 0);
-        if (r.hit) {
-          acc.hits[i]++;
-          if (r.tS !== undefined) acc.times[i].push(r.tS);
-          if (acc.hitRuns[i].length < 8) acc.hitRuns[i].push(k);
-        } else if (acc.missRuns[i].length < 8) acc.missRuns[i].push(k);
-      });
-      spec.perturbations.forEach((p, i) => acc.values[i].push(run.values[p.id]));
-      metricsOf(run.scenario, traj).forEach((v, i) => (acc.metricSums[i] += v));
-      acc.n++;
-      done++;
-      if (performance.now() - lastYield > 30) {
+  let converged = false;
+  let finished = false;
+
+  const accumulate = (r: RunRecord) => {
+    const acc = accs[r.g];
+    r.flags.forEach((f, i) => {
+      acc.flags[i].push(f);
+      if (f) {
+        acc.hits[i]++;
+        if (r.times[i] >= 0) acc.times[i].push(r.times[i]);
+        if (acc.hitRuns[i].length < 8) acc.hitRuns[i].push(r.k);
+      } else if (acc.missRuns[i].length < 8) acc.missRuns[i].push(r.k);
+    });
+    r.values.forEach((v, i) => acc.values[i].push(v));
+    r.metrics.forEach((v, i) => (acc.metricSums[i] += v));
+    acc.n++;
+    if (acc.n % traceEvery === 0) acc.trace.push({ n: acc.n, hits: [...acc.hits] });
+    done++;
+  };
+
+  const isConverged = () =>
+    spec.targetHalfWidth !== undefined &&
+    accs.every((a) => a.n >= MIN_RUNS_TO_CONVERGE && a.hits.every((h) => halfWidthOf(h, a.n) <= spec.targetHalfWidth!));
+
+  await new Promise<void>((resolve) => {
+    const results = new Map<number, RunRecord[]>();
+    const free = Array.from({ length: backend.slots }, (_, i) => i);
+    let nextLaunch = 0;
+    let nextApply = 0;
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      backend.close();
+      resolve();
+    };
+
+    const apply = () => {
+      while (!finished && results.has(nextApply)) {
+        for (const r of results.get(nextApply)!) accumulate(r);
+        results.delete(nextApply);
+        nextApply++;
         options.onProgress?.(done, total);
-        await yieldToUi();
-        lastYield = performance.now();
         if (options.shouldStop?.()) {
           stopped = true;
-          break outer;
+          return finish();
+        }
+        if (nextApply < nChunks && isConverged()) {
+          converged = true;
+          return finish();
         }
       }
-    }
-  }
+      if (nextApply >= nChunks) finish();
+    };
+
+    const pump = () => {
+      while (!finished && free.length && nextLaunch < nChunks) {
+        const slot = free.pop()!;
+        const c = nextLaunch++;
+        const launchedOn = backend;
+        const k0 = c * kPer;
+        const k1 = Math.min(spec.runs, k0 + kPer);
+        launchedOn.run(slot, k0, k1).then(
+          (recs) => {
+            if (launchedOn !== backend) return; // from workers that have since been abandoned
+            free.push(slot);
+            results.set(c, recs);
+            apply();
+            pump();
+          },
+          () => {
+            if (launchedOn !== backend) return;
+            // The workers could not run (blocked, or crashed). Carry on from the first chunk not yet received, on the calling thread.
+            launchedOn.close();
+            backend = mainBackend(base, spec);
+            free.length = 0;
+            free.push(0);
+            nextLaunch = nextApply;
+            for (let i = nextApply; i < nChunks; i++) results.delete(i);
+            pump();
+          },
+        );
+      }
+    };
+    pump();
+  });
   options.onProgress?.(done, total);
 
   const groups: McGroup[] = accs.map((acc, g) => {
+    const target = spec.targetHalfWidth ?? 0.02;
     const outcomes: OutcomeStat[] = spec.outcomes.map((o, i) => {
       const { lo, hi } = wilson(acc.hits[i], acc.n);
       const times = acc.times[i];
       const hist = new Array<number>(HIST_BINS).fill(0);
       for (const t of times) hist[Math.min(HIST_BINS - 1, Math.floor((t / base.durationS) * HIST_BINS))]++;
+      const p = acc.n ? acc.hits[i] / acc.n : 0;
       return {
         id: o.id,
-        label: describeOutcome(o, nameOf),
+        label: describeOutcome(o, nameOf, (id) => {
+          const ref = spec.outcomes.find((x) => x.id === id);
+          return ref ? describeOutcome(ref, nameOf) : id;
+        }),
         hits: acc.hits[i],
         n: acc.n,
-        p: acc.n ? acc.hits[i] / acc.n : 0,
+        p,
         lo,
         hi,
         meanTimeS: times.length ? times.reduce((a, v) => a + v, 0) / times.length : null,
         timeHist: hist,
+        halfWidth: (hi - lo) / 2,
+        runsNeeded: runsNeeded(p, target),
       };
     });
     const sensitivity: SensitivityRow[] = [];
@@ -576,6 +820,13 @@ export async function runMonteCarlo(base: ScenarioConfig, spec: RedTeamSpec, opt
         });
       });
     });
+    const trace: Record<string, TracePoint[]> = {};
+    spec.outcomes.forEach((o, i) => {
+      const pts = acc.trace.map((t) => ({ n: t.n, p: t.hits[i] / t.n, ...wilson(t.hits[i], t.n) }));
+      const last = acc.trace[acc.trace.length - 1];
+      if (acc.n > 0 && (!last || last.n !== acc.n)) pts.push({ n: acc.n, p: acc.hits[i] / acc.n, ...wilson(acc.hits[i], acc.n) });
+      trace[o.id] = pts;
+    });
     const sv = sweepValues[g];
     return {
       label: spec.sweep && sv !== undefined ? sweepLabel(spec.sweep, sv) : 'All runs',
@@ -586,7 +837,47 @@ export async function runMonteCarlo(base: ScenarioConfig, spec: RedTeamSpec, opt
       hitRuns: Object.fromEntries(spec.outcomes.map((o, i) => [o.id, acc.hitRuns[i]])),
       missRuns: Object.fromEntries(spec.outcomes.map((o, i) => [o.id, acc.missRuns[i]])),
       metrics: METRICS.map((label, i) => ({ label, mean: acc.n ? acc.metricSums[i] / acc.n : 0 })),
+      trace,
     };
   });
-  return { groups, stopped, elapsedMs: performance.now() - started, totalRuns: done };
+  return { groups, stopped, converged, elapsedMs: performance.now() - started, totalRuns: done };
+}
+
+// ---- comparing two batches ----
+
+export interface OutcomeDelta {
+  id: string;
+  label: string;
+  /** Chance in the baseline and in the new batch. */
+  before: number;
+  after: number;
+  delta: number;
+  /** 95% interval on the difference (Newcombe's method on the two Wilson intervals). */
+  lo: number;
+  hi: number;
+  /** The interval on the difference excludes zero. */
+  significant: boolean;
+}
+
+export interface GroupDelta {
+  label: string;
+  rows: OutcomeDelta[];
+}
+
+/** How each outcome's chance moved between a baseline batch and a new one. Outcomes and sweep values are matched up by id and value. */
+export function compareResults(before: McResult, after: McResult): GroupDelta[] {
+  return after.groups.flatMap((g, gi) => {
+    const other = before.groups.find((x) => x.sweepValue !== undefined && x.sweepValue === g.sweepValue) ?? (g.sweepValue === undefined ? before.groups[gi] : undefined);
+    if (!other) return [];
+    const rows: OutcomeDelta[] = [];
+    for (const o of g.outcomes) {
+      const b = other.outcomes.find((x) => x.id === o.id);
+      if (!b) continue;
+      const delta = o.p - b.p;
+      const lo = delta - Math.sqrt((o.p - o.lo) ** 2 + (b.hi - b.p) ** 2);
+      const hi = delta + Math.sqrt((o.hi - o.p) ** 2 + (b.p - b.lo) ** 2);
+      rows.push({ id: o.id, label: o.label, before: b.p, after: o.p, delta, lo, hi, significant: lo > 0 || hi < 0 });
+    }
+    return [{ label: g.label, rows }];
+  });
 }

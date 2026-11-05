@@ -59,6 +59,13 @@ export interface SessionRecordingRef {
   startedAt: string;
 }
 
+/**
+ * Fields the S1 session protocol adds (ws-e/s1-rm0-live-frames). Optional here so the generated types can follow this
+ * branch's contract: absent means a legacy session, and recordings and confirmed speed simply do not appear.
+ */
+type S1SessionCreated = { recording_url?: string | null };
+type S1Lifecycle = SimLifecycle & { speed?: number | null };
+
 /** Live speeds the session protocol accepts (simulated seconds per wall second; the physics step never changes). */
 export const LIVE_SPEEDS = [0.5, 1, 2, 4, 8, 16] as const;
 const MAX_SESSION_RECORDINGS = 10;
@@ -395,10 +402,11 @@ export class MotionController {
       this.sessionLayoutKey = layoutKey;
       this.state.set({ sessionId: created.session_id });
       const sceneUrl = created.scene_url ? serviceUrl(MODELING_BASE, created.scene_url) : null;
-      if (created.recording_url) {
+      const recordingUrl = (created as S1SessionCreated).recording_url;
+      if (recordingUrl) {
         const ref: SessionRecordingRef = {
           sessionId: created.session_id,
-          recordingUrl: serviceUrl(MODELING_BASE, created.recording_url),
+          recordingUrl: serviceUrl(MODELING_BASE, recordingUrl),
           sceneUrl,
           startedAt: new Date().toISOString(),
         };
@@ -456,7 +464,7 @@ export class MotionController {
     this.state.set({
       lifecycle: lifecycle.state,
       lifecycleMessage: lifecycle.message ?? null,
-      ...(lifecycle.speed != null ? { speed: lifecycle.speed } : {}),
+      ...((lifecycle as S1Lifecycle).speed != null ? { speed: (lifecycle as S1Lifecycle).speed! } : {}),
     });
   }
 

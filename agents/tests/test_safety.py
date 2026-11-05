@@ -73,7 +73,7 @@ class FakeClient:
     async def berth(self, berth_id):
         return SimpleNamespace(face_bearing_true_deg=0)
 
-    async def env_now(self, berth_id):
+    async def scenario_environment(self, scenario_id):
         self.last = next(self.environments, self.last)
         return self.last
 
@@ -92,7 +92,7 @@ def collect(iterator):
 
 def install_watch_state(monkeypatch, review=None):
     review = review or safety_review()
-    record = SimpleNamespace(scenario=SimpleNamespace(berth_id="berth", side_to="starboard"), mst="II", env=env(0))
+    record = SimpleNamespace(scenario=SimpleNamespace(scenario_id="scn_test", berth_id="berth", side_to="starboard"), mst="II", env=env(0))
     monkeypatch.setattr(agent, "plan_record", lambda plan_id: record)
     monkeypatch.setattr(agent, "latest_review", lambda plan_id: review)
     agent.ENVELOPES[review.review_id] = [
@@ -399,3 +399,57 @@ def test_watch_emits_red_on_component_quality_drop_and_withholds_old_percent(mon
     assert warnings[0].severity == 'INFO' and warnings[0].pct_of_wll_limit is not None
     assert warnings[1].severity == 'RED' and warnings[1].requires_recheck
     assert warnings[1].pct_of_wll_limit is None and 'component poor' in warnings[1].message
+
+
+def test_watch_uses_the_plan_saved_source_instead_of_the_configured_provider(monkeypatch):
+    import httpx
+    from mooring_agents.physics.client import ModelingClient
+    install_watch_state(monkeypatch)
+    seen = []
+    def respond(request):
+        seen.append(request.url.path)
+        if request.url.path == '/api/v1/berths/berth':
+            from mooring import refdata
+            berth = refdata.berths()[0].model_copy(update={'face_bearing_true_deg': 0})
+            return httpx.Response(200, json=berth.model_dump(mode='json'))
+        if request.url.path == '/api/v1/scenarios/scn_test/environment':
+            return httpx.Response(200, json=env(0, gust=7).model_dump(mode='json'))
+        if request.url.path == '/api/v1/env/now':
+            return httpx.Response(200, json=env(0, gust=99).model_dump(mode='json'))
+        return httpx.Response(404)
+    client = ModelingClient(base_url='http://modeling/api/v1', transport=httpx.MockTransport(respond))
+    warning = collect(agent.watch('plan_test', client, interval_s=0, limit=1))[0]
+    assert warning.gust_kt == 7
+    assert '/api/v1/scenarios/scn_test/environment' in seen
+    assert '/api/v1/env/now' not in seen
+
+
+@pytest.mark.parametrize('status', [404, 422, 503])
+def test_watch_does_not_substitute_generic_weather_after_saved_source_failure(monkeypatch, status):
+    from mooring_agents.physics.client import ModelingError
+    install_watch_state(monkeypatch)
+    class FailedSource(FakeClient):
+        async def scenario_environment(self, scenario_id):
+            raise ModelingError(status, 'saved source unavailable')
+        async def env_now(self, berth_id):
+            pytest.fail('must not substitute the configured provider')
+    with pytest.raises(ModelingError, match='saved source unavailable'):
+        collect(agent.watch('plan_test', FailedSource([env(0)]), interval_s=0, limit=1))
+
+
+@pytest.mark.parametrize('problem', ['future_observation', 'future_issue'])
+def test_watch_withholds_limits_for_temporally_unavailable_input(monkeypatch, problem):
+    from mooring.core.schemas import EnvironmentMetadata
+    install_watch_state(monkeypatch)
+    monkeypatch.setattr(agent, 'utcnow', lambda: NOW)
+    sample = env(0)
+    if problem == 'future_observation':
+        sample.source = 'live'
+        sample.valid_at_utc = NOW+timedelta(hours=1)
+    else:
+        sample.source = 'forecast'
+        sample.metadata = EnvironmentMetadata(basis='prediction', issued_at_utc=NOW+timedelta(hours=1))
+    warning = collect(agent.watch('plan_test', FakeClient([sample]), interval_s=0, limit=1))[0]
+    assert warning.requires_recheck and warning.severity == 'RED'
+    assert warning.pct_of_wll_limit is None
+    assert any('forecast' in reason.lower() for reason in warning.recheck_reasons)

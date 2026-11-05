@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from mooring.core import access
 from mooring.core.envelopes import new_id, utcnow
+from mooring.core.forecast_provenance import availability_problem
 from mooring.core.schemas import LimitEnvelopePoint, Validity
 
 from ..intake.mock import REPORTS
@@ -277,6 +278,9 @@ def _watch_recheck(env, assessed) -> tuple[list[str], bool]:
     problems = [item for item in component_issues(env) if item[2] in ("AMBER", "RED")]
     reasons = [item[3] for item in problems]
     invalid = any(item[2] == "RED" for item in problems)
+    if problem := availability_problem(env, utcnow()):
+        reasons.append(problem)
+        invalid = True
     fields = ("current_speed_kt", "current_set_true_deg", "water_level_mllw_ft", "air_density_kgm3", "water_density_kgm3")
     if not any(all(getattr(env, field) == getattr(prior, field) for field in fields) for prior in assessed):
         reasons.append("Current, water level or density differs from the reviewed conditions; wind limits have not been recomputed.")
@@ -343,7 +347,7 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
     rank = {"INFO": 0, "AMBER": 1, "RED": 2}
     heartbeat_s = max(heartbeat_minutes * 60, 0)
     while limit == 0 or emitted < limit:
-        env = await client.env_now(rec.scenario.berth_id)
+        env = await client.scenario_environment(rec.scenario.scenario_id)
         rel = (env.wind_from_true_deg - heading) % 360
         point = _limit_for(points, rel)
         recheck_reasons, invalid_input = _watch_recheck(env, assessed)

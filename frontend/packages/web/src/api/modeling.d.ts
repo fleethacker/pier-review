@@ -2860,6 +2860,52 @@ export interface components {
             mz_ftlbf: number;
         };
         /**
+         * ForcingBasis
+         * @description What the environment over the horizon was: fixed, or sampled from an immutable forcing series.
+         */
+        ForcingBasis: {
+            /**
+             * Kind
+             * @default fixed_environment
+             * @enum {string}
+             */
+            kind: "fixed_environment" | "time_varying";
+            /**
+             * Revision
+             * @description S2 series revision (frc-...); null for a fixed environment.
+             */
+            revision?: string | null;
+            /**
+             * Synthetic
+             * @description True when the series is generated (steady/ramp/gusts), not observed.
+             * @default false
+             */
+            synthetic: boolean;
+            /** Series Kind */
+            series_kind?: string | null;
+            /** @description Prediction-relative seconds the series is defined over. */
+            coverage?: components["schemas"]["ForcingCoverage"] | null;
+            /** Requested Horizon S */
+            requested_horizon_s?: number | null;
+            /**
+             * Horizon S
+             * @description Horizon actually predicted; less than requested when truncated.
+             */
+            horizon_s?: number | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /** ForcingCoverage */
+        ForcingCoverage: {
+            /** Start S */
+            start_s: number;
+            /** End S */
+            end_s: number;
+        };
+        /**
          * ForcingSample
          * @description One supplied forcing sample (replay). A channel is either given in every sample or in none.
          */
@@ -5283,6 +5329,15 @@ export interface components {
              * @description Prediction time; default now.
              */
             as_of_utc?: string | null;
+            /** @description S7b: time-varying forcing (S2 ForcingSpec), sampled at prediction-relative time (t = 0 is as_of_utc) through the S2 resolver around `environment` (null = calm base). Absent = fixed environment, unchanged behavior. A replay series that ends before the horizon is rejected (on_uncovered 'stop') or the horizon is truncated, with a validity reason ('invalidate'); it is never extrapolated. */
+            forcing?: components["schemas"]["ForcingSpec"] | null;
+            /**
+             * Engine
+             * @description Requested engine. Never switched automatically. 'berthing' (S1-S3) has no validated state/parameter handoff and is answered 501 unsupported.
+             * @default transit
+             * @enum {string}
+             */
+            engine: "transit" | "berthing";
             /**
              * Horizon S
              * @default 300
@@ -5384,6 +5439,8 @@ export interface components {
              * @description 'hold' first, then what-ifs in request order.
              */
             alternatives: components["schemas"]["PredictionAlternative"][];
+            /** @description Omitted on the wire for the default fixed environment; absent means fixed_environment. */
+            forcing_basis?: components["schemas"]["ForcingBasis"];
         };
         /**
          * PropulsionAssumptions

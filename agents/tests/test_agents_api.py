@@ -293,3 +293,33 @@ def test_safety_watch_provider_failure_is_explicit_stream_event(planned, monkeyp
 def test_safety_watch_rejects_negative_and_unbounded_zero_interval(planned):
     for params in ({"interval_s":-1}, {"limit":-1}, {"heartbeat_minutes":-1}, {"interval_s":0, "limit":0}):
         assert client.get(f"{P}/safety/watch/{planned}", params=params).status_code == 422
+
+
+def test_sheet_preserves_holding_assistance_and_visible_result_references(plan_id):
+    from dataclasses import replace
+    from mooring_agents.planner.agent import PLANS
+    from mooring_agents.safety import sheet as renderer
+    from mooring_agents.safety.agent import latest_review
+    from mooring_agents.planner.schemas import RationaleItem
+    # Exercise the document boundary with an assessment record declaring continuous assistance.
+    record = replace(PLANS[plan_id], holding_tugs=[{'tug_id':'T4', 'push_point_id':'PP-FWD-P',
+        'mode':'push', 'force_lbf':1000}])
+    sheet = renderer.build(record, latest_review(plan_id))
+    assert sheet.holding_tugs[0].force_lbf == 1000
+    assert sheet.analysis_result_id == record.analysis.result_id
+    assert set(sheet.threshold_result_ids) <= set(sheet.cited_result_ids)
+    rendered = renderer.render_html(sheet)
+    assert 'Holding assistance' in rendered and 'continuous availability' in rendered
+    assert 'Berthing tug plan' in rendered and 'PP-FWD-P' in rendered and '1,000 lbf' in rendered
+    assert sheet.analysis_result_id in rendered
+    assert all(cite in rendered for cite in sheet.cited_result_ids)
+    injection = '<img src="https://example.invalid/resource">'
+    sheet.rationale = [RationaleItem(text='Document text', cites=[injection])]
+    assert injection not in renderer.render_html(sheet)
+    assert '&lt;img' in renderer.render_html(sheet)
+    # Absent legacy data means unknown, never zero assistance.
+    old = sheet.model_dump(mode='json')
+    for field in ('holding_tugs','analysis_result_id','threshold_result_ids'):
+        old.pop(field)
+    legacy = SafetySheet.model_validate(old)
+    assert legacy.holding_tugs is None and 'not recorded in this archived sheet' in renderer.render_html(legacy)

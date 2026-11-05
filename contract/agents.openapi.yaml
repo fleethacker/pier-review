@@ -2276,6 +2276,25 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
+        analysis_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Analysis Result Id
+        threshold_result_ids:
+          items:
+            type: string
+          type: array
+          title: Threshold Result Ids
+        holding_tugs:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/TugAssignment'
+            type: array
+          - type: 'null'
+          title: Holding Tugs
+          description: Prescribed continuous assistance included in the line/holding assessment; null means not recorded in
+            a legacy sheet.
         sheet_id:
           type: string
           title: Sheet Id

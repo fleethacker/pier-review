@@ -312,9 +312,12 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
     emitted = 0
 
     report = REPORTS.get(safety_review.intake_report_id) if safety_review.intake_report_id else None
-    assessed = [rec.env]
-    if report:
-        assessed += [condition.environment for condition in report.planning_conditions]
+    report_ids = {value for value in (safety_review.intake_report_id,
+        getattr(getattr(rec, "plan", None), "intake_report_id", None)) if value}
+    # Match review() exactly: reports replace the fallback snapshot, and supplemental reports add
+    # to the original intake. Never treat the old fallback as reviewed when it was not assessed.
+    assessed = [condition.environment for report_id in report_ids if (source_report := REPORTS.get(report_id))
+                for condition in source_report.planning_conditions] if report_ids else [rec.env]
     if report:
         for condition in report.planning_conditions:
             rel = (condition.environment.wind_from_true_deg - heading) % 360

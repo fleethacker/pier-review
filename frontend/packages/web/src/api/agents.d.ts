@@ -1338,6 +1338,15 @@ export interface components {
         /** SafetySheet */
         SafetySheet: {
             validity?: components["schemas"]["Validity"] | null;
+            /** Analysis Result Id */
+            analysis_result_id?: string | null;
+            /** Threshold Result Ids */
+            threshold_result_ids?: string[];
+            /**
+             * Holding Tugs
+             * @description Prescribed continuous assistance included in the line/holding assessment; null means not recorded in a legacy sheet.
+             */
+            holding_tugs?: components["schemas"]["TugAssignment"][] | null;
             /** Sheet Id */
             sheet_id: string;
             /** Version */

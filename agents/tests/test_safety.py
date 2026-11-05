@@ -339,3 +339,12 @@ def test_watch_changed_wind_basis_requires_new_assessment(monkeypatch):
     warning = collect(agent.watch('plan_test', FakeClient([observed]), interval_s=0, limit=1))[0]
     assert warning.requires_recheck and warning.pct_of_wll_limit is None
     assert 'reviewed basis' in warning.message
+
+
+def test_watch_does_not_treat_old_fallback_as_independently_reviewed(monkeypatch):
+    install_watch_state(monkeypatch, safety_review(intake_report_id='replacement-review'))
+    reviewed = env(0, gust=1).model_copy(update={'current_speed_kt':0.2})
+    monkeypatch.setitem(agent.REPORTS, 'replacement-review', SimpleNamespace(planning_conditions=[SimpleNamespace(environment=reviewed)]))
+    # This snapshot matches the original plan fallback, but that fallback was not in the independent review.
+    warning = collect(agent.watch('plan_test', FakeClient([env(0)]), interval_s=0, limit=1))[0]
+    assert warning.requires_recheck and warning.pct_of_wll_limit is None

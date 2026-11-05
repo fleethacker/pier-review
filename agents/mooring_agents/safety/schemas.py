@@ -17,6 +17,7 @@ from mooring.core.schemas import (
     SideTo,
     Status,
     TugPlanResult,
+    TugAssignment,
     Validity,
 )
 
@@ -170,8 +171,13 @@ class ApprovalCreate(Model):
 
 
 class SafetySheet(Model):
-    wire_omitted_defaults = {"validity": None}
+    wire_omitted_defaults = {"validity": None, "analysis_result_id": None,
+                            "threshold_result_ids": [], "holding_tugs": None}
     validity: Validity | None = None
+    analysis_result_id: str | None = None
+    threshold_result_ids: list[str] = Field(default_factory=list)
+    holding_tugs: list[TugAssignment] | None = Field(default=None,
+        description="Prescribed continuous assistance included in the line/holding assessment; null means not recorded in a legacy sheet.")
     sheet_id: str
     version: int
     plan_id: str

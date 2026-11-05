@@ -28,9 +28,10 @@ from .gfs_wave_artifact import load_artifact
 from .ndbc import M_TO_FT, STATIONS, NDBCStationAdapter
 
 SUPPORTED_BERTH_ID = "NAVSTA-NORFOLK-P12-N"
-APPROVED_GFS_GRID_CELL = "atlocn.0p16:36.96,-75.68"
-APPROVED_GFS_LATITUDE_DEG = 36.96
-APPROVED_GFS_LONGITUDE_DEG = -75.68
+# Nearest native 1/6-degree cell to NDBC 44099; the 2026-11-05 12Z FH003
+# HTSGW bitmap contains this cell. This is offshore evidence, not a permanent
+# wet-cell qualification or a berth transfer (docs/DATA_SOURCES.md).
+APPROVED_GFS_GRID_CELL = "atlocn.0p16:row109,col146"
 MAX_LIVE_OBSERVATION_AGE = timedelta(hours=3)
 MAX_GFS_ISSUE_AGE = timedelta(hours=18)
 MAX_COMPOSE_ELAPSED_S = 25.0
@@ -123,7 +124,8 @@ class WaveComposer:
             )
         else:
             forecast = self._forecast(request)
-            if self.monotonic() - started >= MAX_COMPOSE_ELAPSED_S:
+            elapsed = self.monotonic() - started
+            if elapsed >= MAX_COMPOSE_ELAPSED_S:
                 independent = _unavailable(
                     "independent_check",
                     station_id=request.independent_check_station_id,
@@ -135,6 +137,7 @@ class WaveComposer:
                     request.independent_check_station_id,
                     "independent_check",
                     False,
+                    max_elapsed_s=MAX_COMPOSE_ELAPSED_S - elapsed,
                 )
                 if self.monotonic() - started >= MAX_COMPOSE_ELAPSED_S:
                     independent = _unavailable(
@@ -184,13 +187,16 @@ class WaveComposer:
         bound = provisional.model_copy(update={"revision": manifest_revision(provisional)})
         return ComposedWaves(manifest=ComposedWaveManifest.model_validate(bound.model_dump(mode="json")))
 
-    def _observation(self, request, station_id: str, role: str, include_spectrum: bool) -> OffshoreWaveSeries:
+    def _observation(
+        self, request, station_id: str, role: str, include_spectrum: bool, *, max_elapsed_s: float = MAX_COMPOSE_ELAPSED_S
+    ) -> OffshoreWaveSeries:
         try:
             acquired = self.ndbc.acquire(
                 station_id,
                 as_of_utc=request.as_of_utc,
                 lookback_hours=request.observation_lookback_hours,
                 include_spectrum=include_spectrum,
+                max_elapsed_s=max_elapsed_s,
             )
             points = list(acquired.points)
             starts = [(point.sample_start_utc or point.valid_at_utc).astimezone(UTC) for point in points]
@@ -262,10 +268,8 @@ class WaveComposer:
             rows = artifact["rows"]
             row_times = [datetime.fromisoformat(row["valid_at_utc"].replace("Z", "+00:00")).astimezone(UTC) for row in rows]
             inside = [index for index, at in enumerate(row_times) if request.horizon_start_utc <= at <= request.horizon_end_utc]
-            if not inside:
-                raise ProviderError("no_data", "decoded artifact has no point in the requested forecast horizon")
-            first = max((index for index, at in enumerate(row_times) if at <= request.horizon_start_utc), default=inside[0])
-            last = min((index for index, at in enumerate(row_times) if at >= request.horizon_end_utc), default=inside[-1])
+            first = max((index for index, at in enumerate(row_times) if at <= request.horizon_start_utc), default=0)
+            last = min((index for index, at in enumerate(row_times) if at >= request.horizon_end_utc), default=len(rows) - 1)
             selected = list(zip(rows[first:last + 1], row_times[first:last + 1]))
             points = []
             for row, at in selected:
@@ -298,12 +302,10 @@ class WaveComposer:
                 and times[-1] >= request.horizon_end_utc
                 and all(b - a <= maximum_gap for a, b in zip(times, times[1:]))
             )
+            if not complete and not inside:
+                raise ProviderError("no_data", "decoded artifact neither brackets nor has a point in the requested forecast horizon")
             location = artifact["location"]
-            if (
-                location["grid_cell"] != APPROVED_GFS_GRID_CELL
-                or float(location["latitude_deg"]) != APPROVED_GFS_LATITUDE_DEG
-                or float(location["longitude_deg"]) != APPROVED_GFS_LONGITUDE_DEG
-            ):
+            if location["grid_cell"] != APPROVED_GFS_GRID_CELL:
                 raise ProviderError(
                     "unavailable",
                     f"decoded artifact is not the approved offshore target {APPROVED_GFS_GRID_CELL}",

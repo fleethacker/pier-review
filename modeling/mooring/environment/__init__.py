@@ -8,7 +8,7 @@ workflows and is labeled as such in their validity.
 """
 
 import os
-from datetime import UTC
+from datetime import UTC, datetime
 
 from . import mock as _mock
 from .mock import (  # noqa: F401
@@ -73,19 +73,20 @@ def _recorded_package(berth_id):
     return package
 
 
-def _recorded_at(berth_id, at, heading_true_deg=None):
+def _recorded_at(berth_id, at, heading_true_deg=None, *, checked_at=None):
     from .errors import ProviderError
     from .replay import Unavailable
     package = _recorded_package(berth_id)
-    snap = package.source.at(at, now=at)
+    snap = package.source.at(at, now=checked_at or at)
     if isinstance(snap, Unavailable):
         raise ProviderError("no_data", snap.reason)
     return with_relative(snap, heading_true_deg)
 
 
 def _recorded_latest(berth_id, heading_true_deg=None):
+    from mooring.core.envelopes import utcnow
     package = _recorded_package(berth_id)
-    return _recorded_at(berth_id, package.source.coverage[1], heading_true_deg)
+    return _recorded_at(berth_id, package.source.coverage[1], heading_true_deg, checked_at=utcnow())
 
 
 def live_snapshot(berth_id, heading_true_deg=None):
@@ -109,6 +110,13 @@ def _snapshot_availability(berth_id, snap, state, checked_at):
     for component in ("wind", "current", "water_level"):
         meta = component_meta.get(component)
         valid_at = (meta.valid_to_utc if meta and meta.valid_to_utc else snap.valid_at_utc).astimezone(UTC)
+        observed = (snap.metadata.original or {}).get({
+            "wind": "wind_t", "current": "current_t", "water_level": "level_t",
+        }[component]) if snap.metadata else None
+        if observed:
+            # Availability describes the observation itself, not the wider
+            # replay alignment/interpolation interval used for its values.
+            valid_at = datetime.strptime(observed, "%Y-%m-%d %H:%M").replace(tzinfo=UTC)
         rows.append(EnvironmentComponentAvailability(
             component=component,
             state=state,
@@ -118,8 +126,8 @@ def _snapshot_availability(berth_id, snap, state, checked_at):
             age_basis="valid_time",
             issued_at_utc=meta.issued_at_utc if meta else None,
             retrieved_at_utc=meta.retrieved_at_utc if meta else None,
-            valid_from_utc=meta.valid_from_utc if meta else snap.valid_at_utc,
-            valid_to_utc=meta.valid_to_utc if meta else snap.valid_at_utc,
+            valid_from_utc=valid_at if observed else (meta.valid_from_utc if meta else snap.valid_at_utc),
+            valid_to_utc=valid_at if observed else (meta.valid_to_utc if meta else snap.valid_at_utc),
             quality=meta.quality if meta else (snap.metadata.quality if snap.metadata else "unknown"),
             limitations=list(meta.limitations) if meta else [],
             station_id=station_by_component[component],
@@ -166,6 +174,11 @@ def availability(berth_id):
         f"{item.component}: {item.reason}" for item in live_status.components
         if item.component in {"wind", "current", "water_level"} and item.state == "unavailable"
     )
+    if not live_reasons:
+        live_reasons = "; ".join(dict.fromkeys(
+            note for item in live_status.components for note in item.limitations
+            if note.startswith("Complete snapshot unavailable:")
+        ))
     rows = [
         item.model_copy(update={"limitations": [*item.limitations, f"auto fallback from live ({live_reasons})"]})
         if item.component in {"wind", "current", "water_level"} else item

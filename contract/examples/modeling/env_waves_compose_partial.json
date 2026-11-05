@@ -1,7 +1,7 @@
 {
   "manifest": {
     "schema_version": "composed-waves-v1",
-    "revision": "sha256:032d561a0074c7f3189e78c06440747eabd3c2da9920f818ed9a987d85f2ebcf",
+    "revision": "sha256:2f3f47dd14cb1fdbbfe77cee4d61cfeec0b86677d07af48a2208b5a39e258c35",
     "request": {
       "berth_id": "NAVSTA-NORFOLK-P12-N",
       "as_of_utc": "2026-11-05T16:30:00Z",
@@ -61,7 +61,7 @@
         "applicability": "offshore_boundary_only",
         "load_ready": false,
         "representation_policy": "choose_total_or_partitions_or_spectrum",
-        "content_sha256": "ae2be272f8f8b76767fb8789b684f6ead6251aa23149a6d8d08c7a538a66105e",
+        "content_sha256": "5cfefc719b17a0a587eaede0fb4e4f6d78c256a5c5fd09d41836069bd98f7c89",
         "points": [
           {
             "valid_at_utc": "2026-11-05T15:56:00Z",
@@ -75,7 +75,7 @@
               "period_s": 5.8,
               "period_basis": "average",
               "direction_from_true_deg": 121.0,
-              "direction_basis": "mean"
+              "direction_basis": "dominant"
             },
             "partitions": [
               {

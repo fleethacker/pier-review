@@ -32,7 +32,8 @@ def main() -> int:
     parser.add_argument("--total-timeout-s", type=float, default=30.0)
     parser.add_argument("--retries", type=int, default=0)
     parser.add_argument("--max-artifact-bytes", type=int, default=1_000_000)
-    parser.add_argument("--max-memory-mb", type=int, default=2048)
+    parser.add_argument("--max-memory-mb", type=int, default=2048,
+                        help="Worker memory cap: kernel address space on Linux; supervised/peak RSS on macOS")
     args = parser.parse_args()
     artifact = acquire_artifact(
         args.output,

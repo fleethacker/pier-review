@@ -10,8 +10,9 @@ request headers, bulk history, or restricted data. The recorder requires an
 explicit `MOORING_FIXTURE_RECORD=1` opt-in and is never run by CI.
 
 `replay_sample.json` is a synthetic recorded-format training fixture, not a NOAA observation archive. The bundled
-replay service reports `metadata.basis=scenario` and an explicit synthetic source label. Provider-shaped unit-test
-fixtures likewise establish parser behavior, not observation provenance or operational qualification.
+replay service reports `metadata.basis=scenario` and an explicit synthetic source label. Synthetic provider-shaped
+unit-test fixtures likewise establish parser behavior, not observation provenance or operational qualification.
+The CO-OPS files used by the recorded-real package below are actual recorded responses, distinct from those synthetic fixtures.
 
 `env_availability_partial.json` is the deterministic D1 contract example. It contains status and provenance only,
 not environmental measurements. The missing current is unavailable rather than represented by a numeric zero.

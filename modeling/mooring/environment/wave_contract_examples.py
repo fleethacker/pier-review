@@ -56,7 +56,7 @@ def _observation_series() -> dict:
                 "period_s": 5.8,
                 "period_basis": "average",
                 "direction_from_true_deg": 121.0,
-                "direction_basis": "mean",
+                "direction_basis": "dominant",
             },
             "partitions": [
                 {

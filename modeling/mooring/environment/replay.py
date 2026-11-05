@@ -77,6 +77,36 @@ def circular_lerp_deg(a: float, b: float, w: float) -> float:
     return round((a + w * d) % 360.0, 9) % 360.0
 
 
+def _component_provenance(lo: Record, hi: Record) -> list[EnvironmentComponentProvenance] | Unavailable:
+    lower = [EnvironmentComponentProvenance.model_validate(item) for item in (lo.components or [])]
+    if lo.t == hi.t:
+        return lower
+    upper = {item.component: item for item in (
+        EnvironmentComponentProvenance.model_validate(raw) for raw in (hi.components or [])
+    )}
+    out = []
+    for item in lower:
+        other = upper.get(item.component)
+        endpoints_valid = other is not None and all(
+            (meta.valid_from_utc is None or meta.valid_from_utc <= at)
+            and (meta.valid_to_utc is None or at <= meta.valid_to_utc)
+            for meta, at in ((item, lo.t), (other, hi.t))
+        )
+        if not endpoints_valid or (item.source, item.basis) != (other.source, other.basis):
+            # Never repair invalid input metadata by enlarging its interval.
+            return Unavailable(f"{item.component} replay interpolation requires matching sources and valid endpoint intervals")
+        note = (f"Interpolated between aligned replay values at {lo.t.isoformat()} and {hi.t.isoformat()}; "
+                "speeds/level are linear and directions circular. Both endpoint observations are retained in metadata.original; "
+                "this interval describes replay interpolation, not provider-declared observation validity.")
+        out.append(item.model_copy(update={
+            "valid_from_utc": lo.t,
+            "valid_to_utc": hi.t,
+            "quality": min((item.quality, other.quality), key=QUALITY_RANK.__getitem__),
+            "limitations": list(dict.fromkeys([*item.limitations, *other.limitations, note])),
+        }))
+    return out
+
+
 class ReplaySource:
     def __init__(self, raw: list[dict], *, max_gap_s: float = 1800.0, stale_after_s: float = 3600.0, datum_offset_ft: dict[str, float] | None = None,
                  station: str = "replay", source_kind: str = "replay", basis: str = "observation"):
@@ -152,7 +182,17 @@ class ReplaySource:
             rec_meta, age = lo, (clock - lo.t).total_seconds()
         worst = min((lo, hi), key=lambda r: QUALITY_RANK[r.quality]).quality
         # Record time establishes observation/validity time, not an independent provider issue time.
-        components = [EnvironmentComponentProvenance.model_validate(item) for item in (rec_meta.components or [])]
+        components = _component_provenance(lo, hi)
+        if isinstance(components, Unavailable):
+            return components
+        original = rec_meta.original
+        if lo.t != hi.t and components:
+            original = {
+                **(lo.original or {}),
+                **{f"interpolation_upper_{key}": value for key, value in (hi.original or {}).items()},
+                "interpolation_lower_time_utc": lo.t.isoformat(),
+                "interpolation_upper_time_utc": hi.t.isoformat(),
+            }
         return EnvironmentSnapshot(
             valid_at_utc=t, source=self.source_kind, wind_speed_kt=v["wind_speed_kt"], wind_gust_kt=max(v["wind_gust_kt"], v["wind_speed_kt"]),
             wind_from_true_deg=v["wind_from_true_deg"] % 360, current_speed_kt=v["current_speed_kt"], current_set_true_deg=v["current_set_true_deg"] % 360,
@@ -162,7 +202,7 @@ class ReplaySource:
                                          wind_averaging_s=rec_meta.wind_averaging_s, gust_duration_s=rec_meta.gust_duration_s,
                                          wind_reference_height_m=rec_meta.wind_reference_height_m, vertical_datum="MLLW", quality=worst, age_s=max(age, 0.0),
                                          current_depth_ft=rec_meta.current_depth_ft, current_bin=rec_meta.current_bin,
-                                         original=rec_meta.original))
+                                         original=original))
 
     def series(self, start: datetime, end: datetime, step: timedelta, *, now: datetime | None = None):
         """(time, snapshot | Unavailable) on a regular grid. Unavailable entries stay in place: gaps are never filled."""

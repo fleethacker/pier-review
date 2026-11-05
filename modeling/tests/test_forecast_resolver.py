@@ -180,7 +180,7 @@ def test_invalid_bindings_are_rejected(options, match):
 
 
 @pytest.mark.parametrize('case,match', [
-    ('empty', 'between 2 and 721'), ('one', 'between 2 and 721'),
+    ('empty', 'between 2 and 1201'), ('one', 'between 2 and 1201'),
     ('duplicate', 'increasing'), ('reversed', 'increasing'),
     ('naive', 'timezone-aware'), ('nan', 'Invalid forecast snapshot'),
 ])

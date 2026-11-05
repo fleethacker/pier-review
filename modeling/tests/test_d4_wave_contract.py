@@ -40,7 +40,7 @@ def _gfs_series(*, times: list[str], coverage: str = "complete", issued: str | N
         "retrieved_at_utc": "2026-11-05T12:45:00Z",
         "valid_from_utc": times[0],
         "valid_to_utc": times[-1],
-        "grid_cell": "atlocn.0p16:36.96,-76.32",
+        "grid_cell": "atlocn.0p16:row109,col146",
         "limitations": ["Offshore model grid guidance; no berth transfer is established."],
     })
     points = [OffshoreWavePoint.model_validate({
@@ -61,7 +61,7 @@ def _gfs_series(*, times: list[str], coverage: str = "complete", issued: str | N
         availability=availability,
         product_ids=["gfswave.t12z.atlocn.0p16"],
         location=WaveSourceLocation(
-            latitude_deg=36.96, longitude_deg=-76.32, grid_cell="atlocn.0p16:36.96,-76.32"
+            latitude_deg=55 - 109 / 6, longitude_deg=260 + 146 / 6 - 360, grid_cell="atlocn.0p16:row109,col146"
         ),
         content_sha256="0" * 64,
         points=points,

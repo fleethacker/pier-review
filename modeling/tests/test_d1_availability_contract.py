@@ -34,7 +34,7 @@ def test_availability_requires_all_five_unique_rows_and_consistent_complete_flag
         EnvironmentAvailability.model_validate(raw)
     raw = json.loads(FIXTURE.read_text())
     raw["complete_snapshot_available"] = True
-    with pytest.raises(ValidationError, match="must match"):
+    with pytest.raises(ValidationError, match="requires wind/current/water-level"):
         EnvironmentAvailability.model_validate(raw)
 
 

@@ -111,7 +111,9 @@ def parse_summary(text: str) -> list[OffshoreWavePoint]:
                 period_s=average_period,
                 period_basis="average" if average_period is not None else "unknown",
                 direction_from_true_deg=mean_direction,
-                direction_basis="mean" if mean_direction is not None else "unknown",
+                # NOAA detailed-wave-summary MWD is the direction at the dominant
+                # period, not an all-frequency mean: ndbc.noaa.gov/faq/measdes.shtml#spec.
+                direction_basis="dominant" if mean_direction is not None else "unknown",
             )
         partitions = []
         for component, height, period, direction in (
@@ -299,11 +301,22 @@ class NDBCRealtime:
         )
         self.max_product_bytes = max_product_bytes
 
-    def fetch(self, station_id: str, product: str) -> FetchedProduct:
+    def fetch(
+        self,
+        station_id: str,
+        product: str,
+        *,
+        deadline_monotonic: float | None = None,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> FetchedProduct:
         if station_id not in STATIONS or product not in {"spec", *SPECTRAL_PRODUCTS}:
             raise ProviderError("invalid_request", "unsupported NDBC station or wave product")
         url = f"{BASE_URL}/{station_id}.{product}"
-        payload = self.client.get(url)
+        budget = {} if deadline_monotonic is None else {
+            "deadline_monotonic": deadline_monotonic,
+            "monotonic": monotonic,
+        }
+        payload = self.client.get(url, **budget)
         if payload.status_code == 404:
             raise ProviderError("no_data", f"NDBC {station_id}.{product} is unavailable")
         if not 200 <= payload.status_code < 300:
@@ -319,7 +332,10 @@ class NDBCRealtime:
             text = payload.content.decode("utf-8")
         except UnicodeDecodeError:
             raise ProviderError("malformed", f"NDBC {station_id}.{product} is not UTF-8 text") from None
-        retrieved = self.client.clock.now().astimezone(UTC) - timedelta(seconds=max(payload.age_s, 0.0))
+        retrieved = getattr(payload, "retrieved_at_utc", None)
+        if retrieved is None:
+            raise ProviderError("malformed", f"NDBC {station_id}.{product} has no recorded retrieval time")
+        retrieved = retrieved.astimezone(UTC)
         return FetchedProduct(text=text, retrieved_at_utc=retrieved, source_url=url)
 
 
@@ -352,13 +368,19 @@ class NDBCStationAdapter:
         as_of_utc: datetime,
         lookback_hours: int,
         include_spectrum: bool,
+        max_elapsed_s: float | None = None,
     ) -> ObservationAcquisition:
         started = self.monotonic()
+        budget = self.total_timeout_s if max_elapsed_s is None else min(self.total_timeout_s, max_elapsed_s)
+        if not math.isfinite(budget) or budget <= 0:
+            raise ProviderError("unavailable", "NDBC station acquisition has no remaining time budget")
+        deadline = started + budget
 
         def deadline_exceeded() -> bool:
-            return self.monotonic() - started >= self.total_timeout_s
+            return self.monotonic() >= deadline
 
-        summary = self.realtime.fetch(station_id, "spec")
+        fetch_budget = {"deadline_monotonic": deadline, "monotonic": self.monotonic}
+        summary = self.realtime.fetch(station_id, "spec", **fetch_budget)
         if deadline_exceeded():
             raise ProviderError("unavailable", "NDBC station acquisition exceeded its total deadline")
         cutoff = as_of_utc.astimezone(UTC)
@@ -379,7 +401,7 @@ class NDBCStationAdapter:
                     limitations.append("Remaining NDBC spectra omitted: station acquisition total deadline reached.")
                     break
                 try:
-                    item = self.realtime.fetch(station_id, product)
+                    item = self.realtime.fetch(station_id, product, **fetch_budget)
                     if deadline_exceeded():
                         raise ProviderError("unavailable", "station acquisition total deadline reached")
                     if item.retrieved_at_utc.astimezone(UTC) > cutoff:

@@ -12,6 +12,9 @@ import math
 import multiprocessing
 import os
 import queue
+import subprocess
+import sys
+import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -116,21 +119,81 @@ def decode_artifact(
     return payload
 
 
-def _worker(result_queue, kwargs, max_memory_mb):
+def _memory_limit(max_memory_mb: int) -> None:
+    """Use a kernel address-space cap, or checked peak RSS on macOS.
+
+    macOS aliases RLIMIT_AS to the unsupported RLIMIT_RSS. Its worker is
+    additionally supervised by the parent, which terminates it on RSS excess.
+    The peak check catches allocations between parent polls before publication.
+    """
     try:
-        if max_memory_mb:
-            try:
-                import resource
-            except ImportError as exc:
-                raise RuntimeError("this platform cannot enforce the configured CBOFS memory limit") from exc
-            limit = int(max_memory_mb * 1024 * 1024)
-            hard = resource.getrlimit(resource.RLIMIT_AS)[1]
-            bounded = min(hard, limit) if hard > 0 else limit
-            resource.setrlimit(resource.RLIMIT_AS, (bounded, bounded))
+        import resource
+    except ImportError as exc:
+        raise RuntimeError("this platform cannot enforce the configured CBOFS memory limit") from exc
+    limit = max_memory_mb * 1024 * 1024
+    if sys.platform == "darwin":
+        if resource.getrusage(resource.RUSAGE_SELF).ru_maxrss > limit:
+            raise ProviderError("unavailable", "CBOFS worker exceeded its resident-memory limit")
+    else:
+        hard = resource.getrlimit(resource.RLIMIT_AS)[1]
+        bounded = min(hard, limit) if hard > 0 else limit
+        resource.setrlimit(resource.RLIMIT_AS, (bounded, bounded))
+
+
+def _check_resident_memory(process, max_memory_mb: int, remaining: float) -> None:
+    if sys.platform != "darwin":
+        return
+    try:
+        result = subprocess.run(
+            ["/bin/ps", "-o", "rss=", "-p", str(process.pid)],
+            capture_output=True, text=True, timeout=min(remaining, 0.5), check=False,
+        )
+        if result.returncode or not result.stdout.strip():
+            if not process.is_alive():
+                return
+            raise ValueError("worker RSS is unavailable")
+        if int(result.stdout.strip()) * 1024 > max_memory_mb * 1024 * 1024:
+            raise ProviderError("unavailable", "CBOFS worker exceeded its resident-memory limit")
+    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        raise ProviderError("unavailable", f"CBOFS worker memory supervision failed: {exc}") from None
+
+
+def _write_bounded_artifact(path: Path, payload: dict, max_artifact_bytes: int) -> None:
+    size = 1  # final newline
+    with path.open("wb") as stream:
+        for part in json.JSONEncoder(sort_keys=True, separators=(",", ":")).iterencode(payload):
+            encoded = part.encode()
+            size += len(encoded)
+            if size > max_artifact_bytes:
+                raise ProviderError("unavailable", f"decoded CBOFS artifact exceeds {max_artifact_bytes} bytes")
+            stream.write(encoded)
+        stream.write(b"\n")
+
+
+def _worker(result_queue, kwargs, max_memory_mb, artifact_path, max_artifact_bytes):
+    try:
+        _memory_limit(max_memory_mb)
         payload = decode_artifact(**kwargs)
-        result_queue.put(("ok", json.dumps(payload, sort_keys=True, separators=(",", ":"))))
+        _write_bounded_artifact(artifact_path, payload, max_artifact_bytes)
+        _memory_limit(max_memory_mb)
+        # Only a small status crosses the pipe; decoded data stays in the bounded file.
+        result_queue.put(("ok", ""))
     except Exception as exc:  # child reports a bounded message; parent owns policy
         result_queue.put(("error", f"{type(exc).__name__}: {exc}"[:2000]))
+
+
+def _close_worker(process, result_queue) -> None:
+    if process.pid is not None:
+        if process.is_alive():
+            process.terminate()
+        process.join(0.5)
+        if process.is_alive():
+            process.kill()
+            process.join(0.5)
+        if not process.is_alive():
+            process.close()
+    result_queue.close()
+    result_queue.join_thread()
 
 
 def acquire_artifact(
@@ -149,9 +212,16 @@ def acquire_artifact(
     max_artifact_bytes: int = 1_000_000,
     max_memory_mb: int = 2048,
 ) -> dict:
-    """Spawn bounded attempts and atomically publish one decoded cache artifact."""
+    """Spawn bounded attempts and atomically publish one decoded cache artifact.
+
+    Linux uses an address-space limit. macOS uses supervised resident memory,
+    sampled at most every 50 ms plus bounded process-inspection time, and checks
+    worker peak RSS before publishing. Allocations can overshoot between samples.
+    Deadline cleanup may take one extra second.
+    """
     if (not math.isfinite(total_timeout_s) or total_timeout_s <= 0 or type(retries) is not int or retries < 0
-            or max_artifact_bytes <= 0 or max_memory_mb <= 0):
+            or type(max_artifact_bytes) is not int or max_artifact_bytes <= 0
+            or type(max_memory_mb) is not int or max_memory_mb <= 0):
         raise ValueError("CBOFS acquisition bounds must be positive and retries a non-negative integer")
     kwargs = dict(
         source=source,
@@ -166,41 +236,54 @@ def acquire_artifact(
     deadline = time.monotonic() + total_timeout_s
     last_error = "no acquisition attempt"
     context = multiprocessing.get_context("spawn")
-    for _ in range(retries + 1):
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            break
-        result_queue = context.Queue(maxsize=1)
-        process = context.Process(target=_worker, args=(result_queue, kwargs, max_memory_mb), daemon=True)
-        process.start()
-        process.join(remaining)
-        if process.is_alive():
-            process.terminate()
-            process.join(2)
-            last_error = "total acquisition deadline exceeded"
-            break
-        try:
-            state, message = result_queue.get(timeout=min(1.0, max(deadline - time.monotonic(), 0.01)))
-        except queue.Empty:
-            last_error = f"worker exited {process.exitcode} without a result"
-            continue
-        if state != "ok":
-            last_error = message
-            continue
-        encoded = (message + "\n").encode()
-        if len(encoded) > max_artifact_bytes:
-            raise ProviderError("unavailable", f"decoded CBOFS artifact exceeds {max_artifact_bytes} bytes")
-        output.parent.mkdir(parents=True, exist_ok=True)
-        temporary = output.with_name(f".{output.name}.{os.getpid()}.tmp")
-        temporary.write_bytes(encoded)
-        os.replace(temporary, output)
-        return load_artifact(output, max_artifact_bytes=max_artifact_bytes)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f".{output.name}.", dir=output.parent) as temporary_dir:
+        temporary = Path(temporary_dir) / "decoded.json"
+        for _ in range(retries + 1):
+            if time.monotonic() >= deadline:
+                break
+            result_queue = context.Queue(maxsize=1)
+            process = context.Process(
+                target=_worker,
+                args=(result_queue, kwargs, max_memory_mb, temporary, max_artifact_bytes),
+                daemon=True,
+            )
+            try:
+                process.start()
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise ProviderError("unavailable", "CBOFS total acquisition deadline exceeded")
+                    _check_resident_memory(process, max_memory_mb, remaining)
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise ProviderError("unavailable", "CBOFS total acquisition deadline exceeded")
+                    try:
+                        # Drain before joining: Queue producers wait for their feeder to flush on exit.
+                        state, message = result_queue.get(timeout=min(0.05, remaining))
+                        break
+                    except queue.Empty:
+                        if not process.is_alive():
+                            raise ProviderError("unavailable", f"CBOFS worker exited {process.exitcode} without a result")
+                if state != "ok":
+                    last_error = message
+                    continue
+                payload = load_artifact(temporary, max_artifact_bytes=max_artifact_bytes)
+                if time.monotonic() >= deadline:
+                    raise ProviderError("unavailable", "CBOFS total acquisition deadline exceeded")
+                os.replace(temporary, output)
+                return payload
+            except ProviderError as exc:
+                last_error = str(exc)
+            finally:
+                _close_worker(process, result_queue)
     raise ProviderError("unavailable", f"CBOFS acquisition failed: {last_error}")
 
 
 def load_artifact(path: Path, *, max_artifact_bytes: int = 1_000_000) -> dict:
     try:
-        data = path.read_bytes()
+        with path.open("rb") as stream:
+            data = stream.read(max_artifact_bytes + 1)
     except OSError as exc:
         raise ProviderError("unavailable", f"CBOFS decoded artifact is unreadable: {exc}") from None
     if len(data) > max_artifact_bytes:

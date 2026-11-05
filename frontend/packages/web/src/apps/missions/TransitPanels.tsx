@@ -2,25 +2,39 @@ import { cn } from '../../lib/cn';
 import { Button, Field, Select, inputClass } from '../../shell/ui';
 import { useController, useMissions } from './context';
 import { fmtSimTime, num } from './fmt';
-import { ErrorLine, FollowToggle, Heading, Notice, ValidityBadge, ValidityReasons, chipBtn } from './parts';
+import {
+  ErrorLine,
+  FollowToggle,
+  Heading,
+  Notice,
+  ValidityBadge,
+  ValidityReasons,
+  chipBtn,
+} from './parts';
 import { SPEEDS, endTime } from './playback';
 import { VESSEL_COLORS } from './scene';
+import { CameraToggle } from './CameraPanels';
 import type { TransitEvent, VesselTransit } from './types';
 
-export const TRANSIT_DISCLAIMER = 'Surrogate maneuvering model; propulsion assumed; not navigational advice.';
+export const TRANSIT_DISCLAIMER =
+  'Surrogate maneuvering model; propulsion assumed; not navigational advice.';
 
 /** Always-visible limits of the transit model: the disclaimer, the envelope's validity reasons and assumptions. */
 export function TransitNotice() {
   const res = useMissions((s) => s.response);
   const sample = useMissions((s) => s.sampleTransit);
   return (
-    <section aria-label="Model limits" className="rounded-sm border border-mil-amber/60 bg-mil-amber/10 p-2 text-[11px] text-mil-amber">
+    <section
+      aria-label="Model limits"
+      className="rounded-sm border border-mil-amber/60 bg-mil-amber/10 p-2 text-[11px] text-mil-amber"
+    >
       <p className="font-medium uppercase tracking-wider">{TRANSIT_DISCLAIMER}</p>
       {sample && <p className="mt-1">MOCK sample run: a fixture, not a simulation.</p>}
       {res ? (
         <>
           <p className="mt-1">
-            Validity <ValidityBadge validity={res.validity} /> (status {res.status}, backend {res.backend})
+            Validity <ValidityBadge validity={res.validity} /> (status {res.status}, backend{' '}
+            {res.backend})
           </p>
           <ValidityReasons validity={res.validity} />
           {(res.assumptions ?? []).length > 0 && (
@@ -35,7 +49,9 @@ export function TransitNotice() {
           )}
         </>
       ) : (
-        <p className="mt-1 text-mil-text">Run a simulation to see its validity reasons and assumptions.</p>
+        <p className="mt-1 text-mil-text">
+          Run a simulation to see its validity reasons and assumptions.
+        </p>
       )}
     </section>
   );
@@ -52,7 +68,10 @@ function VesselForm({ idx, v }: { idx: number; v: VesselTransit }) {
         <Select
           value={v.mode ?? 'own_thrust'}
           onChange={(m) => c.editVessel(idx, { mode: m as VesselTransit['mode'] })}
-          options={[{ value: 'own_thrust', label: 'Own thrust' }, { value: 'tug_assisted', label: 'Tug assisted' }]}
+          options={[
+            { value: 'own_thrust', label: 'Own thrust' },
+            { value: 'tug_assisted', label: 'Tug assisted' },
+          ]}
         />
       </Field>
       <Field label="Max speed, calm water (kt; blank = class default)">
@@ -64,7 +83,14 @@ function VesselForm({ idx, v }: { idx: number; v: VesselTransit }) {
           onBlur={(e) => {
             const t = e.target.value.trim();
             const n = Number(t);
-            c.editVessel(idx, { maxSpeedKt: t === '' ? null : Number.isFinite(n) && n > 0 && n <= 40 ? n : (v.propulsion?.max_speed_kt ?? null) });
+            c.editVessel(idx, {
+              maxSpeedKt:
+                t === ''
+                  ? null
+                  : Number.isFinite(n) && n > 0 && n <= 40
+                    ? n
+                    : (v.propulsion?.max_speed_kt ?? null),
+            });
           }}
         />
       </Field>
@@ -81,7 +107,8 @@ function VesselForm({ idx, v }: { idx: number; v: VesselTransit }) {
                 key={`${v.vessel_id}-${j}-${w.speed_kt}`}
                 onBlur={(e) => {
                   const n = Number(e.target.value);
-                  if (Number.isFinite(n) && n >= 0 && n <= 35) c.editVessel(idx, { routeSpeed: { wp: j, kt: n } });
+                  if (Number.isFinite(n) && n >= 0 && n <= 35)
+                    c.editVessel(idx, { routeSpeed: { wp: j, kt: n } });
                 }}
               />
             </label>
@@ -109,24 +136,48 @@ export function TransitSidebar() {
     <div className="space-y-3">
       <TransitNotice />
       <Field label="Preset">
-        <Select value={presetId ?? ''} onChange={(id) => c.selectPreset(id)} options={presets.map((p) => ({ value: p.preset_id, label: p.title }))} />
+        <Select
+          value={presetId ?? ''}
+          onChange={(id) => c.selectPreset(id)}
+          options={presets.map((p) => ({ value: p.preset_id, label: p.title }))}
+        />
       </Field>
-      {presets.find((p) => p.preset_id === presetId)?.description && <p className="text-[11px] text-mil-dim">{presets.find((p) => p.preset_id === presetId)?.description}</p>}
-      {request?.vessels.map((v, i) => <VesselForm key={v.vessel_id} idx={i} v={v} />)}
+      {presets.find((p) => p.preset_id === presetId)?.description && (
+        <p className="text-[11px] text-mil-dim">
+          {presets.find((p) => p.preset_id === presetId)?.description}
+        </p>
+      )}
+      {request?.vessels.map((v, i) => (
+        <VesselForm key={v.vessel_id} idx={i} v={v} />
+      ))}
       <details>
         <summary className="mil-label cursor-pointer">Request JSON</summary>
-        <textarea aria-label="Transit request JSON" className={cn(inputClass, 'mt-1 h-48 font-mono')} spellCheck={false} value={text} onChange={(e) => c.setRequestText(e.target.value)} />
+        <textarea
+          aria-label="Transit request JSON"
+          className={cn(inputClass, 'mt-1 h-48 font-mono')}
+          spellCheck={false}
+          value={text}
+          onChange={(e) => c.setRequestText(e.target.value)}
+        />
         {reqErr && <p className="text-[11px] text-mil-red">{reqErr}</p>}
       </details>
       <div className="flex items-center gap-2">
         <Button size="sm" onClick={() => void c.run()} disabled={!request || !!reqErr || running}>
           {running ? 'Running...' : 'Run'}
         </Button>
-        <Button size="sm" variant="secondary" onClick={() => void c.saveAsMission()} disabled={!response || !!busy} title="Create a mission per vessel from the simulated track">
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => void c.saveAsMission()}
+          disabled={!response || !!busy}
+          title="Create a mission per vessel from the simulated track"
+        >
           Save as mission
         </Button>
       </div>
-      {running && <progress aria-label="Simulation progress" className="w-full" max={1} value={progress} />}
+      {running && (
+        <progress aria-label="Simulation progress" className="w-full" max={1} value={progress} />
+      )}
       <ErrorLine text={err} />
       <Notice text={note} />
     </div>
@@ -137,9 +188,16 @@ export function TransitSide() {
   return (
     <section aria-label="Map key" className="space-y-1 text-[11px] text-mil-text">
       <Heading>Key</Heading>
-      <p>Hull outline follows the ship heading; scaled to ship length when the ship class is known, otherwise a fixed glyph labeled "not to scale".</p>
-      <p>Thin trail: recent path (last 300 points). Orange arrow: tug force at its hull contact point, length proportional to force.</p>
+      <p>
+        Hull outline follows the ship heading; scaled to ship length when the ship class is known,
+        otherwise a fixed glyph labeled "not to scale".
+      </p>
+      <p>
+        Thin trail: recent path (last 300 points). Orange arrow: tug force at its hull contact
+        point, length proportional to force.
+      </p>
       <p>Tug hull positions are not modeled; the arrow shows force only.</p>
+      <CameraToggle />
       <FollowToggle label="Keep the vessels centered (the map shows about 8 km at a time)" />
     </section>
   );
@@ -159,11 +217,16 @@ export function PlaybackControls() {
   const c = useController();
   const clock = useMissions((s) => s.clock);
   const series = useMissions((s) => s.series);
-  if (!series) return <p className="p-3 text-[11px] text-mil-dim">Run a simulation to play it back.</p>;
+  if (!series)
+    return <p className="p-3 text-[11px] text-mil-dim">Run a simulation to play it back.</p>;
   const end = endTime(series.frames);
   return (
     <div className="flex flex-wrap items-center gap-3 px-3 py-2">
-      <Button size="sm" onClick={() => (clock.playing ? c.pause() : c.play())} aria-label={clock.playing ? 'Pause' : 'Play'}>
+      <Button
+        size="sm"
+        onClick={() => (clock.playing ? c.pause() : c.play())}
+        aria-label={clock.playing ? 'Pause' : 'Play'}
+      >
         {clock.playing ? 'Pause' : 'Play'}
       </Button>
       <input
@@ -182,7 +245,12 @@ export function PlaybackControls() {
       </span>
       <div role="group" aria-label="Playback speed" className="flex">
         {SPEEDS.map((s) => (
-          <button key={s} aria-pressed={clock.speed === s} className={chipBtn(clock.speed === s)} onClick={() => c.setSpeed(s)}>
+          <button
+            key={s}
+            aria-pressed={clock.speed === s}
+            className={chipBtn(clock.speed === s)}
+            onClick={() => c.setSpeed(s)}
+          >
             {s}x
           </button>
         ))}
@@ -196,7 +264,18 @@ export function VesselTable() {
   const vessels = useMissions((s) => s.vessels);
   const selected = useMissions((s) => s.selectedVesselId);
   if (!vessels.length) return null;
-  const head = ['Vessel', 'SOG kt', 'STW kt', 'HDG T', 'Rudder', 'Engine', 'Thrust lbf', 'XTE ft', 'To go nm', 'Status'];
+  const head = [
+    'Vessel',
+    'SOG kt',
+    'STW kt',
+    'HDG T',
+    'Rudder',
+    'Engine',
+    'Thrust lbf',
+    'XTE ft',
+    'To go nm',
+    'Status',
+  ];
   return (
     <table aria-label="Vessels" className="w-full text-left text-[11px]">
       <thead className="text-mil-dim">
@@ -210,7 +289,12 @@ export function VesselTable() {
       </thead>
       <tbody>
         {vessels.map((v, i) => (
-          <tr key={v.vessel_id} aria-selected={v.vessel_id === selected} className={cn('cursor-pointer', v.vessel_id === selected && 'bg-mil-cyan/10')} onClick={() => c.selectVessel(v.vessel_id)}>
+          <tr
+            key={v.vessel_id}
+            aria-selected={v.vessel_id === selected}
+            className={cn('cursor-pointer', v.vessel_id === selected && 'bg-mil-cyan/10')}
+            onClick={() => c.selectVessel(v.vessel_id)}
+          >
             <th scope="row" className="px-2 py-0.5 font-normal text-white">
               <span aria-hidden style={{ color: VESSEL_COLORS[i % VESSEL_COLORS.length] }}>
                 {'■'}{' '}
@@ -225,9 +309,15 @@ export function VesselTable() {
             <td className="px-2">{num(v.thrust_lbf, 0)}</td>
             <td className="px-2">{num(v.cross_track_ft, 0)}</td>
             <td className="px-2">{num(v.distance_to_go_nm, 2)}</td>
-            <td className={cn('px-2', v.status !== 'underway' && v.status !== 'arrived' && 'text-mil-amber')}>
+            <td
+              className={cn(
+                'px-2',
+                v.status !== 'underway' && v.status !== 'arrived' && 'text-mil-amber',
+              )}
+            >
               {v.status}
-              {(v.tugs ?? []).length > 0 && ` (${v.tugs?.length} tug${v.tugs?.length === 1 ? '' : 's'})`}
+              {(v.tugs ?? []).length > 0 &&
+                ` (${v.tugs?.length} tug${v.tugs?.length === 1 ? '' : 's'})`}
             </td>
           </tr>
         ))}
@@ -245,7 +335,15 @@ export function TransitEvents() {
     <ul aria-label="Transit events" className="text-[11px]">
       {res.result.events.map((e, i) => (
         <li key={i}>
-          <button onClick={() => c.seekEvent(e.t_s)} aria-current={e.t_s <= clock.t ? 'true' : undefined} className={cn('flex w-full gap-2 px-2 py-0.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-mil-cyan/60', e.t_s <= clock.t ? 'text-white' : 'text-mil-dim', e.kind.endsWith('saturated') && 'text-mil-amber')}>
+          <button
+            onClick={() => c.seekEvent(e.t_s)}
+            aria-current={e.t_s <= clock.t ? 'true' : undefined}
+            className={cn(
+              'flex w-full gap-2 px-2 py-0.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-mil-cyan/60',
+              e.t_s <= clock.t ? 'text-white' : 'text-mil-dim',
+              e.kind.endsWith('saturated') && 'text-mil-amber',
+            )}
+          >
             <span className="w-12 shrink-0">{fmtSimTime(e.t_s)}</span>
             <span className="w-28 shrink-0">{e.vessel_id}</span>
             <span className="w-32 shrink-0">{KIND_TEXT[e.kind]}</span>

@@ -1,5 +1,48 @@
 # Advance docking planning
 
+## Canonical forecast binding (P1)
+
+`POST /api/v1/mooring/forecast/resolve` accepts a `ForecastResolveRequest`: `berth_id`,
+`as_of_utc`, `from_utc`, `to_utc`, and exactly one supplied `forecast` or
+`forecast_binding={"source":"scenario","env_scenario_id":"..."}`. The generated
+`mooring_forecast_resolve.json` example contains explicitly synthetic supplied data.
+The horizon starts at or after the cutoff and ends within 120 hours; the separate
+forecast-plan endpoint retains its default 24-hour arrival requirement.
+
+Both endpoints use `moored/forecast_resolver.py`. A frozen revision holds canonical
+UTC snapshot bytes; returned models are independent copies. Its `content_hash`
+includes the complete series and component provenance. Its `binding_hash` also
+includes source/scenario identity, declared revision, cutoff, requested horizon and
+maximum-gap policy. Equivalent timestamp offsets and component ordering retain
+identity. Source IDs and revision names are caller declarations, not provider
+authentication; the content hash is always computed independently. An optional
+`forecast_binding.expected_content_hash` rejects changed content with 422.
+
+Resolution returns the exact frozen series, `forecast_manifest`, `coverage_complete`
+and explicit problems. Incomplete/unavailable coverage is RED/invalid; usable sampled
+coverage remains AMBER/limited. Forecast planning still rejects individual uncovered
+arrivals while preserving usable alternatives. No extrapolation or current-point
+substitution is performed. Agent consumers can call this HTTP interface and carry
+its result ID/manifest through their own workflow; they must not import the modeling
+implementation. Agent consumer wiring and D2 public forecast composition remain
+separate work.
+
+Explicit scenarios are sampled at every requested time, including both endpoints,
+in `data_simulation/scenario_forecast.py`. Ramps change over time. Replay is explicitly
+retimed training data, with the complete original snapshot, original times and hash
+retained in metadata; it never becomes public forecast guidance. Source validity
+intervals are translated, never extended. Finite archives do not loop. The bundled
+one-hour recorded-format fixture cannot support a next-day docking forecast. Missing
+scenario data, foreign scenario ownership and unavailable source samples fail visibly.
+
+Each forecast-plan result now includes `forecast_manifest` and `result_hash`.
+The resolved-input snapshot retains the exact series and asset records. Fresh
+analysis/recommendation IDs remain in audit references, outside deterministic hashes.
+Repeating the same resolved calculation therefore produces the same input/result
+hashes and distinct auditable result IDs. No earlier stored result is rewritten.
+
+## Planning supplied arrivals
+
 `POST /api/v1/mooring/forecast-plan` returns a job; its result is `ForecastDockingResponse`. Use `contract/examples/modeling/mooring_forecast_plan.json` for a complete, explicitly synthetic 48-hour example. By default, arrival must be at least 24 hours after `as_of_utc`; docking and holding must end within 120 hours. Explicit short-lead reassessment is described below.
 
 The caller supplies an ordered, timezone-aware forecast. Agent C owns `/env/forecast` and public-provider normalization. The modeling endpoint does not fetch the network: it evaluates the supplied snapshots and retains their source, issue and valid times. Submit forecasts whose availability no later than planning time is established by actual issuance or the component retrieval provenance described below. An observation in the future, missing/stale component flag, or uncovered interval is unavailable, not zero. Forecasts with unknown averaging metadata remain limited under the loads model.

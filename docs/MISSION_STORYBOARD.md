@@ -15,11 +15,18 @@ Units: degrees WGS84, knots, degrees true. Fixes merge with those already stored
 
 | Format | Accepted | Rejected (counted, first 50 reported with line/record numbers) |
 |---|---|---|
-| `csv` | Header row required (comment lines `#` and BOM tolerated; comma, semicolon or tab). Columns, case-insensitive: time = `time, timestamp, datetime, time_utc, t_utc, utc`; `lat, latitude`; `lon, lng, long, longitude`; optional `heading, hdg`; `cog, course`; `sog, speed, sog_kt` (knots); `hdop`. Time is ISO-8601 or epoch seconds. | naive timestamp without `utc_offset_min`; unparseable numbers; lat/lon out of range; heading/COG outside 0..360; negative speed; epoch values that look like milliseconds |
-| `gpx` | `trkpt`, `rtept`, `wpt` with `<time>`; `<hdop>`, `<course>` (COG), `<speed>` (m/s, converted to kt) | points without `<time>`; DOCTYPE/entity declarations are refused outright |
-| `nmea` | `RMC` (date, time, position, SOG, COG) and `GGA` (time, position, HDOP); other sentences ignored. Checksums are required and verified. An RMC and GGA with the same timestamp merge into one fix. A GGA takes its date from the preceding RMC (rolling to the next day if its time-of-day jumps back more than 12 h) or from `nmea_date`. | bad or missing checksum; RMC status `V` or mode `N`; GGA quality 0; GGA with no date; malformed fields; non-NMEA lines |
+| `csv` | Header row required (comment lines `#` and BOM tolerated; comma, semicolon or tab). Columns, case-insensitive: time = `time, timestamp, datetime, time_utc, t_utc, utc`; `lat, latitude`; `lon, lng, long, longitude`; optional `heading, hdg`; `cog, course`; `sog, sog_kt, speed_kt, speed_kn, knots` (knots; a bare `speed` column has no stated unit, is ignored and produces one warning in `errors`); `hdop`. Time is ISO-8601, compact ISO (`YYYYMMDD[T]HHMMSS` with `Z`/offset, or `utc_offset_min`), or epoch seconds (see below). | naive timestamp without `utc_offset_min`; unparseable numbers; lat/lon out of range; heading/COG outside 0..360; negative speed; epoch values that look like milliseconds; bare dates such as `20260105`; any time outside 1970..2100 (UTC) |
+| `gpx` | `trkpt`, `rtept`, `wpt` with `<time>`; `<hdop>`, `<course>` (COG), `<speed>` (m/s, converted to kt) | points without `<time>`; input that is not UTF-8 (UTF-16/32 BOM or NUL bytes, or an XML declaration naming another encoding) is refused outright, as is any `<!DOCTYPE` or `<!ENTITY` anywhere in the text (case-insensitive, checked before XML parsing) |
+| `nmea` | `RMC` (date, time, position, SOG, COG) and `GGA` (time, position, HDOP); other sentences ignored. Checksums are required (`*` + exactly two hex digits) and verified. An RMC and GGA with the same timestamp merge into one fix. A GGA takes its date from the latest RMC or from `nmea_date`; the date advances one day whenever the time of day (RMC or GGA) jumps back more than 12 h, so GGA-only files crossing midnight roll over. | bad or missing checksum; RMC status `V`; RMC mode other than `A`/`D` (`E` estimated, `S` simulator, `M` manual, `N` not valid; an absent mode field is accepted); GGA quality 0; hemisphere not `N`/`S` for latitude or `E`/`W` for longitude; seconds >= 60; GGA with no date; malformed fields; non-NMEA lines |
 | `geojson` | `Point` with `time`/`timestamp`/`datetime` property (optional `sog`, `cog`, `heading`, `hdop`); `LineString`/`MultiLineString` with per-vertex `coordTimes` or `times` (or `coordinateProperties.times`). Image/report markers from this service's own export are skipped, so an export re-imports. | Points without time; vertex/time count mismatch (each vertex counts as rejected) |
 | `json` | `TrackFix` objects; naive `t_utc` is a schema error (422) | |
+
+Epoch seconds are accepted only (a) as a JSON number (GeoJSON), (b) in an explicitly named numeric column (CSV header
+`epoch`, `epoch_s`, `unix`, `unix_time`, `time_s`), or (c) as a plain 10-digit string (optional fraction) within
+2000..2100. Digit-only strings of other lengths are never epoch seconds: 14 digits are compact ISO (`20260105120000`,
+needs `utc_offset_min`), 8 digits (a bare date) and 13 digits (milliseconds) are rejected. All times (fixes, reports,
+supplied `captured_utc`) must fall within years 1970..2100 UTC; outside that range a file record is rejected and a JSON
+`/track`, `/reports` or `/media` request is a 422.
 
 Naive timestamps: rejected unless `utc_offset_min` (minutes east of UTC) is given; a zone in the data always wins.
 Quality is derived from HDOP when present (`good` <= 2.0, `degraded` above) and is `unknown` otherwise; `source` is the format name.
@@ -27,7 +34,9 @@ Quality is derived from HDOP when present (`good` <= 2.0, `degraded` above) and 
 Merge rules (result counters): sorted by time on storage; a timestamp already stored (or earlier in the same upload)
 is a `duplicate` and the first one is kept; `reordered` counts fixes earlier than the one received just before them;
 `rejected` counts bad records. `accepted + duplicates + rejected` equals the records seen. A file with no valid fix is
-a 422 with the errors in `detail`. The 200 000 fix cap rolls the whole upload back (409).
+a 422 with the errors in `detail`. The 200 000 fix cap rolls the whole upload back (409); for files, parsing stops
+(409) as soon as the file holds more than 200 000 distinct timestamps. Parsing and storing run in a worker thread, off
+the event loop. GeoJSON nested deeper than 64 levels is a 422.
 
 ## Images
 
@@ -41,6 +50,8 @@ Capture time rules, in order:
 2. Else EXIF `DateTimeOriginal` (+ `SubSecTimeOriginal`) with EXIF `OffsetTimeOriginal`; else, if the EXIF time is naive,
    with `metadata.exif_utc_offset_min`. `time_source: "exif"`. The supplied-offset case is flagged on the located event
    (`EXIF_UTC_OFFSET_ASSUMED`).
+   The generic `DateTime` tag (306) is the file modification time, never a capture time: if it is the only date,
+   `captured_utc` is null and `time_note` says so.
 3. Naive EXIF time and no offset: `captured_utc` is null and `time_note` says why. The zone is never guessed.
 4. `camera_clock_offset_s` (seconds to add to the camera time; slow camera = positive) is added to EXIF-derived times
    (flag `CAMERA_CLOCK_OFFSET_APPLIED`). It describes the camera, so combining it with `captured_utc` is a 422.
@@ -55,10 +66,10 @@ One function (`mooring.missions.locate.locate`) serves images and reports. Earth
 
 | `method` | When | Position |
 |---|---|---|
-| `exact_fix` | within 0.5 s of a fix | that fix |
+| `exact_fix` | within 0.5 s of a fix inside the recorded span, or within 1 ms of the first/last fix | that fix |
 | `interpolated` | between fixes spaced <= `max_interp_gap_s` (default 300) | great-circle interpolation, linear in time (antimeridian and pole safe); `sog_kt` = distance/time; heading = circular interpolation of recorded headings if both fixes have one, else segment bearing (null if the fixes are < 1 m apart) |
 | `gap` | between fixes spaced further apart | null; `gap_s` reported |
-| `before_track` / `after_track` | outside the recorded span | null, never extrapolated |
+| `before_track` / `after_track` | outside the recorded span (more than 1 ms before the first fix or after the last; no 0.5 s snapping at the ends) | null, never extrapolated |
 | `no_track` / `no_time` | no fixes / event without a timestamp | null |
 
 `distance_along_track_nm` is the cumulative great-circle length of the recorded fixes up to the position (null when not
@@ -66,7 +77,7 @@ established). If the event states a position (EXIF GPS or the report's lat/lon) 
 `discrepancy_m` (great-circle) when the track position exists.
 
 Validity: `valid` only for an `exact_fix` of `good` quality with no other caveat. Otherwise `limited`, with reasons:
-`INTERPOLATED_POSITION`, `POSITION_NOT_ESTABLISHED` (gap, outside, no track, no time), `FIX_QUALITY_NOT_GOOD`,
+`INTERPOLATED_POSITION` (plus `FIX_QUALITY_NOT_GOOD` when either bracketing fix is not `good`), `POSITION_NOT_ESTABLISHED` (gap, outside, no track, no time), `FIX_QUALITY_NOT_GOOD`,
 `STATED_POSITION_DISAGREES` (> 500 m), `EXIF_UTC_OFFSET_ASSUMED`, `CAMERA_CLOCK_OFFSET_APPLIED`. The storyboard
 aggregates reasons across events (with the event ids) and adds `TRACK_GAPS_OVER_LIMIT` / `NO_TRACK`.
 

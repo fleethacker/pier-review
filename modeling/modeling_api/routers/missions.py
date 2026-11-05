@@ -5,6 +5,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, Response
 from mooring.core.schemas import (
     MediaItem,
@@ -19,6 +20,7 @@ from mooring.core.schemas import (
 )
 from mooring.core.schemas.missions import MediaMetadata
 from mooring.missions import exif, parsers, store
+from mooring.missions.geo import TimeRangeError
 from mooring.missions import storyboard as sb
 from pydantic import ValidationError
 
@@ -44,6 +46,8 @@ def _limit(fn, *a):
         return fn(*a)
     except store.LimitExceeded as exc:
         raise HTTPException(409, str(exc)) from exc
+    except TimeRangeError as exc:
+        raise HTTPException(422, f"{exc}; times must be within 1970..2100 (UTC)") from exc
 
 
 def _ingest(mission_id, result: parsers.ParseResult, fmt: str) -> TrackIngestResult:
@@ -54,6 +58,17 @@ def _ingest(mission_id, result: parsers.ParseResult, fmt: str) -> TrackIngestRes
     if not result.fixes:
         raise HTTPException(422, "the upload contains no fixes")
     return _limit(store.ingest, mission_id, result.fixes, result.rejected, result.errors, fmt)
+
+
+def _parse_and_ingest(mission_id: str, fmt: str, data: bytes, utc_offset_min, nd) -> TrackIngestResult:
+    cap = store.MAX_FIXES
+    try:
+        result = parsers.parse_nmea(data, nd, cap) if fmt == "nmea" else _PARSERS[fmt](data, utc_offset_min, cap)
+    except parsers.TrackParseError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except parsers.TrackLimitError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _ingest(mission_id, result, fmt)
 
 
 @router.post("/missions", response_model=Mission, status_code=201, summary="Create a mission")
@@ -97,11 +112,9 @@ async def ingest_track_file(mission_id: str,
         except ValueError:
             raise HTTPException(422, "nmea_date must be YYYY-MM-DD") from None
     data = await _read_limited(file, MAX_TRACK_FILE_BYTES, "track file")
-    try:
-        result = parsers.parse_nmea(data, nd) if fmt == "nmea" else _PARSERS[fmt](data, utc_offset_min)
-    except parsers.TrackParseError as exc:
-        raise HTTPException(422, str(exc)) from exc
-    return _ingest(mission_id, result, fmt)
+    # Parsing and storing are CPU/IO bound: run them off the event loop. Parsing stops as soon as the file holds more
+    # distinct fixes than a mission may hold.
+    return await run_in_threadpool(_parse_and_ingest, mission_id, fmt, data, utc_offset_min, nd)
 
 
 @router.get("/missions/{mission_id}/track", response_model=MissionTrack, summary="Recorded track, optionally decimated")

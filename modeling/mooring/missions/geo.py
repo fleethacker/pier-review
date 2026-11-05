@@ -18,9 +18,27 @@ EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 _US = timedelta(microseconds=1)
 
 
+MIN_YEAR, MAX_YEAR = 1970, 2100  # accepted range of any track fix / event time (UTC)
+
+
+class TimeRangeError(ValueError):
+    """A timestamp is outside 1970..2100 (UTC) or too extreme to convert."""
+
+
+def to_utc(dt: datetime) -> datetime:
+    """Aware datetime -> UTC, bounded to years 1970..2100. Raises TimeRangeError (a ValueError), never OverflowError."""
+    try:
+        u = dt.astimezone(UTC)
+    except (OverflowError, ValueError) as exc:
+        raise TimeRangeError(f"time {dt.isoformat()[:40]} is outside {MIN_YEAR}..{MAX_YEAR}") from exc
+    if not MIN_YEAR <= u.year <= MAX_YEAR:
+        raise TimeRangeError(f"time {dt.isoformat()[:40]} is outside {MIN_YEAR}..{MAX_YEAR} (UTC)")
+    return u
+
+
 def to_us(dt: datetime) -> int:
-    """Aware datetime -> integer microseconds since the Unix epoch (exact)."""
-    return (dt.astimezone(UTC) - EPOCH) // _US
+    """Aware datetime -> integer microseconds since the Unix epoch (exact). Raises TimeRangeError outside 1970..2100."""
+    return (to_utc(dt) - EPOCH) // _US
 
 
 def from_us(us: int) -> datetime:

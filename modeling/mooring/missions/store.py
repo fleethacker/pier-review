@@ -28,7 +28,7 @@ from mooring.core.schemas.missions import (
 from mooring.core.store import DocStore, db
 
 from . import exif
-from .geo import decimate_indices, from_us, to_us
+from .geo import TimeRangeError, decimate_indices, from_us, to_us
 from .locate import TrackIndex
 
 MAX_FIXES = 200_000
@@ -104,9 +104,13 @@ def ingest(mission_id: str, fixes: list[TrackFix], rejected: int, errors: list[s
     dropped keeping the first; `reordered` counts fixes earlier in time than the one received just before."""
     require(mission_id)
     d = _d()
-    reordered = sum(1 for a, b in zip(fixes, fixes[1:]) if b.t_utc < a.t_utc)
-    rows = [(mission_id, to_us(f.t_utc), f.lat, f.lon, f.heading_true_deg, f.cog_true_deg, f.sog_kt, f.hdop, f.quality,
-             f.source) for f in fixes]
+    try:
+        ts = [to_us(f.t_utc) for f in fixes]  # TimeRangeError (ValueError) outside 1970..2100
+    except TimeRangeError as exc:
+        raise TimeRangeError(f"fix time rejected: {exc}") from exc
+    reordered = sum(1 for a, b in zip(ts, ts[1:]) if b < a)
+    rows = [(mission_id, tu, f.lat, f.lon, f.heading_true_deg, f.cog_true_deg, f.sog_kt, f.hdop, f.quality,
+             f.source) for tu, f in zip(ts, fixes)]
     with d.lock:
         d.conn.execute("BEGIN IMMEDIATE")
         try:
@@ -205,12 +209,13 @@ def media_bytes(mission_id: str, media_id: str) -> tuple[str, bytes]:
 def add_report(mission_id: str, req: ReportCreate) -> Report:
     require(mission_id)
     r = Report(**req.model_dump(), report_id=new_id("rpt"), mission_id=mission_id)
+    t_us = to_us(r.t_utc)  # TimeRangeError (ValueError) outside 1970..2100
     d = _d()
     with d.lock:
         if d.execute("SELECT COUNT(*) FROM mission_reports WHERE mission_id=?", (mission_id,))[0][0] >= MAX_REPORTS:
             raise LimitExceeded(f"a mission holds at most {MAX_REPORTS} reports")
         d.conn.execute("INSERT INTO mission_reports VALUES (?,?,?,?)",
-                       (r.report_id, mission_id, to_us(r.t_utc), r.model_dump_json()))
+                       (r.report_id, mission_id, t_us, r.model_dump_json()))
     return r
 
 

@@ -1,4 +1,5 @@
 """Image validation and EXIF extraction (DateTimeOriginal, SubSec, OffsetTimeOriginal, GPS) and the capture-time rules.
+Only DateTimeOriginal is a capture time; the generic DateTime tag (306) is never used.
 
 The zone of a naive EXIF time is never guessed: without OffsetTimeOriginal or a caller-supplied
 `exif_utc_offset_min` the capture time is unknown (null) and the note says why.
@@ -14,6 +15,8 @@ from datetime import UTC, datetime, timedelta, timezone
 from PIL import Image
 
 from mooring.core.schemas.missions import MediaMetadata
+
+from .geo import to_utc
 
 MAX_IMAGE_BYTES = 8_000_000  # same limit as the vision agent upload
 MAX_PIXELS = 100_000_000
@@ -107,7 +110,11 @@ def extract_exif(data: bytes) -> ExifInfo:
     except Exception as exc:
         info.notes.append(f"EXIF unreadable ({type(exc).__name__})")
         return info
-    raw = sub.get(_DTO) or exif.get(306)  # fall back to DateTime only if DateTimeOriginal is absent
+    raw = sub.get(_DTO)  # only DateTimeOriginal is a capture time
+    if not raw and exif.get(306):
+        # DateTime (306) is the last file-modification time written by software, not when the picture was taken.
+        info.notes.append("EXIF has only DateTime (tag 306, last file modification time), which is not a capture time "
+                          "and is not used; DateTimeOriginal is absent")
     if raw:
         raw = raw.decode("ascii", "ignore") if isinstance(raw, bytes) else str(raw)
         m = re.fullmatch(r"\s*(\d{4}):(\d\d):(\d\d)[ T](\d\d):(\d\d):(\d\d)\s*", raw)
@@ -148,7 +155,10 @@ def resolve_time(info: ExifInfo, meta: MediaMetadata) -> ResolvedTime:
     """Apply the capture-time rules. camera_clock_offset_s applies to the camera (EXIF) time only; combining it with an
     explicit captured_utc is rejected by the caller because it would be ambiguous."""
     if meta.captured_utc is not None:
-        return ResolvedTime(meta.captured_utc.astimezone(UTC), "supplied", "Time supplied with the upload.")
+        try:
+            return ResolvedTime(to_utc(meta.captured_utc), "supplied", "Time supplied with the upload.")
+        except ValueError as exc:
+            raise ImageError(422, f"captured_utc: {exc}") from exc
     extra = (" " + "; ".join(info.notes)) if info.notes else ""
     if info.local_time is None:
         return ResolvedTime(None, None, "No usable EXIF capture time and none supplied." + extra)
@@ -163,9 +173,14 @@ def resolve_time(info: ExifInfo, meta: MediaMetadata) -> ResolvedTime:
     else:
         return ResolvedTime(None, None, "EXIF time is naive (no OffsetTimeOriginal) and no exif_utc_offset_min was "
                                         "supplied; the time zone is not guessed, so the capture time is unknown." + extra)
-    t = info.local_time.replace(tzinfo=zone).astimezone(UTC)
+    try:
+        t = to_utc(info.local_time.replace(tzinfo=zone))
+        if meta.camera_clock_offset_s:
+            t = to_utc(t + timedelta(seconds=meta.camera_clock_offset_s))
+    except (ValueError, OverflowError):
+        return ResolvedTime(None, None, "The EXIF time is outside 1970..2100 (UTC) after offsets, so the capture time "
+                                        "is unknown." + extra)
     if meta.camera_clock_offset_s:
-        t += timedelta(seconds=meta.camera_clock_offset_s)
         how += f" Camera clock offset {meta.camera_clock_offset_s:+g} s applied."
         caveats.append("CAMERA_CLOCK_OFFSET_APPLIED")
     return ResolvedTime(t, "exif", how + extra, caveats)

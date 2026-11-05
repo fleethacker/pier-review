@@ -153,3 +153,13 @@ class HorsepowerPlan(Model):
     tie_break: str = "lowest total hp, then fewest tugs, then lowest total force, then lexicographic (tug_id, push_point_id)"
     validity: str = Field(default="limited", description="Validity limited where fleet horsepower/bollard-pull data are assumed (seed/synthetic).")
     assumptions: list[str] = Field(default_factory=list)
+
+
+class HorsepowerRequest(Model):
+    """P5 request: minimum-horsepower tug assignment for a required ship-frame wrench."""
+
+    ship_class_id: str = Field(examples=["DDG-51-FIIA"])
+    required_wrench: WrenchLbf
+    available_tug_ids: AvailableTugIds = Field(default=None, max_length=8, description=FLEET_DESCRIPTION + " At most 8 tugs (exhaustive search).")
+    efficiency: float = Field(default=1.0, gt=0, le=1.0, description="Multiplier on catalog bollard pull.")
+    margin: float = Field(default=0.0, ge=0, le=1, description="Added to the required wrench.")

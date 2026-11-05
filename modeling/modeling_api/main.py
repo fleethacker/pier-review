@@ -57,6 +57,7 @@ TAGS = [
     {"name": "S5 Missions", "description": "Mission storyboarding: recorded tracks with images and reports located by time."},
     {"name": "S7 Prediction", "description": "Backup camera for ships: predicted path, footprints, corridor and clearance from the current state."},
     {"name": "S6 Port transit", "description": "Ships entering or leaving port on own thrust or with tugs (surrogate maneuvering)."},
+    {"name": "S4 Wave surrogate", "description": "Seeded synthetic wave elevation for visualization (unqualified)."},
     {"name": "System", "description": "Jobs, stored results, health."},
 ]
 

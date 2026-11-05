@@ -41,7 +41,9 @@ class PhysicsClient:
     async def request(self, method, path, **kwargs):
         # The toolkit's typed helpers now share its validated generic HTTP path.
         if method == "GET":
-            if path == "/env/now":
+            if path.startswith("/scenarios/") and path.endswith("/environment"):
+                result = await self.env_now(self.sc.berth_id, env_scenario_id=self.sc.env_source.env_scenario_id)
+            elif path == "/env/now":
                 params = kwargs["params"]
                 result = await self.env_now(params["berth_id"], env_scenario_id=params.get("env_scenario_id"))
             else:

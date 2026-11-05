@@ -54,16 +54,23 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
     env_scenario_id = req.env_scenario_id
     quality = []
     forecast_complete = True
+    saved_source = None
     if req.scenario_id:
         sc = await tk.scenario(req.scenario_id)
         berth_id, ship_id, side = berth_id or sc.berth_id, ship_id or sc.ship_class_id, side or sc.side_to
         source = getattr(sc, "env_source", None)
+        if req.env_scenario_id is None and source is not None:
+            if berth_id != sc.berth_id:
+                raise ModelingError(422, "Scenario and requested berth do not match")
+            saved_source = sc
         if env_scenario_id is None and source is not None and source.mode == "scenario":
             env_scenario_id = source.env_scenario_id
     if not berth_id:
         raise ModelingError(422, "Give scenario_id or berth_id")
     berth = await tk.berth(berth_id)
-    current = await tk.env_now(berth_id, env_scenario_id)
+    saved_mock = saved_source is not None and saved_source.env_source.mode == "mock"
+    current = (await tk.scenario_environment(req.scenario_id) if saved_source is not None
+               else await tk.env_now(berth_id, env_scenario_id))
     if env_scenario_id:
         scenario = await tk.environment_scenario(env_scenario_id)
         if scenario.kind == "steady":
@@ -82,6 +89,13 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
             if exc.status not in (429, 502, 503, 504):
                 raise
             series = []
+        if saved_mock and any(
+                sample.source not in ("mock", "scenario")
+                and not (sample.metadata and sample.metadata.basis == "scenario")
+                and not any("mock" in item.flags for item in sample.quality) for sample in series):
+            series = []
+            quality.append(DataQualityIssue(station_id="forecast", issue="missing", severity="RED",
+                detail="Configured forecast does not match the selected synthetic source; it was not substituted."))
         if not series:
             forecast_complete = False
             series = [current]
@@ -173,7 +187,7 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
     conditions.append(PlanningCondition(label="Now", environment=current, why="Conditions at the time of planning."))
 
     berthing = []
-    if ship_id and side and not env_scenario_id:
+    if ship_id and side and not env_scenario_id and not saved_mock:
         start = utcnow().replace(second=0, microsecond=0)
         try:
             bw = await tk.windows({"berth_id": berth_id, "ship_class_id": ship_id, "side_to": side,

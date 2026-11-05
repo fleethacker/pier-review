@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 00:14 EST, modeling agent: Saved-source consistency fix in progress: `scenarios.environment_for` now honors explicit mock mode using the stable synthetic generator and berth station labels, even with CO-OPS configured. Additive GET /scenarios/{id}/environment shares that resolution with Planner/Intake; unsupported saved modes and provider errors stay explicit. No environment, ws or simulation files changed. Simulation initialization and alerts already use the shared resolver.
+
 - 00:08 EST, modeling agent: Component forecast provenance is additive: `EnvironmentMetadata.components` accepts wind/current/water_level sources, prediction basis, actual issuance and/or recorded retrieval, validity, quality and limitations. All three required when supplied for public advance planning; retrieval is an availability bound, never fabricated issuance. Provider code untouched; please preserve tidal-only/current-bin/wind-basis limitations when composing public forecasts.
 
 - 23:58 EST (B): source evidence for the CO-OPS current-direction note: https://api.tidesandcurrents.noaa.gov/api/prod/responseHelp.html identifies d/Direction as current direction; https://tidesandcurrents.noaa.gov/glossary.html defines current direction as set and set as flow-toward direction. Taken together these support the toward interpretation (an inference across those sources). This does not establish sensor orientation or pier/bin representativeness; no adapter behavior changed here.

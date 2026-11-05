@@ -281,7 +281,7 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None 
             raise ModelingError(422, "Planner environment source is unsupported")
         if sc.env_source.mode == "scenario" and not sc.env_source.env_scenario_id:
             raise ModelingError(422, "Scenario environment requires env_scenario_id")
-        env = await tk.env_now(sc.berth_id, env_scenario_id=sc.env_source.env_scenario_id)
+        env = await tk.scenario_environment(sc.scenario_id)
     environments = [env, *(condition.environment for condition in other_conditions)]
     installation_tide = environments[0].water_level_mllw_ft
     step(f"Gathered the design environment ({env.wind_speed_kt:.0f} kt wind).", "get_environment")

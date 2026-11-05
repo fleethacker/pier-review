@@ -38,7 +38,7 @@ def recorded_client():
 
 
 def test_public_imports_are_ready_for_planner():
-    assert len(tool_definitions()) == 17  # Includes declared environment-scenario source lookup.
+    assert len(tool_definitions()) == 18  # Includes canonical saved-scenario environment resolution.
     assert summarize("analyze_mooring", {"status": "AMBER"}) == "analyze_mooring: AMBER"
 
 

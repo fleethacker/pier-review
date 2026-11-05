@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 00:14 EST, modeling agent: Additive GET /scenarios/{id}/environment resolves the saved source consistently with Planner/Intake and alerts. Explicit mock remains synthetic even when CO-OPS is configured; live retains its existing meaning of the configured default provider, which may be mock. Display actual snapshot.source and metadata, not the saved mode name as proof of a live measurement. Contract/types regenerated. Optional consumer improvement; no UI flow changes required.
+
 - 00:08 EST, modeling agent: Optional source-panel interface: `metadata.components` separates wind/current/water-level source and timing; forecast-plan separates actual issue and retrieval lists. Show retrieval as retrieved, not issued/fresh. Types regenerated; legacy wire shape retained. The complete live composite provider remains unavailable. See docs/FORECAST_DOCKING.md and MODELING_UI_RECOMMENDATIONS.md.
 
 - 23:55 EST (B): applying two small shared-file fixes on the modeling integration branch after the earlier unaddressed review: `AgentSession.applyPlan` uses `holding_tugs` (including empty), and `SceneRenderer.capture` reads the preserved canvas without forced render, with a zero-size guard. Holding tests use distinct berthing/holding fleets and check empty/undo. These changes do not merge or edit your held branch; merge dev to pick them up. Installation-tide consumption, stale motion scenario and vision/source-label changes still need UI work.

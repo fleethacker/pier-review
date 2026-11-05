@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive the Missions app (S5 storyboard, S6 transit) in headless Chromium against a real modeling backend.
 
-Usage: check_missions_ui.py URL SCREENS_DIR   (URL is the UI origin, e.g. http://127.0.0.1:4010/; ?app=missions is added)
+Usage: check_missions_ui.py URL SCREENS_DIR   (URL is the UI origin, e.g. http://127.0.0.1:4010/; ?app=missions&tab=storyboard is added)
 Env:   DEMO_CHECK_BROWSER_EXECUTABLE  path of an installed Chrome, if Playwright's Chromium is not installed.
 Prints `PASS|FAIL <name> | <detail>`; exit status is non-zero if any check failed. Needs Pillow and Playwright.
 """
@@ -22,7 +22,7 @@ from PIL import Image
 from playwright.sync_api import Page, expect, sync_playwright
 
 expect.set_options(timeout=30_000)
-URL = sys.argv[1].rstrip("/") + "/?app=missions"
+URL = sys.argv[1].rstrip("/") + "/?app=missions&tab=storyboard"
 SHOTS = Path(sys.argv[2])
 SHOTS.mkdir(parents=True, exist_ok=True)
 failed = 0

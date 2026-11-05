@@ -1,5 +1,7 @@
 # Human-supplied data requests
 
+Execution owners: **Bixler** coordinates requests, approved catalog intake and status; **Snyder** specifies and reviews physical/model applicability; **Cruz** supplies public-source/datum evidence; **Kori** displays capability and missing-input states. Tie deliveries to R3/R4/R6/R8 and the [master ownership table](MASTER_PLAN.md#execution-ownership). Naming a team owner does not replace the source authority or engineering approval required below.
+
 Public feeds cannot qualify the assets below. Do not infer, scrape, or invent
 missing values. Synthetic seed records may support a labeled demonstration,
 but they cannot make an operational result valid. Before committing supplied

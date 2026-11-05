@@ -213,8 +213,13 @@ class Session:
         """A reconnecting client that missed evicted lifecycle history gets an explicit restatement, never silence."""
         with self.lock:
             if self.rich and after_sequence<self.lifecycle_evicted_through:
-                self.emit(self.state, f"Lifecycle messages through sequence {self.lifecycle_evicted_through} are no longer "
+                self.restate(f"Lifecycle messages through sequence {self.lifecycle_evicted_through} are no longer "
                                       "retained; this message restates the current session state.")
+
+    def restate(self, message=None):
+        # Reset marks the transition to a new run. A speed/reconnect update in that
+        # run is a paused-state report, not another reset with the same run ID.
+        self.emit("paused" if self.state == "reset" else self.state, message)
 
     @staticmethod
     def provenance():
@@ -440,7 +445,7 @@ class Session:
                 self.anchor_sim=self.model.t if self.paused or self.error else self.scheduled_time(now)
                 self.anchor_wall=now
                 self.speed=float(msg.speed)
-                self.emit(self.state,self.error if self.state=="error" else None)
+                self.restate(self.error if self.state=="error" else None)
                 self.notify()
             else:
                 # Omitted timestamp targets the next boundary. Explicit times are

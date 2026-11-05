@@ -27,6 +27,6 @@ def polar(req: Annotated[PolarRequest, Body(openapi_examples=ex("loads_polar"))]
              summary="Seeded synthetic wave elevation series (visualization only; unqualified)")
 def wave_surrogate(req: WaveSurrogateRequest):
     # duration_s <= 3600 and dt_s <= 10 are schema-bounded; also bound the sample count.
-    if req.duration_s / req.dt_s > 40_000:
-        raise HTTPException(status_code=422, detail="duration_s / dt_s exceeds 40000 samples; raise dt_s or shorten duration_s")
+    if req.duration_s / req.dt_s > 6_000:
+        raise HTTPException(status_code=422, detail="duration_s / dt_s exceeds 6000 samples; raise dt_s or shorten duration_s")
     return _wave_generate(req)

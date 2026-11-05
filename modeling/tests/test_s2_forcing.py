@@ -178,3 +178,4 @@ def test_synthetic_labeled_and_reset_keeps_series(setup):
     assert session.latest.environment.wind.provenance.kind == "mock"
     session.receive("c", SimControlMessage(type="reset"))
     assert session.latest.forcing_revision == rev and session.model.t == 0
+

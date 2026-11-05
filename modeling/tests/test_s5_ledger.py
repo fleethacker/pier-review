@@ -104,3 +104,13 @@ def test_duplicate_timestamps_are_dropped_while_parsing_and_still_counted(client
     up = client.post(f"{P}/missions/{mid}/track/file",
                      files={"file": ("t.csv", ("time,lat,lon\n" + row * 50).encode())}, data={"format": "csv"}).json()
     assert (up["accepted"], up["duplicates"]) == (1, 49)
+
+
+def test_storyboard_aggregate_validity_flags_simulated_track_without_events():
+    """Review fix (finding 2): aggregate validity must not read 'valid' for a simulated track, even with no events."""
+    from mooring.core.schemas.missions import TrackStats
+    from mooring.missions.storyboard import aggregate_validity
+    stats = TrackStats(fix_count=2, duration_s=10.0, distance_nm=0.0, max_gap_s=10.0, gaps_over_limit=0)
+    v = aggregate_validity([], stats, _sim_index("simulated:job_1"))
+    assert v.state == "limited" and "SIMULATED_TRACK" in [r.code for r in v.reasons]
+    assert aggregate_validity([], stats, _sim_index("gps")).state == "valid"

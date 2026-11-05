@@ -44,7 +44,7 @@ class UltimateGustRequest(AnalyzeRequest):
     capacity_basis: UltimateCapacityBasis | None = Field(default=None, description="Required for a threshold; absent -> outcome 'unavailable'.")
     step_deg: int = Field(default=30, ge=5, le=90)
     max_search_kt: float = Field(default=150.0, ge=10, le=300, description="Search ceiling; no stop below it is indeterminate, never 'unlimited'.")
-    sampling_step_kt: float = Field(default=5.0, gt=0, le=20)
+    sampling_step_kt: float = Field(default=5.0, ge=0.1, le=20)
     tolerance_kt: float = Field(default=0.25, gt=0, le=5)
 
 

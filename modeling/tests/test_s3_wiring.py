@@ -67,3 +67,16 @@ def test_heave_follows_tide_with_forcing(setup):
     assert fr.motion.dofs.heave == "prescribed"
     assert fr.motion.dofs.roll == "not_simulated" and fr.motion.pose.roll_deg is None
     assert all(t.position is None for t in fr.tug_states)
+
+
+def test_rm0_environment_reports_forcing_values_not_frozen_base(setup):
+    """Review fix: rich-frame environment at t must equal the forcing the physics used, not the base environment."""
+    from mooring.core.schemas import ForcingSample
+    env = setup[2]
+    tgt = ForcingSample(t_s=20, wind_speed_kt=env.wind_speed_kt + 20, wind_gust_kt=env.wind_gust_kt + 20,
+                        wind_from_true_deg=env.wind_from_true_deg)
+    m = sim.BerthingModel(*setup, duration=20, forcing=ForcingSpec(kind="ramp", ramp_start_s=0, target=tgt))
+    m.set_env(10.0, m.integrator.state)
+    fr = frame(m, state=m.integrator.state, t=10.0)
+    assert m.forcing_env.wind_speed_kt == pytest.approx(env.wind_speed_kt + 10)
+    assert fr.environment.wind.speed_kt == pytest.approx(m.forcing_env.wind_speed_kt)

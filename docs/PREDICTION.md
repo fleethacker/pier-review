@@ -40,6 +40,23 @@ resistance), `COASTLINE_NOT_CHECKED`. Status RED if the held commands breach, el
 - Bounds: horizon <= 900 s, ticks <= 900, <= 4 alternatives, <= 64 samples, <= 16 other vessels; non-finite or
   |speed| > 60 kt is a 422.
 
+## S7b: time-varying forcing and engine handoff
+- Request (additive, omitted on the wire when default): `forcing` (S2 `ForcingSpec`) and `engine` (`transit` default).
+  Absent `forcing` = `fixed_environment`, exactly the old behavior and wire shape.
+- With `forcing`, `mooring/prediction/forced.py` drives the unchanged S6 `Vessel` from the SAME
+  `berthing.forcing.ForcingSeries.at(t)` (base = `environment`, or calm if null). t = 0 is `as_of_utc`; the series is
+  sampled once per integration step (zero-order hold, not RK4 stage times). Uncertainty samples apply the same wind/current
+  perturbation to the series value at every step. `vessel_relative_wind` has no extra effect (transit applies apparent wind).
+- Response `result.forcing_basis`: `kind` (`fixed_environment` | `time_varying`), `revision` (frc-...), `synthetic`,
+  `series_kind`, `coverage` (prediction-relative s), `requested_horizon_s`, `horizon_s`, `truncated`. Omitted on the wire for
+  fixed_environment (absent = fixed). Validity adds `FORCING_TIME_VARYING`, `FORCING_SYNTHETIC` or
+  `FORCING_SUPPLIED_UNVERIFIED`, `FORCING_HORIZON_TRUNCATED`.
+- Coverage policy (never extrapolated): series not covering t = 0 is 422 `FORCING_UNCOVERED`; horizon beyond coverage is 422
+  with `on_uncovered: stop`, or truncated to the last whole tick inside coverage with `invalidate` (reason
+  `FORCING_HORIZON_TRUNCATED`; under one tick is 422). Generated series (steady/ramp/gusts) are defined over the horizon.
+- Engine handoff is explicit only: `engine: "berthing"` returns 501 `ENGINE_UNSUPPORTED` (no validated frame, unit, state
+  and parameter mapping or operating domain). The engine is never chosen from proximity to a pier.
+
 ## Not done
-Berthing engine (S1-S3); coastline; S10 uncertainty; sway/yaw-rate initial conditions; hull-pier contact is not simulated
+Berthing engine (S1-S3) and handoff; coastline; S10 uncertainty; sway/yaw-rate initial conditions; hull-pier contact is not simulated
 (the path passes through it; clearance is 0 from contact on). Decision support for a demonstrator, not navigational guidance.

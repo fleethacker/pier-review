@@ -75,17 +75,39 @@ def main() -> int:
 
         page.on("console", on_console)
 
-        def load():
+        def tab(name: str) -> None:
+            """The mooring panels live in tabs on the top bar; open the one a step needs."""
+            t = page.get_by_role("tab", name=name, exact=True)
+            t.click()
+            expect(t).to_have_attribute("aria-selected", "true")
+
+        def landing():
             page.goto(URL.rstrip("/") + "/", wait_until="load")
+            apps = page.get_by_role("list", name="Applications")
+            expect(apps.get_by_role("button", name="Open Mooring Assistant")).to_be_visible()
+            expect(apps.get_by_role("button", name="Open Mission simulation")).to_be_visible()
+            shot(page, "00-landing")
+            apps.get_by_role("button", name="Open Mooring Assistant").click()
+            expect(page.get_by_role("tab", name="Setup", exact=True)).to_have_attribute("aria-selected", "true")
+            assert "app=mooring" in page.url, page.url
+            return "landing page lists Mooring Assistant and Mission simulation; the box opens Mooring Assistant on its Setup tab"
+
+        def load():
+            if "app=mooring" not in page.url:
+                page.goto(URL.rstrip("/") + "/?app=mooring", wait_until="load")
             expect(page.get_by_text("All results limited: seed data")).to_be_visible()
+            tab("Plan & review")
             expect(page.get_by_role("button", name="Ask the agent to plan")).to_be_enabled()
+            tab("Setup")
             saved = page.locator("select").filter(has=page.locator("option", has_text="demo-check supported-limited"))
             saved.select_option(label="demo-check supported-limited")
+            tab("Lines")
             expect(page.get_by_text("Overall AMBER", exact=True).first).to_be_visible()
             shot(page, "01-loaded")
             return "app loaded against the services; seed-data banner visible"
 
         def sources():
+            tab("Conditions")
             expect(page.get_by_label("Data sources")).to_be_visible()
             text = page.get_by_label("Data sources").inner_text().lower()
             assert "unavailable" in text and "mock" in text, "source states should include mock and unavailable"
@@ -96,11 +118,13 @@ def main() -> int:
             return "waves, wake and telemetry say unavailable; environment says mock"
 
         def lines():
+            tab("Lines")
             text = page.locator("aside").first.inner_text()
             assert re.search(r"\bL?1\b", text), "no lines listed"
             return "lines listed with their analysis"
 
         def intake():
+            tab("Conditions")
             with page.expect_response(lambda r: r.url.endswith("/api/v1/intake/reports") and r.request.method == "POST") as submitted:
                 page.get_by_role("button", name="Assess conditions").click()
             response = submitted.value
@@ -119,6 +143,7 @@ def main() -> int:
             return "selected scenario assessed with MST, windows and deterministic summary; current wind matches the saved inputs"
 
         def plan():
+            tab("Plan & review")
             attempts = 0
             for attempts in range(1, 4):
                 with page.expect_response(lambda r: r.url.endswith("/api/v1/agent/plans") and r.request.method == "POST") as submitted:
@@ -198,6 +223,7 @@ def main() -> int:
 
         def motion_replay():
             page.get_by_role("button", name="Close", exact=True).first.click()
+            tab("Motion")
             page.get_by_role("button", name="Open motion view").click()
             page.get_by_role("button", name="Replay recording").click()
             view = page.get_by_role("dialog", name="Motion view")
@@ -261,6 +287,7 @@ def main() -> int:
         def vision():
             # A real (small) image on disk is needed for the file chooser.
             img = SHOTS / "01-loaded.png"
+            tab("Setup")
             page.get_by_label("Berth image").set_input_files(str(img))
             page.get_by_role("button", name="Analyze image").click()
             expect(page.get_by_text("draft: needs your confirmation")).to_be_visible()
@@ -277,6 +304,7 @@ def main() -> int:
             expect(page.get_by_text(re.compile("berth data: estimated", re.I))).to_be_visible()
             return "image analyzed, flagged items gated the confirm button, berth saved and selected, labeled with estimated catalog provenance (no pixel extraction claimed)"
 
+        step("Landing page: a box per application opens it", landing)
         step("Load the app and see the standing seed-data banner", load)
         step("Data-source panel is honest", sources)
         step("Analyzed lines are listed", lines)
@@ -299,6 +327,7 @@ def main() -> int:
                 body = {**case["scenario_request"], "env_source": {"mode": "scenario", "env_scenario_id": env["env_scenario_id"]}}
                 case["saved_id"] = page.request.post(base + "/scenarios", data=body).json()["scenario_id"]
             page.reload(wait_until="load")
+            tab("Plan & review")
             expect(page.get_by_role("button", name="Ask the agent to plan")).to_be_enabled()
             for case in cases:
                 expected = ("AMBER", "limited") if case["case_id"] == "ddg-supported-limited" else (
@@ -310,12 +339,14 @@ def main() -> int:
                     return (body["environment"]["wind_speed_kt"] == case["environment_request"]["wind_speed_kt"]
                             and body["environment"]["water_level_mllw_ft"] == case["environment_request"]["water_level_mllw_ft"]
                             and len(body["config"]["lines"]) == len(case["analysis_request"]["config"]["lines"]))
+                tab("Setup")
                 with page.expect_response(matches) as analyzed:
                     page.locator("select").filter(has=page.locator(f"option[value='{case['saved_id']}']")).select_option(case["saved_id"])
                 response = analyzed.value
                 assert response.ok, f"{case['case_id']} failed with HTTP {response.status}"
                 result = response.json()
                 assert (result["status"], result["validity"]["state"]) == expected, (case["case_id"], result)
+                tab("Lines")
                 expect(page.get_by_text(f"Overall {expected[0]}", exact=True).first).to_be_visible()
                 if expected[1] == "invalid":
                     expect(page.get_by_text("Line loads unavailable", exact=False).first).to_be_visible()
@@ -325,6 +356,7 @@ def main() -> int:
         step("Four saved-scenario analysis outcomes", four_cases)
 
         def demo_case_panel():
+            tab("Setup")
             panel = page.get_by_label("Demo cases")
             expected = {"ddg-supported-limited": ("AMBER", "limited"), "ddg-overloaded": ("RED", "limited"),
                         "ddg-invalid-data": ("RED", "invalid"), "ddg-undetermined": ("RED", "invalid")}
@@ -347,8 +379,11 @@ def main() -> int:
 
         def advance_planning():
             # Back on the saved supported scenario: bind a labeled training series, assess arrivals >= 24 h ahead, apply.
+            tab("Setup")
             page.locator("select").filter(has=page.locator("option", has_text="demo-check supported-limited")).select_option(label="demo-check supported-limited")
+            tab("Lines")
             expect(page.get_by_text("Overall AMBER", exact=True).first).to_be_visible()
+            tab("Advance (24 h+)")
             panel_source = page.get_by_label("Forecast source")
             assert "no synthetic fallback" in panel_source.inner_text(), "public acquisition must never silently use training data"
             assert panel_source.get_by_role("button", name="Fetch public forecast").is_disabled(), "public acquisition requires an explicit current depth and bin"

@@ -19,8 +19,15 @@ function withController(controller: MissionsController, Component: ComponentType
 
 export const missionsApp: AppDefinition = {
   id: 'missions',
-  title: 'Mission storyboard and port transit',
-  description: 'Replay a mission from its track, images and reports; simulate and play back port transits.',
+  title: 'Mission simulation',
+  description:
+    'Backup camera: predict where the ship goes from its live state and forcing. Storyboard: replay a recorded mission with its images and reports. Transit: simulate and play back port transits.',
+  tabs: [
+    { id: 'camera', label: 'Camera' },
+    { id: 'storyboard', label: 'Storyboard' },
+    { id: 'transit', label: 'Transit' },
+  ],
+  physics: ['3-DOF vessel dynamics', 'Tugs and autopilot', 'Wind, current and tide', 'Track prediction'],
   start(host): AppInstance {
     const controller = new MissionsController(host);
     void controller.init();
@@ -30,6 +37,19 @@ export const missionsApp: AppDefinition = {
       Bottom: withController(controller, Bottom, 'Timeline'),
       Banner: withController(controller, Banner, 'Banner'),
       onEdit: () => {},
+      setTab: (id) => {
+        if (id === 'camera' || id === 'storyboard' || id === 'transit') controller.setTab(id);
+      },
+      onTabChange: (listener) => {
+        let last = controller.state.tab;
+        return controller.store.subscribe(() => {
+          const tab = controller.state.tab;
+          if (tab !== last) {
+            last = tab;
+            listener(tab);
+          }
+        });
+      },
       dispose: () => controller.dispose(),
     };
   },

@@ -135,6 +135,37 @@ def test_resync_after_eviction_restates_state_once(setup, fake_rich):
     assert s.sequence == after
 
 
+@pytest.mark.parametrize("update", ["speed", "resync"])
+def test_reset_state_updates_preserve_recording_and_reconnect(setup, fake_rich, monkeypatch, update):
+    monkeypatch.setattr(sim_sessions, "LIFECYCLE_LOG", 2)
+    clock = Clock(); s = make(setup, clock, "s1-reset-update-" + update)
+    s.attach("a")
+    clock.now = 0.5; s.tick()
+    original_run = s.run_id
+    s.receive("a", SimControlMessage(type="reset"))
+    reset_run = s.run_id
+    assert reset_run != original_run and s.state == "reset"
+    if update == "speed":
+        s.receive("a", SimSpeedMessage(type="set_speed", speed=2))
+        assert s.lifecycle[-1].speed == 2
+    else:
+        assert s.lifecycle_evicted_through >= 0
+        s.resync(-1)
+        assert "restates" in s.lifecycle[-1].message
+    assert s.lifecycle[-1].state == "paused" and s.lifecycle[-1].run_id == reset_run
+    assert s.paused and s.model.t == 0
+    s.detach("a")
+    saved = RECORDINGS[s.session_id]
+    assert saved == SimRecording.model_validate_json(s.recording_json())
+    assert len([event for event in saved.lifecycle if event.state == "reset"]) == 1
+    s.attach("b")
+    assert s.run_id == reset_run and s.paused and s.latest.t_s == 0
+    # A subsequent real reset still has a distinct identity and remains valid.
+    s.receive("b", SimControlMessage(type="reset"))
+    assert s.run_id not in (original_run, reset_run)
+    assert len([event for event in s.recording().lifecycle if event.state == "reset"]) == 2
+
+
 @pytest.fixture
 def failing_frames(monkeypatch, fake_rich):
     real = rich.rich_frame

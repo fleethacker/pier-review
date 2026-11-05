@@ -27,6 +27,12 @@ class ToolSpec(Model):
 
 
 TOOLS: list[ToolSpec] = [
+    ToolSpec(name="resolve_forecast", description="Resolve and freeze a supplied or scenario forecast with canonical revision, coverage and provenance.",
+             method="POST", path="/mooring/forecast/resolve", request_schema="ForecastResolveRequest"),
+    ToolSpec(name="predict_trajectory", description="Model a trajectory and hazard warnings; retains the engine's validity and coverage limits.",
+             method="POST", path="/predict/trajectory", request_schema="PredictionRequest"),
+    ToolSpec(name="get_prediction", description="Read an immutable, caller-owned prediction result for cited narration; does not rerun the model.",
+             method="GET", path="/results/{result_id}", request_schema=None),
     ToolSpec(name="get_scenario_environment", description="Resolve the saved scenario's actual source; explicit mock remains synthetic and unsupported sources fail.",
              method="GET", path="/scenarios/{scenario_id}/environment", request_schema=None),
     ToolSpec(name="get_environment_scenario", description="Read the declared steady, ramp or replay source without inventing future samples.",

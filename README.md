@@ -21,7 +21,7 @@ Repository: [fleethacker/pier-review](https://github.com/fleethacker/pier-review
 > rated tug allocation, holding-plan checks, bounded line-plan search, draft sequence checks, risk sampling, bounded jobs
 > and optional SQLite persistence. Risk artifacts remain unqualified. Berthing uses a real integrator with an explicitly
 > synthetic vessel body; approach planning/simulation remain mock. CO-OPS observations and individual NWS/CBOFS/chart readers
-> exist, but a complete public forecast for docking is not yet wired. Public provider/composer work is implemented in open [PR #13](https://github.com/fleethacker/pier-review/pull/13), pending its separate review/merge. Normal launchers explicitly default to `auto`: complete current observations, then recorded-real replay, then an explicit failure—never synthetic fallback. Use `make mock` only for labeled
+> exist, and public provider/composer APIs are merged in [PR #13](https://github.com/fleethacker/pier-review/pull/13). Complete source coverage and agent/UI revision acquisition still need integration evidence. Normal launchers explicitly default to `auto`: complete current observations, then recorded-real replay, then an explicit failure—never synthetic fallback. Use `make mock` only for labeled
 > offline synthetic data. Supplied forecast snapshots support planning at least 24 hours before arrival; see
 > [FORECAST_DOCKING.md](docs/FORECAST_DOCKING.md).
 >
@@ -42,6 +42,11 @@ ships along demonstration routes with a surrogate maneuvering model, always of l
 [DEMO_MISSIONS_TRANSIT.md](docs/DEMO_MISSIONS_TRANSIT.md) (open the UI with `?app=missions`).
 
 Optional UI handoffs are kept in [MODELING_UI_RECOMMENDATIONS.md](docs/MODELING_UI_RECOMMENDATIONS.md).
+
+The Bixler implementation branch adds explicit forecast binding through Intake, Planner and Safety, saved vector
+layouts in printable Safety Sheets, cited explanations of saved predictions, and ship-input validation/capability
+endpoints. These remain limited by their source inputs. See the [implementation and acceptance record](docs/BIXLER_IMPLEMENTATION.md)
+for consumer interfaces and outstanding UI, modeling and source dependencies.
 
 ## Layout
 
@@ -76,7 +81,7 @@ Other targets in the root `Makefile`: `make modeling` or `make agents` (one serv
 
 For the combined app, run `./app.sh`; it installs locked dependencies, builds the UI and serves it on port 8888 with REST, SSE and WebSocket proxies. Set `VITE_MAPBOX_TOKEN` in the app environment before startup if using Mapbox imagery. Native PDF libraries are optional: HTML sheets and browser printing remain available. See [deployment readiness](docs/DEPLOYMENT_READINESS.md) for the Domino rehearsal procedure and access boundary.
 
-`make demo-check` exercises the four API planning chains, supplied training forecast and current motion proxy, plus the existing browser smoke when Playwright is installed. `make demo-check DEMO_CHECK_ARGS=--no-browser` explicitly limits coverage to API/proxy checks. `make demo-check-readiness` additionally fails on outstanding master-plan acceptance requirements; a green baseline is not full release readiness. CI runs the baseline API/proxy checks for PRs and merges to `dev` and `main`.
+`make demo-check` exercises the four API planning chains and saved sheet diagrams, a supplied forecast manifest through independent review, cited prediction narration, and the motion proxy including scene/recording validation, speed and reconnect, plus the browser smoke when Playwright is installed. `make demo-check DEMO_CHECK_ARGS=--no-browser` explicitly limits coverage to API/proxy checks. `make demo-check-readiness` additionally fails on outstanding master-plan acceptance requirements; a green baseline is not full release readiness. CI runs the baseline API/proxy checks for PRs and merges to `dev` and `main`.
 
 ## How the pieces integrate
 

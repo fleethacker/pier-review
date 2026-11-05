@@ -11,6 +11,8 @@ from mooring_agents.physics.tools import TOOLS, input_errors, input_schema, tool
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
 EXAMPLES = {
+    "resolve_forecast": "mooring_forecast_resolve",
+    "predict_trajectory": "predict_trajectory_request",
     "draft_berth": "berth_draft",
     "save_berth": "berth",
     "compute_loads": "loads_environmental",

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SceneStore } from '../../scene/store';
 import { Banner, Bottom, Side, Sidebar } from './Chrome';
@@ -51,7 +51,8 @@ describe('storyboard tab', () => {
 describe('transit tab', () => {
   it('runs the sample, shows limits, vessel table and events', async () => {
     const c = await mount();
-    fireEvent.click(screen.getByRole('tab', { name: 'Transit' }));
+    // The shell's tab bar selects the tab now; it calls the controller the same way.
+    act(() => c.setTab('transit'));
     expect(screen.getAllByText(/Surrogate maneuvering model; propulsion assumed; not navigational advice/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: 'Run' }));
     await waitFor(() => expect(screen.getByRole('table', { name: 'Vessels' })).toBeTruthy());

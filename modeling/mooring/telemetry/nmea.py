@@ -6,11 +6,17 @@
   transducer offset). Talker id is any two letters. Nothing else is decoded: no NMEA 2000, no AIS, no proprietary
   sentences. Unsupported or malformed input is rejected with a code; it is never guessed at.
 
+VTG mode A/D and GGA qualities 1/2/4/5 are the accepted observation subset. Estimated, manual, simulator and invalid
+modes are rejected rather than labeled good. Receiver field references:
+https://receiverhelp.trimble.com/alloy-gnss/en-us/NMEA-0183messages_VTG.html
+https://receiverhelp.trimble.com/alloy-gnss/en-us/NMEA-0183messages_GGA.html
+
 Reference: NMEA 0183 sentence structure as commonly published (field order of MWV and HDT). The standard itself is not
 kept in this repository; field order here should be checked against the edition in hand before live use.
 """
 
 import math
+import re
 from dataclasses import dataclass
 
 MAX_LEN = 82
@@ -72,6 +78,9 @@ def _number(raw: str, label: str) -> float:
 
 
 def _coordinate(raw: str, hemisphere: str, latitude: bool) -> float:
+    digits = 4 if latitude else 5
+    if not re.fullmatch(rf"\d{{{digits}}}(?:\.\d+)?", raw, flags=re.ASCII):
+        raise NmeaError("BAD_NUMBER", "GGA coordinate must use degrees and minutes in the declared field format")
     value = _number(raw, "GGA coordinate")
     degrees_value = int(value // 100)
     minutes = value - degrees_value * 100
@@ -128,8 +137,12 @@ def decode(sentence: str) -> Wind | Heading | Course | Position | Depth:
             raise NmeaError("OUT_OF_RANGE", "HDT heading must be in [0, 360)")
         return Heading(h)
     if kind == "VTG":
-        if len(f) < 9 or f[2] != "T" or f[6] != "N":
-            raise NmeaError("BAD_FIELD_COUNT", "VTG needs true course marker T and speed marker N")
+        if len(f) not in (9, 10) or f[2] != "T" or f[4] != "M" or f[6] != "N" or f[8] != "K":
+            raise NmeaError("BAD_FIELD_COUNT", "VTG needs the declared T/M/N/K field markers")
+        # Declared receiver subset: Trimble Alloy VTG table, mode field 9.
+        # Estimated/manual/simulator/invalid modes cannot enter the good-observation channel.
+        if len(f) == 10 and f[9] not in ("A", "D"):
+            raise NmeaError("DATA_NOT_VALID", "VTG mode is not an accepted autonomous/differential observation")
         course, speed = _number(f[1], "VTG course"), _number(f[5], "VTG speed")
         if not 0 <= course < 360 or not 0 <= speed <= 100:
             raise NmeaError("OUT_OF_RANGE", "VTG course must be [0,360) and speed [0,100] kt")
@@ -141,8 +154,9 @@ def decode(sentence: str) -> Wind | Heading | Course | Position | Depth:
             quality = int(f[6])
         except ValueError:
             raise NmeaError("BAD_NUMBER", "GGA fix quality is not an integer") from None
-        if quality <= 0:
-            raise NmeaError("DATA_NOT_VALID", "GGA reports no valid fix")
+        # Trimble Alloy GGA table, field 6: GPS/DGNSS/RTK fixed/RTK float only.
+        if quality not in (1, 2, 4, 5):
+            raise NmeaError("DATA_NOT_VALID", "GGA fix quality is not an accepted GNSS observation")
         return Position(_coordinate(f[2], f[3], True), _coordinate(f[4], f[5], False), quality)
     if kind == "DPT":
         if len(f) < 3:
@@ -158,7 +172,7 @@ def true_wind(apparent: Wind, heading_true_deg: float, sog_kt: float, cog_true_d
     """Apparent-to-true wind by vector subtraction, with explicit frames.
 
     Apparent wind comes FROM `apparent.angle_from_deg` relative to the bow (clockwise, 0 = bow) at `speed`. Convert to the
-    true-north frame using the heading, express the wind as a velocity vector (direction it blows TOWARD), and subtract the
+    true-north frame using the heading, express the wind as a velocity vector (direction it blows TOWARD), and add the
     vessel's velocity over ground (course over ground, speed over ground). Heading, SOG and COG must be time-synchronized
     with the apparent reading by the caller; this function has no way to check that."""
     if apparent.reference != "relative":

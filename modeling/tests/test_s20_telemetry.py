@@ -41,6 +41,42 @@ def test_vtg_gga_and_dpt_declared_subset():
         nmea.decode(sentence("GPGGA,123519,3699.000,N,07619.830,W,1,08,0.9,5.0,M,0.0,M,,"))
 
 
+@pytest.mark.parametrize("mode", ["E", "M", "S", "N", "X", ""])
+def test_non_observed_vtg_modes_cannot_update_good_telemetry(mode):
+    result, state = run([nm(sentence(f"GPVTG,123.4,T,,M,12.5,N,23.2,K,{mode}"))])
+    assert result.accepted == 0 and result.rejections[0].code == "DATA_NOT_VALID"
+    assert state.latest == {} and state.history == {}
+
+
+@pytest.mark.parametrize("mode", ["A", "D"])
+def test_observed_vtg_modes_are_accepted(mode):
+    assert nmea.decode(sentence(f"GPVTG,123.4,T,,M,12.5,N,23.2,K,{mode}")) == nmea.Course(123.4, 12.5)
+
+
+@pytest.mark.parametrize("quality", [0, 3, 6, 7, 8, 9, -1])
+def test_unsupported_gga_quality_cannot_update_good_telemetry(quality):
+    result, state = run([nm(sentence(f"GPGGA,123519,3657.510,N,07619.830,W,{quality},08,0.9,5.0,M,0.0,M,,"))])
+    assert result.accepted == 0 and result.rejections[0].code == "DATA_NOT_VALID"
+    assert state.latest == {} and state.history == {}
+
+
+@pytest.mark.parametrize("quality", [1, 2, 4, 5])
+def test_declared_gnss_quality_is_accepted(quality):
+    assert nmea.decode(sentence(f"GPGGA,123519,3657.510,N,07619.830,W,{quality},08,0.9,5.0,M,0.0,M,,")).fix_quality == quality
+
+
+@pytest.mark.parametrize("latitude,longitude", [
+    ("3699.000", "07619.830"), ("3657.510", "07660.000"),
+    ("3657.510", "18100.000"), ("9000.001", "07619.830"),
+    ("3.65751e3", "07619.830"), ("+3657.510", "07619.830"),
+    (" 3657.510", "07619.830"), ("3657.510", "7619.830"),
+])
+def test_gga_rejects_bad_coordinate_format_or_range(latitude, longitude):
+    result, state = run([nm(sentence(f"GPGGA,123519,{latitude},N,{longitude},W,1,08,0.9,5.0,M,0.0,M,,"))])
+    assert result.accepted == 0 and result.rejected == 1
+    assert state.latest == {} and state.history == {}
+
+
 @pytest.mark.parametrize("raw,code", [
     ("$WIMWV,045.0,R,18.5,N,A*00", "CHECKSUM_MISMATCH"),
     ("$WIMWV,045.0,R,18.5,N,A", "MISSING_CHECKSUM"),
@@ -202,3 +238,36 @@ def test_websocket_ingest_uses_the_same_configured_key(monkeypatch):
     with client.websocket_connect("/ws/telemetry?limit=1", headers={"X-Telemetry-Key": "s3cret"}) as ws:
         ws.send_json({})
         assert ws.receive_json()["rejected"] == 1
+
+
+def test_websocket_recovers_after_invalid_json_and_schema(monkeypatch):
+    from modeling_api.backend import telemetry
+    isolated = ing.Ingest(clock=lambda: NOW)
+    monkeypatch.setattr(telemetry, "ingest", isolated.ingest)
+    with client.websocket_connect("/ws/telemetry?limit=3") as ws:
+        ws.send_text("{invalid json")
+        assert ws.receive_json()["rejected"] == 1
+        ws.send_json(["not a record"])
+        assert ws.receive_json()["rejected"] == 1
+        assert isolated.latest == {}
+        ws.send_json(nm().model_dump(mode="json"))
+        assert ws.receive_json()["accepted"] == 1
+    assert len(isolated.latest) == 1
+
+
+def test_websocket_binary_record_closes_with_declared_error():
+    with client.websocket_connect("/ws/telemetry") as ws:
+        ws.send_bytes(b"not JSON text")
+        with pytest.raises(WebSocketDisconnect) as closed:
+            ws.receive_json()
+        assert closed.value.code == 1003
+
+
+def test_non_ascii_telemetry_key_is_rejected_without_server_error(monkeypatch):
+    monkeypatch.setenv("MOORING_TELEMETRY_KEY", "s3cret")
+    headers = {b"x-telemetry-key": "wrong-é".encode()}
+    assert client.post("/api/v1/telemetry/batch", json={"records": []}, headers=headers).status_code == 401
+    with pytest.raises(WebSocketDisconnect) as denied:
+        with client.websocket_connect("/ws/telemetry", headers=headers):
+            pass
+    assert denied.value.code == 1008

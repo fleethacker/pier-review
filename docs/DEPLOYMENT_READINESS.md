@@ -24,7 +24,7 @@
 
 Clients use `Authorization: Bearer <key>` on HTTP and WebSocket handshakes. Native browser WebSocket clients cannot set arbitrary headers; a trusted gateway or a future secure session-cookie design is needed before enabling this mode for the current browser UI. The agents service forwards the validated caller bearer credential to modeling; configure matching principal/key mappings. Browser credential UX and trusted gateway integration remain unimplemented. The old telemetry key, if configured, is an additional check. No query-string credentials are accepted.
 
-The agents application now has its own HTTP body/rate controls and resource ownership checks, described below. Existing `/ws/env`, `/ws/alerts` and `/ws/telemetry` handlers are unchanged; middleware authenticates their handshakes and carries ownership context, but their traffic limits/lifecycle have not been hardened here. Only `/ws/sim` has the new command-rate/size and backpressure controls. Authorized principals can see aggregate metrics; deployment policy must decide whether that is appropriate.
+The agents application now has its own HTTP body/rate controls and resource ownership checks, described below. Middleware authenticates `/ws/env`, `/ws/alerts` and `/ws/telemetry` handshakes and carries ownership context. Alerts now preserve the selected scenario source on every frame and close explicitly on provider failure; their traffic limits/backpressure have not been hardened here. Environment and telemetry lifecycle controls remain separate. Only `/ws/sim` has the new command-rate/size and backpressure controls. Authorized principals can see aggregate metrics; deployment policy must decide whether that is appropriate.
 
 ## Agent job controls
 

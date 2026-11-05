@@ -67,7 +67,10 @@ FROM, current direction is where it flows TOWARD; long-running endpoints return 
 WEBSOCKETS = {
     "/ws/env": {"query": "berth_id, mode=live|replay|scenario, env_scenario_id, replay_start_utc, speed, interval_s, limit",
                 "server_messages": "EnvironmentSnapshot"},
-    "/ws/alerts": {"query": "berth_id, scenario_id, interval_s, limit", "server_messages": "Alert"},
+    "/ws/alerts": {"query": "berth_id, scenario_id, interval_s, limit", "server_messages": "Alert",
+                   "terminal_close_codes": {"1013": "Environment source unavailable; no replacement snapshot is emitted",
+                                            "4404": "Scenario/source/reference not found or not owned",
+                                            "4400": "Invalid interval, limit or reference"}},
     "/ws/sim/{session_id}": {"query": "limit",
                              "client_messages": "SimTugCommandMessage | SimLineEventMessage | SimControlMessage",
                              "server_messages": "SimFrame (latest state; nominal 10 Hz at default dt)"},

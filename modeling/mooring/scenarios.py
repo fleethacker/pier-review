@@ -29,6 +29,9 @@ def list_all() -> list[Scenario]:
 
 
 def environment_for(sc: Scenario) -> EnvironmentSnapshot:
+    if sc.env_source.mode in ("replay", "forecast"):
+        raise refdata.InvalidReference(
+            "Scenario source mode is not implemented here; use an explicit environment scenario for recorded replay")
     if sc.env_source.mode == "scenario" and sc.env_source.env_scenario_id:
         return environment.scenario_snapshot(sc.env_source.env_scenario_id, utcnow())
     return environment.now(sc.berth_id)

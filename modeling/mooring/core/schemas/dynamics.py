@@ -258,21 +258,23 @@ class SimRecording(Model):
 
 
 class SimSessionCreate(Model):
-    wire_omitted_defaults = {"dt_s": None, "duration_s": None}
+    wire_omitted_defaults = {"dt_s": None, "duration_s": None, "record_interval_s": None}
     dt_s: float | None = Field(default=None, ge=0.0001, le=1)
     duration_s: float | None = Field(default=None, gt=0, le=7200)
+    record_interval_s: float | None = Field(default=None, ge=0.1, description="Simulation-time interval between recorded frames; absent means 1 s.")
     scenario_id: str
     initial_state: ShipState
 
 
 class SimSessionCreated(Model):
-    wire_omitted_defaults = {"validity": None, "scene_url": None, "protocol": None}
+    wire_omitted_defaults = {"validity": None, "scene_url": None, "protocol": None, "recording_url": None}
 
     session_id: str
     ws_url: str
     validity: Validity | None = None
     scene_url: str | None = Field(default=None, description="Optional immutable SimScene resource; legacy sessions do not expose it.")
     protocol: Literal["rm0-v1"] | None = Field(default=None, description="Present only when the session implements the RM0 stream protocol.")
+    recording_url: str | None = Field(default=None, description="Bounded SimRecording resource for this session (live copy, else persisted).")
 
 
 class SimTugCommandMessage(Model):
@@ -298,6 +300,13 @@ class SimLineEventMessage(Model):
 
 class SimControlMessage(Model):
     type: Literal["pause", "resume", "reset"]
+
+
+class SimSpeedMessage(Model):
+    """Client message: simulated seconds per wall second. The physics step never changes."""
+
+    type: Literal["set_speed"]
+    speed: float = Field(gt=0, le=16)
 
 
 # ---------- M12 Approach ----------

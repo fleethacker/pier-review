@@ -25,8 +25,12 @@ def resolve_request(req: ForecastResolveRequest):
     series = req.forecast
     if binding.source == 'scenario':
         from mooring.data_simulation.scenario_forecast import sample_scenario
-        series, scenario_revision = sample_scenario(binding.env_scenario_id,
-            as_of_utc=req.as_of_utc, from_utc=req.from_utc, to_utc=req.to_utc, step_min=req.step_min)
+        from mooring.environment.errors import ProviderError
+        try:
+            series, scenario_revision = sample_scenario(binding.env_scenario_id,
+                as_of_utc=req.as_of_utc, from_utc=req.from_utc, to_utc=req.to_utc, step_min=req.step_min)
+        except ProviderError as exc:
+            raise refdata.InvalidReference(f'Scenario source unavailable ({exc.kind}): {exc}') from None
         revision = revision or scenario_revision
     return resolve_forecast(series, as_of_utc=req.as_of_utc,
         from_utc=req.from_utc, to_utc=req.to_utc, max_gap_min=req.max_gap_min,

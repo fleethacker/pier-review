@@ -195,7 +195,8 @@ async def _apply_move(call: ToolUse, cfg: MooringConfig, *, tk: PhysicsToolkit, 
         result = await tk.hold_tugs(_analyze_body(sc, cfg, env, mst, tugs, installation_tide))
         if not result.result.feasible or result.status == "RED":
             raise ValueError("the holding-tug plan is infeasible")
-        assignments = [x.model_dump(mode="json") for x in result.result.assignments]
+        # Holding search returns additions to the assistance already in the request.
+        assignments = [*tugs, *(x.model_dump(mode="json") for x in result.result.assignments)]
         return cfg, assignments, result.result_id, None
     except (KeyError, TypeError, ValueError) as exc:
         return cfg, tugs, None, f"Invalid {call.name} request was refused: {exc}."

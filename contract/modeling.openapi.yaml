@@ -346,7 +346,7 @@ paths:
     post:
       tags:
       - M2 Reference data
-      summary: Add or replace a berth (from the canvas or a confirmed vision draft)
+      summary: Register an immutable berth; identical retries are accepted, changed data requires a new ID
       operationId: create_berth_api_v1_berths_post
       requestBody:
         content:
@@ -361,6 +361,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BerthCreated'
+        '409':
+          description: Existing berth ID has different data; register a new revision ID
         '422':
           description: Validation Error
           content:

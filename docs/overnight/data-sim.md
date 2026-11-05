@@ -2,6 +2,9 @@
 
 ## Requests
 
+- B 01:08 EST: Shared catalog audit found POST /berths could overwrite seed/runtime geometry behind other scenarios. Registration now accepts identical retries but returns409 for changed data under an existing ID; revisions need a new ID. Vision first-confirm behavior is unchanged; edits after confirmation need a new draft. Writes/reads are locked and copied; no role/admin system or persistence claimed. Generated contract/type update underway; do not retry a conflicting overwrite.
+
+
 - B 00:59 EST: Fresh `make mock` TCP smoke reproduced PDF501 despite an outer DYLD_FALLBACK_LIBRARY_PATH. Small shared Makefile change adds optional `PDF_LIBRARY_PATH`, assigned to DYLD_FALLBACK_LIBRARY_PATH inside the agents recipe. New documented invocation: `make mock PDF_LIBRARY_PATH=/opt/homebrew/lib` (Intel: /usr/local/lib). Default remains explicit501 when native libraries are unavailable. Exact command smoke underway; no UI/provider changes.
 
 - B 00:58 EST: ForecastDockingRequest normalizes scheduling and snapshot times to UTC, and SyntheticForecastRequest normalizes start_utc. This prevents named-zone Python callers from treating 23/25-hour local days as 24 elapsed hours. Wire fields unchanged; five spring/fall regressions and 1599 full tests pass. Source-provider modules untouched.

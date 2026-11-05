@@ -78,3 +78,5 @@ and tool-call audit, reject a different principal, and append concurrent approva
 One process per service/database is supported. No distributed jobs, automatic retention, verified approval roles,
 freshness revalidation of archived sheets, or durable user-confirmed reference catalog is claimed. Existing local-demo
 mode stays in memory. Back up an explicitly separate AGENTS_LEDGER_DB along with MOORING_DB if configured.
+
+Shared berth references are immutable by ID: identical registration retries are idempotent, and conflicting replacements return HTTP409, including authenticated callers. Reads still expose the shared catalog; this is not a private asset registry. A revised berth needs a new ID, so another principal cannot silently replace the geometry/depth behind an existing scenario. Runtime entries remain ephemeral and require a separate durable administration workflow.

@@ -2,6 +2,7 @@
 
 from functools import cache
 from pathlib import Path
+from threading import RLock
 
 import yaml
 
@@ -19,6 +20,10 @@ class NotFound(KeyError):
 
 class InvalidReference(ValueError):
     """Raised when a request body refers to something that doesn't exist; the API turns it into HTTP 422."""
+
+
+class ReferenceConflict(ValueError):
+    """An existing reference ID cannot be rebound to different asset data."""
 
 
 def _load(path: Path):
@@ -49,6 +54,7 @@ def _tugs() -> dict[str, TugSpec]:
 
 
 _runtime_berths: dict[str, Berth] = {}
+_berths_lock = RLock()
 
 
 def ships() -> list[ShipClass]:
@@ -74,19 +80,28 @@ def line(spec_id: str) -> LineSpec:
 
 
 def berths() -> list[Berth]:
-    return [b.model_copy(deep=True) for b in [*_seed_berths().values(), *_runtime_berths.values()]]
+    with _berths_lock:
+        return [b.model_copy(deep=True) for b in [*_seed_berths().values(), *_runtime_berths.values()]]
 
 
 def berth(berth_id: str) -> Berth:
-    found = _runtime_berths.get(berth_id) or _seed_berths().get(berth_id)
-    if found is None:
-        raise NotFound(f"Berth '{berth_id}' not found")
-    return found.model_copy(deep=True)
+    with _berths_lock:
+        found = _runtime_berths.get(berth_id) or _seed_berths().get(berth_id)
+        if found is None:
+            raise NotFound(f"Berth '{berth_id}' not found")
+        return found.model_copy(deep=True)
 
 
 def add_berth(b: Berth) -> Berth:
-    _runtime_berths[b.berth_id] = b.model_copy(deep=True)
-    return b
+    candidate = b.model_copy(deep=True)
+    with _berths_lock:
+        existing = _runtime_berths.get(candidate.berth_id) or _seed_berths().get(candidate.berth_id)
+        if existing is not None:
+            if existing != candidate:
+                raise ReferenceConflict(f"Berth '{candidate.berth_id}' already exists with different data; use a new berth_id for a revision")
+            return existing.model_copy(deep=True)
+        _runtime_berths[candidate.berth_id] = candidate
+        return candidate.model_copy(deep=True)
 
 
 def tugs() -> list[TugSpec]:

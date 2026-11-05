@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, HTTPException
 
 from mooring import refdata
 from mooring.core.schemas import (
@@ -61,9 +61,13 @@ def get_berth(berth_id: str):
 
 
 @router.post("/berths", response_model=BerthCreated, status_code=201,
-             summary="Add or replace a berth (from the canvas or a confirmed vision draft)")
+             summary="Register an immutable berth; identical retries are accepted, changed data requires a new ID",
+             responses={409: {"description": "Existing berth ID has different data; register a new revision ID"}})
 def create_berth(berth: Berth):
-    refdata.add_berth(berth)
+    try:
+        refdata.add_berth(berth)
+    except refdata.ReferenceConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
     return BerthCreated(berth_id=berth.berth_id)
 
 

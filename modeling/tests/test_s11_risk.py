@@ -359,3 +359,81 @@ def test_alert_carries_event_time_provenance_and_staleness():
     assert fresh.at_utc == req.environment.valid_at_utc and "no probability" in fresh.provenance and fresh.stale is False
     old = req.environment.model_copy(update={"metadata": EnvironmentMetadata(basis="observation", age_s=4000.0)})
     assert risk.alert_for(old, req).stale is True and "stale" in risk.alert_for(old, req).message
+
+
+@pytest.mark.parametrize("with_plan", [False, True])
+def test_alert_rejects_poor_environment_before_solving(monkeypatch, with_plan):
+    from mooring.core.schemas import AnalyzeRequest, EnvironmentMetadata
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"])
+    env = req.environment.model_copy(update={"metadata": EnvironmentMetadata(basis="observation", quality="poor", age_s=0)})
+    def unexpected(*args, **kwargs):
+        pytest.fail("invalid environmental inputs must not be solved")
+    monkeypatch.setattr(risk.solver, "solve_request", unexpected)
+    alert = risk.alert_for(env, req if with_plan else None)
+    assert alert.severity == "RED" and alert.validity.state == "invalid"
+    assert alert.element_id is None and "%" not in alert.message
+    assert "ENVIRONMENT_POOR_QUALITY" in {r.code for r in alert.validity.reasons}
+
+
+def test_alert_grounding_is_invalid_without_utilization():
+    from mooring.core.schemas import AnalyzeRequest
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"])
+    env = req.environment.model_copy(update={"water_level_mllw_ft": -30.0})
+    alert = risk.alert_for(env, req)
+    assert alert.severity == "RED" and alert.validity.state == "invalid"
+    assert alert.element_id is None and "%" not in alert.message
+    assert "DEPTH_NOT_ABOVE_DRAFT" in {r.code for r in alert.validity.reasons}
+
+
+def test_alert_seed_plan_is_explicitly_limited():
+    from mooring.core.schemas import AnalyzeRequest
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"])
+    alert = risk.alert_for(req.environment, req)
+    assert alert.validity.state == "limited" and alert.severity in ("AMBER", "RED")
+    assert "Limited assessment" in alert.message and alert.element_id is not None
+
+
+def test_alert_no_plan_is_observation_not_adequacy():
+    from mooring.core.schemas import AnalyzeRequest, EnvironmentMetadata
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"])
+    alert = risk.alert_for(req.environment, None)
+    assert alert.validity.state == "limited" and "no plan assessed" in alert.message
+    old = req.environment.model_copy(update={"metadata": EnvironmentMetadata(basis="observation", age_s=4000)})
+    alert = risk.alert_for(old, None)
+    assert alert.stale and alert.severity == "AMBER"
+    assert "ALERT_ENVIRONMENT_STALE" in {r.code for r in alert.validity.reasons}
+
+
+def test_alert_invalid_plan_reference_is_structured():
+    from mooring.core.schemas import AnalyzeRequest
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"]).model_copy(update={"ship_class_id": "missing-ship"})
+    alert = risk.alert_for(req.environment, req)
+    assert alert.severity == "RED" and alert.validity.state == "invalid"
+    assert alert.element_id is None and "%" not in alert.message
+
+
+def test_alert_optional_validity_preserves_legacy_wire():
+    from mooring.core.schemas import Alert
+    env = EnvironmentSnapshot(**EXAMPLES["mooring_analyze"]["environment"])
+    alert = Alert(alert_id="legacy", at_utc=env.valid_at_utc, severity="INFO", element_id=None, message="Observation", env=env)
+    assert "validity" not in alert.model_dump(mode="json")
+
+
+@pytest.mark.parametrize("installation_tide", [None, -1.0])
+def test_alert_keeps_installed_rest_lengths_as_tide_changes(monkeypatch, installation_tide):
+    from mooring.core.schemas import AnalyzeRequest
+    req = AnalyzeRequest(**EXAMPLES["mooring_analyze"]).model_copy(update={"installed_at_water_level_mllw_ft": installation_tide})
+    original_solve = risk.solver.solve_request
+    baseline, _, _ = original_solve(req)
+    baseline_lengths = [line.model.rest_length_ft for line in baseline.lines]
+    env = req.environment.model_copy(update={"water_level_mllw_ft": req.environment.water_level_mllw_ft + 4})
+    captured = []
+    def capture(current_req):
+        result = original_solve(current_req)
+        captured.append([line.model.rest_length_ft for line in result[0].lines])
+        return result
+    monkeypatch.setattr(risk.solver, "solve_request", capture)
+    risk.alert_for(env, req)
+    assert captured[0] == pytest.approx(baseline_lengths, rel=1e-12)
+    retensioned, _, _ = original_solve(req.model_copy(update={"environment": env, "installed_at_water_level_mllw_ft": None}))
+    assert any(abs(line.model.rest_length_ft - old) > 1e-3 for line, old in zip(retensioned.lines, baseline_lengths))

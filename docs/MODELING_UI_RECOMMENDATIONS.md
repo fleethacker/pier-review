@@ -41,6 +41,8 @@ Keep probabilities labeled as scenario outputs when the uncertainty model is unq
 
 Risk timeline can consume exact supplied `forecast` snapshots with explicit `start_utc`, endpoint coverage and <=60-minute gaps. Show each step’s environment/validity and the result’s `forcing_source`. Omitted forecast is always labeled synthetic training; never call it NOAA output merely because a provider is enabled. Supplied knots are all evaluated, independent of the legacy display interval.
 
+Live `/ws/alerts` messages now carry optional `validity`. Invalid environmental or plan inputs produce RED with no usable utilization; seed-data assessments remain explicitly limited. Observation-only messages do not establish mooring adequacy. Alerts preserve the plan’s original installation tide as conditions change; they do not retension lines at each new tide. Show validity reasons alongside severity and stale state.
+
 ## Integration checklist for the UI agent
 
 - Regenerate types after merging `dev`; use generated examples as consumer fixtures. Report missing/ambiguous fields in `docs/overnight/modeling-agents.md` → Requests.

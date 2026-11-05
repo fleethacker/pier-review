@@ -144,8 +144,9 @@ class TimelineResponse(Envelope[TimelineResult]):
 class Alert(Model):
     """Message on WS /ws/alerts."""
 
-    wire_omitted_defaults = {"stale": None, "provenance": None}
+    wire_omitted_defaults = {"stale": None, "provenance": None, "validity": None}
 
+    validity: Validity | None = Field(default=None, description="Input and model validity; observations without a plan do not establish mooring adequacy.")
     alert_id: str
     at_utc: datetime
     severity: Severity

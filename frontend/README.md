@@ -155,14 +155,16 @@ the tab says so if Mapbox refuses.
 - Look: the light preset (dawn, day, dusk, night) lights the sea, and at dusk and night the ships' navigation and deck
   lights glow. Dusk and night are the most dramatic; the presets use them.
 
-Eleven presets ship with it: a carrier group transit, a surface contact intercept at night, a formation drill, a **missile
+Twelve presets ship with it: a carrier group transit, a surface contact intercept at night, a formation drill, a **missile
 salvo on a carrier group**, a **minefield transit**, an **air raid with SAM defence**, a **submarine ambush** and
 **over the horizon** (a hostile destroyer that cannot see the carrier group sends a helicopter to find it; sweep the
-helicopter's altitude in the red team). The last five include red-team setups. Three more are large (60 to 130 units) and use
+helicopter's altitude in the red team). The last five include red-team setups. Four more are large (60 to 220 units) and use
 everything: a **joint task force** (carrier group with fighters, early warning, ASW helicopters and a scouting drone
 against destroyers, fast attack craft, raiders, two submarines, twenty attack drones and a minefield), a **convoy
 through a submarine strait** (sweep the number of escorts) and a **drone swarm defence** (sweep the number of drones
-against ships with limited magazines). Newer unit classes: frigate (good sonar), diesel submarine (quiet), surveillance
+against ships with limited magazines) and a **theater campaign** (over 200 units: a carrier group and an amphibious group on two
+axes against two surface groups, four submarines, two raid waves, two drone carriers, early warning on both sides and two
+minefields; a run takes about three seconds, so a red-team batch wants several cores). Newer unit classes: frigate (good sonar), diesel submarine (quiet), surveillance
 drone, attack drone and airborne early warning. Each large one takes a few seconds per run, so batches of them are
 best on a machine with several cores (the red team uses worker threads). Use **Edit as JSON** or **Download** in the Scenario panel to save or load your own, or **Saved scenarios** to keep them
 in this browser or in a **shared library** on the server that everyone using the app can open (saving over a scenario

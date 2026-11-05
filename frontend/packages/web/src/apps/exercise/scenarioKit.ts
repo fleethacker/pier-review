@@ -14,10 +14,10 @@ export const station = (leader: LonLat, headingDeg: number, aheadM: number, abea
 
 
 /** Mines scattered over a box (meters east and north of the ocean center), always in the same places for a given seed. */
-export function minefield(count: number, eastM: number, northM: number, halfWidthM: number, halfHeightM: number, seed: number): UnitConfig[] {
+export function minefield(count: number, eastM: number, northM: number, halfWidthM: number, halfHeightM: number, seed: number, idPrefix = 'mine'): UnitConfig[] {
   const rng = makeRng(seed);
   return Array.from({ length: count }, (_, i) => ({
-    id: `mine${String(i + 1).padStart(2, '0')}`,
+    id: `${idPrefix}${String(i + 1).padStart(2, '0')}`,
     name: `Mine ${i + 1}`,
     classId: 'MINE' as const,
     side: 'RED' as const,

@@ -81,7 +81,7 @@ describe('the new unit classes', () => {
 });
 
 describe('the large scenarios', () => {
-  const LARGE = ['joint-task-force', 'convoy-escort', 'drone-swarm'];
+  const LARGE = ['joint-task-force', 'convoy-escort', 'drone-swarm', 'theater-campaign'];
   const get = (id: string) => PRESET_SCENARIOS.find((p) => p.id === id)!;
 
   it.each(LARGE)('%s is valid, big, mixed, and its red-team setup is valid', (id) => {
@@ -97,6 +97,17 @@ describe('the large scenarios', () => {
       expect(classes.has(c), `${id} has ${c}`).toBe(true);
     }
     expect(new Set(s.units.map((u) => u.side))).toEqual(new Set(['BLUE', 'RED']));
+  });
+
+  it('the theater campaign is the biggest: two axes, four submarines, two minefields, two drone carriers, early warning on both sides', () => {
+    const s = get('theater-campaign');
+    expect(s.units.length).toBeGreaterThanOrEqual(200);
+    expect(s.units.filter((u) => u.classId === 'SSN' || u.classId === 'SSK')).toHaveLength(4);
+    expect(s.units.filter((u) => u.classId === 'AEW').map((u) => u.side).sort()).toEqual(['BLUE', 'BLUE', 'RED']);
+    expect(s.units.filter((u) => u.classId === 'MINE')).toHaveLength(40);
+    expect(new Set(s.units.filter((u) => u.classId === 'DRONE').map((u) => u.launch!.byId)).size).toBe(2);
+    expect(s.units.filter((u) => u.side === 'BLUE' && SHIP_CLASSES[u.classId].domain === 'surface' && !SHIP_CLASSES[u.classId].weapon).length).toBeGreaterThanOrEqual(16);
+    for (const g of [200, 3000]) expect(runScenario({ ...s, durationS: 3600 }, { seed: g }).events.length).toBeGreaterThan(200);
   });
 
   it('the task force and the convoy have submarines and mines, and the swarm has two waves of drones', () => {

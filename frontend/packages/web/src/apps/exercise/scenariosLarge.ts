@@ -294,4 +294,142 @@ function droneSwarm(): ScenarioConfig {
   };
 }
 
-export const LARGE_SCENARIOS: ScenarioConfig[] = [jointTaskForce(), convoyEscort(), droneSwarm()];
+// ---------------------------------------------------------------------------------------------------------------------
+// 4. Theater campaign: a carrier group and an amphibious group advance on two axes against two surface groups, four
+//    submarines, two waves of raiders, two drone carriers, early warning on both sides and two minefields.
+// ---------------------------------------------------------------------------------------------------------------------
+
+const GA = at(-48000, -22000);
+const GB = at(-48000, 26000);
+
+function theaterCampaign(): ScenarioConfig {
+  const ship = (id: string, name: string, classId: ClassId, origin: LonLat, speed: number, leader: string, ahead: number, abeam: number, extra: Partial<UnitConfig> = {}) =>
+    escort(id, name, classId, 'BLUE', origin, 90, speed, { leader, ahead, abeam, decoys: classId === 'CARGO' ? 0 : 3, ...extra });
+  const cvn: UnitConfig = { id: 'cvn1', name: 'Carrier 1', classId: 'CVN', side: 'BLUE', start: GA, headingDeg: 90, speedKt: 18, maxTurnRateDegPerS: 0.1, decoys: 6, pDecoy: 0.4, behavior: { type: 'route', waypoints: [offsetM(GA, 90000, 0)] } };
+  const lhd: UnitConfig = { id: 'lhd1', name: 'Amphibious ship 1', classId: 'LHD', side: 'BLUE', start: GB, headingDeg: 90, speedKt: 14, maxTurnRateDegPerS: 0.12, decoys: 5, pDecoy: 0.4, behavior: { type: 'route', waypoints: [offsetM(GB, 70000, 0)] } };
+  const groupA: UnitConfig[] = [
+    cvn,
+    ship('a-cg1', 'Cruiser A1', 'CG', GA, 18, 'cvn1', 3500, 0, { decoys: 4 }),
+    ship('a-cg2', 'Cruiser A2', 'CG', GA, 18, 'cvn1', -3500, 0, { decoys: 4 }),
+    ship('a-ddg1', 'Destroyer A1', 'DDG', GA, 18, 'cvn1', 2000, -4500),
+    ship('a-ddg2', 'Destroyer A2', 'DDG', GA, 18, 'cvn1', 2000, 4500),
+    ship('a-ddg3', 'Destroyer A3', 'DDG', GA, 18, 'cvn1', -2500, -5500),
+    ship('a-ddg4', 'Destroyer A4', 'DDG', GA, 18, 'cvn1', -2500, 5500),
+    ship('a-ffg1', 'Frigate A1', 'FFG', GA, 18, 'cvn1', 8000, -3000),
+    ship('a-ffg2', 'Frigate A2', 'FFG', GA, 18, 'cvn1', 8000, 3000),
+  ];
+  const groupB: UnitConfig[] = [
+    lhd,
+    ...[0, 1, 2, 3].map((i) => ship(`b-mv${i + 1}`, `Transport ${i + 1}`, 'CARGO', GB, 14, 'lhd1', -1500 - (i % 2) * 1200, (i < 2 ? -1 : 1) * 1500 * (1 + (i % 2) * 0.1))),
+    ship('b-ddg1', 'Destroyer B1', 'DDG', GB, 14, 'lhd1', 4000, -3500),
+    ship('b-ddg2', 'Destroyer B2', 'DDG', GB, 14, 'lhd1', 4000, 3500),
+    ship('b-ffg1', 'Frigate B1', 'FFG', GB, 14, 'lhd1', 8000, -2500),
+    ship('b-ffg2', 'Frigate B2', 'FFG', GB, 14, 'lhd1', 8000, 2500),
+  ];
+  const airBlue: UnitConfig[] = [
+    ...[
+      ['aewA', 'Early warning A', GA, 0],
+      ['aewB', 'Early warning B', GB, 0],
+    ].map(([id, name, o, dy]): UnitConfig => ({ id: id as string, name: name as string, classId: 'AEW', side: 'BLUE', start: offsetM(o as LonLat, 15000, dy as number), headingDeg: 90, speedKt: 250, altitudeM: 8000, behavior: { type: 'loiter', center: offsetM(o as LonLat, 26000, dy as number), radiusM: 16000 } })),
+    ...[0, 1, 2].map((i): UnitConfig => ({ id: `bfA${i + 1}`, name: `Fighter A${i + 1}`, classId: 'FIGHTER', side: 'BLUE', start: offsetM(GA, 15000, (i - 1) * 7000), headingDeg: 90, speedKt: 380, altitudeM: 6000, behavior: { type: 'loiter', center: offsetM(GA, 40000, (i - 1) * 14000), radiusM: 9000 } })),
+    ...[0, 1, 2].map((i): UnitConfig => ({ id: `bfB${i + 1}`, name: `Fighter B${i + 1}`, classId: 'FIGHTER', side: 'BLUE', start: offsetM(GB, 15000, (i - 1) * 7000), headingDeg: 90, speedKt: 380, altitudeM: 6000, behavior: { type: 'loiter', center: offsetM(GB, 36000, (i - 1) * 14000), radiusM: 9000 } })),
+    ...[
+      ['bhA1', GA, -3000],
+      ['bhA2', GA, 3000],
+      ['bhB1', GB, -3000],
+      ['bhB2', GB, 3000],
+    ].map(([id, o, dy]): UnitConfig => ({ id: id as string, name: `ASW helicopter ${(id as string).slice(2)}`, classId: 'HELO', side: 'BLUE', start: offsetM(o as LonLat, 6000, dy as number), headingDeg: 90, speedKt: 90, altitudeM: 100, behavior: { type: 'route', waypoints: [offsetM(o as LonLat, 30000, (dy as number) * 2), offsetM(o as LonLat, 30000, -(dy as number)), offsetM(o as LonLat, 12000, -(dy as number)), offsetM(o as LonLat, 12000, (dy as number) * 2)], loop: true } })),
+    { id: 'buavA', name: 'Scout drone A', classId: 'UAV', side: 'BLUE', start: GA, headingDeg: 90, speedKt: 120, launch: { byId: 'cvn1', atS: 60 }, behavior: { type: 'route', waypoints: [{ ...offsetM(GA, 120000, 4000), altitudeM: 3000 }] } },
+    { id: 'buavB', name: 'Scout drone B', classId: 'UAV', side: 'BLUE', start: GB, headingDeg: 90, speedKt: 120, launch: { byId: 'lhd1', atS: 60 }, behavior: { type: 'route', waypoints: [{ ...offsetM(GB, 110000, -4000), altitudeM: 3000 }] } },
+  ];
+
+  // Red: a northern and a southern surface group, four submarines across the two axes, raiders in two waves,
+  // two drone carriers, early warning and two scouts.
+  const sag = (prefix: string, north: number, ddgCount: number, facCount: number, targets: string[]): UnitConfig[] => [
+    ...Array.from({ length: ddgCount }, (_, i): UnitConfig => ({ id: `${prefix}dd${i + 1}`, name: `Hostile destroyer ${prefix.toUpperCase()}${i + 1}`, classId: 'DDG', side: 'RED', start: at(70000 + i * 2500, north + i * 2500), headingDeg: 270, speedKt: 18, behavior: { type: 'route', waypoints: [at(20000, north + i * 2500)] } })),
+    ...Array.from({ length: facCount }, (_, i): UnitConfig => ({ id: `${prefix}fac${i + 1}`, name: `Fast attack craft ${prefix.toUpperCase()}${i + 1}`, classId: 'FAC', side: 'RED', start: at(68000 + i * 700, north - 6000 - i * 1500), headingDeg: 270, speedKt: 38, behavior: { type: 'pursue', targetId: targets[i % targets.length], standoffM: 6000 } })),
+  ];
+  const northSag = sag('n', 24000, 2, 3, ['a-ddg2', 'a-ddg4', 'cvn1']);
+  const southSag = sag('s', -28000, 2, 3, ['b-ddg1', 'b-ffg1', 'lhd1']);
+  const subs: UnitConfig[] = [
+    { id: 'rsub1', name: 'Hostile submarine 1', classId: 'SSN', side: 'RED', start: at(-10000, -21000), headingDeg: 270, speedKt: 5, behavior: { type: 'hold' } },
+    { id: 'rsub2', name: 'Hostile submarine 2', classId: 'SSK', side: 'RED', start: at(-2000, -26000), headingDeg: 270, speedKt: 4, behavior: { type: 'hold' } },
+    { id: 'rsub3', name: 'Hostile submarine 3', classId: 'SSN', side: 'RED', start: at(-6000, 27500), headingDeg: 270, speedKt: 5, behavior: { type: 'hold' } },
+    { id: 'rsub4', name: 'Hostile submarine 4', classId: 'SSK', side: 'RED', start: at(2000, 22000), headingDeg: 270, speedKt: 4, behavior: { type: 'hold' } },
+  ];
+  const waveOf = (prefix: string, count: number, baseNorth: number, start: number): UnitConfig[] =>
+    Array.from({ length: count }, (_, i): UnitConfig => ({ id: `${prefix}${i + 1}`, name: `Raider ${prefix.toUpperCase()}${i + 1}`, classId: 'FIGHTER', side: 'RED', start: at(start + i * 1500, baseNorth + (i - (count - 1) / 2) * 5000), headingDeg: 270, speedKt: 450, altitudeM: 5000, behavior: { type: 'route', waypoints: [at(start - 32000, baseNorth + (i - (count - 1) / 2) * 5000), at(start - 26000, baseNorth + (i - (count - 1) / 2) * 5000)], loop: true } }));
+  const raidersN = waveOf('rn', 5, -4000, 100000);
+  const raidersS = waveOf('rs', 5, 4000, 118000);
+  const motherN: UnitConfig = { id: 'rmotherN', name: 'Trawler (drone carrier, north)', classId: 'CARGO', side: 'RED', start: at(60000, 42000), headingDeg: 235, speedKt: 9, behavior: { type: 'route', waypoints: [at(36000, 26000)] } };
+  const motherS: UnitConfig = { id: 'rmotherS', name: 'Trawler (drone carrier, south)', classId: 'CARGO', side: 'RED', start: at(60000, -42000), headingDeg: 305, speedKt: 9, behavior: { type: 'route', waypoints: [at(36000, -26000)] } };
+  const redAir: UnitConfig[] = [
+    { id: 'raew1', name: 'Hostile early warning', classId: 'AEW', side: 'RED', start: at(105000, 0), headingDeg: 270, speedKt: 250, altitudeM: 8000, behavior: { type: 'loiter', center: at(85000, 0), radiusM: 15000 } },
+    { id: 'ruav1', name: 'Hostile scout drone 1', classId: 'UAV', side: 'RED', start: at(90000, -10000), headingDeg: 270, speedKt: 130, altitudeM: 3000, behavior: { type: 'route', waypoints: [{ ...at(40000, -20000), altitudeM: 3000 }, { ...at(52000, -12000), altitudeM: 3000 }], loop: true } },
+    { id: 'ruav2', name: 'Hostile scout drone 2', classId: 'UAV', side: 'RED', start: at(90000, 12000), headingDeg: 270, speedKt: 130, altitudeM: 3000, behavior: { type: 'route', waypoints: [{ ...at(40000, 22000), altitudeM: 3000 }, { ...at(52000, 14000), altitudeM: 3000 }], loop: true } },
+  ];
+  const aTargets = ['cvn1', 'a-cg1', 'a-ddg1', 'a-ddg2'];
+  const bTargets = ['lhd1', 'b-mv1', 'b-mv3', 'b-ddg1'];
+  const weapons: UnitConfig[] = [
+    ...northSag.filter((u) => u.classId === 'DDG').flatMap((d, i) => salvo(`${d.id}x`, 'ASM', d, 8, 150 + i * 5, 1, ['cvn1', 'a-cg1'])),
+    ...southSag.filter((u) => u.classId === 'DDG').flatMap((d, i) => salvo(`${d.id}x`, 'ASM', d, 8, 170 + i * 5, 1, ['lhd1', 'b-mv2'])),
+    ...[...northSag, ...southSag].filter((u) => u.classId === 'FAC').flatMap((f, i) => salvo(`${f.id}x`, 'ASM', f, 2, 300 + i * 6, 4, [(f.id.startsWith('n') ? aTargets : bTargets)[i % 4]])),
+    ...raidersN.flatMap((r, i) => salvo(`${r.id}x`, 'ASM', r, 3, 200 + i * 4, 2, [aTargets[i % 4], 'cvn1'])),
+    ...raidersS.flatMap((r, i) => salvo(`${r.id}x`, 'ASM', r, 3, 240 + i * 4, 2, [bTargets[i % 4], 'lhd1'])),
+    ...salvo('dnx', 'DRONE', motherN, 16, 400, 10, ['b-ddg2', 'b-ffg2', 'lhd1', 'b-ddg1']),
+    ...salvo('dsx', 'DRONE', motherS, 16, 420, 10, ['a-ddg3', 'a-ffg1', 'a-cg2', 'a-ddg4']),
+    ...salvo('t1x', 'TORP', subs[0], 3, 200, 25, ['cvn1', 'a-cg1', 'cvn1']),
+    ...salvo('t2x', 'TORP', subs[1], 2, 250, 25, ['a-ddg3', 'a-ddg1']),
+    ...salvo('t3x', 'TORP', subs[2], 3, 200, 25, ['lhd1', 'b-mv2', 'b-ddg1']),
+    ...salvo('t4x', 'TORP', subs[3], 2, 250, 25, ['b-mv3', 'b-ddg2']),
+    ...minefield(20, -22000, -22000, 4500, 6000, 41, 'minen'),
+    ...minefield(20, -22000, 26000, 4500, 6000, 43, 'mines'),
+  ];
+  const blueTorps: UnitConfig[] = [
+    ...salvo('btA', 'TORP', groupA.find((u) => u.id === 'a-ffg1')!, 1, 60, 1, ['rsub1'], 'BLUE'),
+    ...salvo('btB', 'TORP', groupB.find((u) => u.id === 'b-ffg1')!, 1, 60, 1, ['rsub3'], 'BLUE'),
+    ...salvo('btC', 'TORP', airBlue.find((u) => u.id === 'bhA1')!, 1, 60, 1, ['rsub2'], 'BLUE'),
+    ...salvo('btD', 'TORP', airBlue.find((u) => u.id === 'bhB2')!, 1, 60, 1, ['rsub4'], 'BLUE'),
+  ];
+  const swarm = ids(weapons).filter((id) => /^d[ns]x\d+$/.test(id));
+
+  return {
+    id: 'theater-campaign',
+    name: 'Theater campaign: two task groups, two axes',
+    description:
+      'A carrier group and an amphibious group advance on two axes at once. Against them: two surface groups of destroyers and fast attack craft, four submarines across the tracks, two waves of five raiders, two trawlers launching thirty-two attack drones, early warning and scouts on both sides, and two minefields. Over two hundred units with sensors, rough seas and decoys on: it is slow to compute, so give a red-team batch a minute. Ask how often the carrier is hit, whether the transports reach the end, and what the early warning aircraft are worth.',
+    center: OCEAN_CENTER,
+    durationS: 3600,
+    lightPreset: 'dusk',
+    seed: 21,
+    detection: true,
+    seaState: true,
+    environment: { windFromDeg: 250, windKt: 15, currentToDeg: 50, currentKt: 0.8 },
+    units: [...groupA, ...groupB, ...airBlue, ...blueTorps, ...northSag, ...southSag, ...subs, ...raidersN, ...raidersS, motherN, motherS, ...redAir, ...weapons],
+    redTeam: {
+      runs: 8,
+      seed: 6,
+      outcomes: [
+        hit('cvn-hit', 'The carrier is hit', 'cvn1'),
+        hit('lhd-hit', 'The amphibious ship is hit', 'lhd1'),
+        { id: 'any-cap', label: 'Either flagship is hit', type: 'any', of: ['cvn-hit', 'lhd-hit'] },
+        { id: 'loss', label: 'At least three blue losses', type: 'side_losses', side: 'BLUE', atLeast: 3 },
+        { id: 'loss5', label: 'Five or more blue losses', type: 'side_losses', side: 'BLUE', atLeast: 5 },
+        { id: 'mine', label: 'A ship hits a mine', type: 'mine_strike' },
+        { id: 'flagship-both', label: 'Both flagships are hit', type: 'all', of: ['cvn-hit', 'lhd-hit'] },
+        { id: 'sub1', label: 'Submarine 1 found by blue', type: 'detected', unitId: 'rsub1', bySide: 'BLUE' },
+        { id: 'sub3', label: 'Submarine 3 found by blue', type: 'detected', unitId: 'rsub3', bySide: 'BLUE' },
+      ] as OutcomeSpec[],
+      perturbations: [
+        wind(5),
+        { id: 'aewA', label: 'Early warning A is up (0 = yes, 1 = left out)', target: { kind: 'unit', unitId: 'aewA', field: 'disabled' }, mode: 'set', dist: { type: 'choice', values: [0, 1], weights: [3, 1] } },
+        { id: 'aewB', label: 'Early warning B is up (0 = yes, 1 = left out)', target: { kind: 'unit', unitId: 'aewB', field: 'disabled' }, mode: 'set', dist: { type: 'choice', values: [0, 1], weights: [3, 1] } },
+        { id: 'cvn-sig', label: 'Carrier radar signature', target: { kind: 'unit', unitId: 'cvn1', field: 'signature' }, mode: 'set', dist: { type: 'uniform', min: 0.4, max: 1 } },
+        { id: 'dn-t', label: 'North drone wave launch time', target: { kind: 'unit', unitId: 'dnx1', field: 'launchAtS' }, mode: 'add', dist: { type: 'uniform', min: -90, max: 120 } },
+      ],
+      sweep: { target: { kind: 'salvo', unitIds: swarm }, values: [0, 16, 32] },
+    },
+  };
+}
+
+export const LARGE_SCENARIOS: ScenarioConfig[] = [jointTaskForce(), convoyEscort(), droneSwarm(), theaterCampaign()];

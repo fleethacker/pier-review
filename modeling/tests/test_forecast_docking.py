@@ -418,3 +418,78 @@ def test_local_zone_forecast_matches_utc_including_repeated_hour(month, day):
     assert [(w.arrival_utc, w.holding_end_utc, w.outcome, w.max_pct_wll) for w in a.windows] == [
            (w.arrival_utc, w.holding_end_utc, w.outcome, w.max_pct_wll) for w in b.windows]
     assert a.evaluations == b.evaluations
+
+
+@pytest.mark.parametrize('lead_hours', [0, 6])
+def test_explicit_short_lead_reassessment_preserves_the_selected_installation(lead_hours):
+    original = request()
+    initial = assess(original)
+    assert 'allow_short_lead' not in original.model_dump()
+    updated = ForecastDockingRequest.model_validate(original.model_dump() | {
+        'allow_short_lead': True, 'as_of_utc': original.arrival_from_utc-timedelta(hours=lead_hours),
+        'config': initial.result.selected_config})
+    result = assess(updated)
+    assert result.status == 'AMBER' and result.validity.state == 'limited'
+    assert result.result.selected_arrival_utc == initial.result.selected_arrival_utc
+    assert [w.max_pct_wll for w in result.result.windows] == pytest.approx(
+        [w.max_pct_wll for w in initial.result.windows])
+    assert any('Short-lead reassessment' in text for text in result.result.limitations)
+    assert any('Short-lead reassessment' in text for text in result.assumptions)
+    assert updated.model_dump()['allow_short_lead'] is True
+
+
+def test_short_lead_reassessment_still_rejects_an_arrival_before_as_of():
+    original = request()
+    with pytest.raises(ValueError, match='as_of_utc'):
+        ForecastDockingRequest.model_validate(original.model_dump() | {
+            'allow_short_lead': True, 'as_of_utc': original.arrival_from_utc+timedelta(seconds=1)})
+
+
+@pytest.mark.parametrize('problem', ['late_issuance', 'short_coverage'])
+def test_short_lead_reassessment_cannot_bypass_provenance_or_coverage(problem):
+    original = request()
+    as_of = original.arrival_from_utc-timedelta(hours=6)
+    series = original.forecast[:25] if problem == 'short_coverage' else [
+        s.model_copy(update={'source':'forecast', 'metadata':EnvironmentMetadata(basis='prediction',
+            issued_at_utc=as_of+timedelta(minutes=1))}) for s in original.forecast]
+    updated = ForecastDockingRequest.model_validate(original.model_dump() | {
+        'allow_short_lead': True, 'as_of_utc': as_of, 'forecast': series})
+    result = assess(updated)
+    assert result.status == 'RED' and result.validity.state == 'invalid'
+    assert result.result.selected_arrival_utc is None and result.result.evaluations == 0
+    assert all(w.outcome == 'unavailable' for w in result.result.windows)
+
+
+def test_short_lead_example_runs_as_a_job_and_records_the_explicit_option():
+    from modeling_api.state import JOBS
+    from mooring.core import store
+    from mooring.core.schemas.forecast_planning import ForecastDockingResponse
+    from mooring.data_simulation.examples import examples
+    with TestClient(app) as client:
+        accepted = client.post('/api/v1/mooring/forecast-plan', json=examples()['mooring_forecast_reassessment'])
+        assert accepted.status_code == 202, accepted.text
+        job = JOBS.get(accepted.json()['job_id'])
+        job.future.result(timeout=30)
+        status = client.get(accepted.json()['status_url']).json()
+        assert status['state'] == 'succeeded', status
+        response = ForecastDockingResponse.model_validate(status['result'])
+        assert any('Short-lead reassessment' in text for text in response.assumptions)
+        manifest = store.load_snapshot(response.manifest.resolved_inputs_hash)
+        assert manifest['request']['allow_short_lead'] is True
+
+
+@pytest.mark.parametrize('current_source', ['live', 'unissued_replay'])
+def test_current_observation_or_unissued_replay_is_not_held_as_future_guidance(current_source):
+    original = request()
+    series = [s.model_copy(update={'source':'forecast', 'metadata':EnvironmentMetadata(
+        basis='prediction', issued_at_utc=original.as_of_utc)}) for s in original.forecast]
+    series[0] = series[0].model_copy(update={
+        'source': 'live' if current_source == 'live' else 'replay',
+        'metadata': EnvironmentMetadata(basis='observation', age_s=0) if current_source == 'live' else None})
+    updated = ForecastDockingRequest.model_validate(original.model_dump() | {
+        'allow_short_lead': True, 'arrival_from_utc': original.as_of_utc,
+        'arrival_to_utc': original.as_of_utc, 'forecast': series})
+    result = assess(updated)
+    assert result.result.conditions[0].outcome == 'unavailable'
+    assert result.result.selected_arrival_utc is None and result.status == 'RED'
+    assert updated.forecast[0].source == series[0].source

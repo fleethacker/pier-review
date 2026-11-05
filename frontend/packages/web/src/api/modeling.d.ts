@@ -2063,6 +2063,12 @@ export interface components {
         };
         /** ForecastDockingRequest */
         ForecastDockingRequest: {
+            /**
+             * Allow Short Lead
+             * @description Explicitly permit reassessment less than 24 hours before arrival. Arrival cannot precede as_of_utc; all forecast provenance/coverage gates remain. Default retains the advance-planning lead requirement.
+             * @default false
+             */
+            allow_short_lead: boolean;
             /** Ship Class Id */
             ship_class_id: string;
             /**

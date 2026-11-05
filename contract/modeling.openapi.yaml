@@ -3912,6 +3912,12 @@ components:
       description: Forces and moment in the ship frame (+x forward, +y to port, yaw positive counterclockwise).
     ForecastDockingRequest:
       properties:
+        allow_short_lead:
+          type: boolean
+          title: Allow Short Lead
+          description: Explicitly permit reassessment less than 24 hours before arrival. Arrival cannot precede as_of_utc;
+            all forecast provenance/coverage gates remain. Default retains the advance-planning lead requirement.
+          default: false
         ship_class_id:
           type: string
           title: Ship Class Id

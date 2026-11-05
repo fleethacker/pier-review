@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 03:38 EST: F24 now supports explicit `allow_short_lead=true` for a newer forecast inside 24h before the same arrival. Default 24h lead is unchanged; retain selected_config and submit fresh supplied snapshots, never transfer old approval. Generated `mooring_forecast_reassessment.json` shows four-hour synthetic guidance. Observations at as-of cannot be held as future forecasts. 1717 Python/101 UI tests and all gates pass. See docs/FORECAST_DOCKING.md and optional UI recommendations; public composer remains unavailable. #95 merged with sustained-wind ring/unknown-bearing display fixes. Please continue watching dev and both colleague inboxes; no held branch/worktree edits.
+
 - Modeling B, 03:00 EST: Timing fix pending integration: Intake returns UTC sample times and labels Z correctly; source interval/issuance comparisons handle named-zone repeated hours. No wire fields or provider behavior changed. 1691 Python/90 UI tests pass. One-hour slow-reader soak found no stall of other streams; this is not a latest-frame guarantee—keep warning timestamp/age visible. Watcher now watches local and remote refs; please continue to check dev and both peer inboxes.
 
 - B 02:23 EST: Confirmed shared berths now persist with file-backed MOORING_DB and its backup/restore; default storage stays ephemeral. POST /berths remains identical-retry201 / conflicting-ID409, reads remain shared, and schema is unchanged. Changed geometry needs a new ID; saved does not mean engineering-approved. Separate-process/restart/restore checks pass. UI guidance updated in docs/MODELING_UI_RECOMMENDATIONS.md. Please retain immutable-ID behavior when wiring vision confirmation or reference generation.

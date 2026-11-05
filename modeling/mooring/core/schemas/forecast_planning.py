@@ -10,6 +10,10 @@ from .plans import MooringConfig, TugAssignment
 
 
 class ForecastDockingRequest(Model):
+    wire_omitted_defaults = {"allow_short_lead": False}
+
+    allow_short_lead: bool = Field(default=False,
+        description="Explicitly permit reassessment less than 24 hours before arrival. Arrival cannot precede as_of_utc; all forecast provenance/coverage gates remain. Default retains the advance-planning lead requirement.")
     ship_class_id: str
     loading: str = 'full_load'
     berth_id: str
@@ -38,7 +42,9 @@ class ForecastDockingRequest(Model):
 
     @model_validator(mode='after')
     def times(self):
-        if self.arrival_from_utc < self.as_of_utc + timedelta(hours=24):
+        if self.allow_short_lead and self.arrival_from_utc < self.as_of_utc:
+            raise ValueError('Reassessment arrival cannot precede as_of_utc')
+        if not self.allow_short_lead and self.arrival_from_utc < self.as_of_utc + timedelta(hours=24):
             raise ValueError('Advance docking planning requires arrival at least 24 hours after as_of_utc')
         if self.arrival_to_utc < self.arrival_from_utc:
             raise ValueError('arrival_to_utc precedes arrival_from_utc')

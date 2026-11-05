@@ -1,8 +1,8 @@
 """Advance docking assessment; times and coverage are explicit and replayable."""
-from datetime import timedelta
+from datetime import UTC, timedelta
 from typing import Literal
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, Field, field_validator, model_validator
 
 from .common import Envelope, Model, MooringServiceType, Validity
 from .environment import EnvironmentSnapshot
@@ -30,6 +30,12 @@ class ForecastDockingRequest(Model):
     optimize_lines: bool = Field(default=False, description='Search a common line plan across supplied conditions before assessing arrival windows.')
     search_budget: int = Field(default=100, ge=1, le=500)
 
+    @field_validator('as_of_utc', 'arrival_from_utc', 'arrival_to_utc')
+    @classmethod
+    def utc_schedule(cls, value):
+        # Arithmetic in a named local zone uses wall time across DST transitions.
+        return value.astimezone(UTC)
+
     @model_validator(mode='after')
     def times(self):
         if self.arrival_from_utc < self.as_of_utc + timedelta(hours=24):
@@ -41,6 +47,10 @@ class ForecastDockingRequest(Model):
         dates = [s.valid_at_utc for s in self.forecast]
         if any(t.tzinfo is None or t.utcoffset() is None for t in dates):
             raise ValueError('Forecast timestamps must be timezone-aware')
+        # Copy snapshots so validation cannot mutate a caller's input objects.
+        self.forecast = [s.model_copy(update={'valid_at_utc': s.valid_at_utc.astimezone(UTC)})
+                         for s in self.forecast]
+        dates = [s.valid_at_utc for s in self.forecast]
         if any(b <= a for a, b in zip(dates, dates[1:])):
             raise ValueError('Forecast timestamps must be strictly increasing and unique')
         return self

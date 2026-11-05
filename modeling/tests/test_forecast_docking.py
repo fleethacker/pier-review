@@ -368,3 +368,53 @@ def test_component_quality_and_limits_propagate_to_static_assessment_findings():
 def test_inactive_component_provenance_preserves_legacy_wire_shape():
     assert 'components' not in EnvironmentMetadata(basis='scenario').model_dump()
     assert 'retrieved_at_utc' not in assess(request()).result.model_dump()
+
+
+def test_spring_clock_change_does_not_shorten_required_advance_notice():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    zone = ZoneInfo('America/New_York')
+    with pytest.raises(ValueError, match='at least 24 hours'):
+        request(as_of_utc=datetime(2026, 3, 7, 12, tzinfo=zone),
+                arrival_from_utc=datetime(2026, 3, 8, 12, tzinfo=zone),
+                arrival_to_utc=datetime(2026, 3, 8, 13, tzinfo=zone))
+
+
+@pytest.mark.parametrize('month,day', [(3, 8), (11, 1)])
+def test_synthetic_duration_uses_elapsed_hours_across_clock_changes(month, day):
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+    base = docking_cases()[0].analysis_request
+    start = datetime(2026, month, day, tzinfo=ZoneInfo('America/New_York'))
+    req = SyntheticForecastRequest(berth_id=base.berth_id, baseline=base.environment,
+                                   start_utc=start, duration_hours=24)
+    dates = [s.valid_at_utc.astimezone(UTC) for s in generate(req).series]
+    assert dates[0] == start.astimezone(UTC)
+    assert dates[-1] - dates[0] == timedelta(hours=24)
+    assert all(b - a == timedelta(hours=1) for a, b in zip(dates, dates[1:]))
+
+
+@pytest.mark.parametrize('month,day', [(3, 7), (10, 31)])
+def test_local_zone_forecast_matches_utc_including_repeated_hour(month, day):
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+    base = docking_cases()[0].analysis_request
+    zone = ZoneInfo('America/New_York')
+    start = datetime(2026, month, day, tzinfo=zone).astimezone(UTC)
+    series = generate(SyntheticForecastRequest(berth_id=base.berth_id, baseline=base.environment,
+                                               start_utc=start, gust_peak_kt=5)).series
+    utc = request(as_of_utc=start, arrival_from_utc=start+timedelta(hours=24),
+                  arrival_to_utc=start+timedelta(hours=30), forecast=series)
+    values = utc.model_dump()
+    for field in ('as_of_utc', 'arrival_from_utc', 'arrival_to_utc'):
+        values[field] = values[field].astimezone(zone)
+    for sample in values['forecast']:
+        sample['valid_at_utc'] = sample['valid_at_utc'].astimezone(zone)
+    original = [s['valid_at_utc'] for s in values['forecast']]
+    local = ForecastDockingRequest.model_validate(values)
+    assert local.model_dump_json() == utc.model_dump_json()
+    assert [s['valid_at_utc'] for s in values['forecast']] == original
+    a, b = assess(utc).result, assess(local).result
+    assert [(w.arrival_utc, w.holding_end_utc, w.outcome, w.max_pct_wll) for w in a.windows] == [
+           (w.arrival_utc, w.holding_end_utc, w.outcome, w.max_pct_wll) for w in b.windows]
+    assert a.evaluations == b.evaluations

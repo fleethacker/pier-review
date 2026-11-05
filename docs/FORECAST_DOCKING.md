@@ -1,0 +1,17 @@
+# Advance docking planning
+
+`POST /api/v1/mooring/forecast-plan` returns a job; its result is `ForecastDockingResponse`. Use `contract/examples/modeling/mooring_forecast_plan.json` for a complete, explicitly synthetic 48-hour example. Arrival must be at least 24 hours after `as_of_utc`; docking and holding must end within 120 hours.
+
+The caller supplies an ordered, timezone-aware forecast. Agent C owns `/env/forecast` and public-provider normalization. The modeling endpoint does not fetch the network: it evaluates the supplied snapshots and retains their source, issue and valid times. Submit forecast data issued no later than planning time. An observation in the future, missing/stale component flag, or uncovered interval is unavailable, not zero. Forecasts with unknown averaging metadata remain limited under the loads model.
+
+For each candidate arrival, line installation lengths use that arrival's tide and stay fixed through docking and holding. All supplied snapshots within the interval, including interior peaks, are evaluated. For coverage between snapshots the forcing is held piecewise constant up to `max_gap_min`; peaks between samples remain unresolved. The end must lie within actual supplied coverage. A budget-exhausted or unconverged interval is undetermined. Every computed condition cites its immutable analysis result; the aggregate manifest records request/config and result references.
+
+`optimize_lines=true` searches a common configuration across the relevant forecast conditions with a separate bounded `search_budget`. This is forecast-only planning, not MST design-condition compliance. Fixed tug assignments are checked against catalog/push-point capacities and are required throughout the operation. Arrival alternatives can be rejected even when one is supported. No arrival is selected unless its entire docking and holding interval meets the requested utilization target and has admissible computed inputs. All aggregate results remain limited because static, sampled conditions do not validate maneuvering/contact or line-handling safety.
+
+The endpoint supplies line placements and holding assessments. Generate and independently review a draft sequence using the existing sequence/planner/safety APIs; a selected arrival does not approve the sequence. Qualified UKC, bathymetry, dynamic vessel response, wake, traffic, tug availability and deck-officer/pilot acceptance remain separate requirements. Recheck after new forecasts, changed arrival/assets or observed deviations; do not transfer an approval to changed inputs.
+
+## Training and temporary public data
+
+`POST /api/v1/data-simulation/forecast` generates labeled synthetic training series. Implementation and reusable examples live in `modeling/mooring/data_simulation/`. The request fixes seed, UTC anchor, baseline, triangular gust peak/noise and optional water-level oscillation. These are scenario controls, not fitted meteorological/tidal coefficients. Results say `source=scenario`, `basis=scenario`, and `not_a_forecast`; no generator is an automatic NOAA fallback.
+
+Opt-in public checks on 4 November evening successfully fetched NWS `/points/36.959,-76.33` and 48 hours of CO-OPS MLLW tide predictions for 8638610 into `/tmp/psp-public-data/`, with retrieval URLs/times. Files are temporary and not part of tests or committed fixtures. Provider implementation stays with agent C. Source references: [NWS API](https://www.weather.gov/documentation/services-web-api), [CO-OPS API](https://api.tidesandcurrents.noaa.gov/api/prod/).

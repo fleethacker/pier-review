@@ -89,3 +89,15 @@ def get_scenario(scenario_id: str):
             summary="Named offline demo requests (seed data; not operational plans)")
 def demo_docking_cases():
     return docking_cases()
+
+
+from mooring.core.schemas import ForecastSeries
+from mooring.core.schemas.data_simulation import SyntheticForecastRequest
+from mooring.data_simulation.forecast import generate as generate_synthetic_forecast
+
+
+@router.post("/data-simulation/forecast", response_model=ForecastSeries,
+             summary="Generate labeled, seeded training conditions; not a weather forecast")
+def synthetic_forecast(req: SyntheticForecastRequest):
+    refdata.berth(req.berth_id)
+    return generate_synthetic_forecast(req)

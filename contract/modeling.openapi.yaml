@@ -540,6 +540,31 @@ paths:
                   $ref: '#/components/schemas/DockingDemoCase'
                 type: array
                 title: Response Demo Docking Cases Api V1 Demo Docking Cases Get
+  /api/v1/data-simulation/forecast:
+    post:
+      tags:
+      - M2 Reference data
+      summary: Generate labeled, seeded training conditions; not a weather forecast
+      operationId: synthetic_forecast_api_v1_data_simulation_forecast_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyntheticForecastRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastSeries'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/qualification:
     get:
       tags:
@@ -1223,6 +1248,31 @@ paths:
                   ship_x_ft: 650
                   design_mst: II
                   max_candidates: 3
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mooring/forecast-plan:
+    post:
+      tags:
+      - M7 Planning
+      summary: 'Assess arrivals at least 24 hours ahead (job result: ForecastDockingResponse)'
+      operationId: forecast_plan_api_v1_mooring_forecast_plan_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForecastDockingRequest'
         required: true
       responses:
         '202':
@@ -3563,6 +3613,114 @@ components:
       - mz_ftlbf
       title: ForceSet
       description: Forces and moment in the ship frame (+x forward, +y to port, yaw positive counterclockwise).
+    ForecastDockingRequest:
+      properties:
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          maxItems: 12
+          title: Tugs
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          default: II
+        as_of_utc:
+          type: string
+          format: date-time
+          title: As Of Utc
+        arrival_from_utc:
+          type: string
+          format: date-time
+          title: Arrival From Utc
+        arrival_to_utc:
+          type: string
+          format: date-time
+          title: Arrival To Utc
+        arrival_step_min:
+          type: integer
+          maximum: 360.0
+          minimum: 15.0
+          title: Arrival Step Min
+          default: 60
+        operation_hours:
+          type: number
+          maximum: 24.0
+          exclusiveMinimum: 0.0
+          title: Operation Hours
+          default: 2
+        holding_hours:
+          type: number
+          maximum: 48.0
+          minimum: 0.0
+          title: Holding Hours
+          default: 6
+        forecast:
+          items:
+            $ref: '#/components/schemas/EnvironmentSnapshot'
+          type: array
+          maxItems: 721
+          minItems: 2
+          title: Forecast
+        max_gap_min:
+          type: integer
+          maximum: 180.0
+          minimum: 1.0
+          title: Max Gap Min
+          description: Maximum covered interval between snapshots; this is a sampling assumption, not a guarantee against
+            sub-sample peaks.
+          default: 60
+        target_pct_wll:
+          type: number
+          maximum: 100.0
+          exclusiveMinimum: 0.0
+          title: Target Pct Wll
+          default: 80
+        max_evaluations:
+          type: integer
+          maximum: 2000.0
+          minimum: 1.0
+          title: Max Evaluations
+          default: 500
+        optimize_lines:
+          type: boolean
+          title: Optimize Lines
+          description: Search a common line plan across supplied conditions before assessing arrival windows.
+          default: false
+        search_budget:
+          type: integer
+          maximum: 500.0
+          minimum: 1.0
+          title: Search Budget
+          default: 100
+      additionalProperties: false
+      type: object
+      required:
+      - ship_class_id
+      - berth_id
+      - config
+      - as_of_utc
+      - arrival_from_utc
+      - arrival_to_utc
+      - forecast
+      title: ForecastDockingRequest
     ForecastSeries:
       properties:
         berth_id:
@@ -7374,6 +7532,65 @@ components:
       - station_id
       - age_s
       title: StationQuality
+    SyntheticForecastRequest:
+      properties:
+        berth_id:
+          type: string
+          title: Berth Id
+        start_utc:
+          type: string
+          format: date-time
+          title: Start Utc
+        baseline:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+        duration_hours:
+          type: integer
+          maximum: 120.0
+          minimum: 24.0
+          title: Duration Hours
+          default: 48
+        step_min:
+          type: integer
+          maximum: 180.0
+          minimum: 5.0
+          title: Step Min
+          default: 60
+        seed:
+          type: integer
+          minimum: 0.0
+          title: Seed
+          default: 0
+        gust_peak_kt:
+          type: number
+          minimum: 0.0
+          title: Gust Peak Kt
+          description: User-specified synthetic triangular gust peak at midpoint.
+          default: 30
+        gust_noise_sigma_kt:
+          type: number
+          maximum: 20.0
+          minimum: 0.0
+          title: Gust Noise Sigma Kt
+          default: 0
+        water_level_amplitude_ft:
+          type: number
+          maximum: 20.0
+          minimum: 0.0
+          title: Water Level Amplitude Ft
+          default: 0
+        water_level_period_hours:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Water Level Period Hours
+          description: Scenario oscillation period, not a fitted tidal constituent.
+          default: 12
+      additionalProperties: false
+      type: object
+      required:
+      - berth_id
+      - start_utc
+      - baseline
+      title: SyntheticForecastRequest
     TelemetryAccepted:
       properties:
         accepted:
@@ -8563,6 +8780,277 @@ components:
       - message
       - env
       title: Alert
+      type: object
+    DockingArrivalWindow:
+      additionalProperties: false
+      properties:
+        arrival_utc:
+          format: date-time
+          title: Arrival Utc
+          type: string
+        operation_end_utc:
+          format: date-time
+          title: Operation End Utc
+          type: string
+        holding_end_utc:
+          format: date-time
+          title: Holding End Utc
+          type: string
+        outcome:
+          enum:
+          - supported_limited
+          - within_target
+          - overloaded
+          - invalid
+          - undetermined
+          - unavailable
+          title: Outcome
+          type: string
+        max_pct_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Pct Wll
+        governing_at_utc:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Governing At Utc
+        governing_element:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Governing Element
+        analysis_result_ids:
+          items:
+            type: string
+          title: Analysis Result Ids
+          type: array
+        reasons:
+          items:
+            type: string
+          title: Reasons
+          type: array
+      required:
+      - arrival_utc
+      - operation_end_utc
+      - holding_end_utc
+      - outcome
+      - max_pct_wll
+      - governing_at_utc
+      - governing_element
+      - analysis_result_ids
+      title: DockingArrivalWindow
+      type: object
+    DockingConditionResult:
+      additionalProperties: false
+      properties:
+        valid_at_utc:
+          format: date-time
+          title: Valid At Utc
+          type: string
+        analysis_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Analysis Result Id
+        outcome:
+          enum:
+          - within_target
+          - overloaded
+          - invalid
+          - undetermined
+          - unavailable
+          title: Outcome
+          type: string
+        max_pct_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Pct Wll
+        governing_element:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Governing Element
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+        reasons:
+          items:
+            type: string
+          title: Reasons
+          type: array
+      required:
+      - valid_at_utc
+      - analysis_result_id
+      - outcome
+      - max_pct_wll
+      - governing_element
+      - validity
+      title: DockingConditionResult
+      type: object
+    ForecastDockingResponse:
+      additionalProperties: false
+      properties:
+        result_id:
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+          title: Result Id
+          type: string
+        model:
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+          title: Model
+          type: string
+        model_version:
+          title: Model Version
+          type: string
+        backend:
+          description: '''mock'' until the workstream''s real module lands.'
+          enum:
+          - mock
+          - real
+          title: Backend
+          type: string
+        inputs_hash:
+          description: sha256 of the canonical request JSON.
+          title: Inputs Hash
+          type: string
+        computed_at_utc:
+          format: date-time
+          title: Computed At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        assumptions:
+          items:
+            type: string
+          title: Assumptions
+          type: array
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          title: Warnings
+          type: array
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          default: null
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/ForecastDockingResult'
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: ForecastDockingResponse
+      type: object
+    ForecastDockingResult:
+      additionalProperties: false
+      properties:
+        as_of_utc:
+          format: date-time
+          title: As Of Utc
+          type: string
+        forecast_start_utc:
+          format: date-time
+          title: Forecast Start Utc
+          type: string
+        forecast_end_utc:
+          format: date-time
+          title: Forecast End Utc
+          type: string
+        issued_at_utc:
+          items:
+            format: date-time
+            type: string
+          title: Issued At Utc
+          type: array
+        sources:
+          items:
+            type: string
+          title: Sources
+          type: array
+        config:
+          $ref: '#/components/schemas/MooringConfig'
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          title: Tugs
+          type: array
+        recommendation_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recommendation Result Id
+        selected_arrival_utc:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: Selected Arrival Utc
+        windows:
+          items:
+            $ref: '#/components/schemas/DockingArrivalWindow'
+          title: Windows
+          type: array
+        conditions:
+          items:
+            $ref: '#/components/schemas/DockingConditionResult'
+          title: Conditions
+          type: array
+        evaluations:
+          title: Evaluations
+          type: integer
+        complete:
+          title: Complete
+          type: boolean
+        recheck_triggers:
+          items:
+            type: string
+          title: Recheck Triggers
+          type: array
+        limitations:
+          items:
+            type: string
+          title: Limitations
+          type: array
+      required:
+      - as_of_utc
+      - forecast_start_utc
+      - forecast_end_utc
+      - issued_at_utc
+      - sources
+      - config
+      - tugs
+      - recommendation_result_id
+      - selected_arrival_utc
+      - windows
+      - conditions
+      - evaluations
+      - complete
+      - recheck_triggers
+      - limitations
+      title: ForecastDockingResult
       type: object
     JobDoneEvent:
       additionalProperties: false

@@ -1,0 +1,57 @@
+# Ship class seed data. Estimated values; see provenance. Ship frame: +x forward, +y port, +z up from waterline.
+class_id: CVN-68
+name: Nimitz class aircraft carrier
+hull_type: CVN
+loa_ft: 1092.0
+lwl_ft: 1040.0
+beam_ft: 134.0
+block_coefficient: 0.62
+loading_conditions:
+- name: full_load
+  displacement_lt: 100000
+  draft_fwd_ft: 37.0
+  draft_aft_ft: 37.0
+  freeboard_ft: 60
+wind_area_lateral_ft2: 66400.529652
+wind_area_frontal_ft2: 14000
+hull_wind_area_lateral_ft2: 45000
+superstructure_height_ft: 83.942308
+midship_coefficient: 0.83
+wetted_surface_ft2: 160491.300075
+propeller_expanded_area_ft2: 1330.405728
+wind_drag_class: hull_dominated
+fittings: []
+push_points:
+- push_point_id: PP-FWD-P
+  x_ft: 328
+  side: port
+  max_force_lbf: 300000
+- push_point_id: PP-FWD-S
+  x_ft: 328
+  side: starboard
+  max_force_lbf: 300000
+- push_point_id: PP-AFT-P
+  x_ft: -328
+  side: port
+  max_force_lbf: 300000
+- push_point_id: PP-AFT-S
+  x_ft: -328
+  side: starboard
+  max_force_lbf: 300000
+standard_line_outfit:
+- spec_id: NYLON-DB-9IN
+  count: 12
+mst_class: IIA
+provenance:
+  source: Public fact sheets + NSTM Table 582-3-1 back-calculation
+  confidence: estimated
+  notes: >-
+    Wind-force magnitudes calibrated to NSTM Table 582-3-1 with areas within 25% of original seeds;
+    peak bearings also match after converting NSTM flow-toward angles to API wind-from angles.
+    Dimensions approximate from public fact sheets; fittings notional.
+    Superstructure height frozen before area calibration using original hull area/LWL plus
+    original superstructure area/(0.5 LWL), assuming a rectangular half-length superstructure.
+    Midship coefficient 0.83 estimated by analogy to UFC Table 4-8 destroyer.
+    Wetted surface estimated with UFC Eq. 4-18 at full_load and density 1020 kg/m3;
+    other loadings recompute the estimate. Propeller expanded area estimated using
+    Eqs. 4-22/4-23 and Table 4-7, pitch ratio 1 (LHD uses carrier analogy).

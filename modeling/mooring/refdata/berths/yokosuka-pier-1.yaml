@@ -1,0 +1,196 @@
+# Berth with a surveyed face position (see scripts/build_berths.py); layout and depths are notional.
+berth_id: YOKOSUKA-FLEET-ACTIVITIES-1
+name: Pier, northeast face (Fleet Activities Yokosuka)
+face_bearing_true_deg: 138.4
+origin_lat: 35.292378
+origin_lon: 139.661501
+face_length_ft: 802
+deck_height_mllw_ft: 11.0
+depth_profile:
+- x_ft: 0
+  depth_mllw_ft: 42
+- x_ft: 401
+  depth_mllw_ft: 45
+- x_ft: 802
+  depth_mllw_ft: 47
+fittings:
+- fitting_id: YK1-B01
+  kind: bollard_special_b
+  x_ft: 30
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: YK1-B02
+  kind: bollard_special_b
+  x_ft: 90
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: YK1-M01
+  kind: bollard_special_a
+  x_ft: 90
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: YK1-C01
+  kind: cleat_42
+  x_ft: 120
+  y_ft: -3
+  capacity_nominal_lbf: 40000
+- fitting_id: YK1-B03
+  kind: bollard_special_b
+  x_ft: 150
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: YK1-B04
+  kind: bollard_special_b
+  x_ft: 210
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: YK1-M02
+  kind: bollard_special_a
+  x_ft: 210
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: YK1-B05
+  kind: bollard_horn
+  x_ft: 270
+  y_ft: -6
+  capacity_nominal_lbf: 70000
+  capacity_horizontal_lbf: 104000
+  capacity_45deg_lbf: 66000
+- fitting_id: YK1-B06
+  kind: bollard_special_b
+  x_ft: 330
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: YK1-M03
+  kind: bollard_special_a
+  x_ft: 330
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: YK1-B07
+  kind: bollard_special_b
+  x_ft: 390
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: YK1-B08
+  kind: bollard_special_b
+  x_ft: 450
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: YK1-M04
+  kind: bollard_special_a
+  x_ft: 450
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: YK1-B09
+  kind: bollard_special_b
+  x_ft: 510
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: YK1-B10
+  kind: bollard_horn
+  x_ft: 570
+  y_ft: -6
+  capacity_nominal_lbf: 70000
+  capacity_horizontal_lbf: 104000
+  capacity_45deg_lbf: 66000
+- fitting_id: YK1-M05
+  kind: bollard_special_a
+  x_ft: 570
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: YK1-B11
+  kind: bollard_special_b
+  x_ft: 630
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+  condition: suspect
+- fitting_id: YK1-C02
+  kind: cleat_42
+  x_ft: 660
+  y_ft: -3
+  capacity_nominal_lbf: 40000
+- fitting_id: YK1-B12
+  kind: bollard_special_b
+  x_ft: 690
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: YK1-M06
+  kind: bollard_special_a
+  x_ft: 690
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: YK1-B13
+  kind: bollard_special_b
+  x_ft: 750
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+fenders:
+- fender_id: YK1-CAMEL-1
+  kind: camel
+  x_ft: 270
+  length_ft: 40
+  standoff_ft: 12
+  stiffness_lbf_per_ft: 150000
+  rated_energy_ftlbf: 200000
+- fender_id: YK1-CAMEL-2
+  kind: camel
+  x_ft: 380
+  length_ft: 40
+  standoff_ft: 12
+  stiffness_lbf_per_ft: 150000
+  rated_energy_ftlbf: 200000
+- fender_id: YK1-CAMEL-3
+  kind: camel
+  x_ft: 510
+  length_ft: 40
+  standoff_ft: 12
+  stiffness_lbf_per_ft: 150000
+  rated_energy_ftlbf: 200000
+structure: open_pile
+env_station_ids:
+  wind: MOCK-YK1-WIND
+  current: MOCK-YK1-CURRENT
+  water_level: MOCK-YK1-LEVEL
+provenance:
+  source: OpenStreetMap contributors (ODbL), way 1503791481; checked on Mapbox/Maxar
+    satellite imagery
+  url: https://www.openstreetmap.org/way/1503791481
+  confidence: mock
+  notes: Position, direction and length of the face are surveyed (Longest straight
+    run of an irregular polygon edge facing northeast. Unnamed in OSM.). Fittings,
+    fenders and depths are the notional Pier 12 layout stretched to the face length;
+    weather is synthetic. Not for operational use.

@@ -1,0 +1,19 @@
+[project]
+name = "mooring-modeling"
+version = "0.1.0"
+description = "Mooring assistant physics and ML modeling service"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "pydantic>=2.7",
+    "uvicorn[standard]>=0.30",
+    "pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mooring", "modeling_api"]
+

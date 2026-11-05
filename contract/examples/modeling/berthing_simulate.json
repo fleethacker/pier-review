@@ -1,0 +1,38 @@
+{
+  "scenario_id": "<scenario_id from POST /scenarios>",
+  "initial_state": {
+    "x_ft": 650,
+    "y_ft": 160,
+    "heading_true_deg": 105.0,
+    "v_kt": 0.0
+  },
+  "tug_commands": [
+    {
+      "t_s": 0,
+      "tug_id": "T1",
+      "force_lbf": 40000,
+      "direction_rel_deg": 90
+    },
+    {
+      "t_s": 0,
+      "tug_id": "T2",
+      "force_lbf": 40000,
+      "direction_rel_deg": 90
+    },
+    {
+      "t_s": 120,
+      "tug_id": "T1",
+      "force_lbf": 0,
+      "direction_rel_deg": 90
+    },
+    {
+      "t_s": 120,
+      "tug_id": "T2",
+      "force_lbf": 0,
+      "direction_rel_deg": 90
+    }
+  ],
+  "duration_s": 600,
+  "dt_s": 0.1,
+  "env_mode": "steady"
+}

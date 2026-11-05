@@ -1,0 +1,77 @@
+{
+  "ship_class_id": "DDG-51-FIIA",
+  "loading": "full_load",
+  "berth_id": "NAVSTA-NORFOLK-P12-N",
+  "config": {
+    "side_to": "starboard",
+    "ship_x_ft": 650.0,
+    "lines": [
+      {
+        "line_number": 1,
+        "role": "bow",
+        "spec_id": "NYLON-DB-7IN",
+        "parts": 1,
+        "ship_fitting_id": "BITT-1S",
+        "pier_fitting_id": "P12N-B17"
+      },
+      {
+        "line_number": 2,
+        "role": "spring_aft",
+        "spec_id": "NYLON-DB-7IN",
+        "parts": 1,
+        "ship_fitting_id": "BITT-2S",
+        "pier_fitting_id": "P12N-B12"
+      },
+      {
+        "line_number": 3,
+        "role": "breast",
+        "spec_id": "NYLON-DB-7IN",
+        "parts": 1,
+        "ship_fitting_id": "BITT-3S",
+        "pier_fitting_id": "P12N-M06"
+      },
+      {
+        "line_number": 4,
+        "role": "breast",
+        "spec_id": "NYLON-DB-7IN",
+        "parts": 1,
+        "ship_fitting_id": "BITT-4S",
+        "pier_fitting_id": "P12N-M05"
+      },
+      {
+        "line_number": 5,
+        "role": "spring_fwd",
+        "spec_id": "NYLON-DB-7IN",
+        "parts": 1,
+        "ship_fitting_id": "BITT-5S",
+        "pier_fitting_id": "P12N-B10"
+      },
+      {
+        "line_number": 6,
+        "role": "stern",
+        "spec_id": "NYLON-DB-7IN",
+        "parts": 1,
+        "ship_fitting_id": "BITT-6S",
+        "pier_fitting_id": "P12N-B06"
+      }
+    ]
+  },
+  "environment": {
+    "valid_at_utc": "2026-11-04T15:48:00Z",
+    "source": "scenario",
+    "wind_speed_kt": 22.0,
+    "wind_gust_kt": 30.0,
+    "wind_from_true_deg": 200.0,
+    "current_speed_kt": 0.6,
+    "current_set_true_deg": 10.0,
+    "water_level_mllw_ft": 1.8,
+    "tide_stage": "ebb",
+    "air_density_kgm3": 1.225,
+    "water_density_kgm3": 1020.0,
+    "quality": []
+  },
+  "mst": "II",
+  "lines_wet": true,
+  "forecast_hours": 24,
+  "step_min": 60
+}

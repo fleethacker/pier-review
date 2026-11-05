@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev]
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      UV_LOCKED: "1"   # fail if uv.lock is out of date instead of re-resolving
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.12.1"
+      - name: Install locked dependencies
+        run: uv sync --locked --all-packages
+      - name: Contract is up to date
+        run: make contract-check
+      - name: Tests (offline; no live NOAA or model calls)
+        run: make test
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend/packages/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/packages/web/package-lock.json
+      - run: npm ci
+      - run: npm run types && git diff --exit-code -- src/api
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

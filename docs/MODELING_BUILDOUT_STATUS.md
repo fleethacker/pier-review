@@ -2,6 +2,13 @@
 
 > Priorities and owners for remaining work: [MASTER_PLAN.md](MASTER_PLAN.md). This file is the capability ledger.
 
+**Product audit, 5 November 2026 (`ac73e1f`):** [NEXT_STEPS.md](NEXT_STEPS.md) records 28 open product findings,
+including modeling validity/contact failures (F03–F08, F24–F26), rich-frame evidence loss (F05/F25), API/source
+compatibility (F20/F21) and runtime/persistence/telemetry failures (F14–F22). F01/F02/F09/F10 are cross-service UI
+handoff defects, not completed integration simply because the underlying endpoints exist. Follow the named leads,
+reviewers and closure evidence in that ledger before treating the historical implementation rows below as accepted.
+This documentation update fixes no code and does not change qualification status.
+
 **Reconciled 5 November 2026 against `dev` at `3ababad` (PR #18).** Snyder maintains modeling evidence;
 Cruz supplies source/telemetry/chart evidence, Kori supplies browser evidence, and Bixler maintains the integrated
 status and release gate. [Execution ownership](MASTER_PLAN.md#execution-ownership) names leads, collaborators,

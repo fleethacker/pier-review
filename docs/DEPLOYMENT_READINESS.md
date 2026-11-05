@@ -2,6 +2,12 @@
 
 **The modeling service is not ready for live use.** The local controls below do not establish deployment approval or a completed S21 gate.
 
+**Open product-audit findings (5 November 2026, `ac73e1f`):** use [NEXT_STEPS.md](NEXT_STEPS.md) for the current
+remediation ledger. In particular, bundled browser credentials (F12), event-loop blocking (F14), job/recording
+persistence and deadline/retention failures (F15/F16/F18/F19), unbounded provider cache (F17) and telemetry identity
+mixing (F22) limit the controls described below. The prior successful rehearsals remain scoped historical evidence;
+they do not close these reproduced failures. No finding is fixed or deployment gate passed by this documentation PR.
+
 **Execution owners:** Bixler leads A1/A2/A4 rehearsal and release; Kori owns browser/UI acceptance, Snyder modeling/runtime
 limits and Cruz provider availability/freshness. Review responsibilities and dependencies are in the
 [master plan ownership table](MASTER_PLAN.md#execution-ownership).

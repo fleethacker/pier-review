@@ -56,3 +56,27 @@ describe('helpers', () => {
     expect([t[0], t[49]]).toEqual([0, 999]);
   });
 });
+
+
+describe('spherical position evidence', () => {
+  const make = (a: [number, number], b: [number, number]) => prepareTrack([
+    fx('2026-11-05T12:00:00Z', ...a), fx('2026-11-05T12:01:00Z', ...b),
+  ]);
+  it('refuses the nonunique midpoint of antipodal fixes, while retaining exact endpoints', () => {
+    const t = make([0, 0], [0, 180]);
+    expect(locateOnTrack(t, T(30), 300)).toMatchObject({ established: false, reason: expect.stringContaining('Antipodal') });
+    expect(locateOnTrack(t, T(0), 300)).toMatchObject({ established: true, lat: 0, lon: 0 });
+  });
+  it('follows the spherical arc at high latitude, not a latitude/longitude chord', () => {
+    // Symmetry gives longitude 0; normalize midpoint Cartesian vector to obtain latitude.
+    const p = locateOnTrack(make([60, -60], [60, 60]), T(30), 300);
+    expect(p.lat).toBeCloseTo(73.897886248, 7);
+    expect(p.lon).toBeCloseTo(0, 9);
+  });
+  it('handles coincident points without a division by zero', () => {
+    const p = locateOnTrack(make([36, -76], [36, -76]), T(30), 300);
+    expect(p).toMatchObject({ established: true, method: 'interpolated' });
+    expect(p.lat).toBeCloseTo(36, 9);
+    expect(p.lon).toBeCloseTo(-76, 9);
+  });
+});

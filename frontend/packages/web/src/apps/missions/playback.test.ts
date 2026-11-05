@@ -54,3 +54,12 @@ describe('trails', () => {
     expect(trailPoints(many, 'MOCK-A', 1e9, null).length).toBeLessThanOrEqual(MAX_TRAIL_POINTS);
   });
 });
+
+
+it('plays a dateline crossing along the short path, retaining endpoint coordinates', () => {
+  const mk = (t: number, lon: number) => ({ t_s: t, vessels: [{ ...frames[0].vessels[0], lon }] });
+  const crossing = [mk(0, 179.99), mk(10, -179.99)];
+  expect(Math.abs(stateAt(crossing, 5)[0].lon)).toBeCloseTo(180, 9);
+  expect(stateAt(crossing, 0)[0].lon).toBe(179.99);
+  expect(stateAt(crossing, 10)[0].lon).toBe(-179.99);
+});

@@ -50,6 +50,7 @@ import { hasMarker } from './styling';
 import { parseRequestText, setMaxSpeed, setRouteSpeed, setVesselMode } from './transitRequest';
 import type {
   Mission,
+  TrackFix,
   ReportCreate,
   Storyboard,
   TrackIngestResult,
@@ -188,6 +189,9 @@ export function timeSpan(sb: Storyboard): { startMs: number; endMs: number } | n
 export class MissionsController {
   readonly store = new Store<MissionsState>({ ...initial });
   private timed: TimedFix[] = [];
+  private missionGeneration = 0;
+  private refreshGeneration = 0;
+  private missionAbort: AbortController | null = null;
   private projector: Projector | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastTick = 0;
@@ -218,6 +222,8 @@ export class MissionsController {
 
   dispose(): void {
     this.disposed = true;
+    this.missionAbort?.abort();
+    this.missionGeneration++;
     this.pause();
     this.abort?.abort();
     this.camThrottle.cancel();
@@ -235,47 +241,77 @@ export class MissionsController {
   }
 
   // ---- storyboard ----
-  async refreshMissions(selectId?: string): Promise<void> {
+  async refreshMissions(selectId?: string, preserveUploadResult = false): Promise<void> {
+    const generation = this.missionGeneration;
+    const refresh = ++this.refreshGeneration;
+    const current = () => !this.disposed && generation === this.missionGeneration && refresh === this.refreshGeneration;
     try {
       const missions = await missionsApi.listMissions();
+      if (!current()) return;
       this.store.setState({ missions, sampleStoryboard: false, error: null });
       const pick = selectId ?? this.state.missionId ?? missions[0]?.mission_id ?? null;
-      if (pick && missions.some((m) => m.mission_id === pick)) await this.selectMission(pick);
+      if (pick && missions.some((m) => m.mission_id === pick)) await this.selectMission(pick, preserveUploadResult);
     } catch (e) {
+      if (!current()) return;
       if (isUnavailable(e)) this.enterSampleStoryboard();
       else this.store.setState({ error: describeError(e) });
     }
   }
 
   enterSampleStoryboard(): void {
+    if (this.disposed) return;
+    this.missionAbort?.abort();
+    this.missionGeneration++;
     this.store.setState({
       sampleStoryboard: true,
       missions: [sampleStoryboard.mission],
       error: null,
       trackResult: null,
     });
-    this.applyStoryboard(sampleStoryboard);
+    this.applyStoryboard(sampleStoryboard, sampleStoryboard.track);
   }
 
-  async selectMission(id: string): Promise<void> {
+  async selectMission(id: string, preserveUploadResult = false): Promise<void> {
+    if (this.disposed) return;
+    this.missionAbort?.abort();
+    const abort = new AbortController();
+    this.missionAbort = abort;
+    const generation = ++this.missionGeneration;
+    const current = () => !this.disposed && generation === this.missionGeneration;
     if (this.state.sampleStoryboard) {
-      this.applyStoryboard(sampleStoryboard);
+      this.applyStoryboard(sampleStoryboard, sampleStoryboard.track);
       return;
     }
-    this.store.setState({ missionId: id, busy: 'Loading storyboard', error: null });
+    // Selection owns the scene immediately, including while loading or when it fails.
+    this.timed = [];
+    this.store.setState({ missionId: id, busy: 'Loading storyboard', error: null,
+      ...(preserveUploadResult ? {} : { notice: null, trackResult: null }), storyboard: null, scrubMs: null,
+      selectedEventId: null, shipPosition: null });
+    if (this.state.tab === 'storyboard') this.renderScene();
     try {
-      const sb = await missionsApi.storyboard(id);
-      if (this.disposed) return;
-      this.applyStoryboard(sb);
+      const [storyboard, track] = await Promise.allSettled([
+        missionsApi.storyboard(id, undefined, abort.signal), missionsApi.track(id, abort.signal),
+      ]);
+      if (!current()) return;
+      if (storyboard.status === 'rejected') throw storyboard.reason;
+      const sb = storyboard.value;
+      if (sb.mission.mission_id !== id) throw new Error('Storyboard mission does not match the selection.');
+      const complete = track.status === 'fulfilled' && track.value.mission_id === id &&
+        !track.value.decimated && track.value.fix_count === track.value.fixes.length &&
+        track.value.fix_count === sb.stats.fix_count;
+      this.applyStoryboard(sb, complete && track.status === 'fulfilled' ? track.value.fixes : []);
+      if (!complete) this.store.setState({ notice:
+        'Playback position unavailable: the complete recorded track could not be verified. The map track is display geometry only.' });
     } catch (e) {
-      this.store.setState({ error: describeError(e), storyboard: null });
+      if (!current()) return;
+      this.store.setState({ error: describeError(e) });
     } finally {
-      this.store.setState({ busy: null });
+      if (current()) this.store.setState({ busy: null });
     }
   }
 
-  private applyStoryboard(sb: Storyboard): void {
-    this.timed = prepareTrack(sb.track);
+  private applyStoryboard(sb: Storyboard, fixes: TrackFix[]): void {
+    this.timed = prepareTrack(fixes);
     const span = timeSpan(sb);
     const start = span?.startMs ?? null;
     const keepSel = sb.events.some((e) => e.event_id === this.state.selectedEventId)
@@ -294,7 +330,7 @@ export class MissionsController {
   /** Reload the current mission's storyboard after an upload. */
   private async reload(): Promise<void> {
     const id = this.state.missionId;
-    if (id) await this.refreshMissions(id);
+    if (id) await this.refreshMissions(id, true);
   }
 
   setScrub(ms: number): void {
@@ -377,7 +413,7 @@ export class MissionsController {
   private renderEventMarkers(): void {
     const sb = this.state.storyboard;
     if (!sb || !this.projector) return;
-    const { entities } = storyboardContent(sb, this.projector, this.state.selectedEventId);
+    const { entities } = storyboardContent(sb, this.projector, this.state.selectedEventId, this.timed);
     this.host.store.replaceEntitiesOfKind(['event-image', 'event-report'], entities);
   }
 
@@ -388,13 +424,16 @@ export class MissionsController {
       });
       return Promise.resolve(undefined);
     }
+    const generation = this.missionGeneration;
+    const current = () => !this.disposed && generation === this.missionGeneration;
     this.store.setState({ busy: label, error: null, notice: null });
     return fn()
+      .then((result) => current() ? result : undefined)
       .catch((e: unknown) => {
-        this.store.setState({ error: describeError(e) });
+        if (current()) this.store.setState({ error: describeError(e) });
         return undefined;
       })
-      .finally(() => this.store.setState({ busy: null }));
+      .finally(() => { if (current()) this.store.setState({ busy: null }); });
   }
 
   async createMission(
@@ -710,7 +749,7 @@ export class MissionsController {
       }
       const c = centroid(sb.track);
       this.projector = makeProjector(c.lat, c.lon);
-      const { entities, links } = storyboardContent(sb, this.projector, this.state.selectedEventId);
+      const { entities, links } = storyboardContent(sb, this.projector, this.state.selectedEventId, this.timed);
       s.setContent({
         frame: this.projector.frame,
         entities: [...fitAnchors(sb.track, this.projector), ...entities],

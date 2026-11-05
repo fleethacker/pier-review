@@ -37,6 +37,24 @@ export function lerpAngle(a: number, b: number, f: number): number {
   return (((a + angleDiff(a, b) * f) % 360) + 360) % 360;
 }
 
+/** Normalize a longitude into [-180, 180). */
+export const wrapLongitude = (lon: number): number => ((lon + 180) % 360 + 360) % 360 - 180;
+
+/** Shortest spherical arc. Antipodal endpoints have no unique arc, so no position is established. */
+export function sphericalPosition(a: { lat: number; lon: number }, b: { lat: number; lon: number }, f: number): { lat: number; lon: number } | null {
+  const vector = (p: { lat: number; lon: number }) => [Math.cos(rad(p.lat)) * Math.cos(rad(p.lon)), Math.cos(rad(p.lat)) * Math.sin(rad(p.lon)), Math.sin(rad(p.lat))];
+  const u = vector(a);
+  const v = vector(b);
+  const dot = Math.max(-1, Math.min(1, u.reduce((s, x, i) => s + x * v[i], 0)));
+  if (dot < -1 + 1e-12) return null;
+  const angle = Math.acos(dot);
+  const sine = Math.sin(angle);
+  const wa = angle < 1e-8 ? 1 - f : Math.sin((1 - f) * angle) / sine;
+  const wb = angle < 1e-8 ? f : Math.sin(f * angle) / sine;
+  const [x, y, z] = u.map((value, i) => wa * value + wb * v[i]);
+  return { lat: deg(Math.atan2(z, Math.hypot(x, y))), lon: wrapLongitude(deg(Math.atan2(y, x))) };
+}
+
 /** Parse, drop unusable fixes, sort by time and collapse equal timestamps (first wins), as the server does. */
 export function prepareTrack(fixes: TrackFix[]): TimedFix[] {
   const parsed = fixes
@@ -54,7 +72,9 @@ export interface TrackPosition {
   headingDeg?: number | null;
   sogKt?: number | null;
   gapS?: number;
-  /** True when the marker must not be drawn at a position. */
+  /** Explanation when the available evidence cannot establish a position. */
+  reason?: string;
+  /** True only when a marker may be drawn at the position. */
   established: boolean;
 }
 
@@ -83,11 +103,11 @@ export function locateOnTrack(track: TimedFix[], tMs: number, maxGapS: number): 
   const gapS = (b.tMs - a.tMs) / 1000;
   if (gapS > maxGapS) return { method: 'gap', gapS, established: false };
   const f = (tMs - a.tMs) / (b.tMs - a.tMs);
-  const dLon = angleDiff(a.lon, b.lon);
-  const lon = ((((a.lon + dLon * f) + 540) % 360) + 360) % 360 - 180;
+  const position = sphericalPosition(a, b, f);
+  if (!position) return { method: 'gap', gapS, established: false, reason: 'Antipodal fixes do not define a unique path.' };
   const heading = a.headingDeg != null && b.headingDeg != null ? lerpAngle(a.headingDeg, b.headingDeg, f) : bearingDeg(a, b);
   const sog = a.sogKt != null && b.sogKt != null ? a.sogKt + (b.sogKt - a.sogKt) * f : null;
-  return { method: 'interpolated', lat: a.lat + (b.lat - a.lat) * f, lon, headingDeg: heading, sogKt: sog, gapS, established: true };
+  return { method: 'interpolated', ...position, headingDeg: heading, sogKt: sog, gapS, established: true };
 }
 
 /** Index of the last event whose time is at or before `tMs` (events with no time are ignored); -1 if none. */

@@ -1,4 +1,4 @@
-import { lerpAngle } from './geo';
+import { angleDiff, lerpAngle, wrapLongitude } from './geo';
 import type { TransitFrame, TransitVesselState } from './types';
 
 export const SPEEDS = [1, 2, 5, 10, 30, 60] as const;
@@ -24,7 +24,7 @@ export function bracket(frames: TransitFrame[], tS: number): { i0: number; i1: n
 }
 
 const NUMERIC = [
-  'lat', 'lon', 'x_east_ft', 'y_north_ft', 'sog_kt', 'stw_kt', 'u_kt', 'v_kt', 'r_degps', 'rudder_deg', 'engine_order',
+  'lat', 'x_east_ft', 'y_north_ft', 'sog_kt', 'stw_kt', 'u_kt', 'v_kt', 'r_degps', 'rudder_deg', 'engine_order',
   'thrust_lbf', 'cross_track_ft', 'distance_to_go_nm',
 ] as const;
 
@@ -33,6 +33,7 @@ export function blendVessel(a: TransitVesselState, b: TransitVesselState, f: num
   if (f >= 1) return b;
   const out: TransitVesselState = { ...a };
   for (const k of NUMERIC) out[k] = lerp(a[k], b[k], f);
+  out.lon = wrapLongitude(a.lon + angleDiff(a.lon, b.lon) * f);
   out.heading_true_deg = lerpAngle(a.heading_true_deg, b.heading_true_deg, f);
   out.cog_true_deg = a.cog_true_deg != null && b.cog_true_deg != null ? lerpAngle(a.cog_true_deg, b.cog_true_deg, f) : a.cog_true_deg;
   // Discrete state (status, leg, tug contacts) comes from the earlier frame; it is not blended.

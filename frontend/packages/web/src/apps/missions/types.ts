@@ -2,6 +2,7 @@ import type { components as M } from '../../api/modeling';
 
 type S = M['schemas'];
 export type Mission = S['Mission'];
+export type MissionTrack = S['MissionTrack'];
 export type MissionCreate = S['MissionCreate'];
 export type Storyboard = S['Storyboard'];
 export type StoryboardEvent = S['StoryboardEvent'];

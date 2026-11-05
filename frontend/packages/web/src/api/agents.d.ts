@@ -1664,6 +1664,11 @@ export interface components {
          * @description One ledger entry. Safety uses the ledger to prove every cited number came from a recorded tool call.
          */
         ToolCall: {
+            /**
+             * Operation Id
+             * @description Server-created agent operation budget scope; absent on legacy/direct gateway calls.
+             */
+            operation_id?: string | null;
             /** Call Id */
             call_id: string;
             /**

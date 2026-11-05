@@ -160,3 +160,21 @@ print(json.dumps(allowed))
     assert len(calls) == 24
     assert len({call.call_id for call in calls}) == 24
     assert sum(call.error == "budget_exceeded" for call in calls) == 19
+
+
+@pytest.mark.parametrize('persistent', [False, True], ids=['memory', 'sqlite'])
+def test_operation_budgets_are_atomic_but_later_reviews_get_new_allowance(persistent, monkeypatch, tmp_path):
+    if persistent: monkeypatch.setenv('AGENTS_LEDGER_DB', str(tmp_path / 'operations.sqlite'))
+    barrier = Barrier(8)
+    def reserve(index):
+        call = make_call(f'operation_call_{index}').model_copy(update={'caller':'safety','operation_id':'review_one'})
+        barrier.wait(timeout=10)
+        return ledger.reserve_call(call, 3)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        assert sum(pool.map(reserve, range(8))) == 3
+    next_review = make_call('next_review').model_copy(update={'caller':'safety','operation_id':'review_two'})
+    assert ledger.reserve_call(next_review, 3)
+    assert {call.operation_id for call in ledger.calls_for('plan_a')} == {'review_one','review_two'}
+    # A newly constructed toolkit using the same operation cannot reset its allowance.
+    replay = next_review.model_copy(update={'call_id':'same_operation','operation_id':'review_one'})
+    assert not ledger.reserve_call(replay, 3)

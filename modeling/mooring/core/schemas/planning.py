@@ -38,6 +38,10 @@ class RecommendRequest(Model):
 
     @model_validator(mode="after")
     def forecast_basis_requires_conditions(self):
+        if len({line.line_number for line in self.locked_lines}) != len(self.locked_lines):
+            raise ValueError("locked_lines line numbers must be unique")
+        if len({item.spec_id for item in self.available_lines}) != len(self.available_lines):
+            raise ValueError("available_lines spec ids must be unique")
         if self.design_basis == "forecast_only" and not self.forecast_env:
             raise ValueError("forecast_only requires forecast_env")
         return self

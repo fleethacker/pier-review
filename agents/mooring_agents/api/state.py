@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import Depends
 
 from mooring.core.jobs import JobStore
+from mooring.core.envelopes import new_id
 
 from ..shared.storage import persistence_enabled
 from ..physics.client import ModelingClient
@@ -30,7 +31,7 @@ Client = Annotated[ModelingClient, Depends(get_client)]
 
 def _toolkit(caller: str):
     def dep(client: Client) -> PhysicsToolkit:
-        return PhysicsToolkit(client, caller)
+        return PhysicsToolkit(client, caller, operation_id=new_id("operation"))
 
     return Annotated[PhysicsToolkit, Depends(dep)]
 

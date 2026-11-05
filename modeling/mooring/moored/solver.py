@@ -60,7 +60,13 @@ def solve_request(req: AnalyzeRequest, *, start: Pose = Pose(), force_rel_tol: f
     except eq.SystemError as e:
         raise refdata.InvalidReference(str(e)) from None
     refdata.loading(ship, req.loading)
-    return system, eq.solve(system, start, force_rel_tol=force_rel_tol), specs
+    if system.depth_ft(start) <= 0:
+        raise refdata.InvalidReference("Actual water depth must be positive; berth depth plus water level is nonpositive")
+    try:
+        solution = eq.solve(system, start, force_rel_tol=force_rel_tol)
+    except ValueError as exc:
+        raise refdata.InvalidReference(f"Invalid equilibrium inputs: {exc}") from None
+    return system, solution, specs
 
 
 def _validity(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs, load_findings, basis) -> Validity:

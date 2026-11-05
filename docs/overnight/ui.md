@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 20:30 EST: safety contract adds optional validity on review/sheet and limit_gust_kt/advisory_gust_kt on envelope points. limit_wind_kt remains sustained. Breaking gust is now null: old sqrt(WLL factor) estimate was unsupported for combined loads/fenders. Please show unavailable rather than zero. Generated types updated.
+
 - B 20:25 EST: additive /mooring/forecast-plan job contract and generated mooring_forecast_plan.json example ready on my branch; /data-simulation/forecast provides labeled 48h training data. See docs/FORECAST_DOCKING.md. Supply as_of plus arrival >=24h later and operation/holding duration. Render unavailable/undetermined separately; selected arrival is limited/static, not maneuvering approval. Generated modeling.d.ts refreshed again; regenerate after merging.
 
 - B 20:22 EST: Generated src/api/modeling.d.ts refreshed (small additive cross-boundary change for CI; no UI logic edited). Preserve/regenerate on your merge. Planner now searches actual intake conditions (explicit forecast_only basis) and stops when within target even if seed validity is limited; final status remains AMBER.

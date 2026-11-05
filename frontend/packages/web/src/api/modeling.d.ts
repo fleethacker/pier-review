@@ -2165,6 +2165,16 @@ export interface components {
              * @description Highest wind speed verified within limits (conservative end of the bracket). None unless outcome is 'limit_found' or 'fails_at_zero_wind' (then 0).
              */
             limit_wind_kt: number | null;
+            /**
+             * Limit Gust Kt
+             * @description Corresponding gust at limit_wind_kt under the request's held gust/sustained ratio; not a breaking limit.
+             */
+            limit_gust_kt?: number | null;
+            /**
+             * Advisory Gust Kt
+             * @description Application advisory at 80% of the computed gust limit; not a physical failure threshold.
+             */
+            advisory_gust_kt?: number | null;
             /** First Failure Element */
             first_failure_element: string | null;
             /**

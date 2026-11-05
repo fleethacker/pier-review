@@ -5,12 +5,12 @@ first approval; edits create a new version.
 """
 
 import html
-import math
 
 from mooring.core.envelopes import new_id, utcnow
-from mooring.core.schemas import Provenance
+from mooring.core.schemas import Provenance, Finding
 
-from ..planner.mock import PlanRecord
+from ..planner.agent import PlanRecord
+from ..intake.agent import REPORTS
 from .schemas import (
     Approval,
     ApprovalCreate,
@@ -38,13 +38,8 @@ def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
                          tension_lbf=by_line[ln.line_number].tension_lbf, pct_wll=by_line[ln.line_number].pct_wll,
                          status=by_line[ln.line_number].status) for ln in plan.config.lines]
     top = a.result.min_margin
-    if review and review.thresholds.limit_wll_gust_kt:
-        limit = review.thresholds.limit_wll_gust_kt
-        breaking = review.thresholds.limit_breaking_gust_kt
-    else:
-        gust = rec.env.wind_gust_kt
-        limit = gust * math.sqrt(100 / top.pct_wll) if top.pct_wll > 0 else None
-        breaking = None
+    limit = review.thresholds.limit_wll_gust_kt if review else None
+    breaking = review.thresholds.limit_breaking_gust_kt if review else None
     worst_lines = sorted(rows, key=lambda r: -r.pct_wll)[:2]
     go_no_go = []
     if limit:
@@ -59,14 +54,23 @@ def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
     if review:
         cited += review.thresholds.cites
     status = review.status if review else (plan.status or "RED")
+    validity = (review.validity if review else None) or a.validity
+    if validity and validity.state == "invalid":
+        status = "RED"
+    elif validity and validity.state == "limited" and status == "GREEN":
+        status = "AMBER"
+    report = REPORTS.get(plan.intake_report_id) if plan.intake_report_id else None
+    forecast_summary = report.summary if report else "No intake forecast attached; only the plan's evaluated conditions are documented."
+    validity_findings = [Finding(rule_id=r.code, severity="RED" if validity.state == "invalid" else "AMBER",
+        message=r.message, reference="Result validity", element_ids=r.affected_components) for r in validity.reasons] if validity else []
     # Every sheet built for the same plan gets the next version, locked or not, so versions never repeat.
     version = max((sheet.version for sheet in SHEETS.values() if sheet.plan_id == plan.plan_id), default=0) + 1
     sheet = SafetySheet(
         sheet_id=new_id("sheet"), version=version, plan_id=plan.plan_id, review_id=review.review_id if review else None,
-        locked=False, status=status,
+        locked=False, status=status, validity=validity,
         header=SheetHeader(ship_class_id=rec.scenario.ship_class_id, berth_id=rec.scenario.berth_id,
                            side_to=rec.scenario.side_to, evolution="moor", planned_utc=utcnow()),
-        environment=SheetEnvironment(observed=rec.env, forecast_summary="See risk timeline (mock forecast).",
+        environment=SheetEnvironment(observed=rec.env, forecast_summary=forecast_summary,
                                      mst=rec.mst),
         line_plan=rows, fitting_utilization=a.result.pier_fittings, tug_plan=plan.tug_plan,
         sequence=plan.sequence.steps if plan.sequence else [],
@@ -74,11 +78,11 @@ def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
         sequence_limitations=plan.sequence.limitations if plan.sequence else [], go_no_go=go_no_go,
         brief=review.brief if review else None,
         directional_thresholds=review.thresholds.directions if review else [],
-        warnings=[f for f in a.result.findings if f.severity != "INFO"], rationale=plan.rationale,
+        warnings=[f for f in [*a.result.findings, *a.warnings, *validity_findings] if f.severity != "INFO"], rationale=plan.rationale,
         assumptions=plan.assumptions, cited_result_ids=sorted(set(cited + [a.result_id])),
         sources=[Provenance(source="NSTM 582 (paragraph references only)", confidence="published"),
                  Provenance(source="UFC 4-159-03 Chapter 4", confidence="published"),
-                 Provenance(source="Mock modeling backend", confidence="mock")],
+                 Provenance(source=f"{a.model} ({a.backend}); reference data qualification is reported in validity", confidence="estimated")],
         approvals=[], disclaimer=DISCLAIMER)
     SHEETS[sheet.sheet_id] = sheet
     return sheet
@@ -98,6 +102,9 @@ def render_html(s: SafetySheet) -> str:
                     f"<td>{r.pct_wll:.0f}%</td><td>{r.status}</td></tr>" for r in s.line_plan)
     steps = "".join(f"<li>{e(st.action.replace('_', ' '))} line {st.line_number or '-'} ({e(st.station)}): "
                     f"{e(st.trigger)}{(' <em>' + e(st.caution) + '</em>') if st.caution else ''}</li>" for st in s.sequence)
+    validity_banner = (f"<p><strong>Validity: {e(s.validity.state)}. "
+        "Seed or estimated reference data is not qualified for operational use.</strong></p>" if s.validity
+        else "<p><strong>Validity unknown; qualification is not established.</strong></p>")
     seq_banner = ""
     if s.sequence_review_status and s.sequence_review_status != "reviewed":
         seq_banner = (f"<p><b>DRAFT, not reviewed by a deck officer or pilot ({e(s.sequence_review_status)}).</b> "
@@ -108,11 +115,9 @@ def render_html(s: SafetySheet) -> str:
     appr = "".join(f"<li>{e(a.role.upper())}: {e(a.name)}, {a.decision} {a.at_utc:%Y-%m-%d %H:%MZ}</li>" for a in s.approvals)
     thresholds = "".join(
         f"<tr><td>{row.wind_rel_deg:.0f}°</td><td>{e(row.governing_element or '-')}</td>"
-        f"<td>{row.limit_wll_gust_kt:.0f} kt</td>"
-        f"<td>{row.estimated_breaking_gust_kt:.0f} kt (estimated)</td></tr>"
-        if row.limit_wll_gust_kt is not None and row.estimated_breaking_gust_kt is not None
-        else f"<tr><td>{row.wind_rel_deg:.0f}°</td><td>{e(row.governing_element or '-')}</td>"
-             "<td>Fender-loading direction</td><td>—</td></tr>"
+        + (f"<td>{row.limit_wll_gust_kt:.0f} kt</td>" if row.limit_wll_gust_kt is not None else "<td>Unavailable</td>")
+        + (f"<td>{row.estimated_breaking_gust_kt:.0f} kt (legacy estimate)</td></tr>"
+           if row.estimated_breaking_gust_kt is not None else "<td>Unavailable; not established</td></tr>")
         for row in s.directional_thresholds)
     tug = s.tug_plan
     tug_line = (f"{tug.recommended_tug_count} tugs, {tug.total_power_hp:,.0f} hp, {tug.total_bollard_pull_lbf:,.0f} lbf "
@@ -121,6 +126,7 @@ def render_html(s: SafetySheet) -> str:
 <style>body{{font-family:system-ui,sans-serif;margin:24px;color:#111}}table{{border-collapse:collapse}}
 td,th{{border:1px solid #999;padding:4px 8px;text-align:left}}.st{{font-weight:700}}</style></head><body>
 <h1>Mooring Evolution Safety Sheet</h1>
+{validity_banner}
 <p>Sheet {e(s.sheet_id)} v{s.version} &middot; Status <span class="st">{s.status}</span> &middot;
 {e(s.header.ship_class_id)} {e(s.header.side_to)} side to {e(s.header.berth_id)}</p>
 <p>Wind {s.environment.observed.wind_speed_kt:.0f} kt gusting {s.environment.observed.wind_gust_kt:.0f} kt from

@@ -186,6 +186,31 @@ def test_missing_nearest_sector_does_not_borrow_a_distant_limit():
 
 
 def test_zero_wind_limit_warning_is_red_without_division_by_zero():
-    point = LimitEnvelopePoint(wind_rel_deg=90, limit_wind_kt=0, first_failure_element='line-1', failure_mode='WLL', outcome='fails_at_zero_wind')
+    point = LimitEnvelopePoint(wind_rel_deg=90, limit_wind_kt=0, first_failure_element='line-1', failure_mode='WLL', outcome='fails_at_zero_wind', limit_gust_kt=0)
     warning = agent._warning('plan', env(90, gust=0), point, 3)
     assert warning.severity == 'RED' and warning.pct_of_wll_limit is None
+
+
+def test_warning_uses_explicit_gust_basis_and_does_not_invent_breaking_threshold():
+    point = LimitEnvelopePoint(wind_rel_deg=90, limit_wind_kt=40, limit_gust_kt=60,
+                              first_failure_element='fender-1', failure_mode='fender', outcome='limit_found')
+    warning = agent._warning('plan', env(90, gust=30), point, 3)
+    assert warning.pct_of_wll_limit == 50
+    assert warning.pct_of_breaking_limit is None
+    assert 'breaking threshold is unavailable' in warning.message
+    assert agent._directional([point], 3)[0].estimated_breaking_gust_kt is None
+
+
+def test_modern_envelope_missing_gust_basis_is_unknown_not_assumed():
+    point = LimitEnvelopePoint(wind_rel_deg=90, limit_wind_kt=40,
+                              first_failure_element='line-1', failure_mode='WLL', outcome='limit_found')
+    assert agent._gust_limit(point) is None
+
+
+def test_missing_or_stale_forecast_cannot_pass_safety_coverage():
+    from mooring_agents.safety.checks import forecast_coverage, mst_within_ship
+    assert not forecast_coverage(None).passed
+    assert not mst_within_ship(None).passed
+    report=SimpleNamespace(data_quality=[SimpleNamespace(issue='missing', severity='RED', detail='No wind forecast')])
+    result=forecast_coverage(report)
+    assert not result.passed and result.severity=='RED' and 'No wind forecast' in result.detail

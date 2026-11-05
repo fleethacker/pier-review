@@ -1280,6 +1280,7 @@ export interface components {
         };
         /** SafetyReview */
         SafetyReview: {
+            validity?: components["schemas"]["Validity"] | null;
             /** Review Id */
             review_id: string;
             /** Plan Id */
@@ -1335,6 +1336,7 @@ export interface components {
         };
         /** SafetySheet */
         SafetySheet: {
+            validity?: components["schemas"]["Validity"] | null;
             /** Sheet Id */
             sheet_id: string;
             /** Version */
@@ -1556,6 +1558,65 @@ export interface components {
              */
             status: "GREEN" | "AMBER" | "RED";
         };
+        /**
+         * SolverDiagnostics
+         * @description Numerical evidence behind a result. Absent values are `null` (not measured), never 0 or NaN.
+         */
+        SolverDiagnostics: {
+            /**
+             * Converged
+             * @description Null when no iterative solve was performed.
+             */
+            converged?: boolean | null;
+            /** Iterations */
+            iterations?: number | null;
+            /**
+             * Residuals
+             * @description Independent force and moment balances, each in its own unit.
+             */
+            residuals?: components["schemas"]["SolverResidual"][];
+            /**
+             * Active Constraints
+             * @description Contacts, slack lines and limits that were active at the solution.
+             */
+            active_constraints?: string[];
+            /**
+             * Rank
+             * @description Numerical rank of the support (stiffness) matrix.
+             */
+            rank?: number | null;
+            /**
+             * Degrees Of Freedom
+             * @description Rank is full when rank equals this.
+             */
+            degrees_of_freedom?: number | null;
+            /** Notes */
+            notes?: string[];
+        };
+        /**
+         * SolverResidual
+         * @description One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
+         */
+        SolverResidual: {
+            /**
+             * Name
+             * @example surge_force
+             */
+            name: string;
+            /** Value */
+            value: number;
+            /**
+             * Unit
+             * @example lbf
+             * @example ftlbf
+             */
+            unit: string;
+            /**
+             * Tolerance
+             * @description Same unit as value.
+             */
+            tolerance: number;
+        };
         /** StationQuality */
         StationQuality: {
             /** Station Id */
@@ -1570,7 +1631,7 @@ export interface components {
         };
         /**
          * Thresholds
-         * @description Wind limits for this plan. Breaking is estimated from the working-load limit and the design factor.
+         * @description Model-computed gust limits; breaking remains unavailable without a separate validated model.
          */
         Thresholds: {
             /**
@@ -1587,7 +1648,7 @@ export interface components {
             limit_wll_gust_kt: number | null;
             /**
              * Limit Breaking Gust Kt
-             * @description Estimated gust at line breaking: working-load limit times sqrt(design factor).
+             * @description Unavailable unless a separate validated breaking-limit model establishes it; legacy values were estimates.
              */
             limit_breaking_gust_kt: number | null;
             /** Forecast Max Gust Kt */
@@ -1766,6 +1827,45 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * Validity
+         * @description Whether the numbers can be relied on, independent of the GREEN/AMBER/RED status.
+         *
+         *     `valid`: inside the model's qualified domain. `limited`: usable with the stated caveats, so never an
+         *     unconditional GREEN. `invalid`: do not use the numbers; status is RED. `unknown`: not assessed.
+         *     A numerical failure is not proof that no physical solution exists: report it as `invalid` with a reason.
+         */
+        Validity: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "valid" | "limited" | "invalid" | "unknown";
+            /** Reasons */
+            reasons?: components["schemas"]["ValidityReason"][];
+            diagnostics?: components["schemas"]["SolverDiagnostics"] | null;
+        };
+        /**
+         * ValidityReason
+         * @description Why a result is limited or invalid. Codes are stable UPPER_SNAKE identifiers that clients may switch on.
+         */
+        ValidityReason: {
+            /**
+             * Code
+             * @example MISSING_FITTING_RATING
+             */
+            code: string;
+            /** Message */
+            message: string;
+            /**
+             * Affected Components
+             * @description Element ids the reason applies to, e.g. 'line-2', 'P12N-B16'.
+             * @example [
+             *       "line-2"
+             *     ]
+             */
+            affected_components?: string[];
         };
         /** VersionInfo */
         VersionInfo: {
@@ -1992,111 +2092,6 @@ export interface components {
              * @default null
              */
             rng_model_revision: string | null;
-        };
-        /**
-         * SolverDiagnostics
-         * @description Numerical evidence behind a result. Absent values are `null` (not measured), never 0 or NaN.
-         */
-        SolverDiagnostics: {
-            /**
-             * Converged
-             * @description Null when no iterative solve was performed.
-             * @default null
-             */
-            converged: boolean | null;
-            /**
-             * Iterations
-             * @default null
-             */
-            iterations: number | null;
-            /**
-             * Residuals
-             * @description Independent force and moment balances, each in its own unit.
-             */
-            residuals?: components["schemas"]["SolverResidual"][];
-            /**
-             * Active Constraints
-             * @description Contacts, slack lines and limits that were active at the solution.
-             */
-            active_constraints?: string[];
-            /**
-             * Rank
-             * @description Numerical rank of the support (stiffness) matrix.
-             * @default null
-             */
-            rank: number | null;
-            /**
-             * Degrees Of Freedom
-             * @description Rank is full when rank equals this.
-             * @default null
-             */
-            degrees_of_freedom: number | null;
-            /** Notes */
-            notes?: string[];
-        };
-        /**
-         * SolverResidual
-         * @description One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
-         */
-        SolverResidual: {
-            /**
-             * Name
-             * @example surge_force
-             */
-            name: string;
-            /** Value */
-            value: number;
-            /**
-             * Unit
-             * @example lbf
-             * @example ftlbf
-             */
-            unit: string;
-            /**
-             * Tolerance
-             * @description Same unit as value.
-             */
-            tolerance: number;
-        };
-        /**
-         * Validity
-         * @description Whether the numbers can be relied on, independent of the GREEN/AMBER/RED status.
-         *
-         *     `valid`: inside the model's qualified domain. `limited`: usable with the stated caveats, so never an
-         *     unconditional GREEN. `invalid`: do not use the numbers; status is RED. `unknown`: not assessed.
-         *     A numerical failure is not proof that no physical solution exists: report it as `invalid` with a reason.
-         */
-        Validity: {
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "valid" | "limited" | "invalid" | "unknown";
-            /** Reasons */
-            reasons?: components["schemas"]["ValidityReason"][];
-            /** @default null */
-            diagnostics: components["schemas"]["SolverDiagnostics"] | null;
-        };
-        /**
-         * ValidityReason
-         * @description Why a result is limited or invalid. Codes are stable UPPER_SNAKE identifiers that clients may switch on.
-         */
-        ValidityReason: {
-            /**
-             * Code
-             * @example MISSING_FITTING_RATING
-             */
-            code: string;
-            /** Message */
-            message: string;
-            /**
-             * Affected Components
-             * @description Element ids the reason applies to, e.g. 'line-2', 'P12N-B16'.
-             * @example [
-             *       "line-2"
-             *     ]
-             */
-            affected_components?: string[];
         };
         /**
          * VisionMetadata

@@ -17,6 +17,7 @@ from mooring.core.schemas import (
     SideTo,
     Status,
     TugPlanResult,
+    Validity,
 )
 
 from ..planner.schemas import RationaleItem
@@ -40,13 +41,13 @@ class CheckResult(Model):
 
 
 class Thresholds(Model):
-    """Wind limits for this plan. Breaking is estimated from the working-load limit and the design factor."""
+    """Model-computed gust limits; breaking remains unavailable without a separate validated model."""
 
     wind_rel_deg: float | None = Field(description="Worst relative wind direction from the limit envelope.")
     governing_element: str | None
     limit_wll_gust_kt: float | None = Field(description="Gust at which the first element reaches its working limit.")
     limit_breaking_gust_kt: float | None = Field(
-        description="Estimated gust at line breaking: working-load limit times sqrt(design factor).")
+        description="Unavailable unless a separate validated breaking-limit model establishes it; legacy values were estimates.")
     forecast_max_gust_kt: float
     cites: list[str]
     directions: list["DirectionalThreshold"] = Field(default_factory=list)
@@ -62,6 +63,8 @@ class DirectionalThreshold(Model):
 
 
 class SafetyReview(Model):
+    wire_omitted_defaults = {"validity": None}
+    validity: Validity | None = None
     review_id: str
     plan_id: str
     created_at_utc: datetime
@@ -153,6 +156,8 @@ class ApprovalCreate(Model):
 
 
 class SafetySheet(Model):
+    wire_omitted_defaults = {"validity": None}
+    validity: Validity | None = None
     sheet_id: str
     version: int
     plan_id: str

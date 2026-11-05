@@ -190,7 +190,8 @@ provenance:
     satellite imagery
   url: https://www.openstreetmap.org/way/1503791481
   confidence: mock
-  notes: Position, direction and length of the face are surveyed (Longest straight
+  notes: 'Position, direction and length of the face are surveyed (Longest straight
     run of an irregular polygon edge facing northeast. Unnamed in OSM.). Fittings,
     fenders and depths are the notional Pier 12 layout stretched to the face length;
-    weather is synthetic. Not for operational use.
+    weather is synthetic. Occupancy in the imagery: Two warships are moored along
+    the whole face; no clear stretch. Not for operational use.'

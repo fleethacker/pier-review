@@ -288,6 +288,12 @@ provenance:
     satellite imagery
   url: https://www.openstreetmap.org/way/1262816731
   confidence: mock
-  notes: Position, direction and length of the face are surveyed (Polygon long edge
+  notes: 'Position, direction and length of the face are surveyed (Polygon long edge
     facing northwest.). Fittings, fenders and depths are the notional Pier 12 layout
-    stretched to the face length; weather is synthetic. Not for operational use.
+    stretched to the face length; weather is synthetic. Occupancy in the imagery:
+    A tanker is moored about 35-212 m along the face; the inner end is clear. Not
+    for operational use.'
+clear_stretch:
+  start_ft: 722
+  end_ft: 1312
+  note: A tanker is moored about 35-212 m along the face; the inner end is clear.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { entityToFrame } from '../../scene/geometry';
 import * as mapping from './mapping';
-import { partsName, lineLinks, buildScene, envReadouts, envVectors, hullPoints, pierEntities, shipEntities, shipPose } from './mapping';
+import { partsName, lineLinks, buildScene, envReadouts, envVectors, hullPoints, pierEntities, shipEntities, shipPose, defaultShipXFt } from './mapping';
 import { ft } from './units';
 import type { Berth, ShipClass } from './types';
 
@@ -334,4 +334,17 @@ it.each(['valid', 'limited'])('retains evaluated line values for %s analysis', (
   expect(link.status).toBe('GREEN');
   expect(link.label).toContain('12%');
   expect(link.props?.find(p => p.label === 'Tension')?.value).toBe('100 lbf');
+});
+
+describe('defaultShipXFt', () => {
+  it('puts midships in the middle of the stretch that was clear in the imagery', () => {
+    expect(defaultShipXFt({ face_length_ft: 1392, clear_stretch: { start_ft: 0, end_ft: 525 } })).toBe(265);
+  });
+  it('uses the middle of the face when no clear stretch is recorded', () => {
+    expect(defaultShipXFt({ face_length_ft: 808, clear_stretch: null })).toBe(405);
+    expect(defaultShipXFt({ face_length_ft: 808 })).toBe(405);
+  });
+  it('stays on the face', () => {
+    expect(defaultShipXFt({ face_length_ft: 100, clear_stretch: { start_ft: 90, end_ft: 400 } })).toBe(100);
+  });
 });

@@ -1,130 +1,130 @@
 # Berth with a surveyed face position (see scripts/build_berths.py); layout and depths are notional.
-berth_id: DJIBOUTI-DORALEH-MP-1
-name: Doraleh Multipurpose Port, north quay, west berth (Port of Djibouti)
-face_bearing_true_deg: 82.9
-origin_lat: 11.600402
-origin_lon: 43.063122
-face_length_ft: 1378
+berth_id: JEBEL-ALI-QUAY-NE
+name: Container quay, northeast end (Jebel Ali Port, UAE)
+face_bearing_true_deg: 226.2
+origin_lat: 24.992115
+origin_lon: 55.07259
+face_length_ft: 1312
 deck_height_mllw_ft: 11.0
 depth_profile:
 - x_ft: 0
   depth_mllw_ft: 42
-- x_ft: 689
+- x_ft: 656
   depth_mllw_ft: 45
-- x_ft: 1378
+- x_ft: 1312
   depth_mllw_ft: 47
 fittings:
-- fitting_id: DJI-B01
+- fitting_id: JBA-B01
   kind: bollard_special_b
   x_ft: 30
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-B02
+- fitting_id: JBA-B02
   kind: bollard_special_b
   x_ft: 90
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-M01
+- fitting_id: JBA-M01
   kind: bollard_special_a
   x_ft: 90
   y_ft: -45
   capacity_nominal_lbf: 450000
   capacity_horizontal_lbf: 660000
   capacity_45deg_lbf: 430000
-- fitting_id: DJI-C01
+- fitting_id: JBA-C01
   kind: cleat_42
   x_ft: 120
   y_ft: -3
   capacity_nominal_lbf: 40000
-- fitting_id: DJI-B03
+- fitting_id: JBA-B03
   kind: bollard_special_b
   x_ft: 150
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-B04
+- fitting_id: JBA-B04
   kind: bollard_special_b
   x_ft: 210
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-M02
+- fitting_id: JBA-M02
   kind: bollard_special_a
   x_ft: 210
   y_ft: -45
   capacity_nominal_lbf: 450000
   capacity_horizontal_lbf: 660000
   capacity_45deg_lbf: 430000
-- fitting_id: DJI-B05
+- fitting_id: JBA-B05
   kind: bollard_horn
   x_ft: 270
   y_ft: -6
   capacity_nominal_lbf: 70000
   capacity_horizontal_lbf: 104000
   capacity_45deg_lbf: 66000
-- fitting_id: DJI-B06
+- fitting_id: JBA-B06
   kind: bollard_special_b
   x_ft: 330
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-M03
+- fitting_id: JBA-M03
   kind: bollard_special_a
   x_ft: 330
   y_ft: -45
   capacity_nominal_lbf: 450000
   capacity_horizontal_lbf: 660000
   capacity_45deg_lbf: 430000
-- fitting_id: DJI-B07
+- fitting_id: JBA-B07
   kind: bollard_special_b
   x_ft: 390
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-B08
+- fitting_id: JBA-B08
   kind: bollard_special_b
   x_ft: 450
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-M04
+- fitting_id: JBA-M04
   kind: bollard_special_a
   x_ft: 450
   y_ft: -45
   capacity_nominal_lbf: 450000
   capacity_horizontal_lbf: 660000
   capacity_45deg_lbf: 430000
-- fitting_id: DJI-B09
+- fitting_id: JBA-B09
   kind: bollard_special_b
   x_ft: 510
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-B10
+- fitting_id: JBA-B10
   kind: bollard_horn
   x_ft: 570
   y_ft: -6
   capacity_nominal_lbf: 70000
   capacity_horizontal_lbf: 104000
   capacity_45deg_lbf: 66000
-- fitting_id: DJI-M05
+- fitting_id: JBA-M05
   kind: bollard_special_a
   x_ft: 570
   y_ft: -45
   capacity_nominal_lbf: 450000
   capacity_horizontal_lbf: 660000
   capacity_45deg_lbf: 430000
-- fitting_id: DJI-B11
+- fitting_id: JBA-B11
   kind: bollard_special_b
   x_ft: 630
   y_ft: -6
@@ -132,165 +132,157 @@ fittings:
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
   condition: suspect
-- fitting_id: DJI-B12
+- fitting_id: JBA-B12
   kind: bollard_special_b
   x_ft: 690
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-M06
+- fitting_id: JBA-M06
   kind: bollard_special_a
   x_ft: 690
   y_ft: -45
   capacity_nominal_lbf: 450000
   capacity_horizontal_lbf: 660000
   capacity_45deg_lbf: 430000
-- fitting_id: DJI-B13
+- fitting_id: JBA-B13
   kind: bollard_special_b
   x_ft: 750
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-B14
+- fitting_id: JBA-B14
   kind: bollard_special_b
   x_ft: 810
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-M07
+- fitting_id: JBA-M07
   kind: bollard_special_a
   x_ft: 810
   y_ft: -45
   capacity_nominal_lbf: 450000
   capacity_horizontal_lbf: 660000
   capacity_45deg_lbf: 430000
-- fitting_id: DJI-B15
+- fitting_id: JBA-B15
   kind: bollard_horn
   x_ft: 870
   y_ft: -6
   capacity_nominal_lbf: 70000
   capacity_horizontal_lbf: 104000
   capacity_45deg_lbf: 66000
-- fitting_id: DJI-B16
+- fitting_id: JBA-B16
   kind: bollard_special_b
   x_ft: 930
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-M08
+- fitting_id: JBA-M08
   kind: bollard_special_a
   x_ft: 930
   y_ft: -45
   capacity_nominal_lbf: 450000
   capacity_horizontal_lbf: 660000
   capacity_45deg_lbf: 430000
-- fitting_id: DJI-B17
+- fitting_id: JBA-B17
   kind: bollard_special_b
   x_ft: 990
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-B18
+- fitting_id: JBA-B18
   kind: bollard_special_b
   x_ft: 1050
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-M09
+- fitting_id: JBA-M09
   kind: bollard_special_a
   x_ft: 1050
   y_ft: -45
   capacity_nominal_lbf: 450000
   capacity_horizontal_lbf: 660000
   capacity_45deg_lbf: 430000
-- fitting_id: DJI-B19
+- fitting_id: JBA-B19
   kind: bollard_special_b
   x_ft: 1110
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-B20
+- fitting_id: JBA-B20
   kind: bollard_horn
   x_ft: 1170
   y_ft: -6
   capacity_nominal_lbf: 70000
   capacity_horizontal_lbf: 104000
   capacity_45deg_lbf: 66000
-- fitting_id: DJI-M10
+- fitting_id: JBA-M10
   kind: bollard_special_a
   x_ft: 1170
   y_ft: -45
   capacity_nominal_lbf: 450000
   capacity_horizontal_lbf: 660000
   capacity_45deg_lbf: 430000
-- fitting_id: DJI-B21
+- fitting_id: JBA-C02
+  kind: cleat_42
+  x_ft: 1200
+  y_ft: -3
+  capacity_nominal_lbf: 40000
+- fitting_id: JBA-B21
   kind: bollard_special_b
   x_ft: 1230
   y_ft: -6
   capacity_nominal_lbf: 200000
   capacity_horizontal_lbf: 270000
   capacity_45deg_lbf: 216000
-- fitting_id: DJI-C02
-  kind: cleat_42
-  x_ft: 1260
-  y_ft: -3
-  capacity_nominal_lbf: 40000
-- fitting_id: DJI-B22
-  kind: bollard_special_b
-  x_ft: 1290
-  y_ft: -6
-  capacity_nominal_lbf: 200000
-  capacity_horizontal_lbf: 270000
-  capacity_45deg_lbf: 216000
-- fitting_id: DJI-M11
-  kind: bollard_special_a
-  x_ft: 1290
-  y_ft: -45
-  capacity_nominal_lbf: 450000
-  capacity_horizontal_lbf: 660000
-  capacity_45deg_lbf: 430000
 fenders:
-- fender_id: DJI-CAMEL-1
+- fender_id: JBA-CAMEL-1
   kind: camel
-  x_ft: 460
+  x_ft: 440
   length_ft: 40
   standoff_ft: 12
   stiffness_lbf_per_ft: 150000
   rated_energy_ftlbf: 200000
-- fender_id: DJI-CAMEL-2
+- fender_id: JBA-CAMEL-2
   kind: camel
-  x_ft: 660
+  x_ft: 630
   length_ft: 40
   standoff_ft: 12
   stiffness_lbf_per_ft: 150000
   rated_energy_ftlbf: 200000
-- fender_id: DJI-CAMEL-3
+- fender_id: JBA-CAMEL-3
   kind: camel
-  x_ft: 870
+  x_ft: 830
   length_ft: 40
   standoff_ft: 12
   stiffness_lbf_per_ft: 150000
   rated_energy_ftlbf: 200000
 structure: open_pile
 env_station_ids:
-  wind: MOCK-DJI-WIND
-  current: MOCK-DJI-CURRENT
-  water_level: MOCK-DJI-LEVEL
+  wind: MOCK-JBA-WIND
+  current: MOCK-JBA-CURRENT
+  water_level: MOCK-JBA-LEVEL
 provenance:
-  source: OpenStreetMap contributors (ODbL), way 235934450; checked on Mapbox/Maxar
+  source: OpenStreetMap contributors (ODbL), way 693749843; checked on Mapbox/Maxar
     satellite imagery
-  url: https://www.openstreetmap.org/way/235934450
+  url: https://www.openstreetmap.org/way/693749843
   confidence: mock
-  notes: Position, direction and length of the face are surveyed (West 420 m of the
-    1206 m straight north quay edge, where the OSM coastline and the port boundary
-    (way 480879281) coincide; water is on the coastline's right. The split into a
-    420 m berth is ours, not the port's.). Fittings, fenders and depths are the notional
-    Pier 12 layout stretched to the face length; weather is synthetic. Not for operational
-    use.
+  notes: 'Position, direction and length of the face are surveyed (Northeast 400 m
+    of a 1654 m straight quay edge mapped as coastline (water on its right). The split
+    into a berth is ours, not the port''s.). Fittings, fenders and depths are the
+    notional Pier 12 layout stretched to the face length; weather is synthetic. Occupancy
+    in the imagery: Car carriers are moored along most of the 1654 m quay; about 150
+    m is clear at the northeast end, a few metres short of a destroyer. Not for operational
+    use.'
+clear_stretch:
+  start_ft: 0
+  end_ft: 492
+  note: Car carriers are moored along most of the 1654 m quay; about 150 m is clear
+    at the northeast end, a few metres short of a destroyer.

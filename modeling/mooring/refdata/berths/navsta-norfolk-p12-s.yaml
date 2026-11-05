@@ -295,6 +295,13 @@ provenance:
     satellite imagery
   url: https://www.openstreetmap.org/way/623235098
   confidence: mock
-  notes: Position, direction and length of the face are surveyed (Polygon long edge
+  notes: 'Position, direction and length of the face are surveyed (Polygon long edge
     facing south.). Fittings, fenders and depths are the notional Pier 12 layout stretched
-    to the face length; weather is synthetic. Not for operational use.
+    to the face length; weather is synthetic. Occupancy in the imagery: A ship is
+    moored about 60-280 m along the face; about 140 m is clear at the west end, a
+    little short of a destroyer. Not for operational use.'
+clear_stretch:
+  start_ft: 935
+  end_ft: 1392
+  note: A ship is moored about 60-280 m along the face; about 140 m is clear at the
+    west end, a little short of a destroyer.

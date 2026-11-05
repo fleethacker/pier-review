@@ -1,0 +1,176 @@
+# Berth with a surveyed face position (see scripts/build_berths.py); layout and depths are notional.
+berth_id: PITUFFIK-PIER-S
+name: Pier, south face (Pituffik Space Base, Greenland)
+face_bearing_true_deg: 238.6
+origin_lat: 76.540289
+origin_lon: -68.836666
+face_length_ft: 684
+deck_height_mllw_ft: 11.0
+depth_profile:
+- x_ft: 0
+  depth_mllw_ft: 42
+- x_ft: 342
+  depth_mllw_ft: 45
+- x_ft: 684
+  depth_mllw_ft: 47
+fittings:
+- fitting_id: PTF-B01
+  kind: bollard_special_b
+  x_ft: 30
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: PTF-B02
+  kind: bollard_special_b
+  x_ft: 90
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: PTF-M01
+  kind: bollard_special_a
+  x_ft: 90
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: PTF-C01
+  kind: cleat_42
+  x_ft: 120
+  y_ft: -3
+  capacity_nominal_lbf: 40000
+- fitting_id: PTF-B03
+  kind: bollard_special_b
+  x_ft: 150
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: PTF-B04
+  kind: bollard_special_b
+  x_ft: 210
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: PTF-M02
+  kind: bollard_special_a
+  x_ft: 210
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: PTF-B05
+  kind: bollard_horn
+  x_ft: 270
+  y_ft: -6
+  capacity_nominal_lbf: 70000
+  capacity_horizontal_lbf: 104000
+  capacity_45deg_lbf: 66000
+- fitting_id: PTF-B06
+  kind: bollard_special_b
+  x_ft: 330
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: PTF-M03
+  kind: bollard_special_a
+  x_ft: 330
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: PTF-B07
+  kind: bollard_special_b
+  x_ft: 390
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: PTF-B08
+  kind: bollard_special_b
+  x_ft: 450
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: PTF-M04
+  kind: bollard_special_a
+  x_ft: 450
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: PTF-B09
+  kind: bollard_special_b
+  x_ft: 510
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: PTF-C02
+  kind: cleat_42
+  x_ft: 540
+  y_ft: -3
+  capacity_nominal_lbf: 40000
+- fitting_id: PTF-B10
+  kind: bollard_horn
+  x_ft: 570
+  y_ft: -6
+  capacity_nominal_lbf: 70000
+  capacity_horizontal_lbf: 104000
+  capacity_45deg_lbf: 66000
+- fitting_id: PTF-M05
+  kind: bollard_special_a
+  x_ft: 570
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: PTF-B11
+  kind: bollard_special_b
+  x_ft: 630
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+  condition: suspect
+fenders:
+- fender_id: PTF-CAMEL-1
+  kind: camel
+  x_ft: 230
+  length_ft: 40
+  standoff_ft: 12
+  stiffness_lbf_per_ft: 150000
+  rated_energy_ftlbf: 200000
+- fender_id: PTF-CAMEL-2
+  kind: camel
+  x_ft: 330
+  length_ft: 40
+  standoff_ft: 12
+  stiffness_lbf_per_ft: 150000
+  rated_energy_ftlbf: 200000
+- fender_id: PTF-CAMEL-3
+  kind: camel
+  x_ft: 430
+  length_ft: 40
+  standoff_ft: 12
+  stiffness_lbf_per_ft: 150000
+  rated_energy_ftlbf: 200000
+structure: open_pile
+env_station_ids:
+  wind: MOCK-PTF-WIND
+  current: MOCK-PTF-CURRENT
+  water_level: MOCK-PTF-LEVEL
+provenance:
+  source: OpenStreetMap contributors (ODbL), way 591394303; checked on Mapbox/Maxar
+    satellite imagery
+  url: https://www.openstreetmap.org/way/591394303
+  confidence: mock
+  notes: 'Position, direction and length of the face are surveyed (Mapped as a centreline;
+    pier half width assumed to be 10 m. NOT checked on imagery: Mapbox/Maxar has no
+    high-resolution coverage this far north, so the face, its water side and occupancy
+    are unverified.). Fittings, fenders and depths are the notional Pier 12 layout
+    stretched to the face length; weather is synthetic. Not for operational use.'

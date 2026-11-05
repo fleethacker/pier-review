@@ -25,6 +25,7 @@ def main():
     ap.add_argument('--epochs', type=int, default=100)
     ap.add_argument('--imgsz', type=int, default=640)
     ap.add_argument('--device', default=None, help="e.g. 0 for GPU, 'cpu'")
+    ap.add_argument('--workers', type=int, default=8, help='dataloader workers; use 0 if /dev/shm is small (shm allocation errors)')
     ap.add_argument('--out', type=Path, default=ROOT / 'models' / 'bollard.pt')
     a = ap.parse_args()
 
@@ -41,9 +42,9 @@ def main():
         raise SystemExit(f'{yaml} not found')
 
     model = YOLO(a.base)
-    model.train(data=str(yaml), epochs=a.epochs, imgsz=a.imgsz, device=a.device, project=str(ROOT / 'data' / 'runs'),
+    model.train(data=str(yaml), epochs=a.epochs, imgsz=a.imgsz, device=a.device, workers=a.workers, project=str(ROOT / 'data' / 'runs'),
                 name='bollard', exist_ok=True)
-    metrics = model.val(data=str(yaml), split='test' if (a.data / 'test').is_dir() else 'val', device=a.device)
+    metrics = model.val(data=str(yaml), split='test' if (a.data / 'test').is_dir() else 'val', device=a.device, workers=a.workers)
     print(f'precision={metrics.box.mp:.3f} recall={metrics.box.mr:.3f} mAP50={metrics.box.map50:.3f} mAP50-95={metrics.box.map:.3f}')
     best = ROOT / 'data' / 'runs' / 'bollard' / 'weights' / 'best.pt'
     a.out.parent.mkdir(parents=True, exist_ok=True)

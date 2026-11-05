@@ -50,6 +50,16 @@ export function berthFrame(berth: Berth): LocalFrame {
   return { lonDeg: berth.origin_lon, latDeg: berth.origin_lat, xBearingTrueDeg: berth.face_bearing_true_deg };
 }
 
+/**
+ * Where midships starts on a newly chosen berth: the middle of the stretch that was clear of moored ships in the
+ * satellite imagery, when the berth records one, otherwise the middle of the face. Rounded to 5 ft.
+ */
+export function defaultShipXFt(berth: Pick<Berth, 'face_length_ft' | 'clear_stretch'>): number {
+  const s = berth.clear_stretch;
+  const mid = s ? (s.start_ft + s.end_ft) / 2 : berth.face_length_ft / 2;
+  return Math.min(berth.face_length_ft, Math.max(0, Math.round(mid / 5) * 5));
+}
+
 export function standoffFt(berth: Berth, override?: number | null): number {
   return override ?? berth.fenders?.[0]?.standoff_ft ?? DEFAULT_STANDOFF_FT;
 }

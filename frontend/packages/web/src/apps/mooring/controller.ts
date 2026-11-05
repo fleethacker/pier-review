@@ -26,6 +26,7 @@ import {
   pierEntities,
   shipEntities,
   standoffFt as resolveStandoff,
+  defaultShipXFt,
   hullPoints,
   superstructure,
 } from './mapping';
@@ -434,7 +435,9 @@ export class MooringController {
     ]);
     if (this.disposed || seq !== this.selectionSeq) return;
     const loading = ship?.loading_conditions.find((c) => c.name === this.s.loading)?.name ?? ship?.loading_conditions[0]?.name ?? '';
-    const shipXFt = this.s.shipXFt > 0 && this.s.shipXFt < berth.face_length_ft ? this.s.shipXFt : Math.round(berth.face_length_ft / 2 / 5) * 5;
+    // A new berth starts the ship on its clear stretch; the same berth (e.g. a new ship class) keeps where it was.
+    const sameBerth = this.s.berth?.berth_id === berth.berth_id;
+    const shipXFt = sameBerth && this.s.shipXFt > 0 && this.s.shipXFt < berth.face_length_ft ? this.s.shipXFt : defaultShipXFt(berth);
     this.state.set({ berth, ship, env, envAvailability, loading, shipXFt, lines: [], scenarioId: null });
     this.resetAnalysis();
     this.pushScene('full');

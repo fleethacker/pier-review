@@ -169,7 +169,13 @@ provenance:
     satellite imagery
   url: https://www.openstreetmap.org/way/166292803
   confidence: mock
-  notes: Position, direction and length of the face are surveyed (Mapped as a line;
+  notes: 'Position, direction and length of the face are surveyed (Mapped as a line;
     Muelle 3 (way 166292804), 42 m to the west, is the other face of the same finger
     pier.). Fittings, fenders and depths are the notional Pier 12 layout stretched
-    to the face length; weather is synthetic. Not for operational use.
+    to the face length; weather is synthetic. Occupancy in the imagery: No ship alongside
+    this face (a cruise ship is on the other face of the pier). Not for operational
+    use.'
+clear_stretch:
+  start_ft: 0
+  end_ft: 669
+  note: No ship alongside this face (a cruise ship is on the other face of the pier).

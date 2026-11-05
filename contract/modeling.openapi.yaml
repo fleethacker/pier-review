@@ -4285,6 +4285,9 @@ components:
       title: ForecastResolvedResponse
     ForecastResolvedResult:
       properties:
+        berth_id:
+          type: string
+          title: Berth Id
         forecast_manifest:
           $ref: '#/components/schemas/ForecastResolutionManifest'
         series:
@@ -4308,6 +4311,7 @@ components:
       additionalProperties: false
       type: object
       required:
+      - berth_id
       - forecast_manifest
       - series
       - coverage_complete

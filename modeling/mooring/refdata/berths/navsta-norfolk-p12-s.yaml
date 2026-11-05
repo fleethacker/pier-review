@@ -1,17 +1,17 @@
-# Mock berth. Berth frame: standing on the pier facing the water, +y is into the water and +x runs to your right.
+# Berth with a surveyed face position (see scripts/build_berths.py); layout and depths are notional.
 berth_id: NAVSTA-NORFOLK-P12-S
-name: Mock Pier 12 South face (NAVSTA Norfolk)
-face_bearing_true_deg: 285.0
-origin_lat: 36.9575
-origin_lon: -76.3305
-face_length_ft: 1350
+name: Pier 12 South face (NAVSTA Norfolk)
+face_bearing_true_deg: 279.5
+origin_lat: 36.956497
+origin_lon: -76.327035
+face_length_ft: 1392
 deck_height_mllw_ft: 11.0
 depth_profile:
 - x_ft: 0
   depth_mllw_ft: 42
-- x_ft: 700
+- x_ft: 696
   depth_mllw_ft: 45
-- x_ft: 1350
+- x_ft: 1392
   depth_mllw_ft: 47
 fittings:
 - fitting_id: P12S-B01
@@ -239,7 +239,7 @@ fittings:
   capacity_45deg_lbf: 216000
 - fitting_id: P12S-C02
   kind: cleat_42
-  x_ft: 1230
+  x_ft: 1260
   y_ft: -3
   capacity_nominal_lbf: 40000
 - fitting_id: P12S-B22
@@ -256,24 +256,31 @@ fittings:
   capacity_nominal_lbf: 450000
   capacity_horizontal_lbf: 660000
   capacity_45deg_lbf: 430000
+- fitting_id: P12S-B23
+  kind: bollard_special_b
+  x_ft: 1350
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
 fenders:
 - fender_id: P12S-CAMEL-1
   kind: camel
-  x_ft: 450
+  x_ft: 460
   length_ft: 40
   standoff_ft: 12
   stiffness_lbf_per_ft: 150000
   rated_energy_ftlbf: 200000
 - fender_id: P12S-CAMEL-2
   kind: camel
-  x_ft: 650
+  x_ft: 670
   length_ft: 40
   standoff_ft: 12
   stiffness_lbf_per_ft: 150000
   rated_energy_ftlbf: 200000
 - fender_id: P12S-CAMEL-3
   kind: camel
-  x_ft: 850
+  x_ft: 880
   length_ft: 40
   standoff_ft: 12
   stiffness_lbf_per_ft: 150000
@@ -284,6 +291,10 @@ env_station_ids:
   current: cb0402
   water_level: '8638610'
 provenance:
-  source: Mock berth for development
+  source: OpenStreetMap contributors (ODbL), way 623235098; checked on Mapbox/Maxar
+    satellite imagery
+  url: https://www.openstreetmap.org/way/623235098
   confidence: mock
-  notes: Notional layout using NSTM Table 582-5-6 fitting types. Not the real Pier 12. Lat/lon approximate.
+  notes: Position, direction and length of the face are surveyed (Polygon long edge
+    facing south.). Fittings, fenders and depths are the notional Pier 12 layout stretched
+    to the face length; weather is synthetic. Not for operational use.

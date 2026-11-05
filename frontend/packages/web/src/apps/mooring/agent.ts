@@ -1,5 +1,5 @@
 import { Store } from '../../lib/store';
-import { agents, AGENTS_BASE, modeling, unwrap } from './api';
+import { agents, AGENTS_BASE, awaitJob, modeling, unwrap, describeError } from './api';
 import type { MooringController } from './controller';
 import type {
   AgentPlan,
@@ -7,6 +7,7 @@ import type {
   Approval,
   MooringConfig,
   MooringLine,
+  SafetyReview,
   SafetySheet,
   TugAssignment,
 } from './types';
@@ -26,10 +27,19 @@ export interface ChatItem {
   cites: string[];
 }
 
+export interface ReviewState {
+  state: 'idle' | 'running' | 'ready' | 'error';
+  progress: number;
+  error: string | null;
+  review: SafetyReview | null;
+}
+
 export interface AgentState {
   phase: 'idle' | 'saving' | 'running' | 'done' | 'error';
   error: string | null;
   planId: string | null;
+  /** The Intake report the Planner was given; the independent review is bound to the same report. */
+  intakeReportId: string | null;
   objective: Objective;
   targetMarginPct: number;
   steps: AgentStep[];
@@ -37,6 +47,8 @@ export interface AgentState {
   plan: AgentPlan | null;
   chat: ChatItem[];
   undo: { lines: MooringLine[]; tugs: TugAssignment[] } | null;
+  /** Independent Safety review of the finished plan. A sheet is only built from an explicit, ready review. */
+  review: ReviewState;
   sheet: {
     state: 'idle' | 'creating' | 'ready' | 'error';
     error: string | null;
@@ -50,6 +62,7 @@ const INITIAL: AgentState = {
   phase: 'idle',
   error: null,
   planId: null,
+  intakeReportId: null,
   objective: 'moor_for_forecast',
   targetMarginPct: 70,
   steps: [],
@@ -57,16 +70,23 @@ const INITIAL: AgentState = {
   plan: null,
   chat: [],
   undo: null,
+  review: { state: 'idle', progress: 0, error: null, review: null },
   sheet: { state: 'idle', error: null, sheet: null, html: null, image: null },
 };
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const message = describeError;
+
+/** SafetyReviewRequest's documented default. The independent review does not inherit the Planner's target margin. */
+export const REVIEW_TARGET_PCT_WLL = 80;
 
 /** The planning agent and safety sheet flow. Reads and writes the mooring plan through the controller. */
 export class AgentSession {
   readonly state = new Store<AgentState>(INITIAL);
   private source: EventSource | null = null;
   private disposed = false;
+  private context: string | null = null;
+  private sheetRequest = 0;
+  private reviewRequest = 0;
 
   constructor(private readonly parent: MooringController) {}
 
@@ -76,6 +96,8 @@ export class AgentSession {
 
   dispose(): void {
     this.disposed = true;
+    this.sheetRequest++;
+    this.reviewRequest++;
     this.source?.close();
   }
 
@@ -89,8 +111,12 @@ export class AgentSession {
 
   async run(): Promise<void> {
     if (this.s.phase === 'running' || this.s.phase === 'saving') return;
+    this.sheetRequest++;
+    this.reviewRequest++;
     this.source?.close();
+    this.context = this.parent.contextKey();
     this.state.set({
+      undo: null,
       phase: 'saving',
       error: null,
       steps: [],
@@ -98,10 +124,16 @@ export class AgentSession {
       plan: null,
       chat: [],
       planId: null,
+      intakeReportId: null,
+      review: INITIAL.review,
       sheet: INITIAL.sheet,
     });
     try {
-      const scenarioId = await this.parent.saveScenario(`Agent run ${new Date().toISOString().slice(11, 19)}Z`);
+      const inputs = this.parent.scenarioKey();
+      const intakeReportId = this.parent.intake.reportId();
+      const scenarioId = await this.parent.ensureScenario(`Agent run ${new Date().toISOString().slice(11, 19)}Z`);
+      if (this.disposed) return;
+      if (inputs !== this.parent.scenarioKey()) throw new Error('Inputs changed while saving. Run a new plan.');
       if (!scenarioId) throw new Error('Choose a ship and berth first.');
       const accepted = unwrap(
         await agents.POST('/api/v1/agent/plans', {
@@ -110,10 +142,11 @@ export class AgentSession {
             objective: this.s.objective,
             target_margin_pct_wll: this.s.targetMarginPct,
             max_iterations: 8,
+            ...(intakeReportId ? { intake_report_id: intakeReportId } : {}),
           },
         }),
       );
-      this.state.set({ phase: 'running', planId: accepted.plan_id });
+      this.state.set({ phase: 'running', planId: accepted.plan_id, intakeReportId });
       this.listen(accepted.events_url, accepted.plan_id);
     } catch (e) {
       this.state.set({ phase: 'error', error: message(e) });
@@ -164,16 +197,24 @@ export class AgentSession {
 
   /** Put the agent's lines and tugs on the canvas, keeping what was there so it can be undone. */
   applyPlan(plan: AgentPlan | null = this.s.plan): void {
-    if (!plan?.config) return;
+    if (!plan?.config || !this.applicable()) return;
     const { lines, tugAssignments } = this.parent.state.get();
     if (!this.s.undo) this.state.set({ undo: { lines, tugs: tugAssignments } });
-    this.parent.setTugAssignments(plan.tug_plan?.assignments ?? []);
+    this.parent.setTugAssignments(plan.holding_tugs ?? []);
     this.parent.replaceLines(plan.config.lines.map((l) => ({ ...l })));
+  }
+
+  private applicable(): boolean {
+    if (this.context !== null && this.context !== this.parent.contextKey()) {
+      this.state.set({ error: 'Ship, berth, geometry or environment changed. Run a new plan before applying or undoing it.' });
+      return false;
+    }
+    return true;
   }
 
   previewProposal(): void {
     const p = this.s.proposal;
-    if (!p) return;
+    if (!p || !this.applicable()) return;
     const { lines, tugAssignments } = this.parent.state.get();
     if (!this.s.undo) this.state.set({ undo: { lines, tugs: tugAssignments } });
     this.parent.replaceLines(p.config.lines.map((l) => ({ ...l })));
@@ -181,7 +222,7 @@ export class AgentSession {
 
   undo(): void {
     const u = this.s.undo;
-    if (!u) return;
+    if (!u || !this.applicable()) return;
     this.parent.setTugAssignments(u.tugs);
     this.parent.replaceLines(u.lines);
     this.state.set({ undo: null });
@@ -198,43 +239,103 @@ export class AgentSession {
           body: { text },
         }),
       );
-      this.state.set({ phase: 'running', steps: [] });
+      // A follow-up can change the plan: the old review and sheet no longer describe it.
+      this.sheetRequest++;
+      this.reviewRequest++;
+      this.state.set({ phase: 'running', steps: [], review: INITIAL.review, sheet: INITIAL.sheet });
       this.listen(`/api/v1/agent/plans/${planId}/events`, planId);
     } catch (e) {
       this.state.set({ error: message(e) });
     }
   }
 
-  // ---- safety sheet ----------------------------------------------------------------------------------------
+  // ---- independent safety review ---------------------------------------------------------------------------
 
-  async createSheet(): Promise<void> {
+  /** Ask the Safety agent to review the finished plan independently, with the Intake report the Planner used. */
+  async review(): Promise<void> {
     const planId = this.s.planId;
-    if (!planId) return;
-    this.setSheet({ state: 'creating', error: null });
+    if (!planId || this.s.phase !== 'done' || this.s.review.state === 'running') return;
+    const request = ++this.reviewRequest;
+    this.sheetRequest++;
+    const current = () => !this.disposed && request === this.reviewRequest && this.s.planId === planId;
+    this.state.set({ review: { state: 'running', progress: 0, error: null, review: null }, sheet: INITIAL.sheet });
     try {
-      const created = unwrap(await agents.POST('/api/v1/safety-sheets', { body: { plan_id: planId } }));
-      await this.loadSheet(created.sheet_id);
-      this.parent.openOverlay({ kind: 'sheet', id: created.sheet_id });
+      const intakeReportId = this.s.intakeReportId;
+      const accepted = unwrap(
+        await agents.POST('/api/v1/safety/reviews', {
+          body: {
+            plan_id: planId,
+            // The reviewer's own threshold (the contract default), not the Planner's target.
+            target_margin_pct_wll: REVIEW_TARGET_PCT_WLL,
+            ...(intakeReportId ? { intake_report_id: intakeReportId } : {}),
+          },
+        }),
+      );
+      if (!current()) return;
+      const review = await awaitJob<SafetyReview>(AGENTS_BASE, accepted, (progress) => {
+        if (current()) this.setReview({ progress });
+      });
+      if (!current()) return;
+      if (review.plan_id !== planId) throw new Error('The service returned a review of a different plan.');
+      this.setReview({ state: 'ready', progress: 1, review });
     } catch (e) {
-      this.setSheet({ state: 'error', error: message(e) });
+      if (current()) this.setReview({ state: 'error', error: message(e) });
     }
   }
 
-  private async loadSheet(sheetId: string): Promise<void> {
+  private setReview(patch: Partial<ReviewState>): void {
+    this.state.set({ review: { ...this.s.review, ...patch } });
+  }
+
+  // ---- safety sheet ----------------------------------------------------------------------------------------
+
+  /** Build the sheet from the plan and the explicit review shown in the UI, never an implicit one. */
+  async createSheet(): Promise<void> {
+    const planId = this.s.planId;
+    const review = this.s.review.review;
+    if (!planId) return;
+    if (!review || this.s.review.state !== 'ready' || review.plan_id !== planId) {
+      this.setSheet({ state: 'error', error: 'Run the independent safety review before building the sheet.' });
+      return;
+    }
+    const request = ++this.sheetRequest;
+    this.setSheet({ state: 'creating', error: null });
+    try {
+      const created = unwrap(
+        await agents.POST('/api/v1/safety-sheets', { body: { plan_id: planId, review_id: review.review_id } }),
+      );
+      if (!this.currentSheetRequest(request)) return;
+      await this.loadSheet(created.sheet_id, request);
+      if (!this.currentSheetRequest(request)) return;
+      this.parent.openOverlay({ kind: 'sheet', id: created.sheet_id });
+    } catch (e) {
+      if (this.currentSheetRequest(request)) this.setSheet({ state: 'error', error: message(e) });
+    }
+  }
+
+  private currentSheetRequest(request: number): boolean {
+    return !this.disposed && request === this.sheetRequest;
+  }
+
+  private async loadSheet(sheetId: string, request: number): Promise<void> {
     const sheet = unwrap(await agents.GET('/api/v1/safety-sheets/{sheet_id}', { params: { path: { sheet_id: sheetId } } }));
+    if (!this.currentSheetRequest(request)) return;
     const html = unwrap(
       await agents.GET('/api/v1/safety-sheets/{sheet_id}/render', {
         params: { path: { sheet_id: sheetId }, query: { format: 'html' } },
         parseAs: 'text',
       }),
     ) as unknown as string;
-    const image = this.s.sheet.image ?? this.parent.host.store.capture();
-    this.setSheet({ state: 'ready', error: null, sheet, html, image });
+    if (!this.currentSheetRequest(request)) return;
+    // A live canvas capture is not bound to this immutable plan/review. It may
+    // already contain edited geometry or lines; do not attach it as sheet evidence.
+    this.setSheet({ state: 'ready', error: null, sheet, html, image: null });
   }
 
   async approve(role: Role, name: string, decision: Approval['decision'], comment: string): Promise<void> {
     const sheet = this.s.sheet.sheet;
     if (!sheet) return;
+    const request = ++this.sheetRequest;
     try {
       unwrap(
         await agents.POST('/api/v1/safety-sheets/{sheet_id}/approvals', {
@@ -242,9 +343,10 @@ export class AgentSession {
           body: { role, name, decision, comment: comment || null },
         }),
       );
-      await this.loadSheet(sheet.sheet_id);
+      if (!this.currentSheetRequest(request)) return;
+      await this.loadSheet(sheet.sheet_id, request);
     } catch (e) {
-      this.setSheet({ error: message(e) });
+      if (this.currentSheetRequest(request)) this.setSheet({ error: message(e) });
     }
   }
 

@@ -1,14 +1,20 @@
-import { Button } from '../../shell/ui';
+import { Button, ErrorBoundary } from '../../shell/ui';
 import { useController, useMooring } from './panels/context';
 import { useUnitSystem } from './units';
 import { AgentPanel } from './panels/AgentPanel';
 import { EnvPanel } from './panels/EnvPanel';
 import { LinesPanel } from './panels/LinesPanel';
+import { MotionLauncher } from './panels/MotionLauncher';
 import { RecommendPanel } from './panels/RecommendPanel';
 import { ResultPanel } from './panels/ResultPanel';
 import { ScenarioPanel } from './panels/ScenarioPanel';
 import { SequencePanel } from './panels/SequencePanel';
 import { SetupPanel } from './panels/SetupPanel';
+import { DemoCasesPanel } from './demo/DemoCasesPanel';
+import { AdvancePanel } from './advance/AdvancePanel';
+import { IntakePanel } from './intake/IntakePanel';
+import { StatusPanel } from './status/StatusPanel';
+import { BerthVisionPanel } from './vision/BerthVisionPanel';
 
 export function Sidebar() {
   useUnitSystem();
@@ -42,14 +48,48 @@ export function Sidebar() {
           </button>
         </div>
       )}
-      <SetupPanel />
-      <EnvPanel />
-      <AgentPanel />
-      <LinesPanel />
-      <ResultPanel />
-      <SequencePanel />
-      <RecommendPanel />
-      <ScenarioPanel />
+      <ErrorBoundary name="Demo cases">
+        <DemoCasesPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Berth, ship and layout">
+        <SetupPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Berth from an image">
+        <BerthVisionPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Environment">
+        <EnvPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Data sources">
+        <StatusPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Environment intake">
+        <IntakePanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Advance planning">
+        <AdvancePanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Planning agent">
+        <AgentPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Mooring lines">
+        <LinesPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Analysis">
+        <ResultPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Line sequence">
+        <SequencePanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Motion">
+        <MotionLauncher />
+      </ErrorBoundary>
+      <ErrorBoundary name="Recommendations">
+        <RecommendPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Saved scenarios">
+        <ScenarioPanel />
+      </ErrorBoundary>
     </div>
   );
 }

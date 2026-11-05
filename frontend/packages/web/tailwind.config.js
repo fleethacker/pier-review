@@ -16,7 +16,7 @@ export default {
           text: '#8ba4c4',
           green: '#00e676',
           red: '#ff1744',
-          dim: '#4a6a8a',
+          dim: '#7390b0',
         },
         // Keep old names as aliases during transition
         future: {

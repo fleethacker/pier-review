@@ -1,0 +1,192 @@
+"""NMEA 0183 decoding (S20a). Declared support, exactly:
+
+* Transport: one sentence per record, text starting with '$', optional trailing CR/LF, at most 82 characters, with the
+  two-hex-digit checksum after '*' required and verified (XOR of the characters between '$' and '*').
+* Sentences: `MWV`, `HDT`, `VTG` (true course and speed over ground), `GGA` (fix position/quality), and `DPT` (depth and
+  transducer offset). Talker id is any two letters. Nothing else is decoded: no NMEA 2000, no AIS, no proprietary
+  sentences. Unsupported or malformed input is rejected with a code; it is never guessed at.
+
+VTG mode A/D and GGA qualities 1/2/4/5 are the accepted observation subset. Estimated, manual, simulator and invalid
+modes are rejected rather than labeled good. Receiver field references:
+https://receiverhelp.trimble.com/alloy-gnss/en-us/NMEA-0183messages_VTG.html
+https://receiverhelp.trimble.com/alloy-gnss/en-us/NMEA-0183messages_GGA.html
+
+Reference: NMEA 0183 sentence structure as commonly published (field order of MWV and HDT). The standard itself is not
+kept in this repository; field order here should be checked against the edition in hand before live use.
+"""
+
+import math
+import re
+from dataclasses import dataclass
+
+MAX_LEN = 82
+UNIT_TO_KT = {"N": 1.0, "M": 1.0 / 0.514444, "K": 1.0 / 1.852}
+
+
+class NmeaError(ValueError):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+@dataclass(frozen=True)
+class Wind:
+    reference: str        # 'relative' (apparent, from the bow) or 'true' (from true north)
+    angle_from_deg: float
+    speed_kt: float
+
+
+@dataclass(frozen=True)
+class Heading:
+    true_deg: float
+
+
+@dataclass(frozen=True)
+class Course:
+    true_deg: float
+    speed_kt: float
+
+
+@dataclass(frozen=True)
+class Position:
+    latitude: float
+    longitude: float
+    fix_quality: int
+
+
+@dataclass(frozen=True)
+class Depth:
+    depth_m: float
+    offset_m: float
+
+
+def checksum(body: str) -> str:
+    x = 0
+    for ch in body:
+        x ^= ord(ch)
+    return f"{x:02X}"
+
+
+def _number(raw: str, label: str) -> float:
+    try:
+        value = float(raw)
+    except ValueError:
+        raise NmeaError("BAD_NUMBER", f"{label} is not numeric") from None
+    if not math.isfinite(value):
+        raise NmeaError("BAD_NUMBER", f"{label} is not finite")
+    return value
+
+
+def _coordinate(raw: str, hemisphere: str, latitude: bool) -> float:
+    digits = 4 if latitude else 5
+    if not re.fullmatch(rf"\d{{{digits}}}(?:\.\d+)?", raw, flags=re.ASCII):
+        raise NmeaError("BAD_NUMBER", "GGA coordinate must use degrees and minutes in the declared field format")
+    value = _number(raw, "GGA coordinate")
+    degrees_value = int(value // 100)
+    minutes = value - degrees_value * 100
+    result = degrees_value + minutes / 60
+    valid_hemi = ("N", "S") if latitude else ("E", "W")
+    limit = 90 if latitude else 180
+    if hemisphere not in valid_hemi or not 0 <= minutes < 60 or not 0 <= result <= limit:
+        raise NmeaError("OUT_OF_RANGE", "GGA coordinate or hemisphere is invalid")
+    return -result if hemisphere in ("S", "W") else result
+
+
+def decode(sentence: str) -> Wind | Heading | Course | Position | Depth:
+    s = sentence.rstrip("\r\n")
+    if len(s) > MAX_LEN:
+        raise NmeaError("SENTENCE_TOO_LONG", f"{len(s)} characters; the limit is {MAX_LEN}")
+    if not s.startswith("$"):
+        raise NmeaError("BAD_FRAMING", "sentence must start with '$' (encapsulated '!' sentences are not supported)")
+    if "*" not in s:
+        raise NmeaError("MISSING_CHECKSUM", "checksum '*hh' is required")
+    body, _, tail = s[1:].partition("*")
+    if len(tail) != 2 or any(c not in "0123456789abcdefABCDEF" for c in tail):
+        raise NmeaError("BAD_CHECKSUM_FORMAT", "checksum must be two hex digits")
+    if checksum(body).upper() != tail.upper():
+        raise NmeaError("CHECKSUM_MISMATCH", f"expected {checksum(body)}, got {tail.upper()}")
+    f = body.split(",")
+    head = f[0]
+    if len(head) != 5 or not head.isalpha():
+        raise NmeaError("UNSUPPORTED_SENTENCE", f"unrecognized address field {head!r}")
+    kind = head[2:]
+    if kind == "MWV":
+        if len(f) < 6:
+            raise NmeaError("BAD_FIELD_COUNT", "MWV needs angle, reference, speed, units, status")
+        try:
+            angle, speed = float(f[1]), float(f[3])
+        except ValueError:
+            raise NmeaError("BAD_NUMBER", "MWV angle or speed is not numeric") from None
+        if f[5] != "A":
+            raise NmeaError("DATA_NOT_VALID", f"MWV status {f[5]!r}; only 'A' (valid) is accepted")
+        if f[2] not in ("R", "T"):
+            raise NmeaError("BAD_REFERENCE", f"MWV reference {f[2]!r} must be R or T")
+        if f[4] not in UNIT_TO_KT:
+            raise NmeaError("BAD_UNITS", f"MWV units {f[4]!r} must be N, M or K")
+        if not (0 <= angle < 360) or not math.isfinite(speed) or speed < 0 or speed > 200:
+            raise NmeaError("OUT_OF_RANGE", "MWV angle must be in [0, 360) and speed in [0, 200] in the stated units")
+        return Wind("relative" if f[2] == "R" else "true", angle, speed * UNIT_TO_KT[f[4]])
+    if kind == "HDT":
+        if len(f) < 3 or f[2] != "T":
+            raise NmeaError("BAD_FIELD_COUNT", "HDT needs heading and the 'T' marker")
+        try:
+            h = float(f[1])
+        except ValueError:
+            raise NmeaError("BAD_NUMBER", "HDT heading is not numeric") from None
+        if not 0 <= h < 360:
+            raise NmeaError("OUT_OF_RANGE", "HDT heading must be in [0, 360)")
+        return Heading(h)
+    if kind == "VTG":
+        if len(f) not in (9, 10) or f[2] != "T" or f[4] != "M" or f[6] != "N" or f[8] != "K":
+            raise NmeaError("BAD_FIELD_COUNT", "VTG needs the declared T/M/N/K field markers")
+        # Declared receiver subset: Trimble Alloy VTG table, mode field 9.
+        # Estimated/manual/simulator/invalid modes cannot enter the good-observation channel.
+        if len(f) == 10 and f[9] not in ("A", "D"):
+            raise NmeaError("DATA_NOT_VALID", "VTG mode is not an accepted autonomous/differential observation")
+        course, speed = _number(f[1], "VTG course"), _number(f[5], "VTG speed")
+        if not 0 <= course < 360 or not 0 <= speed <= 100:
+            raise NmeaError("OUT_OF_RANGE", "VTG course must be [0,360) and speed [0,100] kt")
+        return Course(course, speed)
+    if kind == "GGA":
+        if len(f) < 10:
+            raise NmeaError("BAD_FIELD_COUNT", "GGA needs time, position and fix quality fields")
+        try:
+            quality = int(f[6])
+        except ValueError:
+            raise NmeaError("BAD_NUMBER", "GGA fix quality is not an integer") from None
+        # Trimble Alloy GGA table, field 6: GPS/DGNSS/RTK fixed/RTK float only.
+        if quality not in (1, 2, 4, 5):
+            raise NmeaError("DATA_NOT_VALID", "GGA fix quality is not an accepted GNSS observation")
+        return Position(_coordinate(f[2], f[3], True), _coordinate(f[4], f[5], False), quality)
+    if kind == "DPT":
+        if len(f) < 3:
+            raise NmeaError("BAD_FIELD_COUNT", "DPT needs depth and transducer offset")
+        depth, offset = _number(f[1], "DPT depth"), _number(f[2], "DPT offset")
+        if not 0 <= depth <= 12000 or not -100 <= offset <= 100:
+            raise NmeaError("OUT_OF_RANGE", "DPT depth or offset is outside supported physical bounds")
+        return Depth(depth, offset)
+    raise NmeaError("UNSUPPORTED_SENTENCE", f"sentence type {kind!r} is not supported (MWV, HDT, VTG, GGA and DPT only)")
+
+
+def true_wind(apparent: Wind, heading_true_deg: float, sog_kt: float, cog_true_deg: float) -> Wind:
+    """Apparent-to-true wind by vector subtraction, with explicit frames.
+
+    Apparent wind comes FROM `apparent.angle_from_deg` relative to the bow (clockwise, 0 = bow) at `speed`. Convert to the
+    true-north frame using the heading, express the wind as a velocity vector (direction it blows TOWARD), and add the
+    vessel's velocity over ground (course over ground, speed over ground). Heading, SOG and COG must be time-synchronized
+    with the apparent reading by the caller; this function has no way to check that."""
+    if apparent.reference != "relative":
+        raise NmeaError("NOT_APPARENT", "true_wind needs a relative (apparent) reading")
+    values = (apparent.angle_from_deg, apparent.speed_kt, heading_true_deg, sog_kt, cog_true_deg)
+    if not all(math.isfinite(value) for value in values) or not 0 <= apparent.angle_from_deg < 360 or apparent.speed_kt < 0 \
+            or not 0 <= heading_true_deg < 360 or not 0 <= sog_kt <= 100 or not 0 <= cog_true_deg < 360:
+        raise NmeaError("OUT_OF_RANGE", "apparent wind, heading, SOG or COG is outside its valid range")
+    from_true = math.radians((heading_true_deg + apparent.angle_from_deg) % 360)
+    toward = from_true + math.pi
+    # components in (east, north): bearing b -> (sin b, cos b)
+    wa = (apparent.speed_kt * math.sin(toward), apparent.speed_kt * math.cos(toward))
+    vv = (sog_kt * math.sin(math.radians(cog_true_deg)), sog_kt * math.cos(math.radians(cog_true_deg)))
+    wt = (wa[0] + vv[0], wa[1] + vv[1])            # apparent = true - vessel velocity  =>  true = apparent + vessel velocity
+    speed = math.hypot(*wt)
+    toward_true = math.degrees(math.atan2(wt[0], wt[1])) % 360
+    return Wind("true", round((toward_true + 180.0) % 360.0, 9) % 360.0, speed)

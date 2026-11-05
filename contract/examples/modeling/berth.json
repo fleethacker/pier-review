@@ -1,0 +1,462 @@
+{
+  "berth_id": "NAVSTA-NORFOLK-P12-N",
+  "name": "Pier 12 North face (NAVSTA Norfolk)",
+  "face_bearing_true_deg": 99.5,
+  "origin_lat": 36.957533,
+  "origin_lon": -76.331655,
+  "face_length_ft": 1392.0,
+  "deck_height_mllw_ft": 11.0,
+  "depth_profile": [
+    {
+      "x_ft": 0.0,
+      "depth_mllw_ft": 42.0
+    },
+    {
+      "x_ft": 696.0,
+      "depth_mllw_ft": 45.0
+    },
+    {
+      "x_ft": 1392.0,
+      "depth_mllw_ft": 47.0
+    }
+  ],
+  "fittings": [
+    {
+      "fitting_id": "P12N-B01",
+      "kind": "bollard_special_b",
+      "x_ft": 30.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B02",
+      "kind": "bollard_special_b",
+      "x_ft": 90.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-M01",
+      "kind": "bollard_special_a",
+      "x_ft": 90.0,
+      "y_ft": -45.0,
+      "capacity_nominal_lbf": 450000.0,
+      "capacity_horizontal_lbf": 660000.0,
+      "capacity_45deg_lbf": 430000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-C01",
+      "kind": "cleat_42",
+      "x_ft": 120.0,
+      "y_ft": -3.0,
+      "capacity_nominal_lbf": 40000.0,
+      "capacity_horizontal_lbf": null,
+      "capacity_45deg_lbf": null,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B03",
+      "kind": "bollard_special_b",
+      "x_ft": 150.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B04",
+      "kind": "bollard_special_b",
+      "x_ft": 210.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-M02",
+      "kind": "bollard_special_a",
+      "x_ft": 210.0,
+      "y_ft": -45.0,
+      "capacity_nominal_lbf": 450000.0,
+      "capacity_horizontal_lbf": 660000.0,
+      "capacity_45deg_lbf": 430000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B05",
+      "kind": "bollard_horn",
+      "x_ft": 270.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 70000.0,
+      "capacity_horizontal_lbf": 104000.0,
+      "capacity_45deg_lbf": 66000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B06",
+      "kind": "bollard_special_b",
+      "x_ft": 330.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-M03",
+      "kind": "bollard_special_a",
+      "x_ft": 330.0,
+      "y_ft": -45.0,
+      "capacity_nominal_lbf": 450000.0,
+      "capacity_horizontal_lbf": 660000.0,
+      "capacity_45deg_lbf": 430000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B07",
+      "kind": "bollard_special_b",
+      "x_ft": 390.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B08",
+      "kind": "bollard_special_b",
+      "x_ft": 450.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-M04",
+      "kind": "bollard_special_a",
+      "x_ft": 450.0,
+      "y_ft": -45.0,
+      "capacity_nominal_lbf": 450000.0,
+      "capacity_horizontal_lbf": 660000.0,
+      "capacity_45deg_lbf": 430000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B09",
+      "kind": "bollard_special_b",
+      "x_ft": 510.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B10",
+      "kind": "bollard_horn",
+      "x_ft": 570.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 70000.0,
+      "capacity_horizontal_lbf": 104000.0,
+      "capacity_45deg_lbf": 66000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-M05",
+      "kind": "bollard_special_a",
+      "x_ft": 570.0,
+      "y_ft": -45.0,
+      "capacity_nominal_lbf": 450000.0,
+      "capacity_horizontal_lbf": 660000.0,
+      "capacity_45deg_lbf": 430000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B11",
+      "kind": "bollard_special_b",
+      "x_ft": 630.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "suspect",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B12",
+      "kind": "bollard_special_b",
+      "x_ft": 690.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-M06",
+      "kind": "bollard_special_a",
+      "x_ft": 690.0,
+      "y_ft": -45.0,
+      "capacity_nominal_lbf": 450000.0,
+      "capacity_horizontal_lbf": 660000.0,
+      "capacity_45deg_lbf": 430000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B13",
+      "kind": "bollard_special_b",
+      "x_ft": 750.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B14",
+      "kind": "bollard_special_b",
+      "x_ft": 810.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-M07",
+      "kind": "bollard_special_a",
+      "x_ft": 810.0,
+      "y_ft": -45.0,
+      "capacity_nominal_lbf": 450000.0,
+      "capacity_horizontal_lbf": 660000.0,
+      "capacity_45deg_lbf": 430000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B15",
+      "kind": "bollard_horn",
+      "x_ft": 870.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 70000.0,
+      "capacity_horizontal_lbf": 104000.0,
+      "capacity_45deg_lbf": 66000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B16",
+      "kind": "bollard_special_b",
+      "x_ft": 930.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-M08",
+      "kind": "bollard_special_a",
+      "x_ft": 930.0,
+      "y_ft": -45.0,
+      "capacity_nominal_lbf": 450000.0,
+      "capacity_horizontal_lbf": 660000.0,
+      "capacity_45deg_lbf": 430000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B17",
+      "kind": "bollard_special_b",
+      "x_ft": 990.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B18",
+      "kind": "bollard_special_b",
+      "x_ft": 1050.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-M09",
+      "kind": "bollard_special_a",
+      "x_ft": 1050.0,
+      "y_ft": -45.0,
+      "capacity_nominal_lbf": 450000.0,
+      "capacity_horizontal_lbf": 660000.0,
+      "capacity_45deg_lbf": 430000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B19",
+      "kind": "bollard_special_b",
+      "x_ft": 1110.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B20",
+      "kind": "bollard_horn",
+      "x_ft": 1170.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 70000.0,
+      "capacity_horizontal_lbf": 104000.0,
+      "capacity_45deg_lbf": 66000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-M10",
+      "kind": "bollard_special_a",
+      "x_ft": 1170.0,
+      "y_ft": -45.0,
+      "capacity_nominal_lbf": 450000.0,
+      "capacity_horizontal_lbf": 660000.0,
+      "capacity_45deg_lbf": 430000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B21",
+      "kind": "bollard_special_b",
+      "x_ft": 1230.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-C02",
+      "kind": "cleat_42",
+      "x_ft": 1260.0,
+      "y_ft": -3.0,
+      "capacity_nominal_lbf": 40000.0,
+      "capacity_horizontal_lbf": null,
+      "capacity_45deg_lbf": null,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B22",
+      "kind": "bollard_special_b",
+      "x_ft": 1290.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-M11",
+      "kind": "bollard_special_a",
+      "x_ft": 1290.0,
+      "y_ft": -45.0,
+      "capacity_nominal_lbf": 450000.0,
+      "capacity_horizontal_lbf": 660000.0,
+      "capacity_45deg_lbf": 430000.0,
+      "condition": "good",
+      "occupied_by": null
+    },
+    {
+      "fitting_id": "P12N-B23",
+      "kind": "bollard_special_b",
+      "x_ft": 1350.0,
+      "y_ft": -6.0,
+      "capacity_nominal_lbf": 200000.0,
+      "capacity_horizontal_lbf": 270000.0,
+      "capacity_45deg_lbf": 216000.0,
+      "condition": "good",
+      "occupied_by": null
+    }
+  ],
+  "fenders": [
+    {
+      "fender_id": "P12N-CAMEL-1",
+      "kind": "camel",
+      "x_ft": 460.0,
+      "length_ft": 40.0,
+      "standoff_ft": 12.0,
+      "stiffness_lbf_per_ft": 150000.0,
+      "rated_energy_ftlbf": 200000.0
+    },
+    {
+      "fender_id": "P12N-CAMEL-2",
+      "kind": "camel",
+      "x_ft": 670.0,
+      "length_ft": 40.0,
+      "standoff_ft": 12.0,
+      "stiffness_lbf_per_ft": 150000.0,
+      "rated_energy_ftlbf": 200000.0
+    },
+    {
+      "fender_id": "P12N-CAMEL-3",
+      "kind": "camel",
+      "x_ft": 880.0,
+      "length_ft": 40.0,
+      "standoff_ft": 12.0,
+      "stiffness_lbf_per_ft": 150000.0,
+      "rated_energy_ftlbf": 200000.0
+    }
+  ],
+  "structure": "open_pile",
+  "env_station_ids": {
+    "wind": "8638614",
+    "current": "cb0402",
+    "water_level": "8638610"
+  },
+  "provenance": {
+    "source": "OpenStreetMap contributors (ODbL), way 623235098; checked on Mapbox/Maxar satellite imagery",
+    "url": "https://www.openstreetmap.org/way/623235098",
+    "confidence": "mock",
+    "notes": "Position, direction and length of the face are surveyed (Polygon long edge facing north.). Fittings, fenders and depths are the notional Pier 12 layout stretched to the face length; weather is synthetic. Not for operational use."
+  }
+}

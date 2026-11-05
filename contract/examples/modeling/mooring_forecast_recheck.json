@@ -1,0 +1,2020 @@
+{
+  "prior_result_id": "replace-with-owned-forecast-plan-result-id",
+  "as_of_utc": "2026-11-05T11:48:00Z",
+  "forecast": [
+    {
+      "valid_at_utc": "2026-11-04T15:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 5.0,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-04T16:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 5.416666666666666,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-04T17:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 5.833333333333334,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-04T18:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 6.25,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-04T19:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 6.666666666666666,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-04T20:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 7.083333333333334,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-04T21:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 7.5,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-04T22:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 7.916666666666668,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-04T23:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 8.333333333333332,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T00:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 8.75,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T01:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 9.166666666666668,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T02:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 9.583333333333332,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T03:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 10.0,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T04:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 10.416666666666666,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T05:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 10.833333333333334,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T06:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 11.25,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T07:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 11.666666666666666,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T08:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 12.083333333333334,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T09:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 12.5,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T10:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 12.916666666666666,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T11:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 13.333333333333334,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T12:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 13.75,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T13:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 14.166666666666666,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T14:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 14.583333333333334,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T15:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 15.0,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T16:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 14.583333333333332,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T17:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 14.166666666666668,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T18:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 13.75,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T19:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 13.333333333333332,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T20:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 12.916666666666668,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T21:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 12.5,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T22:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 12.083333333333332,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-05T23:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 11.666666666666668,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T00:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 11.25,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T01:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 10.833333333333332,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T02:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 10.416666666666668,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T03:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 10.0,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T04:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 9.583333333333332,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T05:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 9.166666666666668,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T06:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 8.75,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T07:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 8.333333333333332,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T08:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 7.916666666666668,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T09:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 7.5,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T10:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 7.083333333333332,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T11:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 6.666666666666668,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T12:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 6.25,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T13:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 5.833333333333332,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T14:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 5.416666666666668,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    },
+    {
+      "valid_at_utc": "2026-11-06T15:48:00Z",
+      "source": "scenario",
+      "wind_speed_kt": 4.0,
+      "wind_gust_kt": 5.0,
+      "wind_from_true_deg": 200.0,
+      "current_speed_kt": 0.1,
+      "current_set_true_deg": 10.0,
+      "water_level_mllw_ft": 1.8,
+      "tide_stage": "ebb",
+      "air_density_kgm3": 1.225,
+      "water_density_kgm3": 1020.0,
+      "wind_rel_ship_deg": null,
+      "current_rel_ship_deg": null,
+      "quality": [
+        {
+          "station_id": "synthetic-training",
+          "age_s": 0.0,
+          "flags": [
+            "synthetic",
+            "not_a_forecast"
+          ]
+        }
+      ],
+      "metadata": {
+        "basis": "scenario",
+        "source": "synthetic-training seed=42",
+        "issued_at_utc": "2026-11-04T15:48:00Z",
+        "valid_from_utc": null,
+        "valid_to_utc": null,
+        "wind_averaging_s": 60.0,
+        "gust_duration_s": 30.0,
+        "wind_reference_height_m": 10.0,
+        "current_depth_ft": null,
+        "current_bin": null,
+        "vertical_datum": "MLLW",
+        "quality": "unknown",
+        "age_s": null,
+        "original": null
+      }
+    }
+  ],
+  "forecast_binding": {
+    "source": "supplied",
+    "source_id": "synthetic-training-example",
+    "revision": "training-v2"
+  }
+}

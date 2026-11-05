@@ -1,0 +1,112 @@
+[
+ {
+  "t": "2026-03-01T12:00:00Z",
+  "wind_speed_kt": 12.0,
+  "wind_gust_kt": 16.0,
+  "wind_from_true_deg": 355.0,
+  "current_speed_kt": 0.4,
+  "current_set_true_deg": 100.0,
+  "water_level_ft": 1.0,
+  "quality": "good"
+ },
+ {
+  "t": "2026-03-01T12:06:00Z",
+  "wind_speed_kt": 12.6,
+  "wind_gust_kt": 16.6,
+  "wind_from_true_deg": 357.0,
+  "current_speed_kt": 0.4,
+  "current_set_true_deg": 100.0,
+  "water_level_ft": 1.1,
+  "quality": "good"
+ },
+ {
+  "t": "2026-03-01T12:12:00Z",
+  "wind_speed_kt": 13.2,
+  "wind_gust_kt": 17.2,
+  "wind_from_true_deg": 359.0,
+  "current_speed_kt": 0.4,
+  "current_set_true_deg": 100.0,
+  "water_level_ft": 1.2,
+  "quality": "good"
+ },
+ {
+  "t": "2026-03-01T12:18:00Z",
+  "wind_speed_kt": 13.8,
+  "wind_gust_kt": 17.8,
+  "wind_from_true_deg": 1.0,
+  "current_speed_kt": 0.4,
+  "current_set_true_deg": 100.0,
+  "water_level_ft": 1.3,
+  "quality": "good"
+ },
+ {
+  "t": "2026-03-01T12:24:00Z",
+  "wind_speed_kt": 14.4,
+  "wind_gust_kt": 18.4,
+  "wind_from_true_deg": 3.0,
+  "current_speed_kt": 0.4,
+  "current_set_true_deg": 100.0,
+  "water_level_ft": 1.4,
+  "quality": "good"
+ },
+ {
+  "t": "2026-03-01T12:30:00Z",
+  "wind_speed_kt": 15.0,
+  "wind_gust_kt": 19.0,
+  "wind_from_true_deg": 5.0,
+  "current_speed_kt": 0.4,
+  "current_set_true_deg": 100.0,
+  "water_level_ft": 1.5,
+  "quality": "good"
+ },
+ {
+  "t": "2026-03-01T12:36:00Z",
+  "wind_speed_kt": 15.6,
+  "wind_gust_kt": 19.6,
+  "wind_from_true_deg": 7.0,
+  "current_speed_kt": 0.4,
+  "current_set_true_deg": 100.0,
+  "water_level_ft": 1.6,
+  "quality": "good"
+ },
+ {
+  "t": "2026-03-01T12:42:00Z",
+  "wind_speed_kt": 16.2,
+  "wind_gust_kt": 20.2,
+  "wind_from_true_deg": 9.0,
+  "current_speed_kt": 0.4,
+  "current_set_true_deg": 100.0,
+  "water_level_ft": 1.7,
+  "quality": "good"
+ },
+ {
+  "t": "2026-03-01T12:48:00Z",
+  "wind_speed_kt": 16.8,
+  "wind_gust_kt": 20.8,
+  "wind_from_true_deg": 11.0,
+  "current_speed_kt": 0.4,
+  "current_set_true_deg": 100.0,
+  "water_level_ft": 1.8,
+  "quality": "good"
+ },
+ {
+  "t": "2026-03-01T12:54:00Z",
+  "wind_speed_kt": 17.4,
+  "wind_gust_kt": 21.4,
+  "wind_from_true_deg": 13.0,
+  "current_speed_kt": 0.4,
+  "current_set_true_deg": 100.0,
+  "water_level_ft": 1.9,
+  "quality": "good"
+ },
+ {
+  "t": "2026-03-01T13:00:00Z",
+  "wind_speed_kt": 18.0,
+  "wind_gust_kt": 22.0,
+  "wind_from_true_deg": 15.0,
+  "current_speed_kt": 0.4,
+  "current_set_true_deg": 100.0,
+  "water_level_ft": 2.0,
+  "quality": "good"
+ }
+]

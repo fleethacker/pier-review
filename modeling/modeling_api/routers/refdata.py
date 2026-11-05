@@ -1,10 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, HTTPException
 
 from mooring import refdata
 from mooring.core.schemas import (
     Berth,
+    EnvironmentSnapshot,
     BerthCreated,
     BerthSummary,
     LineSpec,
@@ -14,9 +15,12 @@ from mooring.core.schemas import (
     ShipClassSummary,
     TugSpec,
 )
-from mooring.mock.examples import ex
+from mooring.examples import ex
+from mooring.demo_cases import docking_cases
+from mooring.core.schemas.demo import DockingDemoCase
 
 from ..backend import scenarios
+from .env import guarded
 
 router = APIRouter(tags=["M2 Reference data"])
 
@@ -57,9 +61,13 @@ def get_berth(berth_id: str):
 
 
 @router.post("/berths", response_model=BerthCreated, status_code=201,
-             summary="Add or replace a berth (from the canvas or a confirmed vision draft)")
+             summary="Register an immutable berth; identical retries are accepted, changed data requires a new ID",
+             responses={409: {"description": "Existing berth ID has different data; register a new revision ID"}})
 def create_berth(berth: Berth):
-    refdata.add_berth(berth)
+    try:
+        refdata.add_berth(berth)
+    except refdata.ReferenceConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
     return BerthCreated(berth_id=berth.berth_id)
 
 
@@ -81,3 +89,37 @@ def list_scenarios():
 @router.get("/scenarios/{scenario_id}", response_model=Scenario)
 def get_scenario(scenario_id: str):
     return scenarios.get(scenario_id)
+
+
+@router.get("/scenarios/{scenario_id}/environment", response_model=EnvironmentSnapshot,
+            summary="Resolve the saved scenario source; explicit mock stays synthetic")
+def scenario_environment(scenario_id: str):
+    return guarded(scenarios.environment_for, scenarios.get(scenario_id))
+
+
+@router.get("/demo/docking-cases", response_model=list[DockingDemoCase],
+            summary="Named offline demo requests (seed data; not operational plans)")
+def demo_docking_cases():
+    return docking_cases()
+
+
+from mooring.core.schemas import ForecastSeries
+from mooring.core.schemas.data_simulation import SyntheticForecastRequest
+from mooring.data_simulation.forecast import generate as generate_synthetic_forecast
+
+
+@router.post("/data-simulation/forecast", response_model=ForecastSeries,
+             summary="Generate labeled, seeded training conditions; not a weather forecast")
+def synthetic_forecast(req: SyntheticForecastRequest):
+    refdata.berth(req.berth_id)
+    return generate_synthetic_forecast(req)
+
+
+from mooring.core.schemas.berth_drafts import BerthDraftRequest, BerthDraftResponse
+from mooring.refdata.drafts import build as build_berth_draft
+
+
+@router.post("/berth-drafts", response_model=BerthDraftResponse,
+             summary="Build an unsaved berth draft from catalog geometry and optional image anchors")
+def berth_draft(req: BerthDraftRequest):
+    return build_berth_draft(req)

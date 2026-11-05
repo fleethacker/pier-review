@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { entityToFrame } from '../../scene/geometry';
 import * as mapping from './mapping';
-import { buildScene, envReadouts, envVectors, hullPoints, shipEntities, shipPose } from './mapping';
+import { partsName, lineLinks, buildScene, envReadouts, envVectors, hullPoints, pierEntities, shipEntities, shipPose } from './mapping';
 import { ft } from './units';
 import type { Berth, ShipClass } from './types';
 
@@ -61,14 +61,16 @@ describe('ship placement', () => {
 
   it('only shows bitts on the side that faces the pier', () => {
     const s = shipEntities(ship, 'full_load', 'starboard', 650, 12, null, true, berth);
-    expect(s.map((e) => e.id).filter((id) => !id.startsWith('ship-part'))).toEqual(['ship', 'sfit:BITT-1S']);
+    expect(s.map((e) => e.id).filter((id) => !id.startsWith('ship-part') && !id.startsWith('ship-'))).toEqual(['ship', 'sfit:BITT-1S']);
     const p = shipEntities(ship, 'full_load', 'port', 650, 12, null, true, berth);
-    expect(p.map((e) => e.id).filter((id) => !id.startsWith('ship-part'))).toEqual(['ship', 'sfit:BITT-1P']);
+    expect(p.map((e) => e.id).filter((id) => !id.startsWith('ship-part') && !id.startsWith('ship-'))).toEqual(['ship', 'sfit:BITT-1P']);
   });
 
   it('is only draggable when the class has fittings to moor with', () => {
-    expect(shipEntities(ship, 'full_load', 'starboard', 650, 12, null, true, berth)[0].editable).toBeDefined();
-    expect(shipEntities(ship, 'full_load', 'starboard', 650, 12, null, false, berth)[0].editable).toBeUndefined();
+    const hullOf = (editable: boolean) =>
+      shipEntities(ship, 'full_load', 'starboard', 650, 12, null, editable, berth).find((e) => e.id === 'ship')!;
+    expect(hullOf(true).editable).toBeDefined();
+    expect(hullOf(false).editable).toBeUndefined();
   });
 
   it('builds a hull that spans LOA and beam', () => {
@@ -77,6 +79,18 @@ describe('ship placement', () => {
     const ys = pts.map((p) => p[1]);
     expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(ft(500));
     expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(ft(60));
+  });
+
+  it('gives each class its own hull that still spans LOA and beam', () => {
+    const outlines = ['DDG', 'CG', 'LHD', 'CVN'].map((t) => {
+      const pts = hullPoints(800, 100, t);
+      const xs = pts.map((p) => p[0]);
+      const ys = pts.map((p) => p[1]);
+      expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(ft(800));
+      expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(ft(100));
+      return JSON.stringify(pts);
+    });
+    expect(new Set(outlines).size).toBe(4);
   });
 });
 
@@ -146,8 +160,8 @@ describe('tugScene', () => {
       [{ tug_id: 'T1', push_point_id: 'PP-FWD-P', mode: 'push', force_lbf: 36000, direction_true_deg: 195 }],
       frame,
     );
-    expect(out.entities).toHaveLength(1);
-    const tug = out.entities[0];
+    const tug = out.entities.find((e) => e.kind === 'tug')!;
+    expect(out.entities.filter((e) => e.kind === 'wake')).toHaveLength(1);
     // Port side is the water side; the ship centerline is at y = 42 ft, so the tug sits further into the water.
     expect(tug.pose.y).toBeGreaterThan(ft(42 + 30));
     expect(tug.pose.x).toBeCloseTo(ft(650 + 150));
@@ -165,7 +179,7 @@ describe('tugScene', () => {
       ],
       frame,
     );
-    expect(out.entities.map((e) => e.label)).toEqual(['T2']);
+    expect(out.entities.filter((e) => e.kind === 'tug').map((e) => e.label)).toEqual(['T2']);
     expect(out.vectors).toEqual([]);
   });
 });
@@ -176,8 +190,9 @@ describe('superstructure', () => {
   it('differs by hull type and stands in for the ship when clicked', () => {
     const ddg = mapping.superstructure({ ...ship, hull_type: 'DDG' } as ShipClass, pose, 6);
     const cvn = mapping.superstructure({ ...ship, hull_type: 'CVN', loa_ft: 1092, beam_ft: 134 } as ShipClass, pose, 6);
-    expect(ddg.length).toBe(3);
-    expect(cvn.length).toBe(2);
+    expect(ddg.length).toBeGreaterThan(8);
+    expect(cvn.length).toBeGreaterThan(8);
+    expect(ddg.length).not.toBe(cvn.length);
     for (const part of [...ddg, ...cvn]) {
       expect(part.selectsId).toBe('ship');
       expect(part.pose.z).toBeGreaterThanOrEqual(6);
@@ -198,9 +213,12 @@ describe('superstructure', () => {
 
   it('puts the carrier island on the starboard side of the ship frame', () => {
     const cvn = mapping.superstructure({ ...ship, hull_type: 'CVN' } as ShipClass, pose, 6);
-    const island = cvn[1];
-    if (island.geometry.type !== 'polygon') throw new Error('expected polygon');
-    expect(island.geometry.points.every((p) => p[1] < 0)).toBe(true);
+    const tall = cvn.filter((e) => e.geometry.type === 'polygon' && e.geometry.heightM >= 5);
+    expect(tall.length).toBeGreaterThan(0);
+    for (const island of tall) {
+      if (island.geometry.type !== 'polygon') throw new Error('expected polygon');
+      expect(island.geometry.points.every((p) => p[1] < 0)).toBe(true);
+    }
   });
 
   it('labels each arrow with the variable name and speed only, in its own color', () => {
@@ -221,4 +239,85 @@ describe('superstructure', () => {
     expect(envReadouts({ water_level_mllw_ft: -0.5 } as never, { x: 0, y: 0 })[0].label).toBe('WATER LEVEL -0.5 ft');
     expect(envReadouts(null, { x: 0, y: 0 })).toEqual([]);
   });
+});
+
+describe('visual effects data', () => {
+  it('gives wind and current a flow, faster for stronger wind, with gust surge', () => {
+    const frame = { lonDeg: 0, latDeg: 0, xBearingTrueDeg: 90 };
+    const mk = (wind: number, gust: number) =>
+      envVectors(frame, { wind_from_true_deg: 0, wind_speed_kt: wind, wind_gust_kt: gust, current_speed_kt: 1, current_set_true_deg: 0 } as never, { x: 0, y: 0 });
+    const [calm, , ] = mk(5, 5);
+    const [strong, current] = mk(30, 45);
+    expect(strong.flow!.mps).toBeGreaterThan(calm.flow!.mps);
+    expect(calm.flow!.gustiness).toBe(0);
+    expect(strong.flow!.gustiness).toBeCloseTo(0.5);
+    expect(current.flow!.mps).toBeGreaterThan(0);
+  });
+
+  it('puts a status-colored halo and a shadow under the ship that stand in for the ship when clicked', () => {
+    const s = shipEntities(ship, 'full_load', 'starboard', 650, 12, { status: 'RED', result: { lines: [], ship_fittings: [] } } as never, true, berth);
+    const halo = s.find((e) => e.id === 'ship-halo')!;
+    const shadow = s.find((e) => e.id === 'ship-shadow')!;
+    expect(halo.status).toBe('RED');
+    expect(halo.selectsId).toBe('ship');
+    expect(shadow.selectsId).toBe('ship');
+    expect(halo.pose.z).toBeLessThan(shadow.pose.z);
+    expect(s.findIndex((e) => e.id === 'ship-halo')).toBeLessThan(s.findIndex((e) => e.id === 'ship'));
+  });
+
+  it('lights the pier edge', () => {
+    const edge = pierEntities(berth, null).find((e) => e.id === 'pier-edge')!;
+    expect(edge.selectable).toBe(false);
+    expect(edge.noOutline).toBe(true);
+  });
+});
+
+describe('doubled-up lines', () => {
+  it('names the part counts the way they are used aboard', () => {
+    expect(partsName(1)).toBe('single');
+    expect(partsName(2)).toBe('tanker moor ×2');
+    expect(partsName(3)).toBe('doubled up ×3');
+  });
+
+  it('tags a doubled line on the canvas, draws it heavier, and leaves a single line plain', () => {
+    const mk = (parts: 1 | 3) =>
+      lineLinks(berth, ship, [{ line_number: 4, role: 'stern', spec_id: 'N', parts, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1' } as never], null)[0];
+    const single = mk(1);
+    const doubled = mk(3);
+    expect(single.label).toBe('L4');
+    expect(doubled.label).toBe('L4 ×3');
+    expect(doubled.strands).toBe(3);
+    expect(single.strands).toBe(1);
+    expect(doubled.widthPx!).toBeGreaterThan(single.widthPx!);
+  });
+});
+
+
+it.each(['invalid', 'unknown', undefined])('does not color lines/fittings from %s analysis as passing', (state) => {
+  const analysis = { status: 'RED', validity: state ? { state } : undefined, result: {
+    lines: [{ line_number: 1, status: 'GREEN', tension_lbf: 0, pct_wll: 0, pct_mbs: 0, length_ft: 1, horiz_angle_deg: 0, vert_angle_deg: 0 }],
+    pier_fittings: [{ fitting_id: 'P1', status: 'GREEN', load_lbf: 0, pct: 0, lines: [1] }],
+    ship_fittings: [{ fitting_id: 'BITT-1S', status: 'GREEN', load_lbf: 0, pct: 0, lines: [1] }],
+  } } as never;
+  const links = lineLinks(berth, ship, [{ line_number: 1, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1', spec_id: 'S', parts: 1 }], analysis);
+  expect(links[0].status).toBeUndefined();
+  expect(links[0].label).not.toContain('%');
+  expect(links[0].props?.some(p => p.label === 'Tension')).toBe(false);
+  const pier = pierEntities(berth, analysis).find(e => e.id === mapping.IDS.pierFitting('P1'))!;
+  const fitting = shipEntities(ship, 'full_load', 'starboard', 650, 12, analysis, true, berth).find(e => e.id === 'sfit:BITT-1S')!;
+  for (const entity of [pier, fitting]) {
+    expect(entity.status).toBeUndefined();
+    expect(entity.props?.some(p => p.label === 'Load')).toBe(false);
+  }
+});
+
+
+it.each(['valid', 'limited'])('retains evaluated line values for %s analysis', (state) => {
+  const analysis = { validity: { state }, result: { lines: [
+    { line_number: 1, status: 'GREEN', tension_lbf: 100, pct_wll: 12, pct_mbs: 4, length_ft: 30, horiz_angle_deg: 25, vert_angle_deg: 15 },
+  ] } } as never;
+  const [link] = lineLinks(berth, ship, [{ line_number: 1, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1', spec_id: 'S', parts: 1 }], analysis);
+  expect(link.status).toBe('GREEN');
+  expect(link.label).toContain('12%');
+  expect(link.props?.find(p => p.label === 'Tension')?.value).toBe('100 lbf');
 });

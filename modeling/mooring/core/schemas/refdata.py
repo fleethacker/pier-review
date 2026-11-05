@@ -10,7 +10,7 @@ Frames:
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import Model, Provenance
 
@@ -65,6 +65,10 @@ class ShipClass(Model):
     wind_area_lateral_ft2: float = Field(gt=0, description="Side profile area above the waterline.")
     wind_area_frontal_ft2: float = Field(gt=0)
     hull_wind_area_lateral_ft2: float = Field(gt=0, description="Hull-only part of the lateral area (UFC 4-159-03).")
+    superstructure_height_ft: float | None = Field(default=None, gt=0, description="Superstructure height above the reference waterline; estimated from profile areas when absent.")
+    midship_coefficient: float | None = Field(default=None, gt=0, le=1, description="Immersed midship area / (beam * draft); UFC Eq. 4-14.")
+    propeller_expanded_area_ft2: float | None = Field(default=None, ge=0, description="Total expanded blade area; zero for no exposed propellers, estimated when absent.")
+    wetted_surface_ft2: float | None = Field(default=None, gt=0, description="Wetted surface at full_load; other loadings and missing values use UFC Eq. 4-18.")
     wind_drag_class: Literal["hull_dominated", "typical", "extensive_superstructure"] = Field(
         description="UFC 4-159-03 Table 4-2 drag class."
     )
@@ -158,16 +162,26 @@ class Berth(Model):
     berth_id: str = Field(examples=["NAVSTA-NORFOLK-P12-N"])
     name: str
     face_bearing_true_deg: float = Field(ge=0, lt=360, description="True bearing of the berth frame's +x axis.")
-    origin_lat: float
-    origin_lon: float
+    origin_lat: float = Field(ge=-90, le=90)
+    origin_lon: float = Field(ge=-180, le=180)
     face_length_ft: float = Field(gt=0)
     deck_height_mllw_ft: float
-    depth_profile: list[DepthPoint]
+    depth_profile: list[DepthPoint] = Field(min_length=1, description="At least one MLLW depth sample; x_ft stations must be unique. Input ordering is unrestricted.")
     fittings: list[PierFitting]
     fenders: list[Fender] = Field(default_factory=list)
     structure: Literal["open_pile", "solid"] = "open_pile"
     env_station_ids: EnvStations
     provenance: Provenance
+
+    @model_validator(mode="after")
+    def _reference_identity(self):
+        ids = [item.fitting_id for item in self.fittings] + [item.fender_id for item in self.fenders]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Fitting and fender IDs must be unique within a berth")
+        stations = [point.x_ft for point in self.depth_profile]
+        if len(stations) != len(set(stations)):
+            raise ValueError("Depth profile x_ft stations must be unique")
+        return self
 
 
 class BerthSummary(Model):

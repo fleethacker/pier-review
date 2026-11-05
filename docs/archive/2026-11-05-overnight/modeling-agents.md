@@ -1,0 +1,364 @@
+# Modeling and agents — overnight 4–5 November 2026
+
+## Log
+
+- 07:28 EST: user authorized integrating `ui/frontend-updates` only and explicitly excluded `frontend-exercise`. Separate `agents/ui-integration` checkout merges current dev with the UI branch without editing the colleague branch/worktree. Nine counterexamples reproduced and fixed: five saved-scenario edits, upload acceptance, async creation, offset reuse and async scene loading. Null vision geometry and source/confidence wording corrected. Full 1,734 Python / 191 UI tests pass; contract/typecheck/lint/build pass. Final scoped demo-check: 20 passed, 0 failed, 0 skipped; real Chrome/real services. Separate four-case initial-analysis browser probe passes with no page errors and invalid loads withheld. First browser attempt had a deprecated GL flag/render error; tested Chrome configuration resolves it. Improved console diagnostics identified a missing favicon, now supplied. Initial harness plan-validity lookup corrected to the cited analysis envelope. Temporary services stopped. Explicit Intake/review UI selection and complete four-case browser chain remain open; no operational qualification claimed.
+
+- 06:48 EST: completed frozen-source TCP soak: 218 full chains, 1,308 cross-owner denials, 13,026.7 seconds, no failures; owned services stopped. Source was 04e7fe9, not the final revision. Latest code passes 1,734 Python and 128 UI tests locally, with contract/typecheck/lint/build checks. PR #102 is pushed; frontend CI passes and Python CI is pending. Final Chrome probes passed; no owned browser test services remain. User may close the laptop: local watches/commands cannot be relied on while it sleeps. Resume from this branch and check PR #102 before publishing the next packet.
+
+- 06:41 EST: Final validity-display fix: unusable analyses no longer supply green line/fitting colors, percentages, offsets or data-key values; edits clear stale map loads immediately, even during dragging or after recheck failure. Sheet sidebar/HTML withhold unusable line margins, directional limits and computed tug requirements, retaining inputs and citations. Fourteen UI and three print counterexamples failed before; valid/limited preservation cases retained.128 UI tests/typecheck/lint/build and1734 Python tests/contract-check pass, no skips/xfails. An existing sheet test now creates its own review instead of depending on another test. Actual Chrome/real APIs: four initial cases, recommendation installation/stale-geometry rejection, risk/wind/timeline reporting and immutable sheet display all pass without page errors; services stopped. A temporary harness dependency-path typo was fixed before that run. Tide explanation now depends on attachment heights/installed length. Held UI branch untouched; UI inbox updated.
+
+- 05:00 EST checkpoint: dev de8a0c6 remains green; no new peer refs or replies. Frozen-source soak at112 chains (28 each) and672 cross-owner denials, still running. Posted actionable coordination updates UI208265910/C208265911, retaining held-branch boundary and pointing to the explicit UI Intake/review and public-composition gaps. Clarified that the execution-plan UI audit is historical, and that F24 does not bundle an approved sequence. No new physics or runtime changes.
+
+- 04:00 EST checkpoint: API Intake→Planner→independent review→sheet works for the four cases, and targeted real-browser shared UI probes pass. The full browser acceptance gate is still incomplete: explicit Intake/review selection, the held UI feature integration and make demo-check are absent on dev; production public forecast composition is also unavailable. No peer ref changes or coordination replies observed. Branch/inbox watch remains active; the one-shot monitor now polls repository commit comments every five minutes. Frozen-source two-principal soak clean at52 chains/312 cross-owner denials; final scope/counts pending. PR #99 timing fix merged green at04:05; local1729 Python/106 UI tests pass. Continue to13:00UTC with feature freeze12:00UTC.
+
+- 03:57 EST: Berthing-window bounds now require aware ordered timestamps and normalize to UTC. Five counterexamples failed before, including skipped/repeated elapsed samples through fall/spring clock changes.37 window-focused/86 combined tests pass. The full run exposed an older narration test that mistook random ID digits999 for a fabricated claim; it now deliberately uses plan_999 and still rejects999 in narrative plus the false text anywhere in the response. Production narration unchanged. Clean final1729 Python/106 UI tests, typecheck/lint/build and contract-check pass, no skips/xfails; contract/types regenerated. #98 fleet fix merged green. Frozen-source soak clean at50 chains/300 cross-owner denials, still running.
+
+- 03:49 EST: Six fleet-selection counterexamples failed before: [] silently selected the catalog and duplicate IDs entered holding/berthing/windows allocation. [] now means no available tugs; omitted/null retains default catalog and duplicates reject422. Existing holding assistance remains in the base solve (seventh regression).39 focused tests passed before that extra case; final1724 Python/106 UI tests, typecheck/lint/build and contract-check pass, no skips/xfails. Initial suite overlapped contract regeneration and reported one drift failure; clean rerun after generation passes. Contract/types regenerated. Narrow one-predicate berthing helper change logged in C inbox; no peer worktree edits. Holding first-pass search policy now stated without a minimum-force claim. Coordination comments posted UI208257580/C208257583; no acknowledgment observed. Chain soak at40 completed chains/240 cross-owner denials remains running on its frozen export.
+
+- 03:43 EST: Fixed shared safety-sheet image/display provenance. Live/cached map captures were unbound to the reviewed plan and could show edited geometry; they are now withheld with an explanation. Pending old sheet/approval responses cannot replace a new run. Three counterexamples failed before; five new cases bring UI to106 tests. Typecheck/lint/build,1717 Python tests and contract-check pass, no skips/xfails. Actual Chrome/real APIs confirmed geometry edited after planning, no unrelated image, limited label retained, no page errors; temporary services stopped. This only guards display: existing immutable approvals are not revoked, and the explicit Intake/review UI gate remains open. Held UI branch/worktree untouched. Short-lead PR #96 green and merged.
+
+- 03:38 EST: Explicit `allow_short_lead` enables rechecking the same arrival inside 24 hours; default advance lead remains unchanged. Selected paid-out lengths survive reassessment, past arrivals/late issuance/gaps still reject, and observations or unissued replay at as-of cannot be held as future guidance. Eight regressions cover these and a real job/manifest;209 focused/1717 full Python and101 UI tests pass, no skips/xfails, plus typecheck/lint/build/contract-check. Contract/types and synthetic four-hour example regenerated. Public forecast composer and automatic F24-to-Safety workflow remain unavailable. PR #95 merged green. Frozen-export chain soak is clean at30 chains/180 cross-owner denials; still running.
+
+- 03:24 EST: Shared wind-limit display now compares sustained wind to sustained limits, suppresses invalid/unknown plots, leaves unknown bearing gaps unconnected and handles all-zero limits without NaN. Five counterexamples failed before;11 focused/101 full UI tests/typecheck/lint/build pass.1709 Python tests and contract-check pass, no skips/xfails. Actual Chrome/TCP check (external network blocked) confirms pointwise scenario labels/n-a MBS, exact4kt sustained ring rather than5kt gust, and25-step synthetic timeline label, with no page errors. Temporary browser services stopped. This fixes reporting semantics, not the still-open explicit Intake/review UI gate. No held branch/worktree changes.
+
+- 03:20 EST: Fixed fender risk reporting: energy remains the exceedance quantity; percentile fields in lbf now use the existing fender force curve. Two synthetic unit counterexamples failed before;50 focused/1709 full Python tests pass, no skips/xfails. Fixed-seed100-sample comparison leaves probabilities/status unchanged and corrects three loaded-fender force percentiles. Six shared dashboard regressions failed before/pass after: invalid/unknown or zero-success probabilities withheld, absent MBS n/a, instantaneous/synthetic labels explicit.96 UI tests/typecheck/lint/build and regenerated contract/types/check pass. Full tests caught an initial contact-coordinate/force mixup during development; corrected before commit, no failing change pushed. Refreshed stale contract semantics. Coordination comments UI208254404/C208254411 delivered; no acknowledgment claimed. PR #93 merged green.
+
+- 03:14 EST: Risk job aggregate-work guard rejects over25,000 worst-case solves before queueing (422), including trajectory endpoints and supplied interior knots. Four counterexamples failed before;54 focused/1707 full Python tests pass, no skips/xfails.90 UI tests/typecheck/lint/build, regenerated contract/types and contract-check pass. Defaults/ordinary UI requests and instantaneous20,000-sample requests remain accepted; no silent sample reduction. This is an application work cap, not a CPU deadline or deployment capacity guarantee. PR #92 merged green. Frozen-export two-principal chain soak has exercised all four cases with expected outcomes and cross-owner404s so far; not complete.
+
+- 03:08 EST: Extended the reproduced UTC fix to tide-sweep/tending and risk timeline schedules. Seven counterexamples failed before (spring/fall elapsed horizon, repeated-hour peak/tending and incorrect Z label).69 focused/1702 full Python tests pass, no skips/xfails;90 UI tests/typecheck/lint/build and regenerated contract/check pass unchanged. Copied inputs preserve caller metadata; no tide/weather/force equations changed. Preparing a longer two-principal, four-case chain soak from a frozen source export; this is local reliability evidence, not physical qualification.
+
+- 03:05 EST: Intake aggregate interval failures now produce RED out-of-range findings, including nonpeak samples; independent review blocks them. Unknown ship MST no longer passes the within-ship check (failed/AMBER, no ready-for-signature verdict). Three unit counterexamples failed before; a real ASGI berth-only Intake→review regression passes. 178 focused and1695 full Python tests pass, no skips/xfails;90 UI tests/typecheck/lint/build and contract-check pass. Two older test doubles now explicitly state their intended known ship MST; assertions retained. No wire/physics changes. PR #90 merged green.
+
+- 03:00 EST: UTC timing regression fix: 13 counterexamples failed before (repeated-hour ordering/expiry/issuance, dropped Intake peak and offset time mislabelled Z); 184 focused and 1691 full Python tests pass after, no skips/xfails. Intake copies timestamps into UTC; provenance checks compare absolute instants without changing source metadata. Contract regenerated unchanged; 90 UI tests/typecheck/lint/build and contract-check pass. Completed separate one-hour slow-reader TCP soak:14557 saved-source warnings across603 connections; fast readers max gap0.558s while third reader paused300s. No cross-stream stall observed; old timestamped frames can still reach a delayed client. Temporary services stopped. Watcher now checks local as well as remote refs; no new colleague work observed.
+
+- 02:53 EST: Actual Chrome/real-TCP recommendation probe passes with selected18ft standoff and T4/100lbf assistance: six resolved spans preserved, reanalysis200 AMBER/limited, stale geometry apply rejected, no page errors. Temporary services/browser stopped. Initial harness fetch Response.ok typo corrected before the successful run (not an application defect). User-requested coordination comments delivered to UI208251098 and C208251101; no acknowledgment claimed. Added berth current-profile/station-transfer evidence to data inventory/expanded plan, without inventing coefficients. Reconnect-soak evidence documented; separate slow-reader run remains clean at55min.
+
+- 02:48 EST: Direct recommendations now expose optional resolved_config without changing assignment-only config semantics used by F24. Two tide recheck regressions failed before;31 focused/1678 full Python tests pass, no skips/xfails. Four shared UI regressions failed before: unresolved spans, omitted selected standoff/assistance, in-flight fleet changes and stale geometry application.90 UI tests/typecheck/lint/build pass; contract/types regenerated and contract-check passes. Completed one-hour authenticated reconnect soak:21557 saved-source warnings over663 connections, max observed gap0.551s, no cross-stream stall; temporary processes stopped. Slow-reader soak remains clean at50min.
+
+- 02:39 EST: Small shared UI integration fix: applying a recommendation now replaces prior tug assignments with the candidate’s assessed holding assistance, including empty. Two counterexamples failed before (assisted candidate and no-assistance candidate);86 UI tests/typecheck/lint/build now pass. Latest unchanged Python suite1676 and contract-check pass, no skips/xfails. Candidate local UI type extended additively; no held-branch/worktree edits. Separate stale-sheet/current-map attachment concern is recorded for UI review below.
+
+- 02:38 EST: Optional narration could say Proceed with docking / Docking is approved / suitable for arrival / ready_for_signature despite RED windows. Four fake-LLM regressions failed before; the shared wording guard now rejects those operational claims and retains the deterministic summary. Prompt clarified;220 focused/1676 full Python tests pass, no skips/xfails; contract-check and UI typecheck/lint/84 tests/build pass. This is conservative lexical guarding, not proof of every natural-language implication; code results/review remain authoritative. #86 merged green; qualification/scope packet is #87.
+
+- 02:32 EST: Qualification review found published tug records labeled qualified despite RATING_SOURCE_UNVERIFIED. They now use the shared qualification policy and remain demonstration/limited until rating evidence is established. Regression failed before;23 focused/1672 full Python tests pass after, no skips/xfails; contract-check and UI typecheck/lint/84 tests/build pass. Added explicit wind/current-only, wave/wake-not-evaluated scope to static result assumptions/capabilities and UI guidance. No load coefficients or forces changed. File-backed static recheck benchmark:100 seed calls median1.598ms/p95 1.777ms;100 confirmed-berth calls median1.612ms/p95 1.754ms, all AMBER/limited (local observation, no budget qualification). #85 merged green (CI1655); #86 is the error-boundary packet.
+
+- 02:28 EST: Agent HTTP boundary hardening: malformed JSON, invalid typed responses, non-object error bodies and malformed job status/results now raise explicit ModelingError rather than raw parsing/attribute errors. Unusable jobs attempt cleanup; Safety SSE emits terminal RED source_unavailable without weather/limit substitution. Ten regressions failed before;69 focused/1671 full Python tests pass after, no skips/xfails. Contract-check and UI typecheck/lint/84 tests/build pass. #84 merged green; confirmed-berth durability is #85.
+
+- 02:24 EST: Follow-up numerical boundary check found positive subnormal water density underflowing to zero during unit conversion. Reject explicitly as a numerical-range error; no substitute density or physical bound. Three regressions failed before;100 focused/1658 full Python tests pass after (including the new catalog process-race case), no skips/xfails. Contract-check and UI typecheck/lint/84 tests/build pass. This preserves all ordinary UFC worked examples and formulas.
+
+- 02:23 EST: Confirmed shared berth catalog now uses configured SQLite storage (default remains ephemeral), immutable IDs and defensive reads. No cache survives database switching. Separate-process read, reopen/restore and seed-upgrade conflict checks pass; four competing processes accept exactly one definition. 1654 full Python tests passed, plus the subsequently added process-race test (17 catalog tests pass); no skips/xfails. Contract-check and UI typecheck/lint/84 tests/build pass. Authenticated TCP probe with a new berth preserves seven owned chain documents, hashes/events/ledger/locked sheet and exact shared geometry through restart and backup restoration; reanalysis remains AMBER/limited. No admin/retirement/qualification claim.
+
+- 02:19 EST: Numerical overflow guard returns HTTP422 with no result for finite inputs whose derived calculations overflow. No physical bounds, clamps or coefficients changed. Loads service translates only nonfinite derived-load validation errors; unrelated errors remain visible. All11 HTTP regressions failed before;12 focused/1650 full Python tests pass after, no skips/xfails. Contract-check and UI typecheck/lint/84 tests/build pass. #83 merged after green CI. Investigating durable confirmed-berth storage next; reconnect/slow-reader soaks remain clean.
+
+- 02:13 EST: Narrow replay/live provenance fix: observation time is no longer copied into issued_at_utc. Snapshot time, validity interval, age and values remain unchanged. Three regressions failed before/pass after;238 focused and1638 full Python tests pass, no skips/xfails;84 UI tests/typecheck/lint/build and contract-check pass, no wire/schema changes. One-line shared adapter correction logged in C inbox; no fetch/composition changes.
+
+- 02:05 EST: #81 and evidence-only #82 merged after green CI; dev96a3391 has the1636-Python/84-UI-test state. Actual SIGKILL probe: two running and one queued agent jobs recover failed/RED; review and sheet creation409, other-owner404, terminal SSE failed/RED. No completed-plan substitution. Completed/restore probe logs remain /tmp/psp-tcp-persistence-probe.log; interruption evidence /tmp/psp-tcp-interrupted-probe.log. Reconnect soak is clean at23min/8242 warnings/254 connections; separate slow-reader test has completed its first300s pause without fast-reader stalls. Both are temporary authenticated local stacks, no external provider/LLM. Added optional UI warning-age/delayed-delivery guidance. Peer heads/acknowledgments remain unchanged. Continue until13:00UTC; feature freeze12:00UTC.
+
+- 01:52 EST: Actual separate-process persistence probe passed both full service restart and online-backup restore to a new path: seven documents identical, result IDs/hashes/ownership retained, planner SSE and tool ledger identical, approved sheet locked, canonical Safety watch5kt. Seed berth only; runtime catalog persistence still missing. Random temporary credentials were not stored/logged. Additional fixed-seed F24 probe:100 synthetic scenarios/400 arrivals (393 supported-limited,7 overloaded),594 selected-installation rechecks reproduce line tensions exactly; all limited,13.25s locally, not qualification. Primary NOAA sources support current flow-toward and prediction True North; documented mapping and remaining sensor/bin limitations. Coordination comments delivered to UI208244575 and C208244578; no acknowledgment claimed. #80 merged after green CI; #81 carries the1636-test timing fix. Three-client soak remains clean at10min/3580 warnings/112 connections; services isolated on18100/18101.
+
+- 01:43 EST: Direct-load/analysis timing hardening: naive snapshot timestamps plus aware component intervals previously raised TypeError; now retain invalid/RED timing and component-quality reasons, with no limit inferred. Three regressions failed before; 82 focused/1636 full Python tests pass after, no skips/xfails; 84 UI tests/typecheck/lint/build and contract-check pass. Corrected stale S01 ledger wording about berth replacement. Rechecked official UFC2020 section3-8.1/Figure3-5 visually; documented why broader duration/height conversions remain unsupported, without changing coefficients. One-hour authenticated TCP Safety reconnect soak started on isolated ports; first minute355 valid-source warnings across13 connections, max observed gap0.551s. Harness job-response assumption fixed before the soak; not an application defect. PR #79 merged after green CI; Safety source packet is #80.
+
+- 01:37 EST: Safety watch source continuity fixed: canonical scenario environment replaces generic provider polling. Four source regressions and two temporal availability regressions failed before/pass after; unknown/failed source never substitutes weather, and invalid timing suppresses old gust-limit percentages. Existing fake watch client now exposes canonical resolution; warning assertions unchanged. 84 focused/1633 full Python tests pass, no skips/xfails; 84 UI tests/typecheck/lint/build and contract-check pass (no wire changes). Authenticated real TCP make-mock chain returns the saved 5 kt gust, keeps cross-owner404, and completes supported AMBER/limited plan, ready-for-signature review, approved HTML/PDF200 and selectable deterministic berth. Temporary servers stopped. PR #78 merged after green CI; Intake provenance packet published as #79.
+
+- 01:34 EST: Intake temporal availability guard shares the existing F24 provenance policy without importing physics. Future observations, later-issued guidance and public forecasts without availability provenance are excluded, produce RED incomplete-coverage findings, and cannot reach optional LLM condition selection. Unusable current observations fail explicitly. Unknown component issuance remains informational when retrieval establishes availability. 191 focused/1627 full Python tests pass, no skips/xfails; regenerated contract/types, 84 UI tests/typecheck/lint/build and contract-check pass. Current-only fallback uses the actual validated snapshot. PR #77 merged after green CI; malformed-berth packet is PR #78. Watcher shows no new colleague refs.
+
+- 01:23 EST: Malformed berth guards: reproduced empty depth registration201 followed by catalog listing500 in an isolated process. Berth now requires at least one depth sample, unique x stations, unique fitting/fender IDs and geographic bounds. Seven adversarial cases failed before; 38 focused/1616 full Python tests pass after, no skips/xfails. Single-point and unordered unique depth samples remain supported. Contract/types regenerated; 84 UI tests/typecheck/lint/build and contract-check pass. Data/vision clients receive422 before registration, with no invented depth or merged assets. This is structural validation, not hydrographic qualification.
+
+- 01:19 EST: Small shared UI source correction: loadScenario uses the canonical saved-source resolver, matching agents/alerts instead of bypassing explicit mock with generic /env/now. Two regressions failed before/pass after (wrong provider source, failed resolution without substitution). 84 UI tests/typecheck/lint/build, 1608 full Python tests and contract-check pass, no skips/xfails. Offline Chrome loaded all four named saved cases through the canonical endpoint with no page exceptions: supported AMBER/limited, storm RED/limited, inadequate depth RED/invalid, underconstrained RED/invalid. This proves initial analysis display, not the still-open explicit Intake/review UI gate. Browser/server processes stopped. Documented unsupported UI objective choices for the UI owner; no feature branch edits.
+
+- 01:14 EST: Duplicate line IDs rejected at MooringConfig validation; no silent renumbering. Reproduced analysis accepted [1,2,3,4,5,6,1] before the fix. 105 focused/1608 full Python tests pass, no skips/xfails; empty layouts and nonconsecutive unique IDs remain valid inputs. Regenerated contract/UI types; 82 UI tests/typecheck/lint/build and contract-check pass. Posted coordination updates to UI commit comment208241727 and data comment208241730; no acknowledgment claimed. Watcher remains active.
+
+- 01:10 EST: Shared berth-ID integrity fix: POST /berths accepts identical retries but rejects changed data under existing seed/runtime IDs with409; new revisions require new IDs. Catalog registration/list/read now lock and return copies. Three pre-fix regressions failed as expected; 126 focused/1603 full Python tests pass, no skips/xfails; regenerated contract/UI types, 82 UI tests/typecheck/lint/build and contract-check pass. Authenticated real TCP chain confirms forwarded identity and cross-owner denial for scenarios/environment/jobs/reports/plans/ledger/results/reviews/sheets/approval, plus shared-reference overwrite409, identical vision retry201, changed confirmed draft409; supported HTML/PDF200 remains. Random temporary keys were not written/logged. Runtime catalog remains process-local and shared-readable, not a durable asset administration system.
+
+- 01:01 EST: Fresh TCP smoke exposed an inaccurate macOS launch instruction: outer DYLD_FALLBACK_LIBRARY_PATH through system make still returned PDF501. Added optional PDF_LIBRARY_PATH forwarding inside Makefile and app.sh, updated docs. Both exact launchers now pass health, supported Intake→Planner/SSE→independent review→approved HTML/PDF200 and deterministic berth confirmation; app.sh production proxy also passes. Standalone default Vite proxy passes on this Node26 host, so no proxy source edit made; peer host issue remains in compatibility notes. All temporary servers stopped. `make test`: 1599 passed, no skips/xfails; contract-check passes. Fresh app.sh npm install/build plus UI typecheck/lint/82 tests pass. No renderer, physics or wire changes.
+
+- 00:58 EST: Fixed a reproduced DST edge case for programmatic named-zone inputs: 24-hour lead validation and synthetic scheduling now use elapsed UTC, with forecast snapshots copied before normalization. Five regressions failed before the fix and pass after it (spring short lead, spring/fall duration, UTC/local equivalent assessment including the repeated hour). 49 focused/1599 full Python tests pass, no skips/xfails; 82 UI tests/typecheck/lint/build and contract regeneration/check pass unchanged.
+
+- 00:54 EST: Input-quality qualifications now remain in the code-owned Intake headline, including optional narration. Safety HTML/PDF prints previously hidden plan assumptions and explicitly distinguishes representative Intake conditions from full interval forecast planning. 195 focused and 1594 full Python tests pass, no skips/xfails; 82 UI tests/typecheck/lint/build and contract-check pass. Four existing headline assertions now include their fixture’s already-present stale-data AMBER qualification; thresholds/findings unchanged. Supported full API chain returns AMBER/limited, ready_for_signature, PDF200 (36,619 bytes, 3.43 s); all seven pages visually checked for layout. Scratch probes: 100 DDG cases reproduce resolved installation exactly (78 RED/22 AMBER, all limited); three other classes correctly unavailable for line plans because fittings are absent. Separate 4,000-case four-class load probe passes common-bearing rotation, mirror signs, shielding/current independence and finite values; local median 0.0055 ms/call, max 0.040 ms, not a performance guarantee or physical qualification.
+
+- 00:50 EST: Intake and Safety now inspect each declared environment component even under an aggregate good flag. Poor/out-of-interval inputs block with RED, suspect with AMBER; unknown quality/issue and declared limitations remain informational and visible. Safety watch withholds old utilization when component quality deteriorates without numeric changes. 144 focused and 1587 full Python tests pass, no skips/xfails; UI 82 tests/typecheck/lint/build and contract-check pass. No schema changes or physical threshold changes.
+
+- 00:38 EST: Safety-sheet provenance rendering: 1578 full Python tests pass, no skips/xfails; UI 82 tests/typecheck/lint/build and contract-check pass. Native PDF supported-case flow succeeds (AMBER/limited, ready_for_signature; 31,053-byte PDF, 3.67 s local) and first-page layout inspected. Forecast summary, current toward bearing, assessed water level, wind basis and component timing/limitations are visible; unknowns remain unknown and free text is escaped. Table headers repeat across pages. Six repeated queue bursts completed: 240 requests, 108 accepted, 132 HTTP429, six queued cancels, 102 unique successful AMBER plans, all resolved spans retained. Watcher shows no new colleague refs or acknowledgments.
+
+- 00:30 EST: Solved line geometry follow-up: line reports and geometry rules use current solved spans/angles, horizontal angles rotate with the ship. NSTM thresholds unchanged; nominal layout/MST checks remain separate. 48 focused and 1577 full Python tests pass, no skips/xfails; UI 82 tests/typecheck/lint/build and regenerated contract/check pass. The 200-case explicit-span probe now has zero advisory-text differences, unchanged 111 RED/89 AMBER and all limited. Started six repeated 40-request queue bursts to check cancellation/reuse and retained spans under job load.
+
+- 00:23 EST: PR #66 merged after CI; PR #67 publishes the offline forecast coverage fix. New resolved-installation packet: static analysis exposes optional resolved_config and Planner preserves it through final plan/sequence/risk/persistence. This closes the new-plan map/saved-scenario tide mismatch using existing line fields, without UI physics or feature-branch edits. 53 focused and 1573 full Python tests pass, no skips/xfails; UI 82 tests/typecheck/lint/build and contract-check pass. Temporary 200-case randomized DDG probe reproduces all physical outputs/status/validity with explicit spans (111 RED, 89 AMBER, all limited); 72 advisory-text differences exposed an existing nominal/installation-geometry reporting issue for follow-up. This is regression evidence, not physical qualification. Legacy plans without explicit spans still need their installation-tide hint.
+
+- 00:18 EST: PR #65 merged after CI passed; PR #66 publishes the saved-source fix. Offline forecast coverage fix: 69 focused checks pass across four daily clock phases, four minute/second offsets, three sample intervals and the 120-hour bound. Adapter moved to data_simulation with explicit mock/scenario provenance, no fabricated issue time. Full suite: 1568 passed, no skips/xfails; UI 82 tests/typecheck/lint/build and contract-check pass. Additional temporary HTTP-path Intake probes at 00:59:59, 06:59:59, 12:59:59 and 23:59:59 all retain complete 24-hour synthetic coverage with no missing-source issue. Small environment/mock.py wrapper change logged in C inbox.
+
+- 00:14 EST: Saved-source endpoint and Planner/Intake wiring in progress. Explicit mock no longer follows the configured public provider; source metadata remains synthetic. New endpoint uses existing provider error mapping and scenario ownership. Initial tests caught the missing provider-error wrapper and an unsupported test assumption about legacy generator metadata; both fixed. Existing intake routing assertion now verifies the canonical scenario endpoint rather than the bypassed generic current endpoint. Focused source/Intake/API/Physics checks: 170 pass. Initial full run caught an API fixture clock that also needed the new scenario resolver frozen, and the tool registry count now correctly includes 18 tools. Assertions retained; canonical routing expectations updated. Synthetic scenarios reject mismatched public forecasts and do not import provider-based berthing windows. Final full suite: 1519 passed, no skips/xfails. Contract regenerated and contract-check passes; UI 82 tests/typecheck/lint/build pass. API description now directs users to validity/capabilities rather than the obsolete most-backends-mock claim.
+
+- 00:10 EST: Follow-up tide-sweep source audit preserves component limitations/unknown issuance and rejects bad water inputs before interpolation. Twenty focused and 1509 full Python tests pass, no skips/xfails. UI 82 tests/typecheck/lint/build and contract-check pass. No wire/schema changes. A new assertion initially expected an explicit null issue time; corrected to require omission under the additive wire-default rule. Data colleague notified of PR #64 via commit comment 208236472; no read acknowledgment claimed.
+
+- 00:08 EST: Temporary NWS + CO-OPS tidal current/level composition exercised 72 hourly snapshots, seven arrivals 24–30 h ahead and 63 real static evaluations. All unchanged-template arrivals overloaded (119.0–216.0% WLL), correctly RED/limited with no selected arrival. Actual NWS issue retained separately from two NOAA retrievals; tidal/weather residual, depth/spatial and wind-basis limitations retained. No production provider wiring or raw data committed.
+
+- 00:08 EST: PR #63 merged after both CI jobs passed; shared UI now preserves assessed holding tugs and avoids forced capture renders. Per-component forecast provenance implementation: 62 focused and 1500 full Python tests pass; 82 UI tests, typecheck, lint, build, contract regeneration and contract-check pass. No skips/xfails. NWS issuance and NOAA retrieval remain separate; no provider composition or physical coefficient change.
+
+- 23:58 EST: independent offline randomized probe (seed 20261104) ran 200 DDG cases across both sides, wind 0–80 kt plus 0–30 kt gust increment, current 0–3 kt, directions over 360 degrees, water/installation levels -4 to +6 ft and 1–3 line parts. All outputs finite and limited; 111 RED, 89 AMBER, none GREEN. Twenty repeat solves matched results, validity and input hashes without mutating requests. Median full analysis 1.72 ms, max 258 ms locally; not a performance budget or physics validation. Scratch script/results remain outside git.
+
+- 23:56 EST: two small shared UI fixes are prepared in this worktree, not the held feature branch: apply actual `holding_tugs` including empty, and capture preserved canvas without synchronous Cesium render. 82 UI tests/typecheck/lint/build pass; browser mitigation evidence is the isolated 19-pass/one-provenance-assertion-fail run. Backend code remains the previously verified 1486-test state. UI inbox records the narrow cross-boundary fixes and remaining installation/motion/vision work.
+
+- 23:54 EST: alert WebSocket preserves saved scenario source and initial connection installation basis; provider failure closes 1013 without substitute measurements; bad timing/reference closes 4400 and unknown/unowned references 4404. Shared resolver rejects unsupported direct replay/forecast modes instead of live fallback. 14 focused and 1486 full Python tests pass, no skips/xfails; UI 81/typecheck/lint/build and contract checks pass. Isolated capture experiment removes Cesium failure (19 browser/proxy passes, one incorrect vision-label expectation remains); UI branch still held. Watcher restarted as PID 59632 and now snapshots all three handoff files.
+
+- 23:43 EST: public 72h probes succeed for configured CO-OPS tide station 8638610 and cb0402/bin4 at 21 ft (73 hourly points each); NWS supplies 48 complete wind/gust intervals across 72h. Raw CO-OPS/URL/retrieval/SHA256 saved outside git, no new runtime composition or qualification claimed. C inbox documents per-component issuance versus retrieval and bin applicability blockers.
+
+- 23:41 EST: holding assistance audit fixes planner replacement of existing tugs (endpoint returns additions), and makes fresh assessment govern feasibility and utilization including fenders. 73 focused and 1472 full Python tests pass, no skips/xfails; UI 81/typecheck/lint/build pass, contract regenerated unchanged. Additional peer notification delivered to UI commit discussion (208234027); no acknowledgment assumed.
+
+- 23:37 EST: multi-tide planner audit found analyses/risk/review implicitly reinstalling lines at each condition. Added common installation tide to plans/sheets, requests and draft sequence checks, including persistence/what-if. Regression checks later governing tide and supplemental review. One fixed integration fixture now correctly has an unknown directional gust limit and blocks readiness; its assertion now checks that conservative outcome. 90 focused, 20 API and 1467 full Python tests pass, no skips/xfails. Contract/types regenerated, UI 81 tests/typecheck/lint/build pass.
+
+- 23:33 EST: forecast planning rejects future replay observations without archived prediction/issuance provenance, isolates invalid snapshot inputs so later usable arrivals remain assessable, and marks wholly unusable assessments invalid without claiming physical infeasibility. Capability discovery now includes advance docking and correct installed-reader/telemetry status. 44 focused and 1465 full Python tests pass, no skips/xfails; contract regenerated without drift. UI typecheck/lint/build and 81 tests pass.
+
+- 23:25 EST: UI compatibility review published in UI_COMPATIBILITY_REVIEW.md; ui/frontend-updates remains held/unmerged. Local-only null-box and fixture fixes allow 135 UI tests/typecheck/lint/build. Strict offline browser/proxy check: 14 pass, 4 fail, 0 skip; Cesium zero-width render failure blocks sheet approval and later browser steps. API/proxy motion and planner/sheet flows pass, but API demo plan is RED and does not prove supported-case gate. Findings delivered to UI inbox and commit discussion. Current dev status-label corrections pass 1454 Python tests and 81 UI tests plus typecheck/lint/build; contract unchanged after regeneration.
+
+- 23:16 EST: DC3 reader review passes 32 focused tests and 1454 full tests (no skips/xfails), UI 81 tests/typecheck/lint/build, contract check. Added units/dimensions/domain/depth/time/fill guards, missing-time provenance and bounded native request behavior. Live 3x3 subset verified surface/current conventions and missing 4m/6m layers at demo pier; explicit neighbor succeeds. Complete forecast composition and qualified depth/pier applicability remain open. Watcher discovered ui/frontend-updates at 6faddf0; its owner-directed no-merge hold is respected. Preparing an isolated compatibility review with current dev.
+
+- 23:07 EST: reviewed DC5 integrated locally with optional-field compatibility, finite/ordered/nonoverlapping sectors, explicit exploratory qualification/global sampling, train-only parameter fitting, usable-day accounting, duplicate/time guards, contiguous AR input and missing-current rejection. Current predictions now use actual nearest timestamps; cache separates station/bin/window and never persists failure as empty data. Existing 364-day observed artifact unchanged. 29 focused tests and 1422 full tests pass, no skips/xfails; UI 81 tests/typecheck/lint/build pass, contract regenerated.
+
+- 22:58 EST: live alert assessments now expose optional validity, suppress utilization for invalid inputs/grounding/missing plan references, label seed assessments limited, and preserve original installation tide as water level changes. Observation-only messages explicitly do not assess mooring adequacy. Ten focused alert tests pass; full suite 1404 passed (no skips/xfails), UI 81 tests/typecheck/lint/build pass; contract/types regenerated. C-owned socket source/failure findings sent to inbox and PR #43; no ws.py changes.
+
+- 22:49 EST: S13 review fixes loading/MST hard-coding, pre-double-up part overcount, unassessed tug release, invalid environment/depth/rating assistance and recursive timing paths. Planner omits invalid tug assistance but still completes a blocked plan. Four real API cases retain expected outcomes (3.08–4.11 s); sheets expose intermediate notes and sequence references. Removed a vacuous unsafe-lead assertion by giving its fixture an explicit breast role. Full suite 1395 passed, no skips/xfails; UI typecheck/lint/81 tests/build pass and contract regenerated.
+
+- 22:38 EST: reviewed DC6 locally against a real NOAA US5ORFCC base+5 updates (temporary files only). Fixed combined/prefixed DSID metadata, distinct VDAT/SDAT, explicit WGS84/metres/MLLW subset, CRS/local-datum guards and malformed geometry/depth rejection. 24 focused tests and full suite 1384 pass (no skips/xfails); UI typecheck/lint/81 tests/build and contract generation pass. Actual reader accepts metadata and 141 polygons. DEPARE-only limitations remain explicit; no clearance qualification.
+
+- 22:33 EST: real bounded agent-job burst, no external network/LLM: 40 requests, 18 accepted, 22 rejected with HTTP 429 and Retry-After; cancelled one queued job, remaining 17 completed AMBER with unique plan ids. Elapsed 31.85 s on this machine; this is local saturation evidence, not deployment qualification.
+
+- 22:33 EST: supplied risk timeline and explicit training provenance pass 1360 Python tests, no skips/xfails; 33 focused risk tests and 81 UI tests/typecheck/lint/build pass. Supplied knots, exact endpoints, gap/time validation, invalid-source suppression and per-step failed-sample bounds are covered. Training remains isolated/labeled even with public providers configured.
+
+- 22:28 EST: risk hardening full suite 1349 passed, no skips/xfails; 22 focused risk/contract tests pass. OpenAPI audit also exposed omitted asynchronous recommendation and simulation result models; all documented job response models are now explicitly published and consumer types regenerated.
+
+- 22:26 EST: DC7 integration PR #50 published: 1342 Python and 81 UI tests pass. Risk review found failed-solve cancellation bypass, omitted ship-fitting checks, endpoint omission and failed trajectories counted implicitly as safe. Added cancellation checks, rated ship fittings, endpoint-inclusive sampling, explicit horizon bounds/widened confidence interval and invalid all-failed state; 21 focused tests pass.
+
+- 22:23 EST: selected forecast installation PR #49 merged after green CI (1310 Python, 81 UI). DC7 reviewed locally: measured-mode/coordinate guards and HTTP/WebSocket malformed-input regressions added; focused telemetry suite 68 passed. Optional ingest key remains local-demo-only when unset, and arbitration is not connected to environment selection.
+
+- 21:11 EST: DC0 provider branch merged locally; fixed cache age after retry/backoff, age-bounded breaker fallback, shared-client serialization and invalid policy settings. No peer branch/worktree altered. Source/provider adapters remain data-team-owned.
+
+- 21:08 EST: direct static tug assistance now invalidates unknown/duplicate/overrated assignments; invalid assistance produces no numeric wind limit, and tug records enter result manifests. Tide sweep accepts supplied water-level snapshots, evaluates their knots, and isolates/labels its legacy training fallback. Source and interpolation remain explicitly limited.
+
+- 21:00 EST: auth packet PR #32 published, 1189 tests pass. Job client now enforces elapsed-time deadlines including submission/poll HTTP, handles cancelled remote jobs immediately, cancels accepted remote work on caller stop, and refuses untrusted status paths before forwarding credentials.
+
+- 20:55 EST: agents auth integration implemented: caller credentials forwarded to modeling through worker context; plans/reports/reviews/sheets/vision jobs/ledger owner-scoped, body and per-principal rate caps. Authenticated real chain and adversarial cross-owner attempts pass. Shared confirmed berth catalog and unverified approval roles remain deployment blockers.
+
+- 20:51 EST: integrated colleague branch ws-a/dc8-data-requests into the modeling branch, retaining its detailed asset/sensor inventory and adding our procedure, forecast-basis, propulsion and abort/replan requirements. Provider plumbing branch remains pending the stale-age review request. Jobs packet: 1179 Python and 81 UI tests pass.
+
+- 20:48 EST: provider/intake PR #30 published with 1175 passing tests. Real agent task queue and live planner events implemented; 64 focused tests pass including gated work, saturation, cancellation, failure, and SSE resume. Persistence/authentication still separate work, not claimed.
+
+- 20:43 EST: vision PR #29 CI green and merged. Intake now refuses to extrapolate ramp/replay snapshots as steady; missing scenario-series capability is explicit. Partial/malformed forecast coverage and future-sample quality flags propagate into safety findings. 204 focused tests pass.
+
+- 20:41 EST: M4 PR #29 published, 1148 Python tests. M5 Anthropic Messages adapter implemented with official current protocol, explicit model/key, no network in tests, existing application guards unchanged. Full suite 1165 passed; contract-check clean; 177 provider/agent focused checks passed. Provider perception/narration quality remains unverified.
+
+- 20:40 EST: safety PR #28 merged after green CI (1136 Python tests). Vision metadata/optional image pipeline implemented: modeling owns projection and estimated catalog capacities; confirmation uses logged toolkit and cannot replace catalog ids or promote provenance. Full suite 1147 passed before one additional confirmation regression; frontend 81 passed, typecheck/lint/build green.
+
+- 20:30 EST: Safety basis corrections targeted 40 tests passed, including real supported demo through sheet. Explicit modeled gust limits replace mislabeled sustained limits; unsupported breaking-speed estimates removed (prior test expectation corrected accordingly). Sheet now carries validity and real source/forecast statements. OpenAI Docs skill applied to optional vision input adapter; claude-api and openai-platform-api-key skills not installed, so provider documentation will be checked directly; no live LLM dependency.
+
+- 20:27 EST: PR #26 merged after both CI jobs passed. F24 full suite 1131 passed; frontend typecheck/lint/81 tests/build passed. No skips/xfails.
+
+- 20:26 EST: public NWS grid AKQ/88,56 and hourly forecast downloaded (issue 23:38:07Z), plus 48h CO-OPS tide predictions. Temporary raw/provenance files only in /tmp/psp-public-data. M7 data-request inventory written. Found further safety basis defect: limiting wind is sustained but was labeled gust; breaking-speed square-root estimate also applied to fenders. Correcting via modeling-owned explicit gust limits, no fabricated breaking threshold.
+
+- 20:22 EST: M0 PR #25 merged green. M1+M2+intake/safety fixes full suite 1121 passed. Supported scenario traversed real HTTP intake/planner/safety in 3.34s: plan AMBER, review ready_for_signature with AMBER validity floor. UI generated-type check exposed scalar-default requiredness; changed new design_basis to optional null (absent keeps MST+forecast), preserving callers.
+
+- 20:17 EST: baseline 1108 Python tests, contract-check, frontend typecheck/lint/81 tests/build passed. Branch watcher /tmp/psp-modeling-watch.py polls every 5m until 08:00 EST; snapshots/inbox copies in /tmp/psp-watch-*. M1 tests verify all four actual outcomes.
+
+- 20:12 EST: started from origin/dev 191a41a in ../psp-agents, agents/overnight. Main contains the same release plus its release merge. Read shared instructions and ownership. Baseline suite running.
+- UI audit: planner bypasses explicit intake; sheet creation bypasses explicit safety-review selection; target defaults to 70%. Forecast risk requests 24h but saved scenarios freeze weather. Recommendation includes MST design cases regardless of moderate forecast.
+
+- 21:15 EST: PR #34 merged after both CI jobs passed. DC0 provider branch integrated locally with cache-age/breaker/policy fixes; 1231 Python tests pass, no skips/xfails. Five complete local supported chains median 3.09 s; real TCP make-mock smoke passed intake/planner/review/approval/HTML/SSE/vision confirmation. PDF honestly returns 501 without renderer. Both temporary servers stopped.
+
+- 21:19 EST: opt-in agent persistence now retains completed chains and audit/ownership without serializing credentials. Service-scoped job recovery prevents cross-service interruption. Durable chain, cross-owner reads, terminal SSE replay and concurrent approvals tests pass; full regression underway. Watcher found DC1 CO-OPS and DC2 NWS branches, queued for integration review.
+
+- 21:25 EST: PR #36 pushed (1237 Python/81 UI tests, no skips/xfails). Safety hardening preserves original plus supplemental conditions and every check failure, refuses unresolved RED plans, and takes the lowest/unknown solver limit across conditions. Forecast planning now rejects poor/suspect or expired-interval inputs. Focused 31 tests pass; full suite underway.
+
+- 21:30 EST: DC1 CO-OPS integration plus provenance/cache fixes: 1253 Python tests pass, no skips/xfails; focused provider/replay 67 pass. Bundled synthetic replay is now explicitly scenario-basis; historical CO-OPS snapshots say replay. No forecast fallback introduced.
+
+- 21:35 EST: all four named cases traversed real local HTTP intake→planner→review→HTML. Supported: AMBER/limited, ready_for_signature (3.34 s). Overload: RED/limited, reject (4.17 s). Invalid depth: RED/invalid, revise (4.35 s). Initially underconstrained: planner repairs arrangement to AMBER/limited, ready_for_signature (3.10 s); initial result remains RED/undetermined. Search hardening now rejects locked-line bypasses of inventory/fitting constraints and reports actual assessed case counts; focused search/equilibrium 55 tests pass.
+
+- 21:36 EST: search fixes full suite 1265 passed, no skips/xfails; UI typecheck/lint/81 tests/build passed, contract regenerated unchanged. API nonpositive-depth requests now return 422. Corrected cases_evaluated expectation: candidates that stop early no longer claim every case was solved.
+
+- 21:38 EST: repeated-review budget regression fixed: server-created operation scopes bound each review/agent request while preserving one plan audit. Legacy/direct gateway per-plan budgets stay intact; concurrent requests within an operation cannot overspend. Focused ledger/security/client suite 52 passed.
+
+- 21:46 EST: user requested explicit cross-agent coordination and ongoing UI recommendations. Added docs/MODELING_UI_RECOMMENDATIONS.md with endpoint/example links, priorities and implemented/pending distinctions; notified both peer inboxes to watch each other and dev. Existing watcher checks remote refs/inboxes every two minutes.
+
+- 21:50 EST: operation-scoped budgets plus DC2 integration pass 1286 Python tests, no skips/xfails; UI typecheck/lint/81 tests/build and contract generation pass. Eighteen NWS adapter tests cover interval intersections, active-period clipping, malformed/overlapping inputs, units and stale provenance. Recorded public grid smoke yields 30 intervals covering 48h without missing gust; not an operational qualification. Posted coordination/review comments on data PRs #43/#45/#46.
+
+- 21:54 EST: explicit environment-quality gates and corrected applied wind-factor reporting pass 1298 Python tests (no skips/xfails). Published-geometry tests prove missing/poor input cannot look valid; search/envelopes preserve invalidity. PDF issue was macOS native-library discovery: supported full chain succeeds with DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib, HTTP 200/26,175-byte PDF. Documented setup, no renderer rewrite or global environment mutation. PR #47 passed CI and merged.
+
+- 21:58 EST: safety watch hardening compares current/tide/density/wind basis with actually reviewed conditions, emits explicit recheck reasons with no stale-limit percentage, and reports provider failures as terminal source_unavailable without invented measurements. Optional wire fields preserve legacy defaults; consumer handoff updated. PDF-enabled lifecycle test also passes (1 test, 16 deliberately deselected).
+
+- 22:00 EST: watch/recheck packet passes 1306 Python tests with no skips/xfails; focused safety/API 37 passed before two additional watch regressions. Contract regenerated; UI typecheck/lint/81 tests/build pass. Provider outages produce an explicit terminal event, never a fabricated calm reading.
+
+- 22:09 EST: printable sheets preserve prescribed holding assistance separately from berthing tugs, show analysis/threshold references and evaluated-time/source, and escape citation text. Legacy missing assistance remains unknown. Watch condition matching now mirrors the independent review exactly (no unassessed fallback acceptance). Full suite 1308 passed, no skips/xfails; focused safety/API 41, UI 81/typecheck/lint/build, contract regeneration passed. CBOFS matching regular-grid URL and a real 3x3 layer-missing example sent to peer PR #43.
+
+- 22:13 EST: F24 selected_config now makes modeled paid-out lengths and wet/dry conditions explicit, with installation tide on selected result/window/condition and manifest. Rechecking at a later tide reproduces stored line tensions; no supported arrival means no selected installation. Full suite 1310 passed, no skips/xfails; focused F24 19, UI 81/typecheck/lint/build pass; contract regenerated. Browser audit uses isolated ports 18100/18101/18888 and temporary tools/data outside git.
+
+- 22:14 EST: headless Chrome browser audit of built UI with external network blocked: initial map/analysis renders and Ask agent→real SSE→Create/Open sheet completes without page exceptions. Trace confirms intake/review selection still implicit/absent; sent actionable U1 and tide-explanation notes to UI inbox. PR #48 merged after green CI; F24 installation packet ready to publish.
+
+## Decisions
+
+- Saved-source `live` retains its existing configured-provider meaning for compatibility; the response source is authoritative. Explicit mock stays synthetic. Direct saved replay/forecast modes remain unsupported; use an explicit recorded environment scenario or the supplied-series planning endpoint. No source substitution on errors.
+
+- Integrate green PRs into dev; leave main and colleagues’ worktrees alone.
+- Deliver demonstration within assumptions; seed data and unreviewed sequence rules prevent operational qualification.
+- Expanded plan: [MODELING_OVERNIGHT_PLAN.md](../MODELING_OVERNIGHT_PLAN.md).
+
+## Interfaces
+
+- Vision: same upload/job/confirm endpoints, now real deterministic catalog drafts by metadata berth_id; no-LLM path does not claim image extraction. Optional image proposals require scale plus pier_face_start_px/end_px. POST /berth-drafts computes unsaved geometry; confirmed berths are registered via toolkit POST /berths. Drafts stay estimated/unqualified.
+
+- F24: POST /mooring/forecast-plan (job → ForecastDockingResponse) and POST /data-simulation/forecast (ForecastSeries). Documentation docs/FORECAST_DOCKING.md; full request fixtures in contract/examples/modeling. Ten new tests cover coverage, interior peak, issue-time leakage, cancellation/budget and real API jobs.
+
+- /mooring/recommend additive design_basis=forecast_only requires forecast_env; absent retains MST checks. Optional tugs and standoff_ft preserve assisted geometry. Candidate.tugs identifies assistance actually evaluated. Actual forecast tides retained. New forecast docking endpoint in progress.
+
+- M1: GET /api/v1/demo/docking-cases returns four typed request bundles (ddg-supported-limited, ddg-overloaded, ddg-invalid-data, ddg-undetermined). POST environment_request to /env/scenarios, substitute returned id into scenario_request.env_source.env_scenario_id, then POST /scenarios. Direct analysis_request and optional envelope_request reproduce the named outcomes. Contract examples demo_ddg-*.json are generated.
+
+- /intake/reports supports horizon_hours 1–120 (24 default); pass intake_report_id to /agent/plans to preserve forecast conditions.
+- /mooring/recommend checks MST alternatives plus forecast_env; failed bounded search is not proof of infeasibility.
+- Additive forecast-planning contract to follow; agent C owns NOAA acquisition.
+
+## Requests
+
+## Tomorrow
+
+- Qualified vessel/pier data and pilot/deck-officer review remain prerequisites for live use.
+
+## REVIEW_NEEDED
+
+NSTM references, line/pier capacities, wind averaging conversions, tug estimates, sequence durations and intermediate handling assumptions.
+
+
+## Morning handoff (06:48 EST checkpoint)
+
+All implementation is committed and pushed on `agents/overnight`; PR #102 is the last pending
+correctness packet. Earlier packets are merged into `dev`. Do not touch `main`, the shared checkout,
+or the held `ui/frontend-updates` branch. The complete overnight acceptance gate is **not passed**.
+
+Working backend paths include the four named demonstration cases, Intake/Planner/independent Safety,
+HTML/PDF sheets, deterministic berth drafts and confirmation, optional guarded narration, persistent
+owned documents, and supplied-series advance forecast planning with reusable labeled simulation.
+The forecast plan preserves selected paid-out line lengths and installation tide, assesses coverage
+past arrival, and supports explicit short-lead reassessment. It is a static assessment, not an approved
+maneuver or a qualified ship/pier operating envelope.
+
+Remaining integration gaps: explicit Intake and Safety-review selection in the shared UI; `make demo-check`;
+held UI integration; production public-forecast composition and automatic F24-to-review workflow.
+Offline demonstrations use labeled synthetic inputs, not a completed recorded-real environment gate.
+Qualified vessel/berth/rope/tug data, berth-applicable current profiles, wave/wake response and human
+handling/abort acceptance remain prerequisites for operational use.
+
+Resume checklist:
+1. Check PR #102 CI; merge only when green, using its exact head. Fetch and merge `origin/dev` in this worktree.
+2. Run the prepared temporary `/tmp/psp-final-chain-smoke.py` on the merged head; preserve its revision and scope
+   separately from the completed long soak. It owns and stops its isolated test services.
+3. Publish the final report/evidence and continue peer branch/inbox/comment monitoring until 13:00 UTC,
+   if this local machine remains awake. Feature freeze is 12:00 UTC; no new features after that.
+4. Stop the owned watcher (PID 8052, verify its command first) at the deadline. Never stop colleague processes.
+
+Current evidence: 1,734 Python tests, 128 UI tests, no skips/xfails; contract check, TypeScript, lint and build pass.
+Final Chrome probes covered all four initial analyses, recommendation application/recheck, risk/wind/timeline
+semantics and sheet/map consistency, with real local APIs and external network blocked. They do not replace
+the missing explicit full browser acceptance flow. Detailed UI handoff: [recommendations](../MODELING_UI_RECOMMENDATIONS.md).
+
+
+## Final report
+
+**UI integration addendum:** The user subsequently authorized integrating `ui/frontend-updates` only,
+and explicitly excluded `frontend-exercise`. The separate integration checkout fixes the earlier
+compatibility findings and preserves the overnight modeling/display behavior. Combined verification:
+1,734 Python / 191 UI tests; contract/typecheck/lint/build pass. The new scoped `make demo-check`
+passed 20/20 browser/API checks on the final integration code, with no failures or skips. A separate
+four-case initial-analysis browser check also passed, retaining invalid-load suppression and canonical source resolution.
+This supplies motion, data-source/capability and berth-draft UI panels. Explicit Intake/review selection,
+production public forecast composition and the complete browser acceptance gate remain unfinished.
+The earlier report below describes the pre-integration checkpoint.
+
+Prepared at 06:51 EST, 5 November 2026; monitoring continues until the 08:00 deadline while the local
+machine is available. This section supersedes the pending-PR checkpoint above. PR #102 passed both CI
+jobs and merged into `dev` as `ac228a6`. No changes were made to `main` or the held UI branch.
+
+### What works
+
+- Four named API demonstration chains: supported AMBER/limited with ready-for-signature review;
+  overloaded RED/reject; invalid depth RED/revise; initially underconstrained RED/invalid arrangement
+  repaired by search to AMBER/limited. Ready-for-signature is a review verdict, not an approval or qualification.
+- Deterministic Intake, bounded line/tug planning, independent Safety review, cited HTML/PDF sheets,
+  optional guarded narration, and deterministic metadata-based berth drafts/confirmation.
+- Supplied-series planning at least 24 hours before arrival, coverage checks through the post-arrival
+  period, line installation lengths/tide, and explicit short-lead reassessment. Reusable synthetic
+  generators live in `modeling/mooring/data_simulation/` and label outputs as scenarios.
+- Public provider integrations retain source/age/error semantics. Temporary NOAA/NWS/current/tide
+  probes informed the plan without committing raw downloads or silently replacing missing data.
+- Opt-in authentication, owned persistent documents, restart interruption handling and backup/restore
+  checks. Shared confirmed berths persist with immutable IDs; deployment administration remains open.
+- Shared UI fixes preserve assessed recommendation geometry/assistance, use consistent wind units,
+  label risk assumptions and withhold unusable/stale loads and unrelated map images in sheets.
+
+### Verification and its boundaries
+
+`make test`: **1,734 passed**, no skips or xfails. UI: **128 passed**, plus TypeScript, lint and build.
+`make contract-check` passes; generated contract and UI types are current. PR #102 CI passed both jobs.
+
+The completed 3-hour-37-minute soak used frozen source `04e7fe9`: 218 full chains, 1,308 cross-owner
+404s, no failures, maximum chain time 8.575 seconds. A separate final short run used `cf1286f`
+(PR #102 merged plus checkpoint documentation): eight chains, two of each case, 48 cross-owner 404s,
+29.0 seconds total, maximum chain time 7.617 seconds. It also verified unavailable load cells and no
+GREEN line status in invalid printed sheets. All owned soak services stopped. Full workload/scope and
+memory/storage limitations are in [deployment readiness](../DEPLOYMENT_READINESS.md).
+
+Actual Chrome with real local services and external network blocked passed four initial-case analyses,
+recommendation apply/recheck, risk/wind/timeline displays and sheet/map consistency with no page errors.
+Those targeted checks do **not** establish the complete explicit browser acceptance flow. Separate
+one-hour reconnect/slow-reader tests and restart/backup probes are recorded in deployment readiness.
+
+### Incomplete, limited and deferred
+
+The overnight acceptance gate is **not complete**. Explicit Intake and independent Safety-review
+selection, held UI integration and `make demo-check` remain missing on shared `dev`. The production
+public forecast composer and automatic F24-to-Planner/Safety workflow are unavailable. Offline default
+inputs are synthetic; the recorded-real offline gate is not claimed. Motion/Vision browser acceptance
+requires the UI colleague's completed integration and checks.
+
+Seed assets, synthetic dynamics/wave response, uncertainty probabilities, draft sequence timing and
+broader wind-duration conversions remain unqualified or unsupported as documented. Static assessment
+covers wind/current, not wave/wake forces or an approved docking maneuver. No amount of passing
+software tests establishes an operationally safe ship/pier plan.
+
+### Coordination and next priorities
+
+Branch and inbox watchers, plus GitHub coordination comments, asked colleagues to track `dev` and each
+other's interfaces. No acknowledgment or new peer head was observed at this checkpoint. Messages being
+posted is not evidence that another agent received or acted on them. Watchers need this Mac awake/online.
+
+1. UI colleague: use [UI recommendations](../MODELING_UI_RECOMMENDATIONS.md) and the held-branch
+   [compatibility review](UI_COMPATIBILITY_REVIEW.md); finish the explicit flow and automated browser gate.
+2. Data colleague: compose time-aligned, issued, berth-applicable public guidance; retain missing depth
+   layers and transfer uncertainty as limitations rather than using an unstated nearby/surface substitute.
+3. Obtain one qualified vessel/berth/rope/tug bundle from [data requests](../DATA_REQUESTS.md). Have a
+   pilot/deck officer review line placement, tending, tug release, abort criteria, UKC and traffic assumptions.
+4. Qualify only the intended operating envelope. A fine wave mesh is not the immediate priority; credible
+   berth current/depth, asset ratings, handling limits and explicit wave/wake exclusions are.
+5. Rehearse authentication, retention, backup recovery and provider outages in the intended deployment.
+
+### Exact local commands
+
+From a checkout containing the merged `dev` work, with Python 3.12, uv and Node 20+ installed:
+
+```sh
+make install
+make contract-check
+make test
+cd frontend/packages/web
+npm run typecheck
+npm run lint
+npm test
+npm run build
+cd ../../..
+./app.sh
+```
+
+`app.sh` starts modeling on 8000, agents on 8001 and the UI on 8888; open `http://localhost:8888`.
+Do not run a second backend stack on those ports. On the verified Apple Silicon Mac with native PDF
+libraries in `/opt/homebrew/lib`, use `PDF_LIBRARY_PATH=/opt/homebrew/lib ./app.sh` instead. Missing
+PDF native libraries produce explicit 501; HTML/browser print remains available. For backend-only
+development, `make mock PDF_LIBRARY_PATH=/opt/homebrew/lib` starts the two services. Default unset
+auth is local-demo mode, not a secure deployment configuration. `make demo-check` is not implemented.
+
+Detailed execution scope: [expanded plan](../MODELING_OVERNIGHT_PLAN.md),
+[capability ledger](../MODELING_BUILDOUT_STATUS.md), and [forecast API guide](../FORECAST_DOCKING.md).

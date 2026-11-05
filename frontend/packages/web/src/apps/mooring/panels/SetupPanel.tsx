@@ -2,6 +2,7 @@ import { Field, Panel, Select, inputClass } from '../../../shell/ui';
 import { cn } from '../../../lib/cn';
 import { fmt, lengthFromDisplay, lengthToDisplay, lengthUnit, useUnitSystem } from '../units';
 import { useController, useMooring } from './context';
+import { WorldPicker } from './WorldPicker';
 
 export function SetupPanel() {
   useUnitSystem();
@@ -12,7 +13,8 @@ export function SetupPanel() {
 
   return (
     <Panel title="Scenario" className="space-y-3 p-4">
-      <Field label="Pier / berth">
+      <WorldPicker />
+      <Field label="Berth">
         <Select
           value={s.berthId}
           onChange={(v) => void c.setBerth(v)}

@@ -9,7 +9,7 @@ export function BackendBadge({ backend, className }: { backend: string | null | 
       title={mock ? 'Placeholder values from the mock backend, not validated physics.' : `Backend: ${backend}`}
       className={cn(
         'inline-block rounded-sm border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest',
-        mock ? 'border-mil-amber/60 bg-mil-amber/10 text-mil-amber' : 'border-mil-green/50 text-mil-green',
+        mock ? 'border-mil-amber/60 bg-mil-amber/10 text-mil-amber' : 'border-mil-border text-mil-text',
         className,
       )}
     >

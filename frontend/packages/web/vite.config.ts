@@ -11,8 +11,8 @@ const envDir = path.resolve(__dirname, '../..');
 // That keeps CORS and hosting-prefix problems out of the app. REST lives under /api/v1, WebSockets under /ws.
 function proxy(mode: string) {
   const env = loadEnv(mode, envDir, '');
-  const modeling = env.MODELING_PROXY_TARGET || 'http://localhost:8000';
-  const agents = env.AGENTS_PROXY_TARGET || 'http://localhost:8001';
+  const modeling = env.MODELING_PROXY_TARGET || 'http://127.0.0.1:8000';
+  const agents = env.AGENTS_PROXY_TARGET || 'http://127.0.0.1:8001';
   const rule = (target: string, prefix: string) => ({
     target,
     changeOrigin: true,
@@ -31,10 +31,15 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     viteStaticCopy({
-      targets: ['Workers', 'ThirdParty', 'Assets', 'Widgets'].map((dir) => ({
-        src: `${cesiumSource}/${dir}`,
-        dest: cesiumBaseUrl,
-      })),
+      targets: [
+        ...['Workers', 'ThirdParty', 'Assets', 'Widgets'].map((dir) => ({
+          src: `${cesiumSource}/${dir}`,
+          dest: cesiumBaseUrl,
+        })),
+        // Recorded RM0 motion fixtures, so the motion view can replay with no backend and no network.
+        { src: '../../../contract/examples/modeling/sim_recording_60s.json', dest: 'fixtures' },
+        { src: '../../../contract/examples/modeling/sim_scene.json', dest: 'fixtures' },
+      ],
     }),
   ],
   define: { CESIUM_BASE_URL: JSON.stringify(cesiumBaseUrl) },

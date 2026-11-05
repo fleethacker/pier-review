@@ -74,6 +74,17 @@ describe('Shell layout', () => {
     screen.getByRole('button', { name: /^2d$/i }).click();
     await waitFor(() => expect(store.getState().viewMode).toBe('2d'));
   });
+
+  it('toggles night and day lighting through the store', async () => {
+    registerTestApp();
+    const store = new SceneStore();
+    render(<Shell store={store} />);
+    await waitFor(() => expect(screen.getByText('sidebar content')).toBeTruthy());
+    expect(store.getState().lighting).toBe('night');
+    fireEvent.click(screen.getByRole('button', { name: 'Day' }));
+    expect(store.getState().lighting).toBe('day');
+    expect(screen.getByRole('button', { name: 'Night' })).toBeTruthy();
+  });
 });
 
 describe('Shell tabs and custom canvases', () => {

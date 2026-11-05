@@ -11,3 +11,10 @@ build/
 .DS_Store
 data/raw/
 .exercise-data/
+
+# make demo-check
+docs/overnight/demo-check-logs/
+
+# trained detector weights and training runs
+data/runs/
+models/*.pt

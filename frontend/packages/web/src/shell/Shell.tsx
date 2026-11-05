@@ -81,7 +81,7 @@ export function Shell({ store }: { store: SceneStore }) {
 
       <div className="flex min-h-0 flex-1">
         {Sidebar && (
-          <aside className="w-[360px] shrink-0 overflow-y-auto border-r border-mil-border bg-mil-panel/60 p-3">
+          <aside className="w-[300px] shrink-0 overflow-y-auto border-r border-mil-border bg-mil-panel/60 p-3 md:w-[360px]">
             <Sidebar />
           </aside>
         )}
@@ -111,7 +111,7 @@ export function Shell({ store }: { store: SceneStore }) {
           )}
         </main>
         {Side && (
-          <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-mil-border bg-mil-panel/60 p-3">
+          <aside className="hidden w-[320px] shrink-0 overflow-y-auto border-l border-mil-border bg-mil-panel/60 p-3 lg:block">
             <Side />
           </aside>
         )}

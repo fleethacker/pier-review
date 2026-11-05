@@ -2,6 +2,8 @@ export type StreamStatus = 'connecting' | 'open' | 'closed' | 'error';
 
 export interface StreamHandle {
   close(): void;
+  /** Sends on the current socket. Returns false (and sends nothing) when the socket is not open. */
+  send(data: string): boolean;
 }
 
 /**
@@ -9,7 +11,8 @@ export interface StreamHandle {
  * reported as 'closed' and not reopened.
  */
 export function openJsonStream<T>(
-  url: string,
+  /** A function is re-evaluated on every reconnect, e.g. to resume after the last sequence received. */
+  url: string | (() => string),
   onMessage: (message: T) => void,
   onStatus: (status: StreamStatus) => void,
 ): StreamHandle {
@@ -20,22 +23,24 @@ export function openJsonStream<T>(
 
   const connect = () => {
     onStatus('connecting');
-    socket = new WebSocket(url);
+    socket = new WebSocket(typeof url === 'function' ? url() : url);
     socket.onopen = () => {
+      if (closedByUs) return;
       attempt = 0;
       onStatus('open');
     };
     socket.onmessage = (ev) => {
+      if (closedByUs) return;
       try {
         onMessage(JSON.parse(String(ev.data)) as T);
       } catch {
         // A malformed frame should not kill the stream.
       }
     };
-    socket.onerror = () => onStatus('error');
+    socket.onerror = () => { if (!closedByUs) onStatus('error'); };
     socket.onclose = (ev) => {
       if (closedByUs) return;
-      if (ev.code === 1000) {
+      if ([1000, 1008, 4401, 4404].includes(ev.code)) {
         onStatus('closed');
         return;
       }
@@ -47,6 +52,11 @@ export function openJsonStream<T>(
   connect();
 
   return {
+    send(data: string) {
+      if (!socket || socket.readyState !== 1) return false;
+      socket.send(data);
+      return true;
+    },
     close() {
       closedByUs = true;
       clearTimeout(timer);

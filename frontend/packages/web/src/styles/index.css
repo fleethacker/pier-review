@@ -15,6 +15,7 @@
 
 @layer components {
   .glass-panel {
+    backdrop-filter: blur(8px);
     background-color: rgba(13, 31, 60, 0.8);
     border: 1px solid #1a3a5c;
     border-radius: 2px;
@@ -52,6 +53,7 @@
     letter-spacing: 0.2em;
     font-weight: 500;
     color: #00e5ff;
+    text-shadow: 0 0 8px currentColor;
   }
 
   .mil-value {
@@ -78,4 +80,16 @@
   border: 1px solid #1a3a5c !important;
   border-radius: 2px !important;
   padding: 2px 6px !important;
+}
+
+/* Honour the system setting: no decorative animation or smooth transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

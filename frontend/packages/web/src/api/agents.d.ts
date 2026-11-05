@@ -4,6 +4,278 @@
  */
 
 export interface paths {
+    "/api/v1/intake/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assess the environment for a berth (job; result is an IntakeReport) */
+        post: operations["create_intake_report_api_v1_intake_reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/intake/reports/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Intake Report */
+        get: operations["get_intake_report_api_v1_intake_reports__report_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Physics tools agents may call */
+        get: operations["tools_api_v1_tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/physics/tools/{tool_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run one physics tool through the logged gateway */
+        post: operations["run_tool_api_v1_physics_tools__tool_name__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/physics/calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tool-call ledger, optionally for one plan */
+        get: operations["list_calls_api_v1_physics_calls_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start the planner on a saved scenario, optionally designing for an intake report */
+        post: operations["create_plan_api_v1_agent_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Plan */
+        get: operations["get_plan_api_v1_agent_plans__plan_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/plans/{plan_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** SSE computed step/proposal events and terminal done; follow=true includes subsequent answers. */
+        get: operations["plan_events_api_v1_agent_plans__plan_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/plans/{plan_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask a follow-up; the answer streams as a message event */
+        post: operations["plan_message_api_v1_agent_plans__plan_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/safety/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Independently review a finished plan (job; result is a SafetyReview) */
+        post: operations["create_review_api_v1_safety_reviews_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/safety/reviews/{review_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Review */
+        get: operations["get_review_api_v1_safety_reviews__review_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/safety/watch/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** SSE warnings and recheck notices; terminal source_unavailable on provider failure */
+        get: operations["watch_api_v1_safety_watch__plan_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/safety-sheets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build a safety sheet from a reviewed plan (runs a review if none is given) */
+        post: operations["create_sheet_api_v1_safety_sheets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/safety-sheets/{sheet_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sheet */
+        get: operations["get_sheet_api_v1_safety_sheets__sheet_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/safety-sheets/{sheet_id}/render": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Render the printable sheet as HTML or PDF. */
+        get: operations["render_sheet_api_v1_safety_sheets__sheet_id__render_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/safety-sheets/{sheet_id}/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record an approval or rejection; the sheet locks on the first one */
+        post: operations["approve_sheet_api_v1_safety_sheets__sheet_id__approvals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/berth-vision/analyze": {
         parameters: {
             query?: never;
@@ -38,142 +310,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/agent/plans": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Start the planning agent on a saved scenario */
-        post: operations["create_plan_api_v1_agent_plans_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/agent/plans/{plan_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Plan */
-        get: operations["get_plan_api_v1_agent_plans__plan_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/agent/plans/{plan_id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** SSE: step (AgentStepEvent), proposal (AgentProposalEvent), message (AgentMessageEvent), done (AgentDoneEvent). follow=true keeps the stream open for follow-up answers. */
-        get: operations["plan_events_api_v1_agent_plans__plan_id__events_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/agent/plans/{plan_id}/messages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Ask a follow-up; the answer streams as a `message` event */
-        post: operations["plan_message_api_v1_agent_plans__plan_id__messages_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/safety-sheets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Build a safety sheet from a finished plan */
-        post: operations["create_sheet_api_v1_safety_sheets_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/safety-sheets/{sheet_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Sheet */
-        get: operations["get_sheet_api_v1_safety_sheets__sheet_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/safety-sheets/{sheet_id}/render": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Printable sheet. format=html now; pdf returns 501 until the renderer lands. */
-        get: operations["render_sheet_api_v1_safety_sheets__sheet_id__render_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/safety-sheets/{sheet_id}/approvals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Record an approval or rejection; the sheet locks on the first one */
-        post: operations["approve_sheet_api_v1_safety_sheets__sheet_id__approvals_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -185,7 +321,8 @@ export interface paths {
         get: operations["job_status_api_v1_jobs__job_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Cancel Job */
+        delete: operations["cancel_job_api_v1_jobs__job_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -200,23 +337,6 @@ export interface paths {
         };
         /** Job Events */
         get: operations["job_events_api_v1_jobs__job_id__events_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tools": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Modeling tools the agents may call */
-        get: operations["tools_api_v1_tools_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -282,16 +402,25 @@ export interface components {
             plan_id: string;
             /** Scenario Id */
             scenario_id: string;
+            /** Intake Report Id */
+            intake_report_id?: string | null;
             /**
              * State
              * @enum {string}
              */
-            state: "queued" | "running" | "succeeded" | "failed";
+            state: "queued" | "running" | "succeeded" | "failed" | "cancelled";
             /** Status */
             status?: ("GREEN" | "AMBER" | "RED") | null;
             config?: components["schemas"]["MooringConfig"] | null;
             tug_plan?: components["schemas"]["TugPlanResult"] | null;
             sequence?: components["schemas"]["SequenceResult"] | null;
+            /** Sequence Result Id */
+            sequence_result_id?: string | null;
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Common line-installation tide used across assessed conditions; absent on legacy plans.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
             /** Analysis Result Id */
             analysis_result_id?: string | null;
             /** Risk Result Id */
@@ -304,6 +433,16 @@ export interface components {
             open_questions?: string[];
             /** Safety Sheet Id */
             safety_sheet_id?: string | null;
+            /**
+             * Holding Tugs
+             * @description Assistance included in final analyses.
+             */
+            holding_tugs?: components["schemas"]["TugAssignment"][];
+            /**
+             * Condition Analysis Result Ids
+             * @description Final analysis for each required condition.
+             */
+            condition_analysis_result_ids?: string[];
         };
         /** AgentPlanAccepted */
         AgentPlanAccepted: {
@@ -318,6 +457,11 @@ export interface components {
         AgentPlanRequest: {
             /** Scenario Id */
             scenario_id: string;
+            /**
+             * Intake Report Id
+             * @description Evaluate every planning condition in this report.
+             */
+            intake_report_id?: string | null;
             /**
              * Objective
              * @default moor_for_forecast
@@ -401,7 +545,10 @@ export interface components {
             face_length_ft: number;
             /** Deck Height Mllw Ft */
             deck_height_mllw_ft: number;
-            /** Depth Profile */
+            /**
+             * Depth Profile
+             * @description At least one MLLW depth sample; x_ft stations must be unique. Input ordering is unrestricted.
+             */
             depth_profile: components["schemas"]["DepthPoint"][];
             /** Fittings */
             fittings: components["schemas"]["PierFitting"][];
@@ -421,6 +568,27 @@ export interface components {
             /** Berth Id */
             berth_id: string;
         };
+        /** BerthingWindow */
+        BerthingWindow: {
+            /**
+             * Start Utc
+             * Format: date-time
+             * @description First feasible minute (inclusive).
+             */
+            start_utc: string;
+            /**
+             * End Utc
+             * Format: date-time
+             * @description Last feasible minute (inclusive).
+             */
+            end_utc: string;
+            /** Max Current Kt */
+            max_current_kt: number;
+            /** Max Gust Kt */
+            max_gust_kt: number;
+            /** Required Power Hp */
+            required_power_hp: number;
+        };
         /** Body_vision_analyze_api_v1_berth_vision_analyze_post */
         Body_vision_analyze_api_v1_berth_vision_analyze_post: {
             /**
@@ -434,12 +602,100 @@ export interface components {
              */
             metadata: string;
         };
+        /** CheckResult */
+        CheckResult: {
+            /**
+             * Check Id
+             * @example CITES-IN-LEDGER
+             */
+            check_id: string;
+            /** Title */
+            title: string;
+            /** Passed */
+            passed: boolean;
+            /**
+             * Severity
+             * @description Severity when the check fails (INFO when it passes).
+             * @enum {string}
+             */
+            severity: "INFO" | "AMBER" | "RED";
+            /** Detail */
+            detail: string;
+            /** Cites */
+            cites?: string[];
+        };
+        /**
+         * ConcernWindow
+         * @description A stretch of the horizon that matters for mooring.
+         */
+        ConcernWindow: {
+            /**
+             * Start Utc
+             * Format: date-time
+             */
+            start_utc: string;
+            /**
+             * End Utc
+             * Format: date-time
+             */
+            end_utc: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "gust" | "sustained_wind" | "current" | "wind_shift" | "data_gap";
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "INFO" | "AMBER" | "RED";
+            /** Peak Value */
+            peak_value: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kt" | "deg" | "min";
+            /** Reason */
+            reason: string;
+        };
+        /** DataQualityIssue */
+        DataQualityIssue: {
+            /** Station Id */
+            station_id: string;
+            /**
+             * Issue
+             * @enum {string}
+             */
+            issue: "stale" | "missing" | "flagged" | "out_of_range" | "mock";
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "INFO" | "AMBER" | "RED";
+            /** Detail */
+            detail: string;
+        };
         /** DepthPoint */
         DepthPoint: {
             /** X Ft */
             x_ft: number;
             /** Depth Mllw Ft */
             depth_mllw_ft: number;
+        };
+        /**
+         * DirectionalThreshold
+         * @description Direction-specific limits. Breaking gust is an estimate, not a direct solver result.
+         */
+        DirectionalThreshold: {
+            /** Wind Rel Deg */
+            wind_rel_deg: number;
+            /** Governing Element */
+            governing_element: string | null;
+            /** Limit Wll Gust Kt */
+            limit_wll_gust_kt: number | null;
+            /** Estimated Breaking Gust Kt */
+            estimated_breaking_gust_kt: number | null;
         };
         /**
          * EnvStations
@@ -461,6 +717,132 @@ export interface components {
              * @example 8638610
              */
             water_level: string;
+        };
+        /**
+         * EnvironmentComponentProvenance
+         * @description Provider timing for one forcing component; retrieval is not provider issuance.
+         */
+        EnvironmentComponentProvenance: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "wind" | "current" | "water_level";
+            /**
+             * Source
+             * @description Provider, station/bin or grid product that supplied this component.
+             */
+            source: string;
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "observation" | "prediction" | "scenario";
+            /**
+             * Issued At Utc
+             * @description Actual provider issuance, when supplied; never substitute retrieval time.
+             */
+            issued_at_utc?: string | null;
+            /**
+             * Retrieved At Utc
+             * @description Recorded retrieval completion. If issuance is unknown, this proves only availability by this time, not forecast age or accuracy.
+             */
+            retrieved_at_utc?: string | null;
+            /** Valid From Utc */
+            valid_from_utc?: string | null;
+            /** Valid To Utc */
+            valid_to_utc?: string | null;
+            /**
+             * Quality
+             * @default unknown
+             * @enum {string}
+             */
+            quality: "good" | "suspect" | "poor" | "unknown";
+            /** Limitations */
+            limitations?: string[];
+        };
+        /**
+         * EnvironmentMetadata
+         * @description Where an environment snapshot came from and how to read its numbers (S00a).
+         *
+         *     Optional: absent means the basis is undocumented, and the legacy meaning applies (wind is a 10 m, 1-minute
+         *     sustained speed; the gust is assumed to be 30 s). Supplying metadata never changes the numerical values.
+         */
+        EnvironmentMetadata: {
+            /**
+             * Components
+             * @description Optional per-component provenance for composed snapshots. Advance public forecasts require wind, current and water level when this is supplied.
+             */
+            components?: components["schemas"]["EnvironmentComponentProvenance"][];
+            /**
+             * Basis
+             * @description Measured, forecast/model output, or synthetic what-if input.
+             * @enum {string}
+             */
+            basis: "observation" | "prediction" | "scenario";
+            /**
+             * Source
+             * @description Provider or station, e.g. 'NOAA CO-OPS 8638610'.
+             * @example NOAA CO-OPS 8638610
+             */
+            source?: string | null;
+            /**
+             * Issued At Utc
+             * @description When the observation or forecast was produced.
+             */
+            issued_at_utc?: string | null;
+            /** Valid From Utc */
+            valid_from_utc?: string | null;
+            /** Valid To Utc */
+            valid_to_utc?: string | null;
+            /**
+             * Wind Averaging S
+             * @description Averaging time of wind_speed_kt.
+             */
+            wind_averaging_s?: number | null;
+            /**
+             * Gust Duration S
+             * @description Duration of wind_gust_kt.
+             */
+            gust_duration_s?: number | null;
+            /**
+             * Wind Reference Height M
+             * @description Anemometer or model height.
+             */
+            wind_reference_height_m?: number | null;
+            /**
+             * Current Depth Ft
+             * @description Depth of the current measurement below the surface.
+             */
+            current_depth_ft?: number | null;
+            /**
+             * Current Bin
+             * @description Instrument bin or model layer id.
+             */
+            current_bin?: string | null;
+            /**
+             * Vertical Datum
+             * @description Datum of water_level_mllw_ft. Its name says MLLW; any other value is a conflict.
+             */
+            vertical_datum?: ("MLLW" | "MSL" | "NAVD88" | "other") | null;
+            /**
+             * Quality
+             * @default unknown
+             * @enum {string}
+             */
+            quality: "good" | "suspect" | "poor" | "unknown";
+            /**
+             * Age S
+             * @description Age of the newest observation when the snapshot was built.
+             */
+            age_s?: number | null;
+            /**
+             * Original
+             * @description Provider values exactly as received, with their units in the key names, before normalization.
+             */
+            original?: {
+                [key: string]: number | string;
+            } | null;
         };
         /**
          * EnvironmentSnapshot
@@ -524,6 +906,8 @@ export interface components {
             current_rel_ship_deg?: number | null;
             /** Quality */
             quality?: components["schemas"]["StationQuality"][];
+            /** @description Basis, timing, averaging and datum. Absent means undocumented (legacy). */
+            metadata?: components["schemas"]["EnvironmentMetadata"] | null;
         };
         /**
          * Fender
@@ -612,6 +996,84 @@ export interface components {
              */
             backend: "mock" | "real" | "mixed";
         };
+        /** IntakeReport */
+        IntakeReport: {
+            /** Report Id */
+            report_id: string;
+            /**
+             * Created At Utc
+             * Format: date-time
+             * @description UTC availability cutoff captured after input retrieval; assessment processing may finish later.
+             */
+            created_at_utc: string;
+            /** Berth Id */
+            berth_id: string;
+            /** Ship Class Id */
+            ship_class_id: string | null;
+            /** Side To */
+            side_to: ("port" | "starboard") | null;
+            /** Horizon Hours */
+            horizon_hours: number;
+            current: components["schemas"]["EnvironmentSnapshot"];
+            mst: components["schemas"]["MstAssessment"];
+            /** Windows */
+            windows: components["schemas"]["ConcernWindow"][];
+            /**
+             * Planning Conditions
+             * @description Worst case first. The Planner designs for these.
+             */
+            planning_conditions: components["schemas"]["PlanningCondition"][];
+            /** Berthing Windows */
+            berthing_windows: components["schemas"]["BerthingWindow"][];
+            /** Data Quality */
+            data_quality: components["schemas"]["DataQualityIssue"][];
+            /** Summary */
+            summary: string;
+            /**
+             * Summary Source
+             * @description Source of narration after the code-owned risk headline; null for legacy reports.
+             */
+            summary_source?: ("llm" | "deterministic") | null;
+            /**
+             * Narration Note
+             * @description Sanitized fallback reason; null when narration succeeds.
+             */
+            narration_note?: string | null;
+            /**
+             * Tool Call Ids
+             * @description Ledger entries (GET /physics/calls) behind this report.
+             */
+            tool_call_ids: string[];
+            /**
+             * Backend
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+        };
+        /** IntakeRequest */
+        IntakeRequest: {
+            /**
+             * Scenario Id
+             * @description Takes berth, ship and side from the scenario.
+             */
+            scenario_id?: string | null;
+            /** Berth Id */
+            berth_id?: string | null;
+            /** Ship Class Id */
+            ship_class_id?: string | null;
+            /** Side To */
+            side_to?: ("port" | "starboard") | null;
+            /**
+             * Horizon Hours
+             * @default 24
+             */
+            horizon_hours: number;
+            /**
+             * Env Scenario Id
+             * @description Use a synthetic environment instead of live data.
+             */
+            env_scenario_id?: string | null;
+        };
         /**
          * JobAccepted
          * @description Returned with HTTP 202 by every long-running endpoint.
@@ -642,7 +1104,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "queued" | "running" | "succeeded" | "failed";
+            state: "queued" | "running" | "succeeded" | "failed" | "cancelled";
             /** Progress */
             progress: number;
             /**
@@ -681,7 +1143,10 @@ export interface components {
              * @description Defaults to the berth's camel standoff.
              */
             standoff_ft?: number | null;
-            /** Lines */
+            /**
+             * Lines
+             * @description Lines with unique line_number identifiers; gaps in numbering are permitted.
+             */
             lines: components["schemas"]["MooringLine"][];
         };
         /**
@@ -723,10 +1188,44 @@ export interface components {
              * @example P12N-B16
              */
             pier_fitting_id: string;
-            /** Pretension Lbf */
+            /**
+             * Pretension Lbf
+             * @description Initial tension. Legacy default when omitted: 2% of effective MBS (0 if slack_ft > 0). Mutually exclusive with a positive slack_ft: a slack line carries no tension.
+             */
             pretension_lbf?: number | null;
-            /** Slack Ft */
+            /**
+             * Slack Ft
+             * @description Extra line length beyond the straight-line distance, in feet of stretched length.
+             */
             slack_ft?: number | null;
+            /**
+             * Paid Out Unstretched Length Ft
+             * @description Unstretched length paid out between fittings. Used directly as the installed rest length by the M4 equilibrium solver. Cannot be combined with slack_ft or pretension_lbf.
+             */
+            paid_out_unstretched_length_ft?: number | null;
+            /**
+             * Condition
+             * @description Strength condition for this line (wet applies the spec's wet-strength factor). When omitted the request's lines_wet applies (legacy).
+             */
+            condition?: ("wet" | "dry") | null;
+        };
+        /** MstAssessment */
+        MstAssessment: {
+            /**
+             * Mst Required
+             * @description Lowest Mooring Service Type whose limits cover the horizon.
+             */
+            mst_required: ("I" | "II" | "IIA" | "III") | "exceeds_III";
+            /** Ship Mst */
+            ship_mst: ("II" | "IIA") | null;
+            /** Exceeds Ship Mst */
+            exceeds_ship_mst: boolean;
+            /** Max Wind Kt */
+            max_wind_kt: number;
+            /** Max Broadside Current Kt */
+            max_broadside_current_kt: number | null;
+            /** Reason */
+            reason: string;
         };
         /**
          * PierFitting
@@ -787,6 +1286,20 @@ export interface components {
             status: "GREEN" | "AMBER" | "RED";
         };
         /**
+         * PlanningCondition
+         * @description An environment the Planner must design for, with why it was chosen.
+         */
+        PlanningCondition: {
+            /**
+             * Label
+             * @example Worst gust in horizon
+             */
+            label: string;
+            environment: components["schemas"]["EnvironmentSnapshot"];
+            /** Why */
+            why: string;
+        };
+        /**
          * Provenance
          * @description Where a value came from, so the UI and safety sheet can show how much to trust it.
          */
@@ -802,7 +1315,7 @@ export interface components {
              * Confidence
              * @enum {string}
              */
-            confidence: "published" | "estimated" | "mock" | "vision";
+            confidence: "published" | "estimated" | "mock" | "vision" | "synthetic";
             /** Notes */
             notes?: string | null;
         };
@@ -828,14 +1341,86 @@ export interface components {
              */
             cites: string[];
         };
+        /** SafetyReview */
+        SafetyReview: {
+            validity?: components["schemas"]["Validity"] | null;
+            /** Review Id */
+            review_id: string;
+            /** Plan Id */
+            plan_id: string;
+            /**
+             * Created At Utc
+             * Format: date-time
+             */
+            created_at_utc: string;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "ready_for_signature" | "revise" | "reject";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Checks */
+            checks: components["schemas"]["CheckResult"][];
+            thresholds: components["schemas"]["Thresholds"];
+            /** Summary */
+            summary: string;
+            /** Brief */
+            brief?: string | null;
+            /** Summary Source */
+            summary_source?: ("llm" | "deterministic") | null;
+            /** Narration Note */
+            narration_note?: string | null;
+            /** Intake Report Id */
+            intake_report_id?: string | null;
+            /**
+             * Backend
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+        };
+        /** SafetyReviewRequest */
+        SafetyReviewRequest: {
+            /** Plan Id */
+            plan_id: string;
+            /**
+             * Intake Report Id
+             * @description Add this report's conditions to the original intake conditions; neither report is discarded.
+             */
+            intake_report_id?: string | null;
+            /**
+             * Target Margin Pct Wll
+             * @default 80
+             */
+            target_margin_pct_wll: number;
+        };
         /** SafetySheet */
         SafetySheet: {
+            validity?: components["schemas"]["Validity"] | null;
+            /** Analysis Result Id */
+            analysis_result_id?: string | null;
+            /** Installed At Water Level Mllw Ft */
+            installed_at_water_level_mllw_ft?: number | null;
+            /** Sequence Result Id */
+            sequence_result_id?: string | null;
+            /** Threshold Result Ids */
+            threshold_result_ids?: string[];
+            /**
+             * Holding Tugs
+             * @description Prescribed continuous assistance included in the line/holding assessment; null means not recorded in a legacy sheet.
+             */
+            holding_tugs?: components["schemas"]["TugAssignment"][] | null;
             /** Sheet Id */
             sheet_id: string;
             /** Version */
             version: number;
             /** Plan Id */
             plan_id: string;
+            /** Review Id */
+            review_id?: string | null;
             /**
              * Locked
              * @description True once any approval is recorded; changes create a new version.
@@ -855,8 +1440,19 @@ export interface components {
             tug_plan: components["schemas"]["TugPlanResult"] | null;
             /** Sequence */
             sequence: components["schemas"]["SequenceStep"][];
+            /**
+             * Sequence Review Status
+             * @description Review state of the line-handling sequence from the modeling service; 'draft_unreviewed' until a deck officer or pilot reviews it.
+             */
+            sequence_review_status?: string | null;
+            /** Sequence Limitations */
+            sequence_limitations?: string[];
             /** Go No Go */
             go_no_go: components["schemas"]["GoNoGo"][];
+            /** Brief */
+            brief?: string | null;
+            /** Directional Thresholds */
+            directional_thresholds?: components["schemas"]["DirectionalThreshold"][];
             /** Warnings */
             warnings: components["schemas"]["Finding"][];
             /** Rationale */
@@ -876,6 +1472,11 @@ export interface components {
         SafetySheetCreate: {
             /** Plan Id */
             plan_id: string;
+            /**
+             * Review Id
+             * @description Use this review; one is run if omitted.
+             */
+            review_id?: string | null;
         };
         /** SafetySheetCreated */
         SafetySheetCreated: {
@@ -884,12 +1485,46 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** SequenceIssue */
+        SequenceIssue: {
+            /** Code */
+            code: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "AMBER" | "RED";
+            /** Step */
+            step?: number | null;
+            /** Line Number */
+            line_number?: number | null;
+            /** Message */
+            message: string;
+        };
         /** SequenceResult */
         SequenceResult: {
             /** Steps */
             steps: components["schemas"]["SequenceStep"][];
             /** Crews Required */
             crews_required: number;
+            /** Issues */
+            issues?: components["schemas"]["SequenceIssue"][];
+            /**
+             * Review Status
+             * @description Generated sequences are drafts until a deck officer or pilot reviews them.
+             * @default draft_unreviewed
+             * @enum {string}
+             */
+            review_status: "draft_unreviewed" | "reviewed";
+            /** Timing Assumptions */
+            timing_assumptions?: string[];
+            /** Limitations */
+            limitations?: string[];
+            /**
+             * Total Duration Min
+             * @description Critical-path estimate from the unreviewed durations.
+             */
+            total_duration_min?: number | null;
         };
         /** SequenceStep */
         SequenceStep: {
@@ -915,6 +1550,33 @@ export interface components {
             caution?: string | null;
             /** Reference */
             reference: string;
+            /**
+             * Depends On
+             * @description Step numbers that must complete first.
+             */
+            depends_on?: number[];
+            /**
+             * Duration Min
+             * @description Planning estimate, unreviewed.
+             */
+            duration_min?: number | null;
+            /**
+             * Tug Ids
+             * @description Tugs this step relies on.
+             */
+            tug_ids?: string[];
+            /**
+             * State Ok
+             * @description Static equilibrium with the lines fast after this step (null when not evaluated).
+             */
+            state_ok?: boolean | null;
+            /**
+             * State Max Pct
+             * @description Highest utilization of that intermediate state.
+             */
+            state_max_pct?: number | null;
+            /** State Note */
+            state_note?: string | null;
         };
         /** SheetEnvironment */
         SheetEnvironment: {
@@ -972,6 +1634,65 @@ export interface components {
              */
             status: "GREEN" | "AMBER" | "RED";
         };
+        /**
+         * SolverDiagnostics
+         * @description Numerical evidence behind a result. Absent values are `null` (not measured), never 0 or NaN.
+         */
+        SolverDiagnostics: {
+            /**
+             * Converged
+             * @description Null when no iterative solve was performed.
+             */
+            converged?: boolean | null;
+            /** Iterations */
+            iterations?: number | null;
+            /**
+             * Residuals
+             * @description Independent force and moment balances, each in its own unit.
+             */
+            residuals?: components["schemas"]["SolverResidual"][];
+            /**
+             * Active Constraints
+             * @description Contacts, slack lines and limits that were active at the solution.
+             */
+            active_constraints?: string[];
+            /**
+             * Rank
+             * @description Numerical rank of the support (stiffness) matrix.
+             */
+            rank?: number | null;
+            /**
+             * Degrees Of Freedom
+             * @description Rank is full when rank equals this.
+             */
+            degrees_of_freedom?: number | null;
+            /** Notes */
+            notes?: string[];
+        };
+        /**
+         * SolverResidual
+         * @description One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
+         */
+        SolverResidual: {
+            /**
+             * Name
+             * @example surge_force
+             */
+            name: string;
+            /** Value */
+            value: number;
+            /**
+             * Unit
+             * @example lbf
+             * @example ftlbf
+             */
+            unit: string;
+            /**
+             * Tolerance
+             * @description Same unit as value.
+             */
+            tolerance: number;
+        };
         /** StationQuality */
         StationQuality: {
             /** Station Id */
@@ -984,17 +1705,123 @@ export interface components {
             /** Flags */
             flags?: string[];
         };
+        /**
+         * Thresholds
+         * @description Model-computed gust limits; breaking remains unavailable without a separate validated model.
+         */
+        Thresholds: {
+            /**
+             * Wind Rel Deg
+             * @description Worst relative wind direction from the limit envelope.
+             */
+            wind_rel_deg: number | null;
+            /** Governing Element */
+            governing_element: string | null;
+            /**
+             * Limit Wll Gust Kt
+             * @description Gust at which the first element reaches its working limit.
+             */
+            limit_wll_gust_kt: number | null;
+            /**
+             * Limit Breaking Gust Kt
+             * @description Unavailable unless a separate validated breaking-limit model establishes it; legacy values were estimates.
+             */
+            limit_breaking_gust_kt: number | null;
+            /** Forecast Max Gust Kt */
+            forecast_max_gust_kt: number;
+            /** Cites */
+            cites: string[];
+            /** Directions */
+            directions?: components["schemas"]["DirectionalThreshold"][];
+        };
+        /**
+         * ToolCall
+         * @description One ledger entry. Safety uses the ledger to prove every cited number came from a recorded tool call.
+         */
+        ToolCall: {
+            /**
+             * Operation Id
+             * @description Server-created agent operation budget scope; absent on legacy/direct gateway calls.
+             */
+            operation_id?: string | null;
+            /** Call Id */
+            call_id: string;
+            /**
+             * At Utc
+             * Format: date-time
+             */
+            at_utc: string;
+            /** Caller */
+            caller: string;
+            /** Plan Id */
+            plan_id: string | null;
+            /** Tool */
+            tool: string;
+            /** Request Hash */
+            request_hash: string;
+            /**
+             * Result Id
+             * @description Envelope result_id when the tool returns one.
+             */
+            result_id: string | null;
+            /** Status */
+            status: ("GREEN" | "AMBER" | "RED") | null;
+            /**
+             * Validity State
+             * @description Validity the modeling service reported. Defaults to 'unknown' (omitted on the wire): never read as valid.
+             * @default unknown
+             * @enum {string}
+             */
+            validity_state: "valid" | "limited" | "invalid" | "unknown";
+            /** Duration Ms */
+            duration_ms: number;
+            /** Error */
+            error?: string | null;
+        };
+        /** ToolCallResult */
+        ToolCallResult: {
+            call: components["schemas"]["ToolCall"];
+            /**
+             * Output
+             * @description The modeling endpoint's response body, unchanged.
+             */
+            output: unknown;
+        };
+        /** ToolInvocation */
+        ToolInvocation: {
+            /**
+             * Input
+             * @description Path params, query params or request body.
+             */
+            input?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Caller
+             * @description Who is calling: 'ui', 'intake', 'planner', 'safety', ...
+             * @default ui
+             */
+            caller: string;
+            /**
+             * Plan Id
+             * @description Ties the call to a plan for audit.
+             */
+            plan_id?: string | null;
+        };
         /** ToolSpec */
         ToolSpec: {
             /** Name */
             name: string;
             /** Description */
             description: string;
-            /** Method */
-            method: string;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "GET" | "POST";
             /**
              * Path
-             * @description Modeling service path under /api/v1.
+             * @description Modeling path under /api/v1. {placeholders} are filled from the input.
              */
             path: string;
             /**
@@ -1002,6 +1829,12 @@ export interface components {
              * @description Component name in contract/modeling.openapi.yaml.
              */
             request_schema: string | null;
+            /**
+             * Async Job
+             * @description True when the endpoint returns a job the gateway polls.
+             * @default false
+             */
+            async_job: boolean;
         };
         /** TugAssignment */
         TugAssignment: {
@@ -1037,6 +1870,31 @@ export interface components {
             feasible: boolean;
             /** Rationale */
             rationale: string[];
+            /** @description Wrench the tugs must supply (after margin). */
+            required_wrench?: components["schemas"]["WrenchLbf"] | null;
+            delivered_wrench?: components["schemas"]["WrenchLbf"] | null;
+            /** @description required - delivered. Feasible only when every component is within tolerance. */
+            residual_wrench?: components["schemas"]["WrenchLbf"] | null;
+            /**
+             * Binding Constraints
+             * @description Rating, direction or hull-point limits that are active.
+             */
+            binding_constraints?: string[];
+            /**
+             * Ratings Basis
+             * @description Where the pull ratings come from (catalog estimate, not certified).
+             */
+            ratings_basis?: string | null;
+            /**
+             * Assisted Max Pct Wll
+             * @description Holding plans: highest line/fitting utilization from a fresh equilibrium solve with the tugs applied.
+             */
+            assisted_max_pct_wll?: number | null;
+            /**
+             * Assisted Result Id
+             * @description Holding plans: the analysis envelope of that fresh solve.
+             */
+            assisted_result_id?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -1050,6 +1908,45 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * Validity
+         * @description Whether the numbers can be relied on, independent of the GREEN/AMBER/RED status.
+         *
+         *     `valid`: inside the model's qualified domain. `limited`: usable with the stated caveats, so never an
+         *     unconditional GREEN. `invalid`: do not use the numbers; status is RED. `unknown`: not assessed.
+         *     A numerical failure is not proof that no physical solution exists: report it as `invalid` with a reason.
+         */
+        Validity: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "valid" | "limited" | "invalid" | "unknown";
+            /** Reasons */
+            reasons?: components["schemas"]["ValidityReason"][];
+            diagnostics?: components["schemas"]["SolverDiagnostics"] | null;
+        };
+        /**
+         * ValidityReason
+         * @description Why a result is limited or invalid. Codes are stable UPPER_SNAKE identifiers that clients may switch on.
+         */
+        ValidityReason: {
+            /**
+             * Code
+             * @example MISSING_FITTING_RATING
+             */
+            code: string;
+            /** Message */
+            message: string;
+            /**
+             * Affected Components
+             * @description Element ids the reason applies to, e.g. 'line-2', 'P12N-B16'.
+             * @example [
+             *       "line-2"
+             *     ]
+             */
+            affected_components?: string[];
         };
         /** VersionInfo */
         VersionInfo: {
@@ -1068,6 +1965,18 @@ export interface components {
             berth: components["schemas"]["Berth"];
         };
         /**
+         * WrenchLbf
+         * @description Force and yaw moment in the ship frame (+x forward, +y to port, yaw CCW) about midships.
+         */
+        WrenchLbf: {
+            /** Fx Lbf */
+            fx_lbf: number;
+            /** Fy Lbf */
+            fy_lbf: number;
+            /** Mz Ftlbf */
+            mz_ftlbf: number;
+        };
+        /**
          * AgentDoneEvent
          * @description `event: done`
          */
@@ -1079,6 +1988,16 @@ export interface components {
              * @enum {string}
              */
             status: "GREEN" | "AMBER" | "RED";
+            /**
+             * State
+             * @default null
+             */
+            state: ("queued" | "running" | "succeeded" | "failed" | "cancelled") | null;
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
         };
         /**
          * AgentMessageEvent
@@ -1118,6 +2037,38 @@ export interface components {
             /** Result Id */
             result_id: string | null;
         };
+        /** Detection */
+        Detection: {
+            /** Item Id */
+            item_id: string;
+            /**
+             * Kind
+             * @description Pier fitting kind, 'fender', 'camel', 'pier_face' or 'obstruction'.
+             */
+            kind: string;
+            /**
+             * Center Px
+             * @default null
+             */
+            center_px: [
+                number,
+                number
+            ] | null;
+            /**
+             * Bbox Px
+             * @description [x, y, width, height] in image pixels; null when not measured from the image.
+             */
+            bbox_px: [
+                number,
+                number,
+                number,
+                number
+            ] | null;
+            /** Confidence */
+            confidence: number;
+            /** Needs Confirmation */
+            needs_confirmation: boolean;
+        };
         /** Georef */
         Georef: {
             /**
@@ -1148,10 +2099,156 @@ export interface components {
             lon: number;
         };
         /**
+         * GustWarning
+         * @description SSE `warning` event on GET /safety/watch/{plan_id}.
+         */
+        GustWarning: {
+            /**
+             * Requires Recheck
+             * @default false
+             */
+            requires_recheck: boolean;
+            /** Recheck Reasons */
+            recheck_reasons?: string[];
+            /** Warning Id */
+            warning_id: string;
+            /** Plan Id */
+            plan_id: string;
+            /**
+             * At Utc
+             * Format: date-time
+             */
+            at_utc: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "INFO" | "AMBER" | "RED";
+            /** Gust Kt */
+            gust_kt: number;
+            /** Wind From True Deg */
+            wind_from_true_deg: number;
+            /** Pct Of Wll Limit */
+            pct_of_wll_limit: number | null;
+            /** Pct Of Breaking Limit */
+            pct_of_breaking_limit: number | null;
+            /** Element Id */
+            element_id: string | null;
+            /** Message */
+            message: string;
+        };
+        /**
+         * ManifestRecord
+         * @description A resolved reference record that went into a result.
+         */
+        ManifestRecord: {
+            /**
+             * Kind
+             * @example ship
+             * @example berth
+             * @example line_spec
+             * @example tug
+             */
+            kind: string;
+            /** Id */
+            id: string;
+            /**
+             * Revision
+             * @description Content hash or version of the record; null if unversioned.
+             * @default null
+             */
+            revision: string | null;
+        };
+        /**
+         * ResultManifest
+         * @description What a result depended on, so it can be reproduced. `inputs_hash` still hashes the request as sent;
+         *     `resolved_inputs_hash` hashes the request after defaults and references are resolved.
+         */
+        ResultManifest: {
+            /**
+             * Resolved Inputs Hash
+             * @description sha256 of the canonical resolved inputs.
+             * @default null
+             */
+            resolved_inputs_hash: string | null;
+            /**
+             * Code Version
+             * @default null
+             */
+            code_version: string | null;
+            /** Records */
+            records?: components["schemas"]["ManifestRecord"][];
+            /**
+             * Environment Hash
+             * @description sha256 of the environment snapshot used.
+             * @default null
+             */
+            environment_hash: string | null;
+            /** Numerical Settings */
+            numerical_settings?: {
+                [key: string]: number | string | boolean;
+            };
+            /**
+             * Rng Seed
+             * @default null
+             */
+            rng_seed: number | null;
+            /**
+             * Rng Model Revision
+             * @default null
+             */
+            rng_model_revision: string | null;
+        };
+        /**
+         * SafetyWatchUnavailable
+         * @description Terminal SSE source_unavailable event; contains no fabricated measurement.
+         */
+        SafetyWatchUnavailable: {
+            /** Plan Id */
+            plan_id: string;
+            /**
+             * At Utc
+             * Format: date-time
+             */
+            at_utc: string;
+            /**
+             * Severity
+             * @default RED
+             * @constant
+             */
+            severity: "RED";
+            /** Reason */
+            reason: string;
+            /** Retryable */
+            retryable: boolean;
+        };
+        /**
          * VisionMetadata
          * @description Sent as the `metadata` form field (a JSON string) next to the `image` file.
          */
         VisionMetadata: {
+            /**
+             * Berth Id
+             * @description Catalog berth supplying surveyed face location and notional fittings; absent uses an explicitly labeled demo template.
+             * @default null
+             */
+            berth_id: string | null;
+            /**
+             * Pier Face Start Px
+             * @default null
+             */
+            pier_face_start_px: [
+                number,
+                number
+            ] | null;
+            /**
+             * Pier Face End Px
+             * @default null
+             */
+            pier_face_end_px: [
+                number,
+                number
+            ] | null;
             /**
              * Image Kind
              * @enum {string}
@@ -1175,6 +2272,91 @@ export interface components {
              */
             side_to: ("port" | "starboard") | null;
         };
+        /** VisionResponse */
+        VisionResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["VisionResult"];
+        };
+        /** VisionResult */
+        VisionResult: {
+            /**
+             * Recommendation Result Id
+             * @default null
+             */
+            recommendation_result_id: string | null;
+            /**
+             * Extraction Source
+             * @default null
+             */
+            extraction_source: ("deterministic" | "llm" | "detector") | null;
+            /**
+             * Extraction Note
+             * @default null
+             */
+            extraction_note: string | null;
+            /**
+             * Geometry Result Id
+             * @default null
+             */
+            geometry_result_id: string | null;
+            /**
+             * Image Sha256
+             * @default null
+             */
+            image_sha256: string | null;
+            draft_berth: components["schemas"]["Berth"];
+            /** Detections */
+            detections: components["schemas"]["Detection"][];
+            recommended_config: components["schemas"]["MooringConfig"] | null;
+            /** Questions */
+            questions: string[];
+        };
     };
     responses: never;
     parameters: never;
@@ -1184,7 +2366,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    vision_analyze_api_v1_berth_vision_analyze_post: {
+    create_intake_report_api_v1_intake_reports_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -1193,7 +2375,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_vision_analyze_api_v1_berth_vision_analyze_post"];
+                "application/json": components["schemas"]["IntakeRequest"];
             };
         };
         responses: {
@@ -1217,28 +2399,110 @@ export interface operations {
             };
         };
     };
-    vision_confirm_api_v1_berth_vision__job_id__confirm_post: {
+    get_intake_report_api_v1_intake_reports__report_id__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                job_id: string;
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tools_api_v1_tools_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolSpec"][];
+                };
+            };
+        };
+    };
+    run_tool_api_v1_physics_tools__tool_name__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tool_name: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["VisionConfirm"];
+                "application/json": components["schemas"]["ToolInvocation"];
             };
         };
         responses: {
             /** @description Successful Response */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BerthCreated"];
+                    "application/json": components["schemas"]["ToolCallResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_calls_api_v1_physics_calls_get: {
+        parameters: {
+            query?: {
+                plan_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolCall"][];
                 };
             };
             /** @description Validation Error */
@@ -1321,7 +2585,9 @@ export interface operations {
             query?: {
                 follow?: boolean;
             };
-            header?: never;
+            header?: {
+                "last-event-id"?: number | null;
+            };
             path: {
                 plan_id: string;
             };
@@ -1371,6 +2637,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentMessageAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_review_api_v1_safety_reviews_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SafetyReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_review_api_v1_safety_reviews__review_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SafetyReview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    watch_api_v1_safety_watch__plan_id__get: {
+        parameters: {
+            query?: {
+                interval_s?: number;
+                limit?: number;
+                heartbeat_minutes?: number;
+            };
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
                 };
             };
             /** @description Validation Error */
@@ -1467,7 +2832,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "text/html": string;
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -1516,7 +2881,106 @@ export interface operations {
             };
         };
     };
+    vision_analyze_api_v1_berth_vision_analyze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_vision_analyze_api_v1_berth_vision_analyze_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    vision_confirm_api_v1_berth_vision__job_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisionConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BerthCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     job_status_api_v1_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_job_api_v1_jobs__job_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -1550,7 +3014,9 @@ export interface operations {
     job_events_api_v1_jobs__job_id__events_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "last-event-id"?: number | null;
+            };
             path: {
                 job_id: string;
             };
@@ -1574,26 +3040,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    tools_api_v1_tools_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ToolSpec"][];
                 };
             };
         };

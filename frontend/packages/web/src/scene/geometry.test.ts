@@ -8,6 +8,7 @@ import {
   localAngleToBearing,
   resolveAnchor,
   sceneBounds,
+  tiltedPolygonRing,
   topDownHeadingDeg,
 } from './geometry';
 import type { LocalFrame, SceneEntity } from './types';
@@ -83,5 +84,48 @@ describe('constrainMove', () => {
     expect(constrainMove({ x: 152.4, y: 0 }, start, policy).x).toBe(150);
     expect(constrainMove({ x: 900, y: 0 }, start, policy).x).toBe(200);
     expect(constrainMove({ x: -30, y: 0 }, start, policy).x).toBe(0);
+  });
+});
+
+describe('tilted poses', () => {
+  const level = { x: 10, y: 20, z: 1, headingDeg: 40 };
+  const r6 = (n: number) => Math.round(n * 1e6) / 1e6;
+
+  it('is unchanged without roll or pitch, and for explicit zeros', () => {
+    expect(entityToFrame({ ...level, rollDeg: 0, pitchDeg: 0 }, 3, 4, 2)).toEqual(entityToFrame(level, 3, 4, 2));
+  });
+
+  it('rolls right-hand about local +x: +y rises, +z tips toward -y', () => {
+    const p = { ...level, headingDeg: 0, rollDeg: 90 };
+    expect(entityToFrame(p, 0, 1, 0).map(r6)).toEqual([10, 20, 2]);
+    expect(entityToFrame(p, 0, 0, 1).map(r6)).toEqual([10, 19, 1]);
+  });
+
+  it('pitches right-hand about local +y: +x drops, +z tips toward +x', () => {
+    const p = { ...level, headingDeg: 0, pitchDeg: 90 };
+    expect(entityToFrame(p, 1, 0, 0).map(r6)).toEqual([10, 20, 0]);
+    expect(entityToFrame(p, 0, 0, 1).map(r6)).toEqual([11, 20, 1]);
+  });
+
+  it('keeps the heading rotation outermost and tilts about the pose origin', () => {
+    const p = { ...level, rollDeg: 5 };
+    const [x, y] = entityToFrame(p, 10, 0, 0);
+    expect(x).toBeCloseTo(10 + 10 * Math.cos((40 * Math.PI) / 180));
+    expect(y).toBeCloseTo(20 + 10 * Math.sin((40 * Math.PI) / 180));
+    expect(entityToFrame(p, 0, 0, 0)).toEqual([10, 20, 1]);
+  });
+
+  it('builds a tilted top ring with a flat bottom kept below it', () => {
+    const { ring, bottomZ } = tiltedPolygonRing({ ...level, headingDeg: 0, rollDeg: 5 }, [[-10, -5], [10, -5], [10, 5], [-10, 5]], 6);
+    expect(ring).toHaveLength(4);
+    expect(ring[2][2]).toBeGreaterThan(ring[1][2]);
+    expect(bottomZ).toBeCloseTo(1);
+    const steep = tiltedPolygonRing({ ...level, pitchDeg: 40 }, [[-50, 0], [50, 0]], 6);
+    expect(steep.bottomZ).toBeLessThan(Math.min(...steep.ring.map((r) => r[2])));
+  });
+
+  it('skips entities flagged excludeFromFit when computing bounds', () => {
+    const poly = (id: string, half: number, extra = {}) => ({ id, kind: 'k', pose: { x: 0, y: 0, z: 0, headingDeg: 0 }, geometry: { type: 'polygon' as const, points: [[-half, -half], [half, half]] as [number, number][], heightM: 0 }, ...extra });
+    expect(sceneBounds([poly('a', 5), poly('w', 300, { excludeFromFit: true })])).toEqual({ minX: -5, maxX: 5, minY: -5, maxY: 5 });
   });
 });

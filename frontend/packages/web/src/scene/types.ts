@@ -18,6 +18,13 @@ export interface Pose {
   y: number;
   z: number;
   headingDeg: number;
+  /**
+   * Attitude, degrees. Right-hand rotations about the entity's own +x (roll) and +y (pitch) axes, applied as
+   * heading * pitch * roll about the pose origin (so +roll raises the entity's +y side, +pitch lowers its +x end).
+   * Absent means "not supplied" and is drawn level; set only from values a source actually provided.
+   */
+  rollDeg?: number;
+  pitchDeg?: number;
 }
 
 export type Geometry =
@@ -27,6 +34,8 @@ export type Geometry =
       points: [number, number][];
       /** Extrusion height above the pose z. 0 renders a flat polygon. */
       heightM: number;
+      /** Local z of the polygon base above the pose origin (rotates with roll and pitch). Default 0. */
+      baseM?: number;
     }
   | { type: 'point'; sizePx: number };
 
@@ -50,6 +59,10 @@ export interface SceneEntity {
   label?: string;
   /** Draw the label all the time, not only on hover or selection (point entities). */
   labelAlways?: boolean;
+  /** Leave out of camera fitting (large decoration such as a water plane). */
+  excludeFromFit?: boolean;
+  /** Skip the dark outline; for translucent decoration such as shadows, halos and wakes. */
+  noOutline?: boolean;
   pose: Pose;
   geometry: Geometry;
   /** CSS color. When `status` is set it overrides the fill. */
@@ -79,6 +92,8 @@ export interface SceneLink {
   status?: Status;
   color?: string;
   widthPx?: number;
+  /** More than one: drawn heavier with a light outline, so a doubled-up line is told apart at a glance. */
+  strands?: number;
   label?: string;
   selectable?: boolean;
   props?: PropRow[];
@@ -93,10 +108,15 @@ export interface SceneVector {
   lengthM: number;
   label?: string;
   color?: string;
+  /** When set, the shell also streams animated particles along the arrow's direction across the scene. */
+  flow?: { mps: number; /** 0 = steady; 0.3 = speed swings by about +-15%. */ gustiness?: number };
 }
 
 export type Selection = { type: 'entity' | 'link'; id: string } | null;
 export type ViewMode = '2d' | '3d';
+export type Lighting = 'day' | 'night';
+/** Named camera positions. They assume the ship lies along the berth face (+x), pier on the -y side. */
+export type CameraPreset = 'top' | 'bow' | 'portQuarter' | 'pierSide';
 
 export interface SceneContent {
   frame: LocalFrame;
@@ -112,10 +132,13 @@ export interface SceneState {
   vectors: Record<string, SceneVector>;
   selection: Selection;
   viewMode: ViewMode;
+  lighting: Lighting;
   /** Incremented whenever the content is replaced; the shell refits the camera when it changes. */
   contentRevision: number;
   /** Incremented to ask the shell to refit the camera to the current content. */
   fitRevision: number;
+  /** Set to move the camera to a named position; `revision` changes on every request so repeats still apply. */
+  cameraPreset: { name: CameraPreset; revision: number; /** Frame meters to look at; the current target when absent. */ target?: { x: number; y: number } } | null;
 }
 
 /** Edits the user makes on the canvas. The active app decides what they mean. */

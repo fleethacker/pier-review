@@ -1,16 +1,25 @@
 # Contributing
 
-This repo holds the mooring assistant: `frontend/` (UI), `modeling/` (physics and ML service), `agents/` (LLM agent service) and `contract/` (the generated API specs they share). The [README](README.md) explains the layout. The plan and module list are in [docs/PLAN.md](docs/PLAN.md). Read both before picking up work.
+This repo holds the mooring assistant: `frontend/` (UI), `modeling/` (physics and ML service), `agents/` (LLM agent service) and `contract/` (the generated API specs they share). The [README](README.md) explains the layout. Read the [master plan](docs/MASTER_PLAN.md) for current priorities, ownership and coordination rules before picking up work.
+
+The repository is now [fleethacker/pier-review](https://github.com/fleethacker/pier-review). Existing checkouts should update their remote:
+
+```bash
+git remote set-url origin https://github.com/fleethacker/pier-review.git
+git fetch origin
+```
+
+New checkouts: `git clone --branch dev https://github.com/fleethacker/pier-review.git`.
 
 ## Branches
 
 | Branch | Purpose | Who writes to it |
 | --- | --- | --- |
 | `main` | Stable, demo-ready code. Only updated from `dev` by pull request. | PRs from `dev` only |
-| `dev` | Default branch. All work is integrated here. | PRs from feature branches |
+| `dev` | Integration branch. Explicitly use `--base dev` for feature PRs, regardless of GitHub's default. | PRs from feature branches |
 | feature branches | One piece of work each, branched off `dev`. | You |
 
-`main` has no technical protection (GitHub branch protection isn't available on this repo's plan), so these rules depend on everyone following them:
+CI runs for pull requests and pushes to both `dev` and `main`. On 5 November 2026, GitHub reported `main` as the default and both branches as unprotected. A repository administrator still needs to configure protection if available; follow these rules regardless:
 
 - Never push directly to `main` or `dev`.
 - Never force-push `main` or `dev`.
@@ -18,15 +27,16 @@ This repo holds the mooring assistant: `frontend/` (UI), `modeling/` (physics an
 
 ## Branch naming
 
-`<area>/<short-description>`, lowercase with hyphens. Use your workstream from the plan as the area:
+`<area>/<item-id>-<short-description>`, lowercase with hyphens (for example `agents/a1-demo-check`). Use your workstream from the master plan as the area:
 
 | Area | Workstream | Example |
 | --- | --- | --- |
 | `ws-a` | Data and platform (M1, M2, M13, API skeleton) | `ws-a/noaa-replay-feed` |
 | `ws-b` | Physics core (M3, M4, rules) | `ws-b/ufc-wind-loads` |
 | `ws-c` | Risk and tugs (M5, M6) | `ws-c/gust-monte-carlo` |
-| `ws-d` | Planning (M7, in `modeling/`) and agents (M8–M10, in `agents/`) | `ws-d/safety-sheet-render` |
+| `ws-d` | Planning (M7, in `modeling/`) | `ws-d/optimizer-search` |
 | `ws-e` | Dynamics (M11, M12) | `ws-e/berthing-3dof` |
+| `agents` | Agent work in `agents/`; start the description with the agent name | `agents/planner-llm-loop` |
 | `ui` | UI work in `frontend/` | `ui/pier-canvas` |
 | `docs` | Documentation only | `docs/update-plan` |
 | `fix` | Bug fixes outside a workstream | `fix/env-timezone` |
@@ -36,15 +46,15 @@ This repo holds the mooring assistant: `frontend/` (UI), `modeling/` (physics an
 ```bash
 # 1. Start from an up-to-date dev
 git checkout dev
-git pull
+git pull --ff-only origin dev
 
 # 2. Create your branch
-git checkout -b ws-b/ufc-wind-loads
+git checkout -b agents/a1-demo-check
 
 # 3. Commit as you go, then push
-git push -u origin ws-b/ufc-wind-loads
+git push -u origin agents/a1-demo-check
 
-# 4. Open a PR into dev (dev is the default base)
+# 4. Always specify the integration base
 gh pr create --base dev --fill
 ```
 
@@ -53,7 +63,7 @@ If `dev` moves while your PR is open, update your branch with `git pull origin d
 ## Pull requests into `dev`
 
 - Get at least **one approval** from another team member before merging.
-- Keep PRs small: one module or one feature. Name the module in the title, for example `M3: transverse wind force (UFC 4-159-03)`.
+- Keep PRs small: one master-plan item per PR. Include its ID in the title, for example `A1: four-case demo checks`.
 - Describe what changed, how you tested it, and anything the UI team needs to know.
 - Run `make test` before asking for review, and add tests for new physics, rules or agent behavior.
 - Resolve all review comments before merging.
@@ -67,13 +77,14 @@ If `dev` moves while your PR is open, update your branch with `git pull origin d
 - Tag a reviewer from each team that consumes the changed spec (UI for either spec; agents for `modeling.openapi.yaml`).
 - Adding fields is fine. Renaming or removing fields is a breaking change: discuss it with the team first.
 - Follow the conventions in [contract/README.md](contract/README.md) (units in field names, wind *from* / current *toward*, berth and ship frames).
-- `agents/` must reach physics only through the modeling API, never by importing `mooring` physics or mock code.
+- `agents/` must reach physics only through the Physics agent's `PhysicsToolkit` (which calls the modeling API), never by importing `mooring` physics or mock code. See [agents/README.md](agents/README.md) for the rules every agent follows.
 
 ## Releasing `dev` into `main`
 
-1. Make sure `dev` passes its tests and the demo scenario works end to end.
-2. Open a PR from `dev` into `main` titled with the milestone, for example `Release: G2 Phase 1 demo`.
-3. Get at least one approval, then merge. Don't squash, so `main` keeps the same history as `dev`.
+1. Confirm the milestone's dependencies in the [master plan](docs/MASTER_PLAN.md). Run `make test`, `make contract-check`, the UI typecheck/lint/test/build and `make demo-check-readiness`. Baseline demo success alone does not satisfy release acceptance.
+2. Rehearse a clean checkout on the actual demo target using the [deployment procedure](docs/DEPLOYMENT_READINESS.md). Record the exact commit, target, checks and unresolved limits.
+3. Open a PR with `gh pr create --base main --head dev --title 'Release: <milestone>' --body-file <release-notes-file>`. Include qualification limits, source labels, known omissions and verification evidence; see the [release draft](docs/RELEASE_NOTES.md).
+4. Get at least one approval and green CI, then merge using a **merge commit**, never squash or rebase. Tag the merged `main` commit with the agreed milestone version and publish the same release notes. Do not tag unrehearsed feature-branch code as a release.
 
 ## What not to commit
 

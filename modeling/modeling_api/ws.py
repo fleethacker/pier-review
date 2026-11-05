@@ -129,7 +129,9 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence:
             await ws.close(code=4404,reason="Session not found")
             return
         session=SESSIONS[session_id]
-        try: session.attach(connection)
+        try:
+            session.attach(connection)
+            session.resync(after_sequence)
         except ValueError:
             await ws.close(code=4409,reason="Session already controlled")
             return
@@ -156,6 +158,8 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence:
         async def send_frames():
             # Retained lifecycle messages newer than after_sequence, then only the newest frame. A slow client
             # skips intermediate frames (sequence gaps); it never queues them and never slows physics.
+            # On (re)connect the current latest frame is always sent so the client has a starting state, even if
+            # its sequence <= after_sequence; consumers drop frames they already hold by (run_id, sequence).
             sent=0; last_lifecycle=after_sequence; last_frame=-1
             while limit==0 or sent<limit:
                 session.changed.clear()

@@ -280,6 +280,7 @@ def test_end_reset_and_error_persist_the_recording(setup, fake_rich):
     assert states(s)[-1] == "ended"
     ended = RECORDINGS["s1-end"]
     assert ended.lifecycle[-1].state == "ended" and ended.frames[-1].t_s == pytest.approx(1)
+    clock.now += sim_sessions.PERSIST_MIN_S   # pause/reset persistence is throttled (review: loop stalls)
     s.receive("a", SimControlMessage(type="reset"))
     assert RECORDINGS["s1-end"].lifecycle[-1].state == "reset"
     s.receive("a", SimControlMessage(type="resume"))

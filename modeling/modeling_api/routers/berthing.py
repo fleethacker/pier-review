@@ -116,11 +116,12 @@ def session_scene(session_id: str):
 @router.get("/berthing/sessions/{session_id}/recording", response_model=SimRecording, tags=["M11 Berthing simulator"],
             summary="Bounded recording of an interactive session: live copy, else the persisted one")
 def session_recording(session_id: str):
-    from ..sim_sessions import RECORDINGS
+    # Frames were validated when produced; serve the stored JSON instead of re-validating up to 10,000 frames.
+    from fastapi.responses import Response
+    from ..sim_sessions import load_recording_json
     session = _owned_session(session_id)
-    if session is not None and session.rich:
-        return session.recording()
     try:
-        return RECORDINGS[session_id]
-    except KeyError:
+        raw = session.recording_json() if session is not None and session.rich else load_recording_json(session_id)
+    except (KeyError, ValueError):
         raise refdata.NotFound(f"No recording for session '{session_id}'") from None
+    return Response(content=raw, media_type="application/json")

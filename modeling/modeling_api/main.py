@@ -73,7 +73,7 @@ WEBSOCKETS = {
                    "terminal_close_codes": {"1013": "Environment source unavailable; no replacement snapshot is emitted",
                                             "4404": "Scenario/source/reference not found or not owned",
                                             "4400": "Invalid interval, limit or reference"}},
-    "/ws/sim/{session_id}": {"query": "limit (counts all server messages), after_sequence (resend only newer lifecycle on reconnect)",
+    "/ws/sim/{session_id}": {"query": "limit (counts all server messages), after_sequence (resend only newer retained lifecycle; the current frame is always sent on connect; a restating lifecycle is sent if history was evicted)",
                              "client_messages": "SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage",
                              "server_messages": "SimLifecycle (type=session_lifecycle; reliable, retained) and SimFrame "
                                                 "(rm0-v1, latest state only; sequence gaps are dropped display frames), "

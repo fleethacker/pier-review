@@ -10,6 +10,7 @@ import type {
   Status,
 } from '../../scene/types';
 import { ft, fmt } from './units';
+import { classSupport } from './classSupport';
 import type {
   AnalyzeResponse,
   Berth,
@@ -395,6 +396,7 @@ export function shipEntities(
   editable: boolean,
   berth: Berth,
 ): SceneEntity[] {
+  const canEdit = editable && classSupport(ship, ship.class_id, loading, side).canPlan;
   const pose = shipPose(ship, side, shipXFt, standoff);
   const cond = ship.loading_conditions.find((c) => c.name === loading) ?? ship.loading_conditions[0];
   const freeboard = ft(cond?.freeboard_ft ?? 20);
@@ -406,7 +408,7 @@ export function shipEntities(
     geometry: { type: 'polygon', points: hullPoints(ship.loa_ft, ship.beam_ft, ship.hull_type), heightM: freeboard },
     color: SHIP_COLOR,
     selectable: true,
-    editable: editable
+    editable: canEdit
       ? {
           moveAxis: 'xy',
           snapM: ft(1),
@@ -439,7 +441,7 @@ export function shipEntities(
         color: '#e0e6ee',
         status: r ? statusOf(r.status) : undefined,
         selectable: true,
-        connectable: editable ? { group: 'ship-fitting', accepts: ['pier-fitting'] } : undefined,
+        connectable: canEdit ? { group: 'ship-fitting', accepts: ['pier-fitting'] } : undefined,
         props: usageProps(
           [
             { label: 'Type', value: f.kind },

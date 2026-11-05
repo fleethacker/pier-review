@@ -44,6 +44,7 @@ const ship = {
   fittings: [
     { fitting_id: 'BITT-1S', kind: 'bitt', x_ft: 200, y_ft: -9, z_ft: 24, side: 'starboard', swl_lbf: 1 },
     { fitting_id: 'BITT-2S', kind: 'bitt', x_ft: 100, y_ft: -9, z_ft: 24, side: 'starboard', swl_lbf: 1 },
+    { fitting_id: 'BITT-1P', kind: 'bitt', x_ft: 200, y_ft: 9, z_ft: 24, side: 'port', swl_lbf: 1 },
   ],
 } as unknown as ShipClass;
 
@@ -118,7 +119,7 @@ describe('moving the ship on the canvas', () => {
     const { store, c } = setup();
     c.state.set({ side });
     // A stored installation is preserved even when moving it makes its geometry unsuitable.
-    const line = { line_number: 17, spec_id: 'NYLON', parts: 3 as const, ship_fitting_id: 'BITT-1S',
+    const line = { line_number: 17, spec_id: 'NYLON', parts: 3 as const, ship_fitting_id: side === 'port' ? 'BITT-1P' : 'BITT-1S',
       pier_fitting_id: 'P1', paid_out_unstretched_length_ft: 199, condition: 'wet' as const };
     c.state.set({ lines: [line] });
     c.pushScene('full');
@@ -255,6 +256,100 @@ describe('fitting drags', () => {
 });
 
 describe('selection changes during editing', () => {
+  it.each(['side', 'loading', 'position', 'standoff'] as const)('a pending scenario cannot overwrite a later %s edit', async (edit) => {
+    const { c } = setup();
+    let finish!: (value: unknown) => void;
+    const pending = new Promise((resolve) => { finish = resolve; });
+    const get = vi.mocked(modeling.GET);
+    get.mockReturnValue(pending as never);
+    vi.spyOn(c, 'recommend').mockResolvedValue();
+    try {
+      const old = c.loadScenario('old');
+      if (edit === 'side') await c.setSide('port');
+      if (edit === 'loading') c.setLoading('light');
+      if (edit === 'position') c.setShipX(740);
+      if (edit === 'standoff') c.setStandoff(35);
+      const intended = { side: c.state.get().side, loading: c.state.get().loading,
+        shipXFt: c.state.get().shipXFt, standoffOverrideFt: c.state.get().standoffOverrideFt };
+      finish({ data: { scenario_id: 'old', ship_class_id: 'S1', berth_id: 'B1', side_to: 'starboard' } });
+      await old;
+      expect(c.state.get()).toMatchObject({ ...intended, scenarioId: null });
+      expect(get).toHaveBeenCalledTimes(1);
+    } finally { get.mockReset(); c.dispose(); }
+  });
+
+  it('a side edit does not strand an in-flight class catalog fetch', async () => {
+    const { c } = setup();
+    let finish!: (value: unknown) => void;
+    const pending = new Promise((resolve) => { finish = resolve; });
+    const get = vi.mocked(modeling.GET);
+    get.mockImplementation(async (path) => path === '/api/v1/ships/{class_id}' ? pending as never : { data: berth } as never);
+    vi.spyOn(c, 'recommend').mockResolvedValue();
+    try {
+      const selected = c.setShip('NEW');
+      await c.setSide('port');
+      finish({ data: { ...ship, class_id: 'NEW' } });
+      await selected;
+      expect(c.state.get()).toMatchObject({ side: 'port', shipClassId: 'NEW', ship: { class_id: 'NEW' } });
+    } finally { get.mockReset(); c.dispose(); }
+  });
+
+  it('a late berth load cannot switch a newer environment mode back to manual or restart its alerts', async () => {
+    const { c } = setup();
+    let finishA!: (value: unknown) => void;
+    const pending = new Promise((resolve) => { finishA = resolve; });
+    const get = vi.mocked(modeling.GET);
+    get.mockImplementation(async (path, options) => {
+      if (path === '/api/v1/berths/{berth_id}') {
+        const id = (options as { params: { path: { berth_id: string } } }).params.path.berth_id;
+        return id === 'A' ? pending as never : { data: { ...berth, berth_id: id } } as never;
+      }
+      return { data: path === '/api/v1/ships/{class_id}' ? { ...ship, fittings: [] } : env } as never;
+    });
+    const alerts = vi.spyOn(c, 'startAlerts').mockImplementation(() => {});
+    vi.spyOn(c, 'setEnvMode').mockImplementation(async (kind) => c.state.set({ envMode: { kind, status: 'idle', detail: null } }));
+    try {
+      const first = c.setBerth('A');
+      await c.setBerth('B');
+      await c.setEnvMode('live');
+      finishA({ data: { ...berth, berth_id: 'A' } });
+      await first;
+      expect(c.state.get().berthId).toBe('B');
+      expect(c.state.get().envMode.kind).toBe('live');
+      expect(alerts).toHaveBeenCalledTimes(1);
+    } finally { get.mockReset(); c.dispose(); }
+  });
+
+  it.each(['chock-only', 'opposite-side', 'missing-loading'])('blocks recommendation and pointer edits for %s coverage', async (coverage) => {
+    const { c, store } = setup();
+    const unsupported = { ...ship, fittings: ship.fittings!.map((f) => ({ ...f,
+      kind: coverage === 'chock-only' ? 'chock' as const : f.kind,
+      side: coverage === 'opposite-side' ? 'port' as const : f.side })) };
+    c.state.set({ ship: unsupported, ...(coverage === 'missing-loading' ? { loading: 'missing' } : {}) });
+    c.pushScene('full');
+    expect(store.getState().entities.ship.editable).toBeUndefined();
+    expect(Object.values(store.getState().entities).filter((e) => e.kind === 'ship-fitting').every((e) => !e.connectable)).toBe(true);
+    c.onEdit({ type: 'move', entityId: 'ship', pose: { x: ft(900), y: ft(100), z: 0, headingDeg: 0 }, final: true });
+    expect(c.state.get().shipXFt).toBe(500);
+    await c.recommend({ apply: false });
+    expect(post).not.toHaveBeenCalled();
+    expect(c.state.get().recommend.state).toBe('error');
+    c.dispose();
+  });
+
+  it.each(['chock-only', 'opposite-side'])('does not auto-recommend a selected %s catalog', async (coverage) => {
+    const { c } = setup();
+    const unsupported = { ...ship, class_id: 'OTHER', fittings: [{ ...ship.fittings![0],
+      ...(coverage === 'chock-only' ? { kind: 'chock' } : { side: 'port' }) }] };
+    const get = vi.mocked(modeling.GET);
+    get.mockImplementation(async (path) => ({ data: path === '/api/v1/ships/{class_id}' ? unsupported : berth }) as never);
+    try {
+      await c.setShip('OTHER');
+      expect(post).not.toHaveBeenCalled();
+      expect(c.state.get().recommend.state).toBe('idle');
+    } finally { get.mockReset(); c.dispose(); }
+  });
+
   it('cannot restore an old scenario after a newer class selection', async () => {
     const { c } = setup();
     let finish!: (value: unknown) => void;

@@ -10,7 +10,7 @@ import { classSupport } from '../classSupport';
 export function LinesPanel() {
   const c = useController();
   const s = useMooring((x) => x);
-  const canEdit = classSupport(s.ship, s.shipClassId, s.loading).canPlan;
+  const canEdit = classSupport(s.ship, s.shipClassId, s.loading, s.side).canPlan;
   const analysis = s.analysis.response;
   const results = new Map((hasUsableAnalysis(analysis) ? analysis?.result.lines ?? [] : []).map((l) => [l.line_number, l]));
   const specs = s.lineSpecs.map((l) => ({ value: l.spec_id, label: l.spec_id }));

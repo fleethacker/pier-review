@@ -33,13 +33,15 @@ def build_events(mission_id: str, ix: TrackIndex, max_gap: float, prefix: str) -
     return events
 
 
-def aggregate_validity(events: list[StoryboardEvent], stats: TrackStats) -> Validity:
+def aggregate_validity(events: list[StoryboardEvent], stats: TrackStats, ix: TrackIndex | None = None) -> Validity:
     by_code: dict[str, ValidityReason] = {}
     for e in events:
         for r in e.located.validity.reasons:
             cur = by_code.setdefault(r.code, ValidityReason(code=r.code, message=r.message, affected_components=[]))
             cur.affected_components.extend(c for c in r.affected_components if c not in cur.affected_components)
     reasons = list(by_code.values())
+    if ix is not None and any((src or '').lower().startswith('simulated') for src in ix.source):
+        reasons.insert(0, ValidityReason(code='SIMULATED_TRACK', message='The track comes from a simulated source (simulated:*), not a recorded one; it is not evidence of where the vessel was.'))
     if stats.fix_count == 0:
         reasons.insert(0, ValidityReason(code="NO_TRACK", message="The mission has no recorded track."))
     elif stats.gaps_over_limit:
@@ -56,7 +58,7 @@ def build(mission_id: str, max_interp_gap_s: float, max_points: int, prefix: str
     events = build_events(mission_id, ix, max_interp_gap_s, prefix)
     keep = store.decimate(ix, max_points, _gap_endpoints(ix, max_interp_gap_s))
     return Storyboard(mission=mission, max_interp_gap_s=max_interp_gap_s, stats=stats, track=[ix.fix(i) for i in keep],
-                      events=events, validity=aggregate_validity(events, stats))
+                      events=events, validity=aggregate_validity(events, stats, ix))
 
 
 def _gap_endpoints(ix: TrackIndex, limit: float) -> list[int]:

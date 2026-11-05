@@ -242,32 +242,35 @@ function ForecastTab() {
 
 function LimitsTab() {
   const env = useMooring((s) => s.risk.envelope);
-  const current = useMooring((s) => s.env?.wind_gust_kt);
+  const current = useMooring((s) => s.env?.wind_speed_kt);
+  const usable = env && (env.validity?.state === 'valid' || env.validity?.state === 'limited');
   return (
     <div>
       <RunBar kind="envelope" label="Compute wind limits" />
       {env && (
         <div className="grid grid-cols-[160px_1fr] gap-4">
           <div className="h-36">
-            <PolarEnvelope
+            {usable ? <PolarEnvelope
               points={env.result.points.map((p) => ({ angle: p.wind_rel_deg, limit: p.limit_wind_kt }))}
               currentWindKt={current}
               worstAngle={env.result.worst?.wind_rel_deg}
-            />
+            /> : <p className="text-mil-red">Wind limits unavailable for this validity state.</p>}
           </div>
           <div className="space-y-1 text-[11px]">
             <div className="flex items-center justify-between">
               <StatusChip status={env.status} />
               <BackendBadge backend={env.backend} />
             </div>
-            {env.result.worst && (
+            {usable && env.result.worst && (
               <p className="text-white">
                 Weakest direction: wind at {fmt.deg(env.result.worst.wind_rel_deg)} limits at{' '}
                 {env.result.worst.limit_wind_kt != null ? fmt.kt(env.result.worst.limit_wind_kt) : 'n/a'}, first failing{' '}
                 {env.result.worst.first_failure_element ?? 'n/a'} ({env.result.worst.failure_mode}).
               </p>
             )}
-            <p className="text-mil-dim">The dashed ring is the current gust speed. Inside the cyan shape the plan holds.</p>
+            <p className="text-mil-text">Validity: {env.validity?.state ?? 'unknown'}</p>
+            {env.result.points.some((p) => p.limit_wind_kt == null) && <p className="text-mil-text">Limits are unavailable for some bearings; gaps are not connected.</p>}
+            <p className="text-mil-dim">The dashed ring is the current sustained wind speed. Sampled limits apply only to the assessed conditions.</p>
             <p className="text-mil-dim">Angles are as reported by the modeling service (wind direction relative to the ship). Result {env.result_id}</p>
           </div>
         </div>

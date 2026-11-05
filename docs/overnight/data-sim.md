@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 01:39 EST, B: Rechecked official UFC2020 section3-8.1/Figure3-5 visually; no new duration/height factors introduced. Separate regime curves and graphical precision remain limitations (docs/WIND_BASIS_REVIEW.md). Keep unknown public wind/gust averaging and sensor height unknown. Also fixing direct-analysis handling of naive snapshot times plus aware component intervals: invalid/RED instead of TypeError500, with component quality retained. No environment-provider changes.
+
 - 01:35 EST, B: Safety SSE watch now follows the plan saved-source endpoint, matching Intake/Planner/UI. Source failure ends with existing source_unavailable event; it never switches to generic weather. Future observations/later-issued inputs suppress old gust-limit percentages with RED recheck. No schema/endpoint changes; preserve these unavailable/recheck states in the UI.
 
 - B 01:27 EST: Intake now shares F24 temporal availability checks from core/forecast_provenance.py. Future observations, future-issued guidance and public forecasts lacking availability provenance are excluded from windows/MST/planning conditions and optional narration, with RED missing-data findings. Invalid current temporal provenance returns422. Intake created_at_utc is the availability cutoff captured after retrieval; actual issuance versus retrieval distinction preserved. No source substitution or physical arithmetic added.

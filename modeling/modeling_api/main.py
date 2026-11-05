@@ -55,9 +55,10 @@ TAGS = [
 ]
 
 DESCRIPTION = """
-Physics and ML modeling service for the mooring assistant. **Most modules still run on mock backends.**
-Environmental loads (M3, UFC 4-159-03) and reference data are real; `GET /version` lists each module's status.
-Check `backend` in every response envelope; the `X-Mooring-Backend` header is `mixed` while some modules are mock.
+Physics and planning service for the mooring assistant. `GET /version` reports implementation status;
+`GET /capabilities` reports scope and qualification blockers. A `real` backend is not operational certification.
+Inspect each result's validity, reasons and source provenance: seed assets, synthetic forcing and unqualified
+models remain limited or invalid. The offline default environment is synthetic; public providers are opt-in.
 
 Conventions: unit-suffixed field names (`_kt`, `_ft`, `_lbf`, `_deg`, `_utc`); wind direction is where it blows
 FROM, current direction is where it flows TOWARD; long-running endpoints return `202` with a job (poll

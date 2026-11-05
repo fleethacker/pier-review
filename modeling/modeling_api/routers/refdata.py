@@ -5,6 +5,7 @@ from fastapi import APIRouter, Body
 from mooring import refdata
 from mooring.core.schemas import (
     Berth,
+    EnvironmentSnapshot,
     BerthCreated,
     BerthSummary,
     LineSpec,
@@ -19,6 +20,7 @@ from mooring.demo_cases import docking_cases
 from mooring.core.schemas.demo import DockingDemoCase
 
 from ..backend import scenarios
+from .env import guarded
 
 router = APIRouter(tags=["M2 Reference data"])
 
@@ -83,6 +85,12 @@ def list_scenarios():
 @router.get("/scenarios/{scenario_id}", response_model=Scenario)
 def get_scenario(scenario_id: str):
     return scenarios.get(scenario_id)
+
+
+@router.get("/scenarios/{scenario_id}/environment", response_model=EnvironmentSnapshot,
+            summary="Resolve the saved scenario source; explicit mock stays synthetic")
+def scenario_environment(scenario_id: str):
+    return guarded(scenarios.environment_for, scenarios.get(scenario_id))
 
 
 @router.get("/demo/docking-cases", response_model=list[DockingDemoCase],

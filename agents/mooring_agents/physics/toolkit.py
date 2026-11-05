@@ -167,6 +167,9 @@ class PhysicsToolkit:
     async def scenario(self, scenario_id: str) -> Scenario:
         return await self._typed("get_scenario", {"scenario_id": scenario_id}, Scenario)
 
+    async def scenario_environment(self, scenario_id: str) -> EnvironmentSnapshot:
+        return await self._typed("get_scenario_environment", {"scenario_id": scenario_id}, EnvironmentSnapshot)
+
     async def ship(self, class_id: str) -> ShipClass:
         return await self._typed("get_ship", {"class_id": class_id}, ShipClass)
 

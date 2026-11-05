@@ -58,6 +58,10 @@ class FakeToolkit:
         self.requests.append("now")
         return self.current
 
+    async def scenario_environment(self, scenario_id):
+        self.requests.append("saved_source")
+        return self.current
+
     async def environment_scenario(self, scenario_id):
         return SimpleNamespace(kind="steady")
 
@@ -466,12 +470,13 @@ def test_saved_scenario_environment_is_used_instead_of_live_forecast():
     async def scenario(_):
         return SimpleNamespace(berth_id='NAVSTA-NORFOLK-P12-N', ship_class_id='DDG-51-FIIA', side_to='starboard',
                                env_source=SimpleNamespace(mode='scenario', env_scenario_id='saved-weather'))
-    async def now(bid, env_scenario_id):
-        seen.append(env_scenario_id)
+    async def saved(scenario_id):
+        seen.append(scenario_id)
         return tk.current
-    tk.scenario, tk.env_now = scenario, now
+    tk.scenario, tk.scenario_environment = scenario, saved
     result = run(tk=tk)
-    assert seen == ['saved-weather'] and 'forecast' not in tk.requests
+    assert seen == ['scenario_test'] and 'forecast' not in tk.requests
+    assert 'now' not in tk.requests  # The saved-source endpoint owns source selection.
     assert not result.berthing_windows  # live windows cannot stand in for scenario windows
     assert result.planning_conditions[0].environment.wind_gust_kt == 8
 
@@ -523,3 +528,39 @@ def test_forecast_only_quality_flags_and_metadata_are_not_ignored():
     assert any(q.station_id == 'current' and q.issue == 'missing' and q.severity == 'RED' for q in result.data_quality)
     assert any(q.station_id == 'forecast-grid' and q.issue == 'flagged' for q in result.data_quality)
     assert 'Forecast assessment incomplete' in result.summary
+
+
+def test_saved_mock_current_uses_canonical_source_and_never_live_now():
+    tk = FakeToolkit(calm=True)
+    async def scenario(_):
+        return SimpleNamespace(berth_id='NAVSTA-NORFOLK-P12-N', ship_class_id='DDG-51-FIIA', side_to='starboard',
+                               env_source=SimpleNamespace(mode='mock', env_scenario_id=None))
+    async def forbidden(*args, **kwargs): pytest.fail('Saved mock source used live now')
+    tk.scenario, tk.env_now = scenario, forbidden
+    result = run(tk=tk)
+    assert 'saved_source' in tk.requests
+    assert result.planning_conditions[0].environment.source == 'mock'
+
+
+def test_intake_rejects_conflicting_saved_scenario_berth():
+    from mooring_agents.physics.client import ModelingError
+    tk = FakeToolkit(calm=True)
+    async def scenario(_):
+        return SimpleNamespace(berth_id='another-berth', ship_class_id='DDG-51-FIIA', side_to='starboard',
+                               env_source=SimpleNamespace(mode='mock', env_scenario_id=None))
+    tk.scenario = scenario
+    with pytest.raises(ModelingError, match='do not match'):
+        run(request(berth_id='NAVSTA-NORFOLK-P12-N'), tk)
+
+
+def test_mock_scenario_does_not_import_public_forecast_or_provider_windows():
+    tk = FakeToolkit(calm=True)
+    async def scenario(_):
+        return SimpleNamespace(berth_id='NAVSTA-NORFOLK-P12-N', ship_class_id='DDG-51-FIIA', side_to='starboard',
+                               env_source=SimpleNamespace(mode='mock', env_scenario_id=None))
+    tk.scenario = scenario
+    tk.series = [sample.model_copy(update={'source':'forecast', 'quality':[], 'wind_gust_kt':100}) for sample in tk.series]
+    report = run(tk=tk)
+    assert all(condition.environment.source == 'mock' for condition in report.planning_conditions)
+    assert any('does not match the selected synthetic source' in issue.detail for issue in report.data_quality)
+    assert not report.berthing_windows and all(not isinstance(item, dict) for item in tk.requests)

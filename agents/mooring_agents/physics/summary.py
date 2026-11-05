@@ -106,7 +106,7 @@ def summarize(tool_name: str, output: Any) -> str:
                          ("end_utc", "first window ends ", ""),
                          ("max_current_kt", "first window max current ", " kt"),
                          ("max_gust_kt", "first window max gust ", " kt"))
-    elif tool_name == "get_environment":
+    elif tool_name in ("get_environment", "get_scenario_environment"):
         parts += _fields(result, ("wind_speed_kt", "wind ", " kt"), ("wind_gust_kt", "gust ", " kt"),
                          ("current_speed_kt", "current ", " kt"),
                          ("water_level_mllw_ft", "water level ", " ft MLLW"))

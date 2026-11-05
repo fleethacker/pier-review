@@ -2,6 +2,8 @@
 
 ## Log
 
+- 00:14 EST: Saved-source endpoint and Planner/Intake wiring in progress. Explicit mock no longer follows the configured public provider; source metadata remains synthetic. New endpoint uses existing provider error mapping and scenario ownership. Initial tests caught the missing provider-error wrapper and an unsupported test assumption about legacy generator metadata; both fixed. Existing intake routing assertion now verifies the canonical scenario endpoint rather than the bypassed generic current endpoint. Focused source/Intake/API/Physics checks: 170 pass. Initial full run caught an API fixture clock that also needed the new scenario resolver frozen, and the tool registry count now correctly includes 18 tools. Assertions retained; canonical routing expectations updated. Synthetic scenarios reject mismatched public forecasts and do not import provider-based berthing windows. Final full suite: 1519 passed, no skips/xfails. Contract regenerated and contract-check passes; UI 82 tests/typecheck/lint/build pass. API description now directs users to validity/capabilities rather than the obsolete most-backends-mock claim.
+
 - 00:10 EST: Follow-up tide-sweep source audit preserves component limitations/unknown issuance and rejects bad water inputs before interpolation. Twenty focused and 1509 full Python tests pass, no skips/xfails. UI 82 tests/typecheck/lint/build and contract-check pass. No wire/schema changes. A new assertion initially expected an explicit null issue time; corrected to require omission under the additive wire-default rule. Data colleague notified of PR #64 via commit comment 208236472; no read acknowledgment claimed.
 
 - 00:08 EST: Temporary NWS + CO-OPS tidal current/level composition exercised 72 hourly snapshots, seven arrivals 24–30 h ahead and 63 real static evaluations. All unchanged-template arrivals overloaded (119.0–216.0% WLL), correctly RED/limited with no selected arrival. Actual NWS issue retained separately from two NOAA retrievals; tidal/weather residual, depth/spatial and wind-basis limitations retained. No production provider wiring or raw data committed.
@@ -106,6 +108,8 @@
 - 22:14 EST: headless Chrome browser audit of built UI with external network blocked: initial map/analysis renders and Ask agent→real SSE→Create/Open sheet completes without page exceptions. Trace confirms intake/review selection still implicit/absent; sent actionable U1 and tide-explanation notes to UI inbox. PR #48 merged after green CI; F24 installation packet ready to publish.
 
 ## Decisions
+
+- Saved-source `live` retains its existing configured-provider meaning for compatibility; the response source is authoritative. Explicit mock stays synthetic. Direct saved replay/forecast modes remain unsupported; use an explicit recorded environment scenario or the supplied-series planning endpoint. No source substitution on errors.
 
 - Integrate green PRs into dev; leave main and colleagues’ worktrees alone.
 - Deliver demonstration within assumptions; seed data and unreviewed sequence rules prevent operational qualification.

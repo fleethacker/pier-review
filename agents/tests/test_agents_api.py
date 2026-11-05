@@ -42,10 +42,12 @@ def fixed_environment_clock():
     # Mock forecast rounds to the hour: freeze the clock so coverage assertions never depend on wall time.
     from mooring.environment import mock as environment_mock
     from mooring_agents.intake import core
+    from mooring import scenarios
     with pytest.MonkeyPatch.context() as patch:
         now = datetime(2026, 11, 4, 12, tzinfo=UTC)
         patch.setattr(environment_mock, "utcnow", lambda: now)
         patch.setattr(core, "utcnow", lambda: now)
+        patch.setattr(scenarios, "utcnow", lambda: now)
         yield
 
 

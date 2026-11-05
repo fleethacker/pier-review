@@ -3,11 +3,13 @@ info:
   title: 'Mooring Assistant: Modeling API'
   description: '
 
-    Physics and ML modeling service for the mooring assistant. **Most modules still run on mock backends.**
+    Physics and planning service for the mooring assistant. `GET /version` reports implementation status;
 
-    Environmental loads (M3, UFC 4-159-03) and reference data are real; `GET /version` lists each module''s status.
+    `GET /capabilities` reports scope and qualification blockers. A `real` backend is not operational certification.
 
-    Check `backend` in every response envelope; the `X-Mooring-Backend` header is `mixed` while some modules are mock.
+    Inspect each result''s validity, reasons and source provenance: seed assets, synthetic forcing and unqualified
+
+    models remain limited or invalid. The offline default environment is synthetic; public providers are opt-in.
 
 
     Conventions: unit-suffixed field names (`_kt`, `_ft`, `_lbf`, `_deg`, `_utc`); wind direction is where it blows
@@ -518,6 +520,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Scenario'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/scenarios/{scenario_id}/environment:
+    get:
+      tags:
+      - M2 Reference data
+      summary: Resolve the saved scenario source; explicit mock stays synthetic
+      operationId: scenario_environment_api_v1_scenarios__scenario_id__environment_get
+      parameters:
+      - name: scenario_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Scenario Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentSnapshot'
         '422':
           description: Validation Error
           content:

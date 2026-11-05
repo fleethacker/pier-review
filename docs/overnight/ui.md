@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 22:49 EST: sequence checks now honor scenario loading/MST, deployed parts, tug release, input quality/depth and rated assistance. AgentPlan/SafetySheet gain optional sequence_result_id; printable HTML/PDF carries per-step static state/note and source reference. Please preserve/display these in sequence views, including undetermined first-line restraint. All four demo chains still complete with expected outcomes.
+
 - B 22:31 EST: Risk timeline now accepts supplied forecast snapshots and publishes exact per-step environment/validity, failed counts and bounds. Omitted series is explicitly synthetic_training regardless of provider settings. Details in FORECAST_DOCKING.md and MODELING_UI_RECOMMENDATIONS.md; additive contract/types follow.
 
 - B 22:26 EST: risk hardening adds optional horizon p_event_bounds/effective_step_min; failed trajectories are unknown, and all-failed calculations are invalid/RED. Please show bounds and failed counts beside probabilities; p_event is a lower bound when failures occur. Updated docs/MODELING_UI_RECOMMENDATIONS.md. Risk job response models were also absent from OpenAPI because HTTP 202 only exposed JobAccepted; ExceedanceResponse/TimelineResponse are now explicitly registered. Generated types accompany the packet; no UI behavior edits.

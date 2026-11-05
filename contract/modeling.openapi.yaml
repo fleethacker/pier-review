@@ -6750,6 +6750,19 @@ components:
         ship_class_id:
           type: string
           title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          default: II
         berth_id:
           type: string
           title: Berth Id
@@ -6921,6 +6934,7 @@ components:
           title: Station
         crews:
           type: integer
+          minimum: 0.0
           title: Crews
         trigger:
           type: string
@@ -6985,6 +6999,19 @@ components:
         ship_class_id:
           type: string
           title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        mst:
+          type: string
+          enum:
+          - I
+          - II
+          - IIA
+          - III
+          title: Mst
+          default: II
         berth_id:
           type: string
           title: Berth Id

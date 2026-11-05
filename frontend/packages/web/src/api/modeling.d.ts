@@ -3727,6 +3727,17 @@ export interface components {
         SequenceRequest: {
             /** Ship Class Id */
             ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /**
+             * Mst
+             * @default II
+             * @enum {string}
+             */
+            mst: "I" | "II" | "IIA" | "III";
             /** Berth Id */
             berth_id: string;
             config: components["schemas"]["MooringConfig"];
@@ -3865,6 +3876,17 @@ export interface components {
         SequenceValidateRequest: {
             /** Ship Class Id */
             ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /**
+             * Mst
+             * @default II
+             * @enum {string}
+             */
+            mst: "I" | "II" | "IIA" | "III";
             /** Berth Id */
             berth_id: string;
             config: components["schemas"]["MooringConfig"];

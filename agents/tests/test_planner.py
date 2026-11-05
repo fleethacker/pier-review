@@ -426,3 +426,45 @@ def test_max_iterations_with_default_budget_completes(setup, monkeypatch):
     client.analyze_fn = lambda b: ("AMBER", 95)
     rec = run(tk, intake_report_id="intake", max_iterations=20)
     assert rec.plan.state == "succeeded" and len(calls_for(rec.plan.plan_id)) <= 40
+
+
+def test_sequence_receives_same_loading_and_mst_as_the_plan(setup, monkeypatch):
+    client, tk = setup
+    client.sc.loading = 'light'
+    seen = []
+    original = client.sequence
+    async def ship(_):
+        value = refdata.ship(client.sc.ship_class_id).model_copy(deep=True)
+        value.mst_class = 'IIA'
+        return value
+    async def sequence(body):
+        seen.append(body)
+        return await original(body)
+    monkeypatch.setattr(client, 'ship', ship)
+    monkeypatch.setattr(client, 'sequence', sequence)
+    run(tk)
+    assert len(seen) == 1 and seen[0]['loading'] == 'light' and seen[0]['mst'] == 'IIA'
+
+
+@pytest.mark.parametrize('component', ['analysis', 'tugs'])
+def test_invalid_component_remains_blocking_in_complete_plan(setup, monkeypatch, component):
+    from mooring.core.schemas import Validity
+    client, tk = setup
+    original = client.analyze if component == 'analysis' else client.berthing_tugs
+    async def invalid(body):
+        response = await original(body)
+        response.validity = Validity(state='invalid', reasons=[{'code': 'TEST_INVALID', 'message': 'Invalid synthetic fixture'}])
+        response.status = 'RED'
+        return response
+    monkeypatch.setattr(client, 'analyze' if component == 'analysis' else 'berthing_tugs', invalid)
+    seen = []
+    original_sequence = client.sequence
+    async def sequence(body):
+        seen.append(body)
+        return await original_sequence(body)
+    monkeypatch.setattr(client, 'sequence', sequence)
+    rec = run(tk, max_iterations=1)
+    assert rec.plan.state == 'succeeded' and rec.plan.status == 'RED'
+    if component == 'tugs':
+        assert seen[0]['tug_plan_result_id'] is None
+        assert any('Invalid berthing-tug assessment' in value for value in rec.plan.assumptions)

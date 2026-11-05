@@ -86,7 +86,10 @@ class RecommendResponse(Envelope[RecommendResult]):
 
 
 class SequenceRequest(Model):
+    wire_omitted_defaults = {"loading": "full_load", "mst": "II"}
     ship_class_id: str
+    loading: str = "full_load"
+    mst: MooringServiceType = "II"
     berth_id: str
     config: MooringConfig
     environment: EnvironmentSnapshot
@@ -102,7 +105,7 @@ class SequenceStep(Model):
     line_number: int | None
     action: SequenceAction
     station: Literal["forecastle", "waist", "fantail", "bridge", "pier"]
-    crews: int
+    crews: int = Field(ge=0)
     trigger: str
     caution: str | None = None
     reference: str

@@ -307,19 +307,27 @@ def test_sheet_preserves_holding_assistance_and_visible_result_references(plan_i
     sheet = renderer.build(record, latest_review(plan_id))
     assert sheet.holding_tugs[0].force_lbf == 1000
     assert sheet.analysis_result_id == record.analysis.result_id
+    assert sheet.sequence_result_id == record.plan.sequence_result_id
+    assert sheet.sequence_result_id in sheet.cited_result_ids
     assert set(sheet.threshold_result_ids) <= set(sheet.cited_result_ids)
     rendered = renderer.render_html(sheet)
     assert 'Holding assistance' in rendered and 'continuous availability' in rendered
     assert 'Berthing tug plan' in rendered and 'PP-FWD-P' in rendered and '1,000 lbf' in rendered
     assert sheet.analysis_result_id in rendered
+    assert sheet.sequence_result_id in rendered and 'Sequence assessment:' in rendered
     assert all(cite in rendered for cite in sheet.cited_result_ids)
     injection = '<img src="https://example.invalid/resource">'
     sheet.rationale = [RationaleItem(text='Document text', cites=[injection])]
     assert injection not in renderer.render_html(sheet)
     assert '&lt;img' in renderer.render_html(sheet)
+    sheet.sequence[0].state_ok = False
+    sheet.sequence[0].state_note = injection
+    rendered = renderer.render_html(sheet)
+    assert 'Static check: blocking' in rendered and injection not in rendered
     # Absent legacy data means unknown, never zero assistance.
     old = sheet.model_dump(mode='json')
-    for field in ('holding_tugs','analysis_result_id','threshold_result_ids'):
+    for field in ('holding_tugs','analysis_result_id','threshold_result_ids','sequence_result_id'):
         old.pop(field)
     legacy = SafetySheet.model_validate(old)
     assert legacy.holding_tugs is None and 'not recorded in this archived sheet' in renderer.render_html(legacy)
+    assert legacy.sequence_result_id is None and 'sequence_result_id' not in legacy.model_dump()

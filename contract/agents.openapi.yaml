@@ -749,6 +749,11 @@ components:
           anyOf:
           - $ref: '#/components/schemas/SequenceResult'
           - type: 'null'
+        sequence_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sequence Result Id
         analysis_result_id:
           anyOf:
           - type: string
@@ -2281,6 +2286,11 @@ components:
           - type: string
           - type: 'null'
           title: Analysis Result Id
+        sequence_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sequence Result Id
         threshold_result_ids:
           items:
             type: string
@@ -2564,6 +2574,7 @@ components:
           title: Station
         crews:
           type: integer
+          minimum: 0.0
           title: Crews
         trigger:
           type: string

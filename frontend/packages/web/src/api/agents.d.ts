@@ -414,6 +414,8 @@ export interface components {
             config?: components["schemas"]["MooringConfig"] | null;
             tug_plan?: components["schemas"]["TugPlanResult"] | null;
             sequence?: components["schemas"]["SequenceResult"] | null;
+            /** Sequence Result Id */
+            sequence_result_id?: string | null;
             /** Analysis Result Id */
             analysis_result_id?: string | null;
             /** Risk Result Id */
@@ -1340,6 +1342,8 @@ export interface components {
             validity?: components["schemas"]["Validity"] | null;
             /** Analysis Result Id */
             analysis_result_id?: string | null;
+            /** Sequence Result Id */
+            sequence_result_id?: string | null;
             /** Threshold Result Ids */
             threshold_result_ids?: string[];
             /**

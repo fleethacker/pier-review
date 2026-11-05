@@ -24,6 +24,9 @@ The supported `app.sh` and Makefile launchers make the explicit default choice `
 - `coops` serves live observations only and fails if they are stale, incomplete, or unavailable.
 - `replay` serves only the manifest-backed recorded-real package.
 - `auto` tries a fresh, complete CO-OPS snapshot, then the recorded-real replay, then fails explicitly. It never calls mock.
+- The offline demo and `make demo-check` select `recorded_real` explicitly, verify its deterministic manifest and exercise
+  it through the environment API. This archive contains CO-OPS observations only; no NWS response was archived, so NWS
+  forecast wind and waves remain unavailable rather than being inferred from the observation window.
 
 `GET /api/v1/env/availability` reports wind, current, water level, composed forecast, and waves independently. A missing
 component is `unavailable` with a reason and provenance; it is never numeric zero or silently replaced by a prediction.

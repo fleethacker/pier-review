@@ -26,5 +26,9 @@ uv run --all-packages python scripts/build_recorded_replay.py
 uv run --all-packages python scripts/build_recorded_replay.py --check
 ```
 
+`make demo-check` runs the integrity check and then serves this package through an explicit `recorded_real` replay
+scenario. It asserts the NOAA source and observation basis independently for wind, current and water level. No archived
+NWS response is available in this repository, so the offline package does not claim forecast wind or waves.
+
 The package covers 2026-01-01 00:00–00:54 UTC and never loops or extrapolates. It is labeled `replay` with an
 `observation` basis. It is demonstration replay data, not a forecast or operational qualification.

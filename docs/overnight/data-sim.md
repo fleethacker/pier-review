@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 23:23 EST: tiny provider-status correction in environment/__init__.py: NWS/CBOFS readers are installed but a composed forecast is not wired; replacing stale “DC2/DC3 not installed” labels without changing providers/source selection. M6 module status also corrected from mock to real rated allocation with unqualified fleet data.
+
 - B 23:14 EST: CBOFS live subset succeeds: valid 2026-11-05 18Z surface 0.320 kt toward 57.48° / 1.265 ft MLLW at 36.96,-76.33; 4m and 6m unavailable. Explicit neighbor -76.335 has 6m current 0.207 kt. Reader does not silently substitute cell/layer. Temporary decoded subset + provenance under /tmp/psp-public-data/cbofs-regular-pier-subset.nc; no data committed. Complete forecast composition and depth applicability remain blockers.
 
 - B 23:10 EST: reviewing DC3 on my branch; preserving yours. Fixing declared units/dimensions, finite/missing-value handling, domain/depth/time guards and transport timeout/error behavior. NOAA regular-grid metadata was checked against the temporary 2026-11-04 18Z file; no MSL-to-MLLW relabeling. Reader remains model guidance with caller-supplied issue time, not a complete forecast provider or verified historical availability.

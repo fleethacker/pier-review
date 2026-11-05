@@ -93,8 +93,8 @@ def provider_modules() -> dict[str, str]:
     coops = "live" if source_mode() == "coops" else "mock (disabled)"
     return {
         "Provider NOAA CO-OPS": coops,
-        "Provider NWS": "unavailable (DC2 not installed)",
-        "Provider CBOFS": "unavailable (DC3 not installed)",
+        "Provider NWS": "unavailable (NWS wind reader installed; composed forecast not wired)",
+        "Provider CBOFS": "unavailable (CBOFS reader installed; composed forecast not wired)",
     }
 
 

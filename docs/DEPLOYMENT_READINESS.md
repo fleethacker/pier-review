@@ -11,6 +11,11 @@ limited S7/U8 prediction (#14) and U1–U7 UI (#18) are merged. D1–D4 provider
 Rehearse their combined release candidate before marking any end-to-end gate passed. Historical local evidence below
 is retained with its original scope; this documentation refresh did not rerun tests or the hosting rehearsal.
 
+The later Bixler implementation branch is being exercised locally with the expanded HTTP/SSE/WebSocket and browser
+checks; its exact results are recorded in [BIXLER_IMPLEMENTATION.md](BIXLER_IMPLEMENTATION.md). New sheets embed a
+self-contained saved SVG, so browser printing does not need a map token. Native server PDF support still depends on
+the libraries below; browser-exported PDF evidence does not establish server-renderer or Domino availability.
+
 ## A2: Domino demo launch and rehearsal
 
 **Target rehearsal remains pending.** Validation for this change is local, as requested by Bixler. The supplied

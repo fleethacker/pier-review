@@ -11,7 +11,10 @@ P1's canonical resolver is implemented and merged in #4; it is not a 501 stub. P
 benchmarks (#5), S1 rich runtime/recordings (#6), S7/U8's initial transit-based camera (#14), and U1–U7 UI (#18) are
 merged. #14 addresses several S6 defects but not the full #10 review; see the disposition below. D1–D4 composition,
 source selection, replay and waves remain in open #13 under separate review; A3 agent-wide revision binding remains
-work to do after the available P1/P2 interfaces. No combined release or physical qualification is asserted.
+work to do on that reconciled revision. The subsequent Bixler implementation branch now provides supplied/scenario
+agent binding, saved sheet diagrams, prediction narration and ship-input capability gates; see the
+[branch implementation/evidence record](BIXLER_IMPLEMENTATION.md). Public revision discovery and combined release or
+physical qualification are not established by those additions.
 
 Earlier rehearsal evidence (1,769 Python / 227 UI tests and 27 local API/browser checks, with six uncovered readiness
 requirements) belongs to #7's integration branch; see [LOCAL_REHEARSAL.md](LOCAL_REHEARSAL.md). The 1,734/191 morning
@@ -56,6 +59,7 @@ current ownership/order; this ledger records implementation and remaining techni
 | S7/U8 camera | Snyder service; Kori overlay | `/predict/trajectory`, presets and initial missions/Transit overlay (#14) | Berthing engine, complete initial state, changing forcing/live own-ship integration, coastline and calibrated uncertainty; see [PREDICTION.md](PREDICTION.md) |
 | U1–U7 | Kori; Bixler integration | UI and browser-check additions merged (#18) | Combined integration/target evidence; conditional roll/pitch/water displays do not implement missing S2/S3 physics |
 | R1–R9 | Leads in [master plan §11](MASTER_PLAN.md#11-requirements-audit-remediation-prompts) | Executable specifications merged (#12) | Implementation and source evidence still required; use the [ownership table](MASTER_PLAN.md#execution-ownership) |
+| A3/A7/A11, incremental A8/A10 | Bixler | Branch implementation: canonical supplied/scenario identity through agents, cited prediction explanations, frozen illustrated sheets, unsaved ship validation and geometry-based templates | Public provider discovery, U13/U9 consumption, actual additional-class records, loading-specific heights/review metadata and R4–R8 evidence remain; [current tests and handoff](BIXLER_IMPLEMENTATION.md) |
 
 ## PR #10 review disposition
 
@@ -75,6 +79,8 @@ approval. Record the closing PR, regression and independent review against each 
 
 Use the exact implementation PR and CI run for test counts, skips and xfails. This documentation reconciliation
 intentionally skipped tests/CI at Snyder's request; it does not produce new runtime or release evidence.
+The later Bixler branch has a separate [local acceptance record](BIXLER_IMPLEMENTATION.md), including the observed
+status of the conditional shallow-current benchmark. Keep those results separate from the historical counts above.
 
 ## Measured performance (one machine, macOS arm64, Python 3.12, single runs; not a budget sign-off)
 

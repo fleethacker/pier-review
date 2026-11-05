@@ -94,7 +94,7 @@ Cruz publishes the final contract and limitations afterward.
 | Close remaining S5/S6 findings with independent evidence | Snyder backend/physics; Kori UI; [finding ledger](MODELING_BUILDOUT_STATUS.md#pr-10-review-disposition) |
 | S2 forcing; S3 tug/vertical motion; S7 state fidelity, berthing engine, hazard coverage and uncertainty gates | Snyder; S1/P1 exist, D2/D8 as they land; retain current camera limits |
 | D1–D4 review/merge and U3/U4 integration with final provider contracts | Cruz and existing #13 reviewer; Kori/Bixler integration |
-| A3 common forecast revision through Intake, Planner, Safety and watch | Bixler; P1/P2 exist, public revision discovery needs D2 |
+| A3 public revision discovery and UI selection | Supplied/scenario agent binding implemented on Bixler branch; Cruz D2 and Kori integration remain |
 | D8 own-ship state; D5 refit/telemetry; D6 charts/UKC | Cruz; source/age/quality contracts and physical evidence required |
 | R1–R9 requirements remediation | Named leads and reviewers in [execution ownership](#execution-ownership) and [§11](#11-requirements-audit-remediation-prompts) |
 | Combined UI/API/camera acceptance, actual hosting rehearsal and deliberate release | Bixler; Kori browser, Snyder modeling and Cruz source evidence |
@@ -507,7 +507,8 @@ into autonomous vessel control. Automatic planning remains subject to independen
 
 R1–R9 are stable cross-workstream tracking labels; the A/P/S/U IDs below retain file ownership.
 To avoid collisions with the camera/storyboard tasks, R1 uses **A11/U13** and R7 uses **S8/U11**.
-A7 remains camera narration, U8 remains the camera overlay, and S5 remains mission storyboarding. Every packet is **planned**.
+A7 remains camera narration, U8 remains the camera overlay, and S5 remains mission storyboarding. Packet closure follows
+the status board; A11/A8 and incremental A10 software are implemented on the current Bixler branch, with remaining gates.
 The source dependencies in R3, R4, R6 and R8 must remain open until evidence arrives: an importer, an unavailable
 result, a synthetic fixture or an honest label alone does not satisfy the corresponding missing capability.
 
@@ -796,15 +797,15 @@ was `91ac18a`. Implementation acceptance remains open. Use the primary leads and
 
 | Item | Owner | State | Blocker / next evidence |
 | --- | --- | --- | --- |
-| R1 / A11 U13 reviewed layout | Bixler / Kori | planned | Frozen layout contract and rendering/version tests |
+| R1 / A11 U13 reviewed layout | Bixler / Kori | backend implemented on Bixler branch; UI closure open | Saved assessed geometry/SVG, version/persistence guards and printable HTML; U13 sidebar and final target PDF integration remain |
 | R2 / U9 canvas editing | Kori | planned | Two-axis request updates and pointer-drag browser proof |
-| R3 / A8 U9 class coverage | Bixler / Kori | planned; class data required | Approved CG-47/LHD-1/CVN-68 fitting inputs; importer and capability tests |
+| R3 / A8 U9 class coverage | Bixler / Kori | validation/capability/template software implemented; class data required | Approved CG-47/LHD-1/CVN-68 inputs, loading-height/review metadata, controlled registration and U9 capability display remain |
 | R4 / P4 NSTM/directional limits | Snyder / Bixler | planned; source verification required | Edition/rating method and rule-by-rule evidence |
 | R5 / P5 fleet horsepower | Snyder | planned | Objective contract and independently enumerated optima |
 | R6 / P6 A9 U10 ultimate gusts | Snyder / Bixler / Kori | planned; physical evidence required | Supported capacity/material model, thresholds and alert-chain proof |
 | R7 / S8 U11 sequences | Snyder / Kori | planned | Feasible-order search and intermediate-state/review display |
 | R8 / P7 U12 structural strain | Snyder / Bixler / Kori | planned; model/data required | Reviewed structural specification and asset properties |
-| R9 / A10 acceptance | Bixler / Kori / Snyder | planned | Local integrated checks plus separate source/qualification evidence |
+| R9 / A10 acceptance | Bixler / Kori / Snyder | incremental checks implemented; closure open | Four planning chains with checked saved-layout or unavailable states, forecast binding, narration and runtime evidence; remaining R2/R4–R8, browser/source and qualification gates stay open |
 
 ### Integration status
 
@@ -829,10 +830,10 @@ resuming a packet; a merged feature with unresolved review findings is not accep
 | D1–D4 provider/forecast/replay/waves | Cruz; existing separate PR reviewer | branch implemented; review/merge pending | #13 open | Do not duplicate work or claim merged availability; waves offshore-only, not load-ready |
 | D5 refit/telemetry; D6 charts/UKC | Cruz | remaining | | Qualification policy, arbitration and source/datum/coverage evidence |
 | D8 own-ship state | Cruz | remaining | | State/age/quality contract; recorded fixtures are not a live vessel-state feed |
-| A1 integrated demo | Bixler | baseline merged; combined gate remains | #7, #18 | Reconcile browser/runtime/provider/camera coverage after #13; previous counts historical |
+| A1 integrated demo | Bixler | expanded on Bixler branch; combined gate remains | #7, #18 | Saved layouts, forecast handoff, S7 narration, scene/recording/speed/reconnect checks; [current evidence](BIXLER_IMPLEMENTATION.md) |
 | A2 hosting | Bixler | local preparation exists; actual target pending | #7, #18 | Target HTTP/SSE/WS and HTML/PDF evidence required |
-| A3 forecast binding | Bixler | remaining; P1/P2 available | | One manifest through Intake/Planner/Safety/watch; D2 for public revision discovery |
-| A7 prediction narration | Bixler | remaining; S7 interface available | | Immutable IDs and code-owned warnings; LLM computes no physics |
+| A3 forecast binding | Bixler | supplied/scenario implementation on branch | | Logged canonical resolves through Intake/Planner/Safety/sheet; watch retains source and interval; D2 for public revision discovery |
+| A7 prediction narration | Bixler | deterministic API and local acceptance implemented on branch | | Immutable citations, central-path versus uncalibrated sample breaches, explicit uncovered hazards; camera UI consumption remains |
 | A4 release | Bixler | procedure/draft exist; milestone pending | | No release implied by #15/#17; deliberate `dev` → `main` gate |
 | A5 vision | Bixler | guarded implementation merged | #7 | Fixture/fake-LLM and no-LLM paths; real-provider/target rehearsal separate |
 | A6 docs | Bixler | fielding brief merged; status reconciled here; ongoing | #9, #12, #16 | Synchronize this board, capability ledger and UI/release notes at merges |
@@ -846,10 +847,13 @@ ShellCheck passed. The actual `app.sh` rehearsal passed **27 API/browser checks*
 printed review ID. Readiness correctly failed six explicitly uncovered build requirements. See
 [local rehearsal evidence and screenshots](LOCAL_REHEARSAL.md); this is not release or Domino evidence.
 
-A3's next implementation should consume P1's logged resolver response, retain `forecast_manifest` through Intake,
-Planner, review and sheet, and compare `revision`, `content_hash` and `binding_hash` before explicit reassessment.
-No duplicate resolver or provisional public schema was introduced. Safety watch also needs a D2-supported way to
-look up a newer source revision; a caller-declared `source_id` for supplied samples cannot provide that itself.
+Current branch `agents/a1-bixler-plan-implementation` starts from `dev` at `1f87522`. Its implementation and exact local
+test evidence are recorded in [BIXLER_IMPLEMENTATION.md](BIXLER_IMPLEMENTATION.md); this is not a merge or release claim.
+A3 uses P1's logged resolver and preserves `forecast_manifest` through Intake, Planner, review and sheet, comparing
+revision/content/binding before reassessment. Safety watch still needs D2 to discover newer public revisions;
+a caller-declared `source_id` for supplied samples cannot provide that itself. A9 remains blocked on P6's supported
+ultimate-load contract and evidence; no breaking threshold was inferred from WLL. A0 administrator protection,
+A2 actual hosting and A4 release remain separate gates. This follow-up tests locally as requested.
 
 ## Document map
 

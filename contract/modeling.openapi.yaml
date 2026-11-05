@@ -5926,6 +5926,27 @@ components:
           - III
           title: Design Mst
           default: II
+        design_basis:
+          type: string
+          enum:
+          - mst_and_forecast
+          - forecast_only
+          title: Design Basis
+          description: forecast_only checks supplied conditions, not MST design compliance. Strength factors still use design_mst.
+          default: mst_and_forecast
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugAssignment'
+          type: array
+          maxItems: 12
+          title: Tugs
+          description: Fixed holding assistance evaluated in every case; not an autonomous tug schedule.
+        standoff_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Standoff Ft
         forecast_env:
           items:
             $ref: '#/components/schemas/EnvironmentSnapshot'

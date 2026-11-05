@@ -58,7 +58,7 @@ def recheck(req: ForecastRecheckRequest) -> ForecastRecheckResponse:
                 revision=(prior.get('manifest') or {}).get('resolved_inputs_hash'))])
         return envelope(ForecastRecheckResponse, model='mooring.forecast_recheck', model_version='1.0.0',
             backend='real', request=req, result=result, manifest=manifest, validity=validity,
-            status='RED' if prior.get('status') == 'RED' or unavailable else 'AMBER',
+            status='RED' if prior.get('status') == 'RED' or unavailable or prior_invalid else 'AMBER',
             assumptions=['Historical assessments are immutable; no prior approval transfers to a changed forecast.',
                          'This comparison does not reassess vessel loads, line handling or maneuver safety.'])
 
@@ -73,6 +73,8 @@ def recheck(req: ForecastRecheckRequest) -> ForecastRecheckResponse:
     saved = store.load_snapshot(old_digest)
     if saved is None or 'request' not in saved:
         return finish('unavailable', ['Prior resolved-input snapshot is unavailable; original operation cannot be reconstructed.'])
+    if resolved_inputs_hash(saved) != old_digest:
+        return finish('unavailable', ['Prior resolved-input snapshot does not match its recorded content hash.'])
     try:
         saved_manifest = ForecastResolutionManifest.model_validate(saved.get('forecast_manifest'))
         old_request = ForecastDockingRequest.model_validate(saved['request'])

@@ -101,7 +101,9 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
         if coverage_problem:
             reasons.append(coverage_problem)
         else:
-            install_level = req.forecast[first].water_level_mllw_ft
+            install_level = (req.installed_at_water_level_mllw_ft
+                             if req.installed_at_water_level_mllw_ft is not None
+                             else req.forecast[first].water_level_mllw_ft)
             for index in range(first, last + 1):
                 if ctx is not None:
                     ctx.check_cancelled()

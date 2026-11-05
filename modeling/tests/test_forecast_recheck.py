@@ -301,6 +301,24 @@ def test_invalid_prior_cannot_be_upgraded_by_unchanged_guidance(baseline):
     assert response.status == 'RED' and response.validity.state == 'invalid'
 
 
+@pytest.mark.parametrize('validity', [None, {'state': 'unknown', 'reasons': []}])
+def test_unknown_prior_cannot_produce_a_usable_comparison(baseline, validity):
+    prior_id = copy_result(baseline[1], lambda value: value.update(status='AMBER', validity=validity))
+    response = recheck(check_request(baseline, prior_result_id=prior_id))
+    assert response.status == 'RED' and response.validity.state == 'invalid'
+    assert any(reason.code == 'PRIOR_ASSESSMENT_NOT_USABLE' for reason in response.validity.reasons)
+
+
+def test_corrupt_snapshot_cannot_change_the_assessed_operation(baseline, monkeypatch):
+    saved = store.load_snapshot(baseline[1].manifest.resolved_inputs_hash)
+    saved['request']['holding_hours'] = 0
+    monkeypatch.setattr(store, 'load_snapshot', lambda _: saved)
+    response = recheck(check_request(baseline))
+    assert response.result.state == 'unavailable'
+    assert any('content hash' in reason for reason in response.result.reasons)
+    assert response.result.reassessment_request is None
+
+
 def test_suggested_request_and_stored_prior_are_independent_objects(baseline):
     req = check_request(baseline, forecast_binding=ForecastBinding(
         source='supplied', source_id='offline-training', revision='revision-2'))

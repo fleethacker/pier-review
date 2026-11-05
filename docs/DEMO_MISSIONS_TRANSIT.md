@@ -39,7 +39,7 @@ Do the first Transit run once before the demo to warm it up (a run takes seconds
 | 3 | **Upload image**: `on_track.jpg`, caption `On the track`, **Upload image**. | "Time and position come from EXIF." |
 | 4 | `in_gap.jpg`, caption `Inside the gap`. | "This photo was taken during a recording gap." |
 | 5 | `clock_off.jpg`, **Camera clock offset** `120`, caption `Camera clock slow`. | "The camera clock was two minutes slow, so we add 120 seconds. The offset is explicit, not guessed." |
-| 6 | **Add report**: Time `2026-11-05 12:10`, Title `Bridge log entry`, **Add report**. Again: Time `13:20`, Title `Stated position report`, Stated latitude `36.9917`, Stated longitude `-76.2400` (use the exact lat/lon from `reports.json`), **Add report**. | "Reports carry a time, text and optionally a stated position." |
+| 6 | **Add report**: Time `2026-11-05 12:10`, Title `Bridge log entry`, **Add report**. Again: Time `13:20`, Title `Stated position report`, Stated latitude `36.999`, Stated longitude `-76.216667` (same values as `reports.json`), **Add report**. | "Reports carry a time, text and optionally a stated position." |
 | 7 | Read the **Mission summary** (fixes, longest gap). | "Longest gap is about ten minutes, longer than the interpolation limit of 5 minutes." |
 | 8 | Drag the **Mission time** slider to about 30 minutes in. | "The ship marker moves along the recorded path. Between two fixes the position is interpolated; at a fix it is exact." |
 | 9 | Drag into the gap (about 55 minutes in). | "Here the app says **position not established**. We never fill a gap and never extrapolate before the first or after the last fix." |

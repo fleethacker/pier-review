@@ -340,7 +340,7 @@ Bixler updates this table; everyone else posts in the team channel.
 | S5 mission storyboarding | Snyder (Claude) | in review | #10 | demo script: [DEMO_MISSIONS_TRANSIT.md](DEMO_MISSIONS_TRANSIT.md) |
 | S6 port transit simulation | Snyder (Claude) | in review | #10 | same PR as S5; always limited validity |
 | P1 forecast resolver | Snyder (GPT) | in review | #4 | |
-| P3 | Snyder (GPT) | in review | #5 | |
+| P3 independent benchmarks (S1-S3) | Snyder (GPT) | in review | #5 | |
 | U1 Intake/review selection | Kori | not started | | |
 | U2 live rm0 motion | Kori | blocked on S1 interface | | build on fixtures meanwhile |
 | D1 source selection | Cruz | not started | | |

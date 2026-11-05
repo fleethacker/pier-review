@@ -2,6 +2,8 @@
 
 ## Log
 
+- 06:48 EST: completed frozen-source TCP soak: 218 full chains, 1,308 cross-owner denials, 13,026.7 seconds, no failures; owned services stopped. Source was 04e7fe9, not the final revision. Latest code passes 1,734 Python and 128 UI tests locally, with contract/typecheck/lint/build checks. PR #102 is pushed; frontend CI passes and Python CI is pending. Final Chrome probes passed; no owned browser test services remain. User may close the laptop: local watches/commands cannot be relied on while it sleeps. Resume from this branch and check PR #102 before publishing the next packet.
+
 - 06:41 EST: Final validity-display fix: unusable analyses no longer supply green line/fitting colors, percentages, offsets or data-key values; edits clear stale map loads immediately, even during dragging or after recheck failure. Sheet sidebar/HTML withhold unusable line margins, directional limits and computed tug requirements, retaining inputs and citations. Fourteen UI and three print counterexamples failed before; valid/limited preservation cases retained.128 UI tests/typecheck/lint/build and1734 Python tests/contract-check pass, no skips/xfails. An existing sheet test now creates its own review instead of depending on another test. Actual Chrome/real APIs: four initial cases, recommendation installation/stale-geometry rejection, risk/wind/timeline reporting and immutable sheet display all pass without page errors; services stopped. A temporary harness dependency-path typo was fixed before that run. Tide explanation now depends on attachment heights/installed length. Held UI branch untouched; UI inbox updated.
 
 - 05:00 EST checkpoint: dev de8a0c6 remains green; no new peer refs or replies. Frozen-source soak at112 chains (28 each) and672 cross-owner denials, still running. Posted actionable coordination updates UI208265910/C208265911, retaining held-branch boundary and pointing to the explicit UI Intake/review and public-composition gaps. Clarified that the execution-plan UI audit is historical, and that F24 does not bundle an approved sequence. No new physics or runtime changes.
@@ -218,3 +220,36 @@
 ## REVIEW_NEEDED
 
 NSTM references, line/pier capacities, wind averaging conversions, tug estimates, sequence durations and intermediate handling assumptions.
+
+
+## Morning handoff (06:48 EST checkpoint)
+
+All implementation is committed and pushed on `agents/overnight`; PR #102 is the last pending
+correctness packet. Earlier packets are merged into `dev`. Do not touch `main`, the shared checkout,
+or the held `ui/frontend-updates` branch. The complete overnight acceptance gate is **not passed**.
+
+Working backend paths include the four named demonstration cases, Intake/Planner/independent Safety,
+HTML/PDF sheets, deterministic berth drafts and confirmation, optional guarded narration, persistent
+owned documents, and supplied-series advance forecast planning with reusable labeled simulation.
+The forecast plan preserves selected paid-out line lengths and installation tide, assesses coverage
+past arrival, and supports explicit short-lead reassessment. It is a static assessment, not an approved
+maneuver or a qualified ship/pier operating envelope.
+
+Remaining integration gaps: explicit Intake and Safety-review selection in the shared UI; `make demo-check`;
+held UI integration; production public-forecast composition and automatic F24-to-review workflow.
+Offline demonstrations use labeled synthetic inputs, not a completed recorded-real environment gate.
+Qualified vessel/berth/rope/tug data, berth-applicable current profiles, wave/wake response and human
+handling/abort acceptance remain prerequisites for operational use.
+
+Resume checklist:
+1. Check PR #102 CI; merge only when green, using its exact head. Fetch and merge `origin/dev` in this worktree.
+2. Run the prepared temporary `/tmp/psp-final-chain-smoke.py` on the merged head; preserve its revision and scope
+   separately from the completed long soak. It owns and stops its isolated test services.
+3. Publish the final report/evidence and continue peer branch/inbox/comment monitoring until 13:00 UTC,
+   if this local machine remains awake. Feature freeze is 12:00 UTC; no new features after that.
+4. Stop the owned watcher (PID 8052, verify its command first) at the deadline. Never stop colleague processes.
+
+Current evidence: 1,734 Python tests, 128 UI tests, no skips/xfails; contract check, TypeScript, lint and build pass.
+Final Chrome probes covered all four initial analyses, recommendation application/recheck, risk/wind/timeline
+semantics and sheet/map consistency, with real local APIs and external network blocked. They do not replace
+the missing explicit full browser acceptance flow. Detailed UI handoff: [recommendations](../MODELING_UI_RECOMMENDATIONS.md).

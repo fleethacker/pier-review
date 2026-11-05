@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { cn } from '../../../lib/cn';
-import { groupPorts, mapPosition, portAt } from '../world';
+import { clusterPorts, groupPorts, mapPosition, portAt } from '../world';
 import type { Port } from '../world';
 import { useController, useMooring } from './context';
 
@@ -22,7 +22,7 @@ export function WorldPicker() {
   const sites = useMooring((s) => s.berthSites);
   const berthId = useMooring((s) => s.berthId);
   const shipClassId = useMooring((s) => s.shipClassId);
-  const ports = useMemo(() => groupPorts(sites), [sites]);
+  const ports = useMemo(() => clusterPorts(groupPorts(sites)), [sites]);
   const dots = useRef(new Map<string, HTMLElement>());
   const [drag, setDrag] = useState<{ x: number; y: number; over: string | null } | null>(null);
   const [choosing, setChoosing] = useState<string | null>(null);

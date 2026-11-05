@@ -51,6 +51,33 @@ export function groupPorts(sites: BerthSite[]): Port[] {
   return ports;
 }
 
+/**
+ * Ports that would sit on top of each other on the small world map (Aden and Djibouti are about 2 degrees apart) share
+ * one marker, so every berth stays reachable: picking the marker lists all of their berths. `minGap` is a fraction of
+ * the map width and height; markers closer than that are merged.
+ */
+export function clusterPorts(ports: Port[], minGap = 0.035): Port[] {
+  const out: (Port & { labels: string[]; members: number })[] = [];
+  for (const p of ports) {
+    const at = mapPosition(p.lat, p.lon);
+    const home = out.find((c) => {
+      const cp = mapPosition(c.lat, c.lon);
+      return Math.hypot(cp.x - at.x, cp.y - at.y) < minGap;
+    });
+    if (!home) {
+      out.push({ ...p, berths: [...p.berths], labels: [p.label], members: 1 });
+      continue;
+    }
+    // Place the shared marker at the members' mean position; keep each port's name.
+    home.lat = (home.lat * home.members + p.lat) / (home.members + 1);
+    home.lon = (home.lon * home.members + p.lon) / (home.members + 1);
+    home.members += 1;
+    home.berths.push(...p.berths);
+    if (!home.labels.includes(p.label)) home.labels.push(p.label);
+  }
+  return out.map((c) => ({ id: c.id, label: c.labels.join(' / '), lat: c.lat, lon: c.lon, berths: c.berths }));
+}
+
 /** Which marker a pointer is over: the nearest one within `radius` pixels of its centre, or null. */
 export function portAt(x: number, y: number, centres: { id: string; x: number; y: number }[], radius = 18): string | null {
   let best: { id: string; d: number } | null = null;

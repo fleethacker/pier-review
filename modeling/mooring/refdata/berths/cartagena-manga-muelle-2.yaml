@@ -1,0 +1,175 @@
+# Berth with a surveyed face position (see scripts/build_berths.py); layout and depths are notional.
+berth_id: CARTAGENA-MANGA-MUELLE-2
+name: Muelle 2, east face (Port of Cartagena, Colombia)
+face_bearing_true_deg: 211.5
+origin_lat: 10.404956
+origin_lon: -75.531215
+face_length_ft: 669
+deck_height_mllw_ft: 11.0
+depth_profile:
+- x_ft: 0
+  depth_mllw_ft: 42
+- x_ft: 334
+  depth_mllw_ft: 45
+- x_ft: 669
+  depth_mllw_ft: 47
+fittings:
+- fitting_id: CTG-B01
+  kind: bollard_special_b
+  x_ft: 30
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: CTG-B02
+  kind: bollard_special_b
+  x_ft: 90
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: CTG-M01
+  kind: bollard_special_a
+  x_ft: 90
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: CTG-C01
+  kind: cleat_42
+  x_ft: 120
+  y_ft: -3
+  capacity_nominal_lbf: 40000
+- fitting_id: CTG-B03
+  kind: bollard_special_b
+  x_ft: 150
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: CTG-B04
+  kind: bollard_special_b
+  x_ft: 210
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: CTG-M02
+  kind: bollard_special_a
+  x_ft: 210
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: CTG-B05
+  kind: bollard_horn
+  x_ft: 270
+  y_ft: -6
+  capacity_nominal_lbf: 70000
+  capacity_horizontal_lbf: 104000
+  capacity_45deg_lbf: 66000
+- fitting_id: CTG-B06
+  kind: bollard_special_b
+  x_ft: 330
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: CTG-M03
+  kind: bollard_special_a
+  x_ft: 330
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: CTG-B07
+  kind: bollard_special_b
+  x_ft: 390
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: CTG-B08
+  kind: bollard_special_b
+  x_ft: 450
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: CTG-M04
+  kind: bollard_special_a
+  x_ft: 450
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: CTG-B09
+  kind: bollard_special_b
+  x_ft: 510
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+- fitting_id: CTG-C02
+  kind: cleat_42
+  x_ft: 540
+  y_ft: -3
+  capacity_nominal_lbf: 40000
+- fitting_id: CTG-B10
+  kind: bollard_horn
+  x_ft: 570
+  y_ft: -6
+  capacity_nominal_lbf: 70000
+  capacity_horizontal_lbf: 104000
+  capacity_45deg_lbf: 66000
+- fitting_id: CTG-M05
+  kind: bollard_special_a
+  x_ft: 570
+  y_ft: -45
+  capacity_nominal_lbf: 450000
+  capacity_horizontal_lbf: 660000
+  capacity_45deg_lbf: 430000
+- fitting_id: CTG-B11
+  kind: bollard_special_b
+  x_ft: 630
+  y_ft: -6
+  capacity_nominal_lbf: 200000
+  capacity_horizontal_lbf: 270000
+  capacity_45deg_lbf: 216000
+  condition: suspect
+fenders:
+- fender_id: CTG-CAMEL-1
+  kind: camel
+  x_ft: 220
+  length_ft: 40
+  standoff_ft: 12
+  stiffness_lbf_per_ft: 150000
+  rated_energy_ftlbf: 200000
+- fender_id: CTG-CAMEL-2
+  kind: camel
+  x_ft: 320
+  length_ft: 40
+  standoff_ft: 12
+  stiffness_lbf_per_ft: 150000
+  rated_energy_ftlbf: 200000
+- fender_id: CTG-CAMEL-3
+  kind: camel
+  x_ft: 420
+  length_ft: 40
+  standoff_ft: 12
+  stiffness_lbf_per_ft: 150000
+  rated_energy_ftlbf: 200000
+structure: open_pile
+env_station_ids:
+  wind: MOCK-CTG-WIND
+  current: MOCK-CTG-CURRENT
+  water_level: MOCK-CTG-LEVEL
+provenance:
+  source: OpenStreetMap contributors (ODbL), way 166292803; checked on Mapbox/Maxar
+    satellite imagery
+  url: https://www.openstreetmap.org/way/166292803
+  confidence: mock
+  notes: Position, direction and length of the face are surveyed (Mapped as a line;
+    Muelle 3 (way 166292804), 42 m to the west, is the other face of the same finger
+    pier.). Fittings, fenders and depths are the notional Pier 12 layout stretched
+    to the face length; weather is synthetic. Not for operational use.

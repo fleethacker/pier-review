@@ -713,3 +713,31 @@ it.each(['wind', 'loading', 'position', 'standoff', 'tugs'])('motion saves fresh
   expect(post.mock.calls.at(-1)?.[1].body.scenario_id).toBe('fresh');
   c.dispose();
 });
+
+describe('default berth', () => {
+  async function initWith(berthIds: string[]) {
+    const data: Record<string, unknown> = {
+      '/api/v1/health': { status: 'ok', backend: 'mock' },
+      '/api/v1/ships': [{ class_id: 'S1', has_fittings: true }],
+      '/api/v1/berths': berthIds.map((berth_id) => ({ berth_id, name: berth_id })),
+      '/api/v1/lines': [],
+      '/api/v1/tugs': [],
+    };
+    vi.mocked(modeling.GET).mockImplementation(((path: string) => Promise.resolve({ data: data[path] })) as never);
+    const c = new MooringController({ store: new SceneStore() });
+    await c.init();
+    const id = c.state.get().berthId;
+    c.dispose();
+    return id;
+  }
+
+  it('opens at Pier 12 North even when other berths sort ahead of it', async () => {
+    vi.useRealTimers();
+    expect(await initWith(['ADEN-MAALLA-JETTY', 'CARTAGENA-MANGA-MUELLE-2', 'NAVSTA-NORFOLK-P12-N'])).toBe('NAVSTA-NORFOLK-P12-N');
+  });
+
+  it('falls back to the first berth when Pier 12 North is not in the catalog', async () => {
+    vi.useRealTimers();
+    expect(await initWith(['ADEN-MAALLA-JETTY', 'ROTA-PIER-1'])).toBe('ADEN-MAALLA-JETTY');
+  });
+});

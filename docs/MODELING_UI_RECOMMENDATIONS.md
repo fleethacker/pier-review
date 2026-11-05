@@ -43,7 +43,7 @@ The arrival-window panel and alternatives view are implemented. Preserve the fol
 
 Draft sequences preserve the scenario loading/MST and check staged line parts and tug release. Show each step’s state as within limits, blocking or undetermined, retain `sequence_result_id`, and keep the unreviewed label visible. Printable sheets now include those notes and the result reference. Invalid tug assessments are excluded from assistance and leave the plan blocked. Draft sequences use the existing sequence/planner/review interfaces; the forecast result does not currently bundle an approved sequence. Keep durations and intermediate handling assumptions labeled unreviewed. Pilot/deck-officer acceptance, UKC, tug availability and traffic are separate requirements.
 
-## Snyder-lane additions on PR #22 (awaiting cross-review/merge)
+## Snyder-lane additions on PR #22 (merged to `dev` via PR #22 (not yet cross-reviewed))
 
 Implemented on `ws-e/snyder-demo-sprint`, not on `dev` until PR #22 merges. Every change is additive; fields are omitted
 from the wire when unset. After merging, run `npm run types`. Contract files take precedence over this summary; the

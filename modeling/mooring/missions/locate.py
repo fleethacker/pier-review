@@ -1,12 +1,14 @@
 """Locate an event at time t on a recorded track. Shared by images and reports.
 
 Methods (never extrapolates, never invents a position):
-  exact_fix     t within EXACT_TOL_S of a fix: that fix's position.
+  exact_fix     t within EXACT_TOL_S of a fix that lies inside the recorded span: that fix's position. Outside the
+                span only EDGE_TOL_S (1 ms, clock rounding) counts as the fix itself.
   interpolated  t between fixes whose spacing is <= max_interp_gap_s: great-circle interpolation, linear in time.
   gap           t between fixes spaced further apart than max_interp_gap_s: position null, gap_s reported.
   before_track / after_track   outside the recorded span: position null.
   no_track      no fixes. no_time  the event has no timestamp.
-Validity is `valid` only for an exact fix of quality `good` with no other caveat; everything else is `limited`.
+Validity is `valid` only for an exact fix of quality `good` with no other caveat; everything else is `limited`
+(an interpolation is `limited` with INTERPOLATED_POSITION, plus FIX_QUALITY_NOT_GOOD if either bracketing fix is not good).
 """
 
 from bisect import bisect_left
@@ -28,6 +30,7 @@ from .geo import (
 )
 
 EXACT_TOL_S = 0.5
+EDGE_TOL_S = 0.001
 DISAGREE_M = 500.0
 
 CAVEAT_TEXT = {
@@ -107,7 +110,17 @@ def locate(index: TrackIndex, t: datetime | None, max_interp_gap_s: float, *, st
     tu = to_us(t)
     i = bisect_left(index.t, tu)  # first fix with time >= t
     tol = EXACT_TOL_S * 1e6
-    near = [j for j in (i - 1, i) if 0 <= j < n and abs(index.t[j] - tu) <= tol]
+    edge_tol = EDGE_TOL_S * 1e6
+
+    def _near(j):
+        if not 0 <= j < n:
+            return False
+        d = index.t[j] - tu
+        if (d > 0 and j == 0) or (d < 0 and j == n - 1):  # before the first / after the last fix: no snapping
+            return abs(d) <= edge_tol
+        return abs(d) <= tol
+
+    near = [j for j in (i - 1, i) if _near(j)]
     if near:
         j = min(near, key=lambda k: abs(index.t[k] - tu))
         lat, lon = index.lat[j], index.lon[j]
@@ -150,6 +163,9 @@ def locate(index: TrackIndex, t: datetime | None, max_interp_gap_s: float, *, st
     else:
         hdg = None
     reasons.insert(0, _reason("INTERPOLATED_POSITION", f"Interpolated between fixes {span:.1f} s apart.", component))
+    if index.quality[a] != "good" or index.quality[b] != "good":
+        reasons.insert(1, _reason("FIX_QUALITY_NOT_GOOD", f"A bracketing fix is not of good quality (before: '{index.quality[a]}', "
+                                  f"after: '{index.quality[b]}'; HDOP > 2 or not recorded).", component))
     loc = dict(method="interpolated", lat=lat, lon=lon, fix_before_utc=from_us(index.t[a]), fix_after_utc=from_us(index.t[b]),
                gap_s=span, distance_along_track_nm=(index.cum_m[a] + f * dist) / NM_M, sog_kt=dist / span / KT_MS,
                heading_true_deg=hdg)

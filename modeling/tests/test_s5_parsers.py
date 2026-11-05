@@ -114,8 +114,8 @@ def test_nmea_gga_needs_a_date_and_rolls_over_midnight():
     r = parsers.parse_nmea(fx("gga_only.nmea"))
     assert r.fixes == [] and r.rejected == 2 and all("no date" in e for e in r.errors)
     r = parsers.parse_nmea(fx("gga_only.nmea"), nmea_date=date(2025, 6, 1))
-    assert [f.t_utc for f in r.fixes] == [datetime(2025, 6, 1, 23, 59, 58, tzinfo=UTC)] + [datetime(2025, 6, 1, 0, 0, 2, tzinfo=UTC)]
-    # NOTE: without an RMC the day cannot advance by itself: the second GGA keeps the supplied date (documented)
+    # 23:59:58 -> 00:00:02 crosses midnight: the day advances even with GGA only (earlier expectation kept the old date)
+    assert [f.t_utc for f in r.fixes] == [datetime(2025, 6, 1, 23, 59, 58, tzinfo=UTC), datetime(2025, 6, 2, 0, 0, 2, tzinfo=UTC)]
 
 
 def test_nmea_rmc_date_then_gga_across_midnight():

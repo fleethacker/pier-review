@@ -451,6 +451,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/loads/wave-surrogate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Seeded synthetic wave elevation series (visualization only; unqualified) */
+        post: operations["wave_surrogate_api_v1_loads_wave_surrogate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mooring/analyze": {
         parameters: {
             query?: never;
@@ -564,6 +581,40 @@ export interface paths {
         put?: never;
         /** Tugs needed to relieve overloaded lines on a moored ship */
         post: operations["hold_plan_api_v1_tugs_hold_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tugs/horsepower-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minimum-total-horsepower tug assignment for a required wrench (catalog data, validity limited) */
+        post: operations["horsepower_plan_api_v1_tugs_horsepower_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/risk/ultimate-gust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Modeled ultimate-load gust threshold; 'unavailable' envelope (200) without a supplied capacity basis */
+        post: operations["ultimate_gust_api_v1_risk_ultimate_gust_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -700,6 +751,23 @@ export interface paths {
         put?: never;
         /** Check a proposed line-handling sequence: dependencies, crews, tug provenance and intermediate states */
         post: operations["sequence_validate_api_v1_mooring_sequence_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mooring/sequence/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** S8: bounded search over line orders with intermediate static checks (draft, unreviewed) */
+        post: operations["sequence_search_api_v1_mooring_sequence_search_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1649,6 +1717,8 @@ export interface components {
              * @enum {string}
              */
             env_mode: "steady" | "gusting";
+            /** @description Time-varying forcing series; absent keeps the frozen scenario environment. */
+            forcing?: components["schemas"]["ForcingSpec"] | null;
         };
         /** BerthingTugRequest */
         BerthingTugRequest: {
@@ -2790,6 +2860,103 @@ export interface components {
             mz_ftlbf: number;
         };
         /**
+         * ForcingSample
+         * @description One supplied forcing sample (replay). A channel is either given in every sample or in none.
+         */
+        ForcingSample: {
+            /**
+             * T S
+             * @description Simulation time of the sample.
+             */
+            t_s: number;
+            /** Wind Speed Kt */
+            wind_speed_kt?: number | null;
+            /** Wind Gust Kt */
+            wind_gust_kt?: number | null;
+            /** Wind From True Deg */
+            wind_from_true_deg?: number | null;
+            /** Current Speed Kt */
+            current_speed_kt?: number | null;
+            /** Current Set True Deg */
+            current_set_true_deg?: number | null;
+            /** Water Level Mllw Ft */
+            water_level_mllw_ft?: number | null;
+        };
+        /**
+         * ForcingSpec
+         * @description Time-varying forcing, resolved at integration-stage time from an immutable series (S2).
+         *
+         *     steady: the scenario environment, constant (optionally plus the synthetic tide term).
+         *     ramp: linear move from the scenario environment at ramp_start_s to `target` at target.t_s, held afterwards.
+         *     gusts: seeded synthetic wind-speed fluctuation about the scenario environment (a pure function of seed and time).
+         *     replay: piecewise-linear interpolation of supplied samples; coverage is the sample time range.
+         */
+        ForcingSpec: {
+            /**
+             * Kind
+             * @default steady
+             * @enum {string}
+             */
+            kind: "steady" | "ramp" | "gusts" | "replay";
+            /** Label */
+            label?: string | null;
+            /**
+             * Ramp Start S
+             * @default 0
+             */
+            ramp_start_s: number;
+            /** @description ramp end values; t_s is the ramp end time. */
+            target?: components["schemas"]["ForcingSample"] | null;
+            /**
+             * Seed
+             * @description gusts: required; same seed gives the same series.
+             */
+            seed?: number | null;
+            /**
+             * Gust Sigma Kt
+             * @default 3
+             */
+            gust_sigma_kt: number;
+            /**
+             * Gust Correlation S
+             * @description Spacing of the random knots (linearly interpolated).
+             * @default 10
+             */
+            gust_correlation_s: number;
+            /** Samples */
+            samples?: components["schemas"]["ForcingSample"][];
+            /**
+             * Tide Amplitude Ft
+             * @description Synthetic sinusoidal water-level term added to any kind.
+             * @default 0
+             */
+            tide_amplitude_ft: number;
+            /**
+             * Tide Period S
+             * @description Default is the M2 period.
+             * @default 44712
+             */
+            tide_period_s: number;
+            /**
+             * Tide Phase Rad
+             * @default 0
+             */
+            tide_phase_rad: number;
+            /**
+             * Vessel Relative Wind
+             * @description Subtract ship ground velocity from the wind (apparent wind). Current is never made relative here: velocity-dependent water drag stays entirely in the body damping term, so it is not double counted.
+             * @default false
+             */
+            vessel_relative_wind: boolean;
+            /**
+             * On Uncovered
+             * @description Time past the series coverage: stop = fail the run (RED); invalidate = hold the last value and mark the run invalid.
+             * @default stop
+             * @enum {string}
+             */
+            on_uncovered: "stop" | "invalidate";
+        };
+        /**
          * ForecastBinding
          * @description Explicit input selection. Provider acquisition remains outside the planner.
          */
@@ -3329,6 +3496,122 @@ export interface components {
              */
             available_tug_ids?: string[] | null;
         };
+        /** HorsepowerPlacement */
+        HorsepowerPlacement: {
+            /** Tug Id */
+            tug_id: string;
+            /** Push Point Id */
+            push_point_id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "push" | "pull";
+            /** Force Lbf */
+            force_lbf: number;
+            /**
+             * Capacity Lbf
+             * @description min(catalog bollard pull in this mode x efficiency, push-point rating).
+             */
+            capacity_lbf: number;
+            /**
+             * Utilization
+             * @description force_lbf / capacity_lbf.
+             */
+            utilization: number;
+            /**
+             * Power Hp
+             * @description Catalog horsepower (seed/synthetic unless published); never converted to force.
+             */
+            power_hp: number;
+        };
+        /**
+         * HorsepowerPlan
+         * @description P5: minimum-total-horsepower, placement-feasible tug assignment for a required ship-frame wrench.
+         */
+        HorsepowerPlan: {
+            /**
+             * Objective
+             * @default minimize_total_horsepower
+             */
+            objective: string;
+            /** Feasible */
+            feasible: boolean;
+            /**
+             * Total Power Hp
+             * @default 0
+             */
+            total_power_hp: number;
+            /**
+             * Tug Count
+             * @default 0
+             */
+            tug_count: number;
+            /** Placements */
+            placements?: components["schemas"]["HorsepowerPlacement"][];
+            required_wrench: components["schemas"]["WrenchLbf"];
+            delivered_wrench?: components["schemas"]["WrenchLbf"] | null;
+            residual_wrench?: components["schemas"]["WrenchLbf"] | null;
+            /**
+             * Load Scale Margin
+             * @description Largest factor s such that s x required wrench is still placement-feasible with the chosen tugs; >=1 when feasible.
+             */
+            load_scale_margin?: number | null;
+            /**
+             * Fleet Scale Margin
+             * @description Same factor for the whole available fleet (best case); <1 explains infeasibility.
+             */
+            fleet_scale_margin?: number | null;
+            /**
+             * Candidates Evaluated
+             * @default 0
+             */
+            candidates_evaluated: number;
+            /** Infeasibility Reasons */
+            infeasibility_reasons?: string[];
+            /**
+             * Tie Break
+             * @default lowest total hp, then fewest tugs, then lowest total force, then lexicographic (tug_id, push_point_id)
+             */
+            tie_break: string;
+            /**
+             * Validity
+             * @description Validity limited where fleet horsepower/bollard-pull data are assumed (seed/synthetic).
+             * @default limited
+             */
+            validity: string;
+            /** Assumptions */
+            assumptions?: string[];
+        };
+        /**
+         * HorsepowerRequest
+         * @description P5 request: minimum-horsepower tug assignment for a required ship-frame wrench.
+         */
+        HorsepowerRequest: {
+            /**
+             * Ship Class Id
+             * @example DDG-51-FIIA
+             */
+            ship_class_id: string;
+            required_wrench: components["schemas"]["WrenchLbf"];
+            /**
+             * Available Tug Ids
+             * @description Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs. At most 8 tugs (exhaustive search).
+             */
+            available_tug_ids?: string[] | null;
+            /**
+             * Efficiency
+             * @description Multiplier on catalog bollard pull.
+             * @default 1
+             */
+            efficiency: number;
+            /**
+             * Margin
+             * @description Added to the required wrench.
+             * @default 0
+             */
+            margin: number;
+        };
         /** ImageFitting */
         ImageFitting: {
             /** Item Id */
@@ -3700,6 +3983,26 @@ export interface components {
             line_number: number;
             /** Tension Lbf */
             tension_lbf: number;
+        };
+        /** LineUltimateCapacity */
+        LineUltimateCapacity: {
+            /** Line Number */
+            line_number: number;
+            /**
+             * Ultimate Capacity Lbf
+             * @description Effective ultimate tension of the installed line (all parts), with wet/condition/termination factors already applied and cited in `factors`.
+             */
+            ultimate_capacity_lbf: number;
+            /**
+             * Material Law Max Strain
+             * @description Largest strain for which the load-elongation law is supported. Beyond it the search stops as indeterminate.
+             */
+            material_law_max_strain: number;
+            /**
+             * Factors
+             * @description Wet, condition and termination factors applied, as sourced.
+             */
+            factors: string;
         };
         /** LoadingCondition */
         LoadingCondition: {
@@ -5520,6 +5823,18 @@ export interface components {
             /** Tugs */
             tugs?: components["schemas"]["TugAssignment"][];
         };
+        /** SequenceConstraintCheck */
+        SequenceConstraintCheck: {
+            /** Code */
+            code: string;
+            /**
+             * Satisfied
+             * @description null when not evaluated.
+             */
+            satisfied: boolean | null;
+            /** Message */
+            message: string;
+        };
         /** SequenceIssue */
         SequenceIssue: {
             /** Code */
@@ -5535,6 +5850,45 @@ export interface components {
             line_number?: number | null;
             /** Message */
             message: string;
+        };
+        /** SequenceProposal */
+        SequenceProposal: {
+            /** Rank */
+            rank: number;
+            /** Line Order */
+            line_order: number[];
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "feasible_static" | "indeterminate" | "infeasible";
+            /** Is Default Order */
+            is_default_order: boolean;
+            /** Steps */
+            steps: components["schemas"]["SequenceStep"][];
+            /** Issues */
+            issues: components["schemas"]["SequenceIssue"][];
+            /** Constraints */
+            constraints: components["schemas"]["SequenceConstraintCheck"][];
+            /** Intermediate States Evaluated */
+            intermediate_states_evaluated: number;
+            /** Intermediate States Indeterminate */
+            intermediate_states_indeterminate: number;
+            /** Worst State Pct */
+            worst_state_pct?: number | null;
+            /** Total Duration Min */
+            total_duration_min?: number | null;
+            /**
+             * Validity State
+             * @enum {string}
+             */
+            validity_state: "limited" | "invalid";
+            /**
+             * Review Status
+             * @default draft_unreviewed
+             * @enum {string}
+             */
+            review_status: "draft_unreviewed" | "reviewed";
         };
         /** SequenceRequest */
         SequenceRequest: {
@@ -5637,6 +5991,112 @@ export interface components {
              * @description Critical-path estimate from the unreviewed durations.
              */
             total_duration_min?: number | null;
+        };
+        /** SequenceSearchBounds */
+        SequenceSearchBounds: {
+            /** Max Candidates */
+            max_candidates: number;
+            /**
+             * Candidate Space
+             * @description Number of orderings of the configured lines (n!).
+             */
+            candidate_space: number;
+            /** Evaluated */
+            evaluated: number;
+            /**
+             * Admissible Candidates
+             * @description Orderings meeting the caller constraints; null when the space was not fully enumerated.
+             */
+            admissible_candidates?: number | null;
+            /**
+             * Truncated
+             * @description True when admissible orderings remained unevaluated because of max_candidates or the enumeration guard.
+             */
+            truncated: boolean;
+        };
+        /** SequenceSearchRequest */
+        SequenceSearchRequest: {
+            /** Ship Class Id */
+            ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /**
+             * Mst
+             * @default II
+             * @enum {string}
+             */
+            mst: "I" | "II" | "IIA" | "III";
+            /** Berth Id */
+            berth_id: string;
+            config: components["schemas"]["MooringConfig"];
+            environment: components["schemas"]["EnvironmentSnapshot"];
+            /** Tug Plan Result Id */
+            tug_plan_result_id?: string | null;
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Common installation tide for draft static checks; defaults to the evaluated water level.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
+            /**
+             * Line Handling Crews
+             * @default 6
+             */
+            line_handling_crews: number;
+            /**
+             * Must Precede
+             * @description Handling constraints (a, b): line a is passed and secured before line b. Caller-supplied; none are invented.
+             */
+            must_precede?: [
+                number,
+                number
+            ][];
+            /**
+             * First Line
+             * @description Optional constraint: this line is handled first.
+             */
+            first_line?: number | null;
+            /**
+             * Max Candidates
+             * @description Upper bound on orderings evaluated with the static solver.
+             * @default 8
+             */
+            max_candidates: number;
+            /**
+             * Max Proposals
+             * @default 3
+             */
+            max_proposals: number;
+        };
+        /** SequenceSearchResult */
+        SequenceSearchResult: {
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "feasible_found" | "indeterminate_only" | "no_feasible_order" | "budget_limited" | "unsupported";
+            /** Proposals */
+            proposals: components["schemas"]["SequenceProposal"][];
+            bounds: components["schemas"]["SequenceSearchBounds"];
+            /** Default Order */
+            default_order: number[];
+            /**
+             * Default Order Outcome
+             * @enum {string}
+             */
+            default_order_outcome: "feasible_static" | "indeterminate" | "infeasible" | "not_evaluated";
+            /** Tie Breaks */
+            tie_breaks: string[];
+            /** Limitations */
+            limitations: string[];
+            /**
+             * Review Status
+             * @default draft_unreviewed
+             * @enum {string}
+             */
+            review_status: "draft_unreviewed" | "reviewed";
         };
         /** SequenceStep */
         SequenceStep: {
@@ -5953,6 +6413,11 @@ export interface components {
          */
         SimFrame: {
             diagnostics?: components["schemas"]["SimulationDiagnostics"] | null;
+            /**
+             * Forcing Revision
+             * @description Revision id of the immutable forcing series; with t_s it identifies the forcing in effect.
+             */
+            forcing_revision?: string | null;
             /** T S */
             t_s: number;
             pose: components["schemas"]["ShipState"];
@@ -6203,6 +6668,8 @@ export interface components {
         };
         /** SimSessionCreate */
         SimSessionCreate: {
+            /** @description Forcing series; absent keeps the frozen scenario environment. */
+            forcing?: components["schemas"]["ForcingSpec"] | null;
             /** Dt S */
             dt_s?: number | null;
             /** Duration S */
@@ -6218,6 +6685,13 @@ export interface components {
         };
         /** SimSessionCreated */
         SimSessionCreated: {
+            /** Forcing Revision */
+            forcing_revision?: string | null;
+            /**
+             * Forcing Synthetic
+             * @description True when the forcing series is generated rather than supplied.
+             */
+            forcing_synthetic?: boolean | null;
             /** Session Id */
             session_id: string;
             /** Ws Url */
@@ -7440,6 +7914,236 @@ export interface components {
             legs: components["schemas"]["UkcLeg"][];
             window: components["schemas"]["TimeWindow"];
         };
+        /** UltimateCapacityBasis */
+        UltimateCapacityBasis: {
+            /** Basis Id */
+            basis_id: string;
+            /**
+             * Evidence Status
+             * @enum {string}
+             */
+            evidence_status: "sourced" | "synthetic_test_fixture";
+            /**
+             * Citation
+             * @description Source of the capacity and material-law range.
+             */
+            citation: string;
+            /**
+             * Wind Basis
+             * @description Wind averaging duration and reference height the supplied gust speed is stated on.
+             */
+            wind_basis: string;
+            /**
+             * Capacity Uncertainty
+             * @description Stated uncertainty of the capacity; informational, not applied to the threshold.
+             */
+            capacity_uncertainty?: string | null;
+            /** Lines */
+            lines: components["schemas"]["LineUltimateCapacity"][];
+        };
+        /** UltimateDirectionResult */
+        UltimateDirectionResult: {
+            /** Wind Rel Deg */
+            wind_rel_deg: number;
+            /** Wind From True Deg */
+            wind_from_true_deg: number;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "threshold_found" | "ultimate_at_zero_wind" | "indeterminate_component_failed_first" | "indeterminate_material_range" | "indeterminate_nonconvergence" | "indeterminate_search_ceiling";
+            /**
+             * Threshold Wind Kt
+             * @description Highest verified speed below modeled ultimate capacity; 0 at zero-wind failure; None unless a threshold was found.
+             */
+            threshold_wind_kt?: number | null;
+            /**
+             * Threshold Gust Kt
+             * @description threshold_wind_kt times the request's held gust/sustained ratio.
+             */
+            threshold_gust_kt?: number | null;
+            /** Bracket Kt */
+            bracket_kt?: number[] | null;
+            /** Governing Line */
+            governing_line?: string | null;
+            /**
+             * Governing Utilization Of Ultimate
+             * @description Tension / ultimate capacity of the governing line at the upper bracket end.
+             */
+            governing_utilization_of_ultimate?: number | null;
+            /**
+             * Wll Crossing Bracket Kt
+             * @description Coarse wind-speed interval of the first WLL crossing (a warning, not a stop); None if none before the stop.
+             */
+            wll_crossing_bracket_kt?: number[] | null;
+            /**
+             * Stop Kt
+             * @description Speed at which a non-ultimate stop or nonconvergence occurred.
+             */
+            stop_kt?: number | null;
+            /** Stop Elements */
+            stop_elements?: string[];
+            /** Nonmonotone In Bracket */
+            nonmonotone_in_bracket?: boolean | null;
+            /** Reason */
+            reason?: string | null;
+        };
+        /** UltimateGustRequest */
+        UltimateGustRequest: {
+            /**
+             * Scenario Id
+             * @description Informational; inputs are always taken from the body.
+             */
+            scenario_id?: string | null;
+            /**
+             * Ship Class Id
+             * @example DDG-51-FIIA
+             */
+            ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /**
+             * Berth Id
+             * @example NAVSTA-NORFOLK-P12-N
+             */
+            berth_id: string;
+            config: components["schemas"]["MooringConfig"];
+            environment: components["schemas"]["EnvironmentSnapshot"];
+            /** Tugs */
+            tugs?: components["schemas"]["TugAssignment"][];
+            /**
+             * Mst
+             * @description Sets the design factor: 3.0 (I, II, IIA) or 2.5 (III).
+             * @default II
+             * @enum {string}
+             */
+            mst: "I" | "II" | "IIA" | "III";
+            /**
+             * Lines Wet
+             * @description Apply the wet-strength factor (nylon loses 15%).
+             * @default true
+             */
+            lines_wet: boolean;
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft (lines installed at the analysis water level). A different value keeps rest lengths from that state.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
+            /** @description Required for a threshold; absent -> outcome 'unavailable'. */
+            capacity_basis?: components["schemas"]["UltimateCapacityBasis"] | null;
+            /**
+             * Step Deg
+             * @default 30
+             */
+            step_deg: number;
+            /**
+             * Max Search Kt
+             * @description Search ceiling; no stop below it is indeterminate, never 'unlimited'.
+             * @default 150
+             */
+            max_search_kt: number;
+            /**
+             * Sampling Step Kt
+             * @default 5
+             */
+            sampling_step_kt: number;
+            /**
+             * Tolerance Kt
+             * @default 0.25
+             */
+            tolerance_kt: number;
+        };
+        /** UltimateGustResponse */
+        UltimateGustResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /** @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes. */
+            manifest?: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["UltimateGustResult"];
+        };
+        /** UltimateGustResult */
+        UltimateGustResult: {
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "threshold_found" | "unavailable" | "indeterminate";
+            /** Reasons */
+            reasons?: string[];
+            /** Basis Id */
+            basis_id?: string | null;
+            /** Evidence Status */
+            evidence_status?: ("sourced" | "synthetic_test_fixture") | null;
+            /** Citation */
+            citation?: string | null;
+            /** Wind Basis */
+            wind_basis?: string | null;
+            /**
+             * Complete
+             * @description True only if every searched direction produced a threshold; otherwise the governing value is the lowest found, not a proven minimum.
+             * @default false
+             */
+            complete: boolean;
+            governing?: components["schemas"]["UltimateDirectionResult"] | null;
+            /** @description Search along the request's own wind direction. */
+            assessed?: components["schemas"]["UltimateDirectionResult"] | null;
+            /** Assessed Gust Kt */
+            assessed_gust_kt?: number | null;
+            /**
+             * Assessed Gust Margin Kt
+             * @description Assessed-direction threshold gust minus the request gust; negative means the modeled ultimate is exceeded.
+             */
+            assessed_gust_margin_kt?: number | null;
+            /** Directions */
+            directions?: components["schemas"]["UltimateDirectionResult"][];
+            /**
+             * Validated Rupture Prediction
+             * @description Always false: a physical breaking claim needs its own validation evidence.
+             * @default false
+             * @constant
+             */
+            validated_rupture_prediction: false;
+        };
         /** UncertaintySettings */
         UncertaintySettings: {
             /**
@@ -7770,6 +8474,126 @@ export interface components {
             /** Quality Flags */
             quality_flags?: string[];
         };
+        /** WaveSpectrumComponent */
+        WaveSpectrumComponent: {
+            /**
+             * Label
+             * @enum {string}
+             */
+            label: "total_sea" | "swell" | "wind_sea";
+            /**
+             * Hs Ft
+             * @description Significant wave height (4 sqrt(m0)) of this component.
+             */
+            hs_ft: number;
+            /**
+             * Peak Period S
+             * @description Spectral peak period.
+             */
+            peak_period_s: number;
+            /**
+             * From True Deg
+             * @description Provenance only; the surrogate is a scalar elevation at one point and does not model direction.
+             */
+            from_true_deg?: number | null;
+            /**
+             * Gamma
+             * @description JONSWAP peak enhancement. A scenario shape parameter, not fitted to data.
+             * @default 3.3
+             */
+            gamma: number;
+        };
+        /** WaveSpectrumInput */
+        WaveSpectrumInput: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "total" | "partitions";
+            /** Components */
+            components: components["schemas"]["WaveSpectrumComponent"][];
+            /**
+             * Reported Total Hs Ft
+             * @description Provider's reported total Hs alongside partitions. Checked for consistency, never added.
+             */
+            reported_total_hs_ft?: number | null;
+            /**
+             * Source
+             * @description Where these labeled parameters came from (e.g. a D4 record id or 'hand-entered scenario').
+             */
+            source: string;
+        };
+        /** WaveSurrogateRequest */
+        WaveSurrogateRequest: {
+            /** Seed */
+            seed: number;
+            /**
+             * Duration S
+             * @default 600
+             */
+            duration_s: number;
+            /**
+             * Dt S
+             * @default 0.5
+             */
+            dt_s: number;
+            /** @description None means waves are unavailable (not zero). */
+            spectrum?: components["schemas"]["WaveSpectrumInput"] | null;
+        };
+        /** WaveSurrogateResult */
+        WaveSurrogateResult: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "synthetic" | "unavailable";
+            /**
+             * Label
+             * @default SYNTHETIC / UNQUALIFIED: seeded random-phase JONSWAP-shaped surface elevation for visualization only. Not a forecast, not a measurement, and not berth forcing (offshore availability is not berth forcing).
+             */
+            label: string;
+            /**
+             * Qualified
+             * @default false
+             * @constant
+             */
+            qualified: false;
+            /** Seed */
+            seed: number;
+            /** Reasons */
+            reasons?: string[];
+            series?: components["schemas"]["WaveSurrogateSeries"] | null;
+            /**
+             * Target Hs Ft
+             * @description sqrt(sum of component Hs^2): energy-additive, each source once.
+             */
+            target_hs_ft?: number | null;
+            /**
+             * Realized Hs Ft
+             * @description 4 x standard deviation of the generated series.
+             */
+            realized_hs_ft?: number | null;
+            /** Mean Zero Crossing Period S */
+            mean_zero_crossing_period_s?: number | null;
+            /** Source */
+            source?: string | null;
+            /** Notes */
+            notes?: string[];
+        };
+        /** WaveSurrogateSeries */
+        WaveSurrogateSeries: {
+            /** T S */
+            t_s: number[];
+            /**
+             * Elevation Ft
+             * @description Sum of the component elevations; each partition added once.
+             */
+            elevation_ft: number[];
+            /** Components */
+            components?: {
+                [key: string]: number[];
+            };
+        };
         /** Waypoint */
         Waypoint: {
             /** Lat */
@@ -8000,6 +8824,12 @@ export interface components {
         };
         /** BerthingSimResult */
         BerthingSimResult: {
+            /**
+             * Forcing Revision
+             * @description Revision id of the forcing series used; absent for the frozen environment.
+             * @default null
+             */
+            forcing_revision: string | null;
             /**
              * Transitions
              * @default null
@@ -9798,6 +10628,39 @@ export interface operations {
             };
         };
     };
+    wave_surrogate_api_v1_loads_wave_surrogate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaveSurrogateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaveSurrogateResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     analyze_api_v1_mooring_analyze_post: {
         parameters: {
             query?: never;
@@ -10003,6 +10866,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TugPlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    horsepower_plan_api_v1_tugs_horsepower_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HorsepowerRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HorsepowerPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ultimate_gust_api_v1_risk_ultimate_gust_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UltimateGustRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UltimateGustResponse"];
                 };
             };
             /** @description Validation Error */
@@ -10267,6 +11196,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SequenceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sequence_search_api_v1_mooring_sequence_search_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SequenceSearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SequenceSearchResult"];
                 };
             };
             /** @description Validation Error */

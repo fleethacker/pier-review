@@ -18,7 +18,7 @@ from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import nearest_points, unary_union
 
 from mooring import refdata
-from mooring.berthing.forcing import ForcingSeries
+from mooring.core.forcing import ForcingSeries
 from mooring.core.envelopes import envelope, resolved_inputs_hash
 from mooring.core.schemas import (
     ForcingBasis,

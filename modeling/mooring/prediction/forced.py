@@ -8,7 +8,7 @@ start of each integration step (zero-order hold over dt <= 1 s), not at RK4 stag
 import math
 from datetime import timedelta
 
-from mooring.berthing.forcing import ForcingSeries, ForcingUncovered
+from mooring.core.forcing import ForcingSeries, ForcingUncovered
 from mooring.core.schemas import TrackFix, TransitFrame
 from mooring.transit import simulator as sim
 

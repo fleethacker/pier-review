@@ -2,6 +2,7 @@
 talk to it over (in-memory) HTTP exactly as they will in deployment."""
 
 import json
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -18,6 +19,18 @@ modeling = TestClient(modeling_app)
 app.dependency_overrides[get_client] = lambda: ModelingClient(
     base_url="http://modeling/api/v1", transport=httpx.ASGITransport(app=modeling_app))
 client = TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def fixed_environment_clock():
+    # Mock forecast rounds to the hour: freeze the clock so coverage assertions never depend on wall time.
+    from mooring.environment import mock as environment_mock
+    from mooring_agents.intake import core
+    with pytest.MonkeyPatch.context() as patch:
+        now = datetime(2026, 11, 4, 12, tzinfo=UTC)
+        patch.setattr(environment_mock, "utcnow", lambda: now)
+        patch.setattr(core, "utcnow", lambda: now)
+        yield
 
 
 @pytest.fixture(scope="module")

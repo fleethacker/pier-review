@@ -21,6 +21,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/env/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Independent source and availability status for environment components
+         * @description Report partial status without weakening the complete `/env/now` contract.
+         */
+        get: operations["env_availability_api_v1_env_availability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/env/forecast": {
         parameters: {
             query?: never;
@@ -32,6 +52,40 @@ export interface paths {
         get: operations["env_forecast_api_v1_env_forecast_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/env/forecast/compose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acquire a frozen component-level forecast manifest */
+        post: operations["env_forecast_compose_api_v1_env_forecast_compose_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/env/waves/compose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acquire offshore wave evidence and explicit berth-applicability gaps */
+        post: operations["env_waves_compose_api_v1_env_waves_compose_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -134,6 +188,40 @@ export interface paths {
         get: operations["get_ship_api_v1_ships__class_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ships/{class_id}/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Class-specific capability gates and input limitations */
+        get: operations["ship_capabilities_api_v1_ships__class_id__capabilities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ships/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assess an unsaved ship input; does not register data or grant engineering approval */
+        post: operations["validate_ship_input_api_v1_ships_validate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -397,6 +485,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/loads/wave-surrogate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Seeded synthetic wave elevation series (visualization only; unqualified) */
+        post: operations["wave_surrogate_api_v1_loads_wave_surrogate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mooring/analyze": {
         parameters: {
             query?: never;
@@ -516,6 +621,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tugs/horsepower-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Minimum-total-horsepower tug assignment for a required wrench (catalog data, validity limited) */
+        post: operations["horsepower_plan_api_v1_tugs_horsepower_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/risk/ultimate-gust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Modeled ultimate-load gust threshold; 'unavailable' envelope (200) without a supplied capacity basis */
+        post: operations["ultimate_gust_api_v1_risk_ultimate_gust_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mooring/recommend": {
         parameters: {
             query?: never;
@@ -544,6 +683,40 @@ export interface paths {
         put?: never;
         /** Assess arrivals at least 24 hours ahead (job result: ForecastDockingResponse) */
         post: operations["forecast_plan_api_v1_mooring_forecast_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mooring/forecast/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Freeze an explicit forecast series and its as-of/horizon identity */
+        post: operations["resolve_forecast_api_v1_mooring_forecast_resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mooring/forecast-plan/recheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compare replacement guidance with a saved plan; never change or approve it */
+        post: operations["forecast_recheck_api_v1_mooring_forecast_plan_recheck_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -618,6 +791,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mooring/sequence/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** S8: bounded search over line orders with intermediate static checks (draft, unreviewed) */
+        post: operations["sequence_search_api_v1_mooring_sequence_search_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/berthing/simulate": {
         parameters: {
             query?: never;
@@ -663,6 +853,57 @@ export interface paths {
         put?: never;
         /** Start an interactive session; drive it over WS /ws/sim/{session_id} */
         post: operations["create_session_api_v1_berthing_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/berthing/sessions/{session_id}/scene": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Static rm0-v1 scene (berth, hull, fittings, fenders) for an interactive session */
+        get: operations["session_scene_api_v1_berthing_sessions__session_id__scene_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/berthing/recordings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Owner-scoped saved recordings, including expired sessions; stable session-ID order */
+        get: operations["recordings_api_v1_berthing_recordings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/berthing/sessions/{session_id}/recording": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bounded recording of an interactive session: live copy, else the persisted one */
+        get: operations["session_recording_api_v1_berthing_sessions__session_id__recording_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -751,6 +992,248 @@ export interface paths {
          * @description When MOORING_TELEMETRY_KEY is set the key is required (constant-time compare). Unset means local demo only.
          */
         post: operations["batch_api_v1_telemetry_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Missions visible to the caller */
+        get: operations["list_missions_api_v1_missions_get"];
+        put?: never;
+        /** Create a mission */
+        post: operations["create_mission_api_v1_missions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One mission */
+        get: operations["get_mission_api_v1_missions__mission_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/track": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recorded track, optionally decimated */
+        get: operations["get_track_api_v1_missions__mission_id__track_get"];
+        put?: never;
+        /** Add recorded fixes (JSON) */
+        post: operations["ingest_track_api_v1_missions__mission_id__track_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/track/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add recorded fixes from a CSV, GPX, NMEA 0183 (RMC/GGA) or GeoJSON file */
+        post: operations["ingest_track_file_api_v1_missions__mission_id__track_file_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Images for a mission */
+        get: operations["list_media_api_v1_missions__mission_id__media_get"];
+        put?: never;
+        /** Upload an image (JPEG, PNG or WebP, at most 8 MB) with optional time/offset metadata */
+        post: operations["upload_media_api_v1_missions__mission_id__media_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/media/{media_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Image bytes */
+        get: operations["get_media_api_v1_missions__mission_id__media__media_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reports for a mission */
+        get: operations["list_reports_api_v1_missions__mission_id__reports_get"];
+        put?: never;
+        /** Add a timestamped report */
+        post: operations["add_report_api_v1_missions__mission_id__reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/storyboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Track plus images and reports located on it by time */
+        get: operations["storyboard_api_v1_missions__mission_id__storyboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/storyboard.geojson": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Storyboard as a GeoJSON FeatureCollection (track LineString, event Points) */
+        get: operations["storyboard_geojson_api_v1_missions__mission_id__storyboard_geojson_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transit/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Simulate vessels entering or leaving port (job; result is a TransitResponse) */
+        post: operations["simulate_api_v1_transit_simulate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transit/simulations/{job_id}/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sampled frames for every vessel from a completed transit run */
+        get: operations["series_api_v1_transit_simulations__job_id__series_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transit/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ready-made inbound/outbound transit requests (labeled demonstration routes) */
+        get: operations["presets_api_v1_transit_presets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/predict/trajectory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Predict a vessel's path, hull footprints, uncertainty corridor and hazard clearance from its current state */
+        post: operations["predict_trajectory_api_v1_predict_trajectory_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/predict/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ready-made prediction requests built from real recorded NOAA conditions */
+        get: operations["presets_api_v1_predict_presets_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1036,6 +1519,27 @@ export interface components {
                 [key: string]: "supported" | "limited" | "unsupported";
             };
         };
+        /** AutopilotSettings */
+        AutopilotSettings: {
+            /**
+             * Lookahead Ship Lengths
+             * @description Line-of-sight lookahead distance.
+             * @default 2
+             */
+            lookahead_ship_lengths: number;
+            /**
+             * Arrival Slowdown Nm
+             * @description Ramp speed down over this distance before the final waypoint.
+             * @default 0.5
+             */
+            arrival_slowdown_nm: number;
+            /**
+             * Arrival Speed Kt
+             * @description Target speed at the final waypoint.
+             * @default 0
+             */
+            arrival_speed_kt: number;
+        };
         /** Berth */
         Berth: {
             /**
@@ -1247,6 +1751,8 @@ export interface components {
              * @enum {string}
              */
             env_mode: "steady" | "gusting";
+            /** @description Time-varying forcing series; absent keeps the frozen scenario environment. */
+            forcing?: components["schemas"]["ForcingSpec"] | null;
         };
         /** BerthingTugRequest */
         BerthingTugRequest: {
@@ -1419,6 +1925,51 @@ export interface components {
             /** Resolution Note */
             resolution_note?: string | null;
         };
+        /**
+         * BodyWrench
+         * @description Force and yaw moment on the ship in BODY axes (surge forward, sway port, yaw counterclockwise).
+         */
+        BodyWrench: {
+            /** Surge Lbf */
+            surge_lbf: number;
+            /** Sway Lbf */
+            sway_lbf: number;
+            /** Yaw Ftlbf */
+            yaw_ftlbf: number;
+        };
+        /** Body_ingest_track_file_api_v1_missions__mission_id__track_file_post */
+        Body_ingest_track_file_api_v1_missions__mission_id__track_file_post: {
+            /**
+             * File
+             * @description Track file, at most 20 MB
+             */
+            file: string;
+            /**
+             * Format
+             * @description csv | gpx | nmea | geojson
+             */
+            format: string;
+            /**
+             * Utc Offset Min
+             * @description Offset of naive timestamps, minutes east of UTC
+             */
+            utc_offset_min?: number | null;
+            /**
+             * Nmea Date
+             * @description YYYY-MM-DD for NMEA files with GGA only
+             */
+            nmea_date?: string | null;
+        };
+        /** Body_upload_media_api_v1_missions__mission_id__media_post */
+        Body_upload_media_api_v1_missions__mission_id__media_post: {
+            /** Image */
+            image: string;
+            /**
+             * Metadata
+             * @description MediaMetadata as JSON
+             */
+            metadata?: string | null;
+        };
         /** CapabilityRow */
         CapabilityRow: {
             /** Capability */
@@ -1451,6 +2002,142 @@ export interface components {
             problems?: components["schemas"]["QualificationIssue"][];
             /** Assets */
             assets: components["schemas"]["AssetQualification"][];
+        };
+        /**
+         * ComposedForecast
+         * @description Public/scenario component series plus only the snapshots safe for existing load consumers.
+         */
+        ComposedForecast: {
+            manifest: components["schemas"]["ComposedForecastManifest"];
+            /** Snapshots */
+            snapshots?: components["schemas"]["EnvironmentSnapshot"][];
+        };
+        /**
+         * ComposedForecastManifest
+         * @description Frozen, content-addressed acquisition manifest shared by every consumer.
+         */
+        ComposedForecastManifest: {
+            /**
+             * Schema Version
+             * @default composed-forecast-v1
+             * @constant
+             */
+            schema_version: "composed-forecast-v1";
+            /**
+             * Revision
+             * @description SHA-256 of the canonical manifest excluding this revision field.
+             */
+            revision: string;
+            request: components["schemas"]["ComposedForecastRequest"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "complete" | "partial" | "unavailable";
+            /** Components */
+            components: components["schemas"]["ForecastComponentSeries"][];
+            /** Limitations */
+            limitations?: string[];
+        };
+        /**
+         * ComposedForecastRequest
+         * @description Bounded forecast acquisition request with an explicit source and planning clock.
+         */
+        ComposedForecastRequest: {
+            /** Berth Id */
+            berth_id: string;
+            source: components["schemas"]["ForecastSourceSelection"];
+            /**
+             * As Of Utc
+             * Format: date-time
+             * @description Availability cutoff. Every public component must be issued or recorded as retrieved by this time.
+             */
+            as_of_utc: string;
+            /**
+             * Horizon Start Utc
+             * Format: date-time
+             */
+            horizon_start_utc: string;
+            /**
+             * Horizon End Utc
+             * Format: date-time
+             */
+            horizon_end_utc: string;
+            /**
+             * Step Min
+             * @default 60
+             */
+            step_min: number;
+            /**
+             * Current Depth Ft
+             * @description Required current depth below the surface; a nearby model layer is not an implicit substitute.
+             */
+            current_depth_ft: number;
+            /**
+             * Current Bin
+             * @description Requested station bin or model-layer identifier; substitutions must be reported unavailable.
+             */
+            current_bin: string;
+        };
+        /**
+         * ComposedWaveManifest
+         * @description Frozen offshore acquisition and explicit berth-applicability gaps.
+         */
+        ComposedWaveManifest: {
+            /**
+             * Schema Version
+             * @default composed-waves-v1
+             * @constant
+             */
+            schema_version: "composed-waves-v1";
+            /** Revision */
+            revision: string;
+            request: components["schemas"]["WaveComposeRequest"];
+            /** Offshore Series */
+            offshore_series: components["schemas"]["OffshoreWaveSeries"][];
+            /** Berth Exposure */
+            berth_exposure: components["schemas"]["WaveBerthExposureAvailability"][];
+            /** Limitations */
+            limitations?: string[];
+        };
+        /** ComposedWaves */
+        ComposedWaves: {
+            manifest: components["schemas"]["ComposedWaveManifest"];
+        };
+        /** CurrentForecastPoint */
+        CurrentForecastPoint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            component: "current";
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /** Current Speed Kt */
+            current_speed_kt: number;
+            /** Current Set True Deg */
+            current_set_true_deg: number;
+            /** Original */
+            original?: {
+                [key: string]: number | string;
+            } | null;
+        };
+        /** CurrentTugForce */
+        CurrentTugForce: {
+            /** Tug Id */
+            tug_id: string;
+            /**
+             * Point
+             * @enum {string}
+             */
+            point: "bow" | "stern" | "port_shoulder" | "starboard_shoulder" | "port_quarter" | "starboard_quarter";
+            /** Force Lbf */
+            force_lbf: number;
+            /** Direction Rel Deg */
+            direction_rel_deg: number;
         };
         /** DepthPoint */
         DepthPoint: {
@@ -1547,11 +2234,11 @@ export interface components {
             replay_end_utc?: string | null;
             /**
              * Replay Source
-             * @description kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never looped or synthesized.
+             * @description kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled synthetic recorded-format sample (2026-03-01 12:00-13:00Z); 'recorded_real' selects the manifest-backed NOAA observation package. Recorded sources are unavailable outside their declared coverage: they are never looped or synthesized.
              * @default synthetic
              * @enum {string}
              */
-            replay_source: "synthetic" | "recorded_fixture";
+            replay_source: "synthetic" | "recorded_fixture" | "recorded_real";
             /** Env Scenario Id */
             env_scenario_id: string;
             /**
@@ -1621,11 +2308,11 @@ export interface components {
             replay_end_utc?: string | null;
             /**
              * Replay Source
-             * @description kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never looped or synthesized.
+             * @description kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled synthetic recorded-format sample (2026-03-01 12:00-13:00Z); 'recorded_real' selects the manifest-backed NOAA observation package. Recorded sources are unavailable outside their declared coverage: they are never looped or synthesized.
              * @default synthetic
              * @enum {string}
              */
-            replay_source: "synthetic" | "recorded_fixture";
+            replay_source: "synthetic" | "recorded_fixture" | "recorded_real";
         };
         /** EnvSource */
         EnvSource: {
@@ -1664,6 +2351,149 @@ export interface components {
              * @example 8638610
              */
             water_level: string;
+        };
+        /**
+         * EnvironmentAvailability
+         * @description Per-component status; the complete snapshot endpoint remains unchanged.
+         * @example {
+         *       "berth_id": "NAVSTA-NORFOLK-P12-N",
+         *       "checked_at_utc": "2026-11-05T12:00:00Z",
+         *       "complete_snapshot_available": false,
+         *       "components": [
+         *         {
+         *           "age_basis": "valid_time",
+         *           "age_s": 360,
+         *           "basis": "observation",
+         *           "component": "wind",
+         *           "limitations": [],
+         *           "quality": "good",
+         *           "source": "NOAA CO-OPS 8638614",
+         *           "state": "live"
+         *         },
+         *         {
+         *           "age_basis": "valid_time",
+         *           "age_s": 2400,
+         *           "basis": "observation",
+         *           "component": "current",
+         *           "limitations": [],
+         *           "quality": "unknown",
+         *           "reason": "latest observation is stale",
+         *           "source": "NOAA CO-OPS cb0402 bin 4",
+         *           "state": "unavailable"
+         *         },
+         *         {
+         *           "age_basis": "valid_time",
+         *           "age_s": 360,
+         *           "basis": "observation",
+         *           "component": "water_level",
+         *           "limitations": [],
+         *           "quality": "good",
+         *           "source": "NOAA CO-OPS 8638610",
+         *           "state": "live"
+         *         },
+         *         {
+         *           "component": "forecast",
+         *           "limitations": [],
+         *           "quality": "unknown",
+         *           "reason": "no composed forecast configured",
+         *           "state": "unavailable"
+         *         },
+         *         {
+         *           "component": "waves",
+         *           "limitations": [],
+         *           "quality": "unknown",
+         *           "reason": "no wave provider configured",
+         *           "state": "unavailable"
+         *         }
+         *       ]
+         *     }
+         */
+        EnvironmentAvailability: {
+            /** Berth Id */
+            berth_id: string;
+            /**
+             * Checked At Utc
+             * Format: date-time
+             */
+            checked_at_utc: string;
+            /**
+             * Complete Snapshot Available
+             * @description True only when aligned wind, current and water level can form the existing complete snapshot.
+             */
+            complete_snapshot_available: boolean;
+            /** Components */
+            components: components["schemas"]["EnvironmentComponentAvailability"][];
+        };
+        /**
+         * EnvironmentComponentAvailability
+         * @description Availability and provenance for one independently acquired component.
+         *
+         *     This carries no environmental measurement. Missing values stay unavailable here
+         *     instead of being represented as numeric zero in an ``EnvironmentSnapshot``.
+         */
+        EnvironmentComponentAvailability: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "wind" | "current" | "water_level" | "forecast" | "waves";
+            /**
+             * State
+             * @description Active source state. Stale or missing data is unavailable, never silently relabeled as a prediction.
+             * @enum {string}
+             */
+            state: "live" | "replay" | "prediction" | "mock" | "unavailable";
+            /**
+             * Source
+             * @description Provider plus station/bin or grid product when known.
+             */
+            source?: string | null;
+            /** Basis */
+            basis?: ("observation" | "prediction" | "scenario") | null;
+            /**
+             * Age S
+             * @description Age according to age_basis. Retrieval time is never substituted for issue or valid time.
+             */
+            age_s?: number | null;
+            /** Age Basis */
+            age_basis?: ("valid_time" | "issued_time") | null;
+            /** Issued At Utc */
+            issued_at_utc?: string | null;
+            /** Retrieved At Utc */
+            retrieved_at_utc?: string | null;
+            /** Valid From Utc */
+            valid_from_utc?: string | null;
+            /** Valid To Utc */
+            valid_to_utc?: string | null;
+            /**
+             * Quality
+             * @default unknown
+             * @enum {string}
+             */
+            quality: "good" | "suspect" | "poor" | "unknown";
+            /** Limitations */
+            limitations?: string[];
+            /** Station Id */
+            station_id?: string | null;
+            /** Grid Cell */
+            grid_cell?: string | null;
+            /** Current Depth Ft */
+            current_depth_ft?: number | null;
+            /** Current Bin */
+            current_bin?: string | null;
+            /** Vertical Datum */
+            vertical_datum?: ("MLLW" | "MSL" | "NAVD88" | "other") | null;
+            /** Wind Averaging S */
+            wind_averaging_s?: number | null;
+            /** Gust Duration S */
+            gust_duration_s?: number | null;
+            /** Wind Reference Height M */
+            wind_reference_height_m?: number | null;
+            /**
+             * Reason
+             * @description Why this component is unavailable; required when state is unavailable.
+             */
+            reason?: string | null;
         };
         /**
          * EnvironmentComponentProvenance
@@ -2063,8 +2893,205 @@ export interface components {
             /** Mz Ftlbf */
             mz_ftlbf: number;
         };
+        /**
+         * ForcingBasis
+         * @description What the environment over the horizon was: fixed, or sampled from an immutable forcing series.
+         */
+        ForcingBasis: {
+            /**
+             * Kind
+             * @default fixed_environment
+             * @enum {string}
+             */
+            kind: "fixed_environment" | "time_varying";
+            /**
+             * Revision
+             * @description S2 series revision (frc-...); null for a fixed environment.
+             */
+            revision?: string | null;
+            /**
+             * Synthetic
+             * @description True when the series is generated (steady/ramp/gusts), not observed.
+             * @default false
+             */
+            synthetic: boolean;
+            /** Series Kind */
+            series_kind?: string | null;
+            /** @description Prediction-relative seconds the series is defined over. */
+            coverage?: components["schemas"]["ForcingCoverage"] | null;
+            /** Requested Horizon S */
+            requested_horizon_s?: number | null;
+            /**
+             * Horizon S
+             * @description Horizon actually predicted; less than requested when truncated.
+             */
+            horizon_s?: number | null;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /** ForcingCoverage */
+        ForcingCoverage: {
+            /** Start S */
+            start_s: number;
+            /** End S */
+            end_s: number;
+        };
+        /**
+         * ForcingSample
+         * @description One supplied forcing sample (replay). A channel is either given in every sample or in none.
+         */
+        ForcingSample: {
+            /**
+             * T S
+             * @description Simulation time of the sample.
+             */
+            t_s: number;
+            /** Wind Speed Kt */
+            wind_speed_kt?: number | null;
+            /** Wind Gust Kt */
+            wind_gust_kt?: number | null;
+            /** Wind From True Deg */
+            wind_from_true_deg?: number | null;
+            /** Current Speed Kt */
+            current_speed_kt?: number | null;
+            /** Current Set True Deg */
+            current_set_true_deg?: number | null;
+            /** Water Level Mllw Ft */
+            water_level_mllw_ft?: number | null;
+        };
+        /**
+         * ForcingSpec
+         * @description Time-varying forcing, resolved at integration-stage time from an immutable series (S2).
+         *
+         *     steady: the scenario environment, constant (optionally plus the synthetic tide term).
+         *     ramp: linear move from the scenario environment at ramp_start_s to `target` at target.t_s, held afterwards.
+         *     gusts: seeded synthetic wind-speed fluctuation about the scenario environment (a pure function of seed and time).
+         *     replay: piecewise-linear interpolation of supplied samples; coverage is the sample time range.
+         */
+        ForcingSpec: {
+            /**
+             * Kind
+             * @default steady
+             * @enum {string}
+             */
+            kind: "steady" | "ramp" | "gusts" | "replay";
+            /** Label */
+            label?: string | null;
+            /**
+             * Ramp Start S
+             * @default 0
+             */
+            ramp_start_s: number;
+            /** @description ramp end values; t_s is the ramp end time. */
+            target?: components["schemas"]["ForcingSample"] | null;
+            /**
+             * Seed
+             * @description gusts: required; same seed gives the same series.
+             */
+            seed?: number | null;
+            /**
+             * Gust Sigma Kt
+             * @default 3
+             */
+            gust_sigma_kt: number;
+            /**
+             * Gust Correlation S
+             * @description Spacing of the random knots (linearly interpolated).
+             * @default 10
+             */
+            gust_correlation_s: number;
+            /** Samples */
+            samples?: components["schemas"]["ForcingSample"][];
+            /**
+             * Tide Amplitude Ft
+             * @description Synthetic sinusoidal water-level term added to any kind.
+             * @default 0
+             */
+            tide_amplitude_ft: number;
+            /**
+             * Tide Period S
+             * @description Default is the M2 period.
+             * @default 44712
+             */
+            tide_period_s: number;
+            /**
+             * Tide Phase Rad
+             * @default 0
+             */
+            tide_phase_rad: number;
+            /**
+             * Vessel Relative Wind
+             * @description Subtract ship ground velocity from the wind (apparent wind). Current is never made relative here: velocity-dependent water drag stays entirely in the body damping term, so it is not double counted.
+             * @default false
+             */
+            vessel_relative_wind: boolean;
+            /**
+             * On Uncovered
+             * @description Time past the series coverage: stop = fail the run (RED); invalidate = hold the last value and mark the run invalid.
+             * @default stop
+             * @enum {string}
+             */
+            on_uncovered: "stop" | "invalidate";
+        };
+        /**
+         * ForecastBinding
+         * @description Explicit input selection. Provider acquisition remains outside the planner.
+         */
+        ForecastBinding: {
+            /**
+             * Source
+             * @enum {string}
+             */
+            source?: "supplied" | "scenario";
+            /**
+             * Source Id
+             * @description Caller-declared dataset/product identity; not proof of provider authenticity.
+             */
+            source_id?: string | null;
+            /** Env Scenario Id */
+            env_scenario_id?: string | null;
+            /**
+             * Revision
+             * @description Declared provider/scenario revision. Content is hashed independently even when this is unchanged.
+             */
+            revision?: string | null;
+            /**
+             * Expected Content Hash
+             * @description Optional pin: reject different content instead of silently evaluating a changed revision.
+             */
+            expected_content_hash?: string | null;
+            /**
+             * Sample From Utc
+             * @description Scenario-only sampling window retained when rechecking a selected operation from a wider original series.
+             */
+            sample_from_utc?: string | null;
+            /** Sample To Utc */
+            sample_to_utc?: string | null;
+        };
+        /**
+         * ForecastComponentSeries
+         * @description One independently acquired prediction series and its content digest.
+         */
+        ForecastComponentSeries: {
+            availability: components["schemas"]["EnvironmentComponentAvailability"];
+            /**
+             * Content Sha256
+             * @description SHA-256 of the canonical component availability and decoded point content.
+             */
+            content_sha256?: string | null;
+            /** Points */
+            points?: (components["schemas"]["WindForecastPoint"] | components["schemas"]["CurrentForecastPoint"] | components["schemas"]["WaterLevelForecastPoint"])[];
+        };
         /** ForecastDockingRequest */
         ForecastDockingRequest: {
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Preserve an existing installation tide during explicit reassessment; omitted means install at each candidate arrival's tide.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
             /**
              * Allow Short Lead
              * @description Explicitly permit reassessment less than 24 hours before arrival. Arrival cannot precede as_of_utc; all forecast provenance/coverage gates remain. Default retains the advance-planning lead requirement.
@@ -2120,7 +3147,13 @@ export interface components {
              */
             holding_hours: number;
             /** Forecast */
-            forecast: components["schemas"]["EnvironmentSnapshot"][];
+            forecast?: components["schemas"]["EnvironmentSnapshot"][] | null;
+            forecast_binding?: components["schemas"]["ForecastBinding"] | null;
+            /**
+             * Forecast Step Min
+             * @description Sampling interval only for an explicitly selected environment scenario.
+             */
+            forecast_step_min?: number;
             /**
              * Max Gap Min
              * @description Maximum covered interval between snapshots; this is a sampling assumption, not a guarantee against sub-sample peaks.
@@ -2149,6 +3182,209 @@ export interface components {
              */
             search_budget: number;
         };
+        /** ForecastRecheckRequest */
+        ForecastRecheckRequest: {
+            /** Prior Result Id */
+            prior_result_id: string;
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /** Forecast */
+            forecast?: components["schemas"]["EnvironmentSnapshot"][] | null;
+            forecast_binding?: components["schemas"]["ForecastBinding"] | null;
+        };
+        /** ForecastRecheckResponse */
+        ForecastRecheckResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /** @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes. */
+            manifest?: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["ForecastRecheckResult"];
+        };
+        /** ForecastRecheckResult */
+        ForecastRecheckResult: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "unchanged" | "recheck_required" | "unavailable";
+            /** Prior Result Id */
+            prior_result_id: string;
+            previous_forecast_manifest?: components["schemas"]["ForecastResolutionManifest"] | null;
+            current_forecast_manifest?: components["schemas"]["ForecastResolutionManifest"] | null;
+            /** Reasons */
+            reasons: string[];
+            /** @description Suggested explicit new calculation preserving the installation. This comparison neither runs it nor transfers approval. */
+            reassessment_request?: components["schemas"]["ForecastDockingRequest"] | null;
+            /** Installed At Water Level Mllw Ft */
+            installed_at_water_level_mllw_ft?: number | null;
+        };
+        /**
+         * ForecastResolutionManifest
+         * @description Immutable identity of the exact series and the requested temporal binding.
+         */
+        ForecastResolutionManifest: {
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "supplied" | "scenario";
+            /** Source Id */
+            source_id?: string | null;
+            /** Env Scenario Id */
+            env_scenario_id?: string | null;
+            /** Revision */
+            revision: string;
+            /** Content Hash */
+            content_hash: string;
+            /** Binding Hash */
+            binding_hash: string;
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /**
+             * From Utc
+             * Format: date-time
+             */
+            from_utc: string;
+            /**
+             * To Utc
+             * Format: date-time
+             */
+            to_utc: string;
+            /** Max Gap Min */
+            max_gap_min: number;
+        };
+        /** ForecastResolveRequest */
+        ForecastResolveRequest: {
+            /** Berth Id */
+            berth_id: string;
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /**
+             * From Utc
+             * Format: date-time
+             */
+            from_utc: string;
+            /**
+             * To Utc
+             * Format: date-time
+             */
+            to_utc: string;
+            /** Max Gap Min */
+            max_gap_min?: number;
+            /**
+             * Step Min
+             * @description Sampling interval for an explicitly selected scenario; supplied series retain every knot.
+             */
+            step_min?: number;
+            /** Forecast */
+            forecast?: components["schemas"]["EnvironmentSnapshot"][] | null;
+            forecast_binding?: components["schemas"]["ForecastBinding"] | null;
+        };
+        /** ForecastResolvedResponse */
+        ForecastResolvedResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /** @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes. */
+            manifest?: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["ForecastResolvedResult"];
+        };
+        /** ForecastResolvedResult */
+        ForecastResolvedResult: {
+            /** Berth Id */
+            berth_id: string;
+            forecast_manifest: components["schemas"]["ForecastResolutionManifest"];
+            /** Series */
+            series: components["schemas"]["EnvironmentSnapshot"][];
+            /** Coverage Complete */
+            coverage_complete: boolean;
+            /** Problems */
+            problems?: string[];
+            /** Limitations */
+            limitations?: string[];
+        };
         /** ForecastSeries */
         ForecastSeries: {
             /** Berth Id */
@@ -2157,6 +3393,26 @@ export interface components {
             step_min: number;
             /** Series */
             series: components["schemas"]["EnvironmentSnapshot"][];
+        };
+        /**
+         * ForecastSourceSelection
+         * @description Explicit acquisition source; a public request never falls through to a scenario.
+         */
+        ForecastSourceSelection: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "public" | "scenario";
+            /** Env Scenario Id */
+            env_scenario_id?: string | null;
+        };
+        /** GeoPoint */
+        GeoPoint: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
         };
         /** GustModel */
         GustModel: {
@@ -2190,6 +3446,50 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HazardApproach */
+        HazardApproach: {
+            /** T S */
+            t_s: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "pier" | "fender" | "coastline" | "vessel";
+            /** Element Id */
+            element_id: string;
+            /**
+             * Clearance Ft
+             * @description Hull-to-hazard distance at that time; <= 0 means contact.
+             */
+            clearance_ft: number;
+            /** @description Closest point on the hull. */
+            position: components["schemas"]["GeoPoint"];
+            /**
+             * Probability
+             * @description Share of uncertainty samples that breach; null without samples. Not a calibrated probability.
+             */
+            probability?: number | null;
+        };
+        /** HazardSettings */
+        HazardSettings: {
+            /**
+             * Berth Id
+             * @description Check clearance to this berth's pier face and fenders.
+             */
+            berth_id?: string | null;
+            /**
+             * Coastline
+             * @description Check clearance to available coastline data, where covered.
+             * @default true
+             */
+            coastline: boolean;
+            /**
+             * Min Clearance Ft
+             * @description Clearance below this is reported as a breach.
+             * @default 50
+             */
+            min_clearance_ft: number;
         };
         /** Health */
         Health: {
@@ -2275,6 +3575,122 @@ export interface components {
              * @description Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs.
              */
             available_tug_ids?: string[] | null;
+        };
+        /** HorsepowerPlacement */
+        HorsepowerPlacement: {
+            /** Tug Id */
+            tug_id: string;
+            /** Push Point Id */
+            push_point_id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "push" | "pull";
+            /** Force Lbf */
+            force_lbf: number;
+            /**
+             * Capacity Lbf
+             * @description min(catalog bollard pull in this mode x efficiency, push-point rating).
+             */
+            capacity_lbf: number;
+            /**
+             * Utilization
+             * @description force_lbf / capacity_lbf.
+             */
+            utilization: number;
+            /**
+             * Power Hp
+             * @description Catalog horsepower (seed/synthetic unless published); never converted to force.
+             */
+            power_hp: number;
+        };
+        /**
+         * HorsepowerPlan
+         * @description P5: minimum-total-horsepower, placement-feasible tug assignment for a required ship-frame wrench.
+         */
+        HorsepowerPlan: {
+            /**
+             * Objective
+             * @default minimize_total_horsepower
+             */
+            objective: string;
+            /** Feasible */
+            feasible: boolean;
+            /**
+             * Total Power Hp
+             * @default 0
+             */
+            total_power_hp: number;
+            /**
+             * Tug Count
+             * @default 0
+             */
+            tug_count: number;
+            /** Placements */
+            placements?: components["schemas"]["HorsepowerPlacement"][];
+            required_wrench: components["schemas"]["WrenchLbf"];
+            delivered_wrench?: components["schemas"]["WrenchLbf"] | null;
+            residual_wrench?: components["schemas"]["WrenchLbf"] | null;
+            /**
+             * Load Scale Margin
+             * @description Largest factor s such that s x required wrench is still placement-feasible with the chosen tugs; >=1 when feasible.
+             */
+            load_scale_margin?: number | null;
+            /**
+             * Fleet Scale Margin
+             * @description Same factor for the whole available fleet (best case); <1 explains infeasibility.
+             */
+            fleet_scale_margin?: number | null;
+            /**
+             * Candidates Evaluated
+             * @default 0
+             */
+            candidates_evaluated: number;
+            /** Infeasibility Reasons */
+            infeasibility_reasons?: string[];
+            /**
+             * Tie Break
+             * @default lowest total hp, then fewest tugs, then lowest total force, then lexicographic (tug_id, push_point_id)
+             */
+            tie_break: string;
+            /**
+             * Validity
+             * @description Validity limited where fleet horsepower/bollard-pull data are assumed (seed/synthetic).
+             * @default limited
+             */
+            validity: string;
+            /** Assumptions */
+            assumptions?: string[];
+        };
+        /**
+         * HorsepowerRequest
+         * @description P5 request: minimum-horsepower tug assignment for a required ship-frame wrench.
+         */
+        HorsepowerRequest: {
+            /**
+             * Ship Class Id
+             * @example DDG-51-FIIA
+             */
+            ship_class_id: string;
+            required_wrench: components["schemas"]["WrenchLbf"];
+            /**
+             * Available Tug Ids
+             * @description Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs. At most 8 tugs (exhaustive search).
+             */
+            available_tug_ids?: string[] | null;
+            /**
+             * Efficiency
+             * @description Multiplier on catalog bollard pull.
+             * @default 1
+             */
+            efficiency: number;
+            /**
+             * Margin
+             * @description Added to the required wrench.
+             * @default 0
+             */
+            margin: number;
         };
         /** ImageFitting */
         ImageFitting: {
@@ -2648,6 +4064,26 @@ export interface components {
             /** Tension Lbf */
             tension_lbf: number;
         };
+        /** LineUltimateCapacity */
+        LineUltimateCapacity: {
+            /** Line Number */
+            line_number: number;
+            /**
+             * Ultimate Capacity Lbf
+             * @description Effective ultimate tension of the installed line (all parts), with wet/condition/termination factors already applied and cited in `factors`.
+             */
+            ultimate_capacity_lbf: number;
+            /**
+             * Material Law Max Strain
+             * @description Largest strain for which the load-elongation law is supported. Beyond it the search stops as indeterminate.
+             */
+            material_law_max_strain: number;
+            /**
+             * Factors
+             * @description Wet, condition and termination factors applied, as sourced.
+             */
+            factors: string;
+        };
         /** LoadingCondition */
         LoadingCondition: {
             /**
@@ -2771,6 +4207,54 @@ export interface components {
             off_pier_component_lbf?: number | null;
         };
         /**
+         * LocatedAt
+         * @description Where the ship was at an event time, and how that was established. Null position means not established.
+         */
+        LocatedAt: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "exact_fix" | "interpolated" | "gap" | "before_track" | "after_track" | "no_track" | "no_time";
+            /** Lat */
+            lat?: number | null;
+            /** Lon */
+            lon?: number | null;
+            /** Fix Before Utc */
+            fix_before_utc?: string | null;
+            /** Fix After Utc */
+            fix_after_utc?: string | null;
+            /**
+             * Gap S
+             * @description Span between the bracketing fixes.
+             */
+            gap_s?: number | null;
+            /** Distance Along Track Nm */
+            distance_along_track_nm?: number | null;
+            /**
+             * Sog Kt
+             * @description Speed over ground between the bracketing fixes.
+             */
+            sog_kt?: number | null;
+            /** Heading True Deg */
+            heading_true_deg?: number | null;
+            /**
+             * Stated Lat
+             * @description Position from EXIF or the report.
+             */
+            stated_lat?: number | null;
+            /** Stated Lon */
+            stated_lon?: number | null;
+            /** Stated Source */
+            stated_source?: ("exif" | "report") | null;
+            /**
+             * Discrepancy M
+             * @description Track position vs stated position.
+             */
+            discrepancy_m?: number | null;
+            validity: components["schemas"]["Validity"];
+        };
+        /**
          * ManifestRecord
          * @description A resolved reference record that went into a result.
          */
@@ -2791,6 +4275,54 @@ export interface components {
              */
             revision?: string | null;
         };
+        /** MediaItem */
+        MediaItem: {
+            /** Media Id */
+            media_id: string;
+            /** Mission Id */
+            mission_id: string;
+            /** Filename */
+            filename: string;
+            /**
+             * Content Type
+             * @enum {string}
+             */
+            content_type: "image/jpeg" | "image/png" | "image/webp";
+            /** Bytes */
+            bytes: number;
+            /** Sha256 */
+            sha256: string;
+            /**
+             * Captured Utc
+             * @description True time after offsets; null if unknown.
+             */
+            captured_utc?: string | null;
+            /** Time Source */
+            time_source?: ("exif" | "supplied") | null;
+            /**
+             * Time Note
+             * @description How the time was derived, or why it is unknown.
+             */
+            time_note?: string | null;
+            /**
+             * Camera Clock Offset S
+             * @default 0
+             */
+            camera_clock_offset_s: number;
+            /** Exif Lat */
+            exif_lat?: number | null;
+            /** Exif Lon */
+            exif_lon?: number | null;
+            /** Caption */
+            caption?: string | null;
+            /** Tags */
+            tags?: string[];
+            /**
+             * Url
+             * @description GET path for the image bytes.
+             */
+            url: string;
+        };
         /** MinMargin */
         MinMargin: {
             /**
@@ -2803,6 +4335,68 @@ export interface components {
              * @description Highest utilization in the plan (lines and fittings).
              */
             pct_wll: number;
+        };
+        /** Mission */
+        Mission: {
+            /** Name */
+            name: string;
+            /**
+             * Vessel Id
+             * @description Hull number, MMSI or local identifier.
+             */
+            vessel_id: string;
+            /** Ship Class Id */
+            ship_class_id?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Mission Id */
+            mission_id: string;
+            /**
+             * Created At Utc
+             * Format: date-time
+             */
+            created_at_utc: string;
+            /** Fix Count */
+            fix_count: number;
+            /** Media Count */
+            media_count: number;
+            /** Report Count */
+            report_count: number;
+            /** Start Utc */
+            start_utc?: string | null;
+            /** End Utc */
+            end_utc?: string | null;
+        };
+        /** MissionCreate */
+        MissionCreate: {
+            /** Name */
+            name: string;
+            /**
+             * Vessel Id
+             * @description Hull number, MMSI or local identifier.
+             */
+            vessel_id: string;
+            /** Ship Class Id */
+            ship_class_id?: string | null;
+            /** Description */
+            description?: string | null;
+        };
+        /** MissionTrack */
+        MissionTrack: {
+            /** Mission Id */
+            mission_id: string;
+            /**
+             * Fix Count
+             * @description Stored fixes, before any display decimation.
+             */
+            fix_count: number;
+            /**
+             * Decimated
+             * @description True when fewer fixes are returned than stored (shape-preserving).
+             */
+            decimated: boolean;
+            /** Fixes */
+            fixes: components["schemas"]["TrackFix"][];
         };
         /** MooringConfig */
         MooringConfig: {
@@ -3075,6 +4669,11 @@ export interface components {
             status: "slack" | "taut" | "overloaded" | "unknown";
             /** Ship Fitting Id */
             ship_fitting_id?: string | null;
+            /**
+             * Chock Id
+             * @description Intermediate ship lead fitting, when the line routes through a chock.
+             */
+            chock_id?: string | null;
             /** Pier Fitting Id */
             pier_fitting_id?: string | null;
             ship_end?: components["schemas"]["BerthPosition"] | null;
@@ -3134,6 +4733,78 @@ export interface components {
             references?: string[];
             /** Notes */
             notes?: string[];
+        };
+        /** MotionSceneDepth */
+        MotionSceneDepth: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            position: components["schemas"]["BerthPosition"];
+            /** Depth Mllw Ft */
+            depth_mllw_ft?: number | null;
+        };
+        /** MotionSceneFender */
+        MotionSceneFender: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** Fender Id */
+            fender_id: string;
+            position: components["schemas"]["BerthPosition"];
+            /** Length Ft */
+            length_ft?: number | null;
+            /** Standoff Ft */
+            standoff_ft?: number | null;
+        };
+        /** MotionScenePierFitting */
+        MotionScenePierFitting: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** Fitting Id */
+            fitting_id: string;
+            position: components["schemas"]["BerthPosition"];
+            /** Kind */
+            kind?: string | null;
+            /** Capacity Lbf */
+            capacity_lbf?: number | null;
+        };
+        /** MotionSceneShipFitting */
+        MotionSceneShipFitting: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** Fitting Id */
+            fitting_id: string;
+            position: components["schemas"]["ShipPoint"];
+            /** Kind */
+            kind?: string | null;
+            /** Capacity Lbf */
+            capacity_lbf?: number | null;
         };
         /** MotionTugState */
         MotionTugState: {
@@ -3296,6 +4967,71 @@ export interface components {
              */
             yaw_moment_ftlbf?: number | null;
         };
+        /**
+         * ObservedShipState
+         * @description The starting state: where the ship is now and what it is doing.
+         */
+        ObservedShipState: {
+            /** Vessel Id */
+            vessel_id: string;
+            /** Ship Class Id */
+            ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /**
+             * Observed Utc
+             * Format: date-time
+             * @description Time the state was observed; input age = as_of_utc - observed_utc.
+             */
+            observed_utc: string;
+            position: components["schemas"]["GeoPoint"];
+            /** Heading True Deg */
+            heading_true_deg: number;
+            /**
+             * Surge Kt
+             * @description Speed through the water, + ahead.
+             */
+            surge_kt: number;
+            /**
+             * Sway Kt
+             * @description Through the water, + to port.
+             * @default 0
+             */
+            sway_kt: number;
+            /**
+             * Yaw Rate Degps
+             * @description + counterclockwise (turning to port).
+             * @default 0
+             */
+            yaw_rate_degps: number;
+            /**
+             * Rudder Deg
+             * @default 0
+             */
+            rudder_deg: number;
+            /**
+             * Engine Order
+             * @default 0
+             */
+            engine_order: number;
+            /**
+             * Delivered Thrust Lbf
+             * @description Null assumes thrust has settled at the order.
+             */
+            delivered_thrust_lbf?: number | null;
+            /** Tugs */
+            tugs?: components["schemas"]["CurrentTugForce"][];
+            /** @description Null: no initial-state spread is sampled. */
+            uncertainty?: components["schemas"]["StateUncertainty"] | null;
+            /**
+             * Source
+             * @description e.g. gps+gyro, ais, replay:<mission_id>, sim:<session>.
+             */
+            source?: string | null;
+        };
         /** Offset */
         Offset: {
             /** Surge Ft */
@@ -3307,6 +5043,105 @@ export interface components {
             sway_ft: number;
             /** Yaw Deg */
             yaw_deg: number;
+        };
+        /**
+         * OffshoreWavePoint
+         * @description One offshore provider time; representations are alternatives, never additive forcing.
+         */
+        OffshoreWavePoint: {
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /** Sample Start Utc */
+            sample_start_utc?: string | null;
+            /** Sample End Utc */
+            sample_end_utc?: string | null;
+            /**
+             * Timestamp Basis
+             * @default unknown
+             * @enum {string}
+             */
+            timestamp_basis: "start" | "center" | "end" | "instant" | "unknown";
+            total_sea?: components["schemas"]["WaveBulkParameters"] | null;
+            /** Partitions */
+            partitions?: components["schemas"]["WaveBulkParameters"][];
+            spectrum?: components["schemas"]["WaveSpectrum"] | null;
+            /** Original */
+            original?: {
+                [key: string]: number | string;
+            } | null;
+        };
+        /**
+         * OffshoreWaveSeries
+         * @description Observation, forecast, or independent check at its source location.
+         */
+        OffshoreWaveSeries: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "observation" | "forecast" | "independent_check";
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "ndbc" | "gfs-wave";
+            /** Station Id */
+            station_id?: string | null;
+            /** Model Id */
+            model_id?: string | null;
+            /**
+             * Reference Time Utc
+             * @description Forecast model reference/cycle time; not a substitute for issue or retrieval time.
+             */
+            reference_time_utc?: string | null;
+            /**
+             * Coverage
+             * @enum {string}
+             */
+            coverage: "complete" | "partial" | "unavailable";
+            availability: components["schemas"]["EnvironmentComponentAvailability"];
+            /** Product Ids */
+            product_ids?: string[];
+            location?: components["schemas"]["WaveSourceLocation"] | null;
+            /**
+             * Applicability
+             * @default offshore_boundary_only
+             * @constant
+             */
+            applicability: "offshore_boundary_only";
+            /**
+             * Load Ready
+             * @default false
+             * @constant
+             */
+            load_ready: false;
+            /**
+             * Representation Policy
+             * @default choose_total_or_partitions_or_spectrum
+             * @constant
+             */
+            representation_policy: "choose_total_or_partitions_or_spectrum";
+            /** Content Sha256 */
+            content_sha256?: string | null;
+            /** Points */
+            points?: components["schemas"]["OffshoreWavePoint"][];
+        };
+        /**
+         * OtherVessel
+         * @description Another vessel whose path is checked for clearance: a supplied predicted/planned path, not simulated here.
+         */
+        OtherVessel: {
+            /** Vessel Id */
+            vessel_id: string;
+            /** Beam Ft */
+            beam_ft: number;
+            /** Length Ft */
+            length_ft: number;
+            /** Path */
+            path: components["schemas"]["TrackFix"][];
         };
         /**
          * PierFitting
@@ -3457,6 +5292,227 @@ export interface components {
             /** Points */
             points: components["schemas"]["PolarPoint"][];
         };
+        /** PredictedTick */
+        PredictedTick: {
+            /**
+             * T S
+             * @description Seconds after as_of_utc.
+             */
+            t_s: number;
+            /**
+             * T Utc
+             * Format: date-time
+             */
+            t_utc: string;
+            position: components["schemas"]["GeoPoint"];
+            /** Heading True Deg */
+            heading_true_deg: number;
+            /** Sog Kt */
+            sog_kt: number;
+            /** Cog True Deg */
+            cog_true_deg?: number | null;
+            /** Rudder Deg */
+            rudder_deg: number;
+            /** Engine Order */
+            engine_order: number;
+            /**
+             * Footprint
+             * @description Hull outline at this tick (parametric planform).
+             */
+            footprint: components["schemas"]["GeoPoint"][];
+            /**
+             * Position Sd Ft
+             * @description Spread of sampled positions; null without samples.
+             */
+            position_sd_ft?: number | null;
+        };
+        /** PredictionAlternative */
+        PredictionAlternative: {
+            /** Alt Id */
+            alt_id: string;
+            /** Label */
+            label: string;
+            /** Ticks */
+            ticks: components["schemas"]["PredictedTick"][];
+            /**
+             * Corridor
+             * @description Outline enclosing the chosen percentile of sampled hull footprints over the horizon; null without samples.
+             */
+            corridor?: components["schemas"]["GeoPoint"][] | null;
+            /** @description Smallest clearance to any checked hazard. */
+            closest_approach?: components["schemas"]["HazardApproach"] | null;
+            /** @description First time clearance falls below min_clearance_ft on the central prediction. */
+            first_breach?: components["schemas"]["HazardApproach"] | null;
+        };
+        /** PredictionPreset */
+        PredictionPreset: {
+            /** Preset Id */
+            preset_id: string;
+            /** Title */
+            title: string;
+            request: components["schemas"]["PredictionRequest"];
+            validity: components["schemas"]["Validity"];
+        };
+        /** PredictionRequest */
+        PredictionRequest: {
+            vessel: components["schemas"]["ObservedShipState"];
+            /** @description Conditions held over the horizon. Null means explicitly calm (labeled), not unknown. */
+            environment?: components["schemas"]["EnvironmentSnapshot"] | null;
+            /**
+             * As Of Utc
+             * @description Prediction time; default now.
+             */
+            as_of_utc?: string | null;
+            /** @description S7b: time-varying forcing (S2 ForcingSpec), sampled at prediction-relative time (t = 0 is as_of_utc) through the S2 resolver around `environment` (null = calm base). Absent = fixed environment, unchanged behavior. A replay series that ends before the horizon is rejected (on_uncovered 'stop') or the horizon is truncated, with a validity reason ('invalidate'); it is never extrapolated. */
+            forcing?: components["schemas"]["ForcingSpec"] | null;
+            /**
+             * Engine
+             * @description Requested engine. Never switched automatically. 'berthing' (S1-S3) has no validated state/parameter handoff and is answered 501 unsupported.
+             */
+            engine?: ("transit" | "berthing") | null;
+            /**
+             * Horizon S
+             * @default 300
+             */
+            horizon_s: number;
+            /**
+             * Tick S
+             * @description Output spacing of predicted states and footprints.
+             * @default 10
+             */
+            tick_s: number;
+            /**
+             * Dt S
+             * @default 0.2
+             */
+            dt_s: number;
+            propulsion?: components["schemas"]["PropulsionAssumptions"];
+            /**
+             * Alternatives
+             * @description What-if command sets; the baseline (commands held) is always predicted as alt_id 'hold'.
+             */
+            alternatives?: components["schemas"]["WhatIf"][];
+            /** Others */
+            others?: components["schemas"]["OtherVessel"][];
+            uncertainty?: components["schemas"]["UncertaintySettings"];
+            hazards?: components["schemas"]["HazardSettings"];
+        };
+        /** PredictionResponse */
+        PredictionResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /** @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes. */
+            manifest?: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["PredictionResult"];
+        };
+        /** PredictionResult */
+        PredictionResult: {
+            /** Vessel Id */
+            vessel_id: string;
+            /**
+             * Engine
+             * @enum {string}
+             */
+            engine: "transit" | "berthing";
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /**
+             * Input Age S
+             * @description as_of_utc - observed_utc. Stale inputs reduce validity.
+             */
+            input_age_s: number;
+            /**
+             * Hazards Checked
+             * @description Hazard kinds actually checked; unchecked kinds are not clear, just unknown.
+             */
+            hazards_checked: ("pier" | "fender" | "coastline" | "vessel")[];
+            /**
+             * Alternatives
+             * @description 'hold' first, then what-ifs in request order.
+             */
+            alternatives: components["schemas"]["PredictionAlternative"][];
+            /** @description Omitted on the wire for the default fixed environment; absent means fixed_environment. */
+            forcing_basis?: components["schemas"]["ForcingBasis"];
+        };
+        /**
+         * PropulsionAssumptions
+         * @description Reference data has no propulsion or rudder data; these are explicit, labeled assumptions.
+         */
+        PropulsionAssumptions: {
+            /**
+             * Max Speed Kt
+             * @description Calm deep-water speed at full ahead. Null uses the class's labeled default, if any; else invalid.
+             */
+            max_speed_kt?: number | null;
+            /**
+             * Astern Thrust Fraction
+             * @description Full-astern thrust / full-ahead thrust.
+             * @default 0.6
+             */
+            astern_thrust_fraction: number;
+            /**
+             * Engine Time Constant S
+             * @description First-order lag of delivered thrust.
+             * @default 20
+             */
+            engine_time_constant_s: number;
+            /**
+             * Max Rudder Deg
+             * @default 35
+             */
+            max_rudder_deg: number;
+            /**
+             * Rudder Rate Degps
+             * @description Default from the common 35-to-30-degrees-in-28-seconds steering-gear criterion.
+             * @default 2.33
+             */
+            rudder_rate_degps: number;
+            /**
+             * Bow Thruster Lbf
+             * @description Null means no bow thruster.
+             */
+            bow_thruster_lbf?: number | null;
+        };
         /**
          * Provenance
          * @description Where a value came from, so the UI and safety sheet can show how much to trust it.
@@ -3604,6 +5660,62 @@ export interface components {
              * @description Water levels (MLLW) every case is evaluated at; lines are installed at the first.
              */
             tide_levels_ft?: number[];
+        };
+        /** Report */
+        Report: {
+            /**
+             * T Utc
+             * Format: date-time
+             */
+            t_utc: string;
+            /** Title */
+            title: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /** Author */
+            author?: string | null;
+            /**
+             * Lat
+             * @description Position stated in the report, if any.
+             */
+            lat?: number | null;
+            /** Lon */
+            lon?: number | null;
+            /** Tags */
+            tags?: string[];
+            /** Report Id */
+            report_id: string;
+            /** Mission Id */
+            mission_id: string;
+        };
+        /** ReportCreate */
+        ReportCreate: {
+            /**
+             * T Utc
+             * Format: date-time
+             */
+            t_utc: string;
+            /** Title */
+            title: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /** Author */
+            author?: string | null;
+            /**
+             * Lat
+             * @description Position stated in the report, if any.
+             */
+            lat?: number | null;
+            /** Lon */
+            lon?: number | null;
+            /** Tags */
+            tags?: string[];
         };
         /**
          * ResultManifest
@@ -3800,6 +5912,18 @@ export interface components {
             /** Tugs */
             tugs?: components["schemas"]["TugAssignment"][];
         };
+        /** SequenceConstraintCheck */
+        SequenceConstraintCheck: {
+            /** Code */
+            code: string;
+            /**
+             * Satisfied
+             * @description null when not evaluated.
+             */
+            satisfied: boolean | null;
+            /** Message */
+            message: string;
+        };
         /** SequenceIssue */
         SequenceIssue: {
             /** Code */
@@ -3815,6 +5939,45 @@ export interface components {
             line_number?: number | null;
             /** Message */
             message: string;
+        };
+        /** SequenceProposal */
+        SequenceProposal: {
+            /** Rank */
+            rank: number;
+            /** Line Order */
+            line_order: number[];
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "feasible_static" | "indeterminate" | "infeasible";
+            /** Is Default Order */
+            is_default_order: boolean;
+            /** Steps */
+            steps: components["schemas"]["SequenceStep"][];
+            /** Issues */
+            issues: components["schemas"]["SequenceIssue"][];
+            /** Constraints */
+            constraints: components["schemas"]["SequenceConstraintCheck"][];
+            /** Intermediate States Evaluated */
+            intermediate_states_evaluated: number;
+            /** Intermediate States Indeterminate */
+            intermediate_states_indeterminate: number;
+            /** Worst State Pct */
+            worst_state_pct?: number | null;
+            /** Total Duration Min */
+            total_duration_min?: number | null;
+            /**
+             * Validity State
+             * @enum {string}
+             */
+            validity_state: "limited" | "invalid";
+            /**
+             * Review Status
+             * @default draft_unreviewed
+             * @enum {string}
+             */
+            review_status: "draft_unreviewed" | "reviewed";
         };
         /** SequenceRequest */
         SequenceRequest: {
@@ -3917,6 +6080,112 @@ export interface components {
              * @description Critical-path estimate from the unreviewed durations.
              */
             total_duration_min?: number | null;
+        };
+        /** SequenceSearchBounds */
+        SequenceSearchBounds: {
+            /** Max Candidates */
+            max_candidates: number;
+            /**
+             * Candidate Space
+             * @description Number of orderings of the configured lines (n!).
+             */
+            candidate_space: number;
+            /** Evaluated */
+            evaluated: number;
+            /**
+             * Admissible Candidates
+             * @description Orderings meeting the caller constraints; null when the space was not fully enumerated.
+             */
+            admissible_candidates?: number | null;
+            /**
+             * Truncated
+             * @description True when admissible orderings remained unevaluated because of max_candidates or the enumeration guard.
+             */
+            truncated: boolean;
+        };
+        /** SequenceSearchRequest */
+        SequenceSearchRequest: {
+            /** Ship Class Id */
+            ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /**
+             * Mst
+             * @default II
+             * @enum {string}
+             */
+            mst: "I" | "II" | "IIA" | "III";
+            /** Berth Id */
+            berth_id: string;
+            config: components["schemas"]["MooringConfig"];
+            environment: components["schemas"]["EnvironmentSnapshot"];
+            /** Tug Plan Result Id */
+            tug_plan_result_id?: string | null;
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Common installation tide for draft static checks; defaults to the evaluated water level.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
+            /**
+             * Line Handling Crews
+             * @default 6
+             */
+            line_handling_crews: number;
+            /**
+             * Must Precede
+             * @description Handling constraints (a, b): line a is passed and secured before line b. Caller-supplied; none are invented.
+             */
+            must_precede?: [
+                number,
+                number
+            ][];
+            /**
+             * First Line
+             * @description Optional constraint: this line is handled first.
+             */
+            first_line?: number | null;
+            /**
+             * Max Candidates
+             * @description Upper bound on orderings evaluated with the static solver.
+             * @default 8
+             */
+            max_candidates: number;
+            /**
+             * Max Proposals
+             * @default 3
+             */
+            max_proposals: number;
+        };
+        /** SequenceSearchResult */
+        SequenceSearchResult: {
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "feasible_found" | "indeterminate_only" | "no_feasible_order" | "budget_limited" | "unsupported";
+            /** Proposals */
+            proposals: components["schemas"]["SequenceProposal"][];
+            bounds: components["schemas"]["SequenceSearchBounds"];
+            /** Default Order */
+            default_order: number[];
+            /**
+             * Default Order Outcome
+             * @enum {string}
+             */
+            default_order_outcome: "feasible_static" | "indeterminate" | "infeasible" | "not_evaluated";
+            /** Tie Breaks */
+            tie_breaks: string[];
+            /** Limitations */
+            limitations: string[];
+            /**
+             * Review Status
+             * @default draft_unreviewed
+             * @enum {string}
+             */
+            review_status: "draft_unreviewed" | "reviewed";
         };
         /** SequenceStep */
         SequenceStep: {
@@ -4179,6 +6448,24 @@ export interface components {
             dofs: components["schemas"]["MotionDofs"];
             acceleration?: components["schemas"]["MotionAcceleration"] | null;
         };
+        /** ShipPoint */
+        ShipPoint: {
+            /**
+             * X Ft
+             * @description Forward from the ship reference origin.
+             */
+            x_ft?: number | null;
+            /**
+             * Y Ft
+             * @description Port from the ship reference origin.
+             */
+            y_ft?: number | null;
+            /**
+             * Z Ft
+             * @description Up from the declared reference waterline/loading.
+             */
+            z_ft?: number | null;
+        };
         /**
          * ShipState
          * @description Ship pose and velocity in the berth frame. y_ft is the distance from the pier face to the centerline.
@@ -4215,6 +6502,11 @@ export interface components {
          */
         SimFrame: {
             diagnostics?: components["schemas"]["SimulationDiagnostics"] | null;
+            /**
+             * Forcing Revision
+             * @description Revision id of the immutable forcing series; with t_s it identifies the forcing in effect.
+             */
+            forcing_revision?: string | null;
             /** T S */
             t_s: number;
             pose: components["schemas"]["ShipState"];
@@ -4262,6 +6554,200 @@ export interface components {
             /** Structured Alerts */
             structured_alerts?: components["schemas"]["MotionAlert"][] | null;
         } & unknown;
+        /**
+         * SimLifecycle
+         * @description Server lifecycle metadata for the rm0-v1 session stream.
+         */
+        SimLifecycle: {
+            /**
+             * Type
+             * @default session_lifecycle
+             * @constant
+             */
+            type: "session_lifecycle";
+            /**
+             * Schema Version
+             * @default rm0-v1
+             * @constant
+             */
+            schema_version: "rm0-v1";
+            /** Session Id */
+            session_id: string;
+            /**
+             * Run Id
+             * @description Changes on reset; sequence remains monotonic for the session.
+             */
+            run_id: string;
+            /** Sequence */
+            sequence: number;
+            /** T S */
+            t_s: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "created" | "running" | "paused" | "reset" | "ended" | "error";
+            /** Scene Id */
+            scene_id?: string | null;
+            /** Scene Revision */
+            scene_revision?: string | null;
+            /** Message */
+            message?: string | null;
+            validity?: components["schemas"]["Validity"] | null;
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /**
+             * Speed
+             * @description Current simulated seconds per wall second.
+             */
+            speed?: number | null;
+        };
+        /**
+         * SimRecording
+         * @description Bounded display recording. Sequence gaps mean decimation, never missing physics integration steps.
+         */
+        SimRecording: {
+            /**
+             * Schema Version
+             * @default rm0-v1
+             * @constant
+             */
+            schema_version: "rm0-v1";
+            /** Recording Id */
+            recording_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Scene Id */
+            scene_id: string;
+            /** Scene Revision */
+            scene_revision: string;
+            /**
+             * Duration S
+             * @description Recorded simulation duration, excluding paused wall time.
+             */
+            duration_s?: number | null;
+            sampling: components["schemas"]["SimSamplingPolicy"];
+            /** Frames */
+            frames: components["schemas"]["SimFrame"][];
+            /** Lifecycle */
+            lifecycle?: components["schemas"]["SimLifecycle"][];
+            validity?: components["schemas"]["Validity"] | null;
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+        };
+        /**
+         * SimRecordingList
+         * @description Owner-scoped keyset page, ordered by session ID, not creation time.
+         */
+        SimRecordingList: {
+            /** Recordings */
+            recordings: components["schemas"]["SimRecordingSummary"][];
+            /**
+             * Next Cursor
+             * @description Pass as after_session_id for the next page.
+             */
+            next_cursor?: string | null;
+        };
+        /**
+         * SimRecordingSummary
+         * @description Small saved-recording index entry; frames are fetched separately.
+         */
+        SimRecordingSummary: {
+            /** Recording Id */
+            recording_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Scene Id */
+            scene_id: string;
+            /** Scene Revision */
+            scene_revision: string;
+            /** Duration S */
+            duration_s: number;
+            /** Frame Count */
+            frame_count: number;
+            validity: components["schemas"]["Validity"];
+            /** Scene Url */
+            scene_url: string;
+            /** Recording Url */
+            recording_url: string;
+        };
+        /** SimSamplingPolicy */
+        SimSamplingPolicy: {
+            /**
+             * Physics Dt S
+             * @description Integrator step if fixed; rendering never controls it.
+             */
+            physics_dt_s?: number | null;
+            /** Display Interval S */
+            display_interval_s?: number | null;
+            /** Max Pending Frames */
+            max_pending_frames?: number | null;
+            /**
+             * Slow Client Policy
+             * @default drop_display_frames
+             * @constant
+             */
+            slow_client_policy: "drop_display_frames";
+            /**
+             * Description
+             * @default Keep the newest display frame; never skip or slow physics. Sequence gaps disclose dropped frames.
+             */
+            description: string;
+        };
+        /**
+         * SimScene
+         * @description Static scene fetched once. Producers publish a new revision whenever scene content changes.
+         */
+        SimScene: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            /**
+             * Schema Version
+             * @default rm0-v1
+             * @constant
+             */
+            schema_version: "rm0-v1";
+            /** Scene Id */
+            scene_id: string;
+            /** Revision */
+            revision: string;
+            /** Berth Id */
+            berth_id: string;
+            /** Ship Class Id */
+            ship_class_id: string;
+            /** Loading */
+            loading: string;
+            /** Face Bearing True Deg */
+            face_bearing_true_deg?: number | null;
+            /**
+             * Deck Height Mllw Ft
+             * @description Fixed pier-deck elevation above MLLW.
+             */
+            deck_height_mllw_ft?: number | null;
+            /**
+             * Ship Reference
+             * @description Origin used by ship geometry and frame motion.
+             * @default midships at the reference waterline
+             */
+            ship_reference: string;
+            /** Berth Outline */
+            berth_outline?: components["schemas"]["BerthPosition"][] | components["schemas"]["BerthPosition"][] | null;
+            /** Ship Hull Outline */
+            ship_hull_outline?: components["schemas"]["ShipPoint"][] | components["schemas"]["ShipPoint"][] | null;
+            /** Ship Fittings */
+            ship_fittings?: components["schemas"]["MotionSceneShipFitting"][] | null;
+            /** Pier Fittings */
+            pier_fittings?: components["schemas"]["MotionScenePierFitting"][] | null;
+            /** Fenders */
+            fenders?: components["schemas"]["MotionSceneFender"][] | null;
+            /** Depth Profile */
+            depth_profile?: components["schemas"]["MotionSceneDepth"][] | null;
+        };
         /** SimSeries */
         SimSeries: {
             /** Job Id */
@@ -4271,16 +6757,30 @@ export interface components {
         };
         /** SimSessionCreate */
         SimSessionCreate: {
+            /** @description Forcing series; absent keeps the frozen scenario environment. */
+            forcing?: components["schemas"]["ForcingSpec"] | null;
             /** Dt S */
             dt_s?: number | null;
             /** Duration S */
             duration_s?: number | null;
+            /**
+             * Record Interval S
+             * @description Simulation-time interval between recorded frames; absent means 1 s.
+             */
+            record_interval_s?: number | null;
             /** Scenario Id */
             scenario_id: string;
             initial_state: components["schemas"]["ShipState"];
         };
         /** SimSessionCreated */
         SimSessionCreated: {
+            /** Forcing Revision */
+            forcing_revision?: string | null;
+            /**
+             * Forcing Synthetic
+             * @description True when the forcing series is generated rather than supplied.
+             */
+            forcing_synthetic?: boolean | null;
             /** Session Id */
             session_id: string;
             /** Ws Url */
@@ -4296,6 +6796,11 @@ export interface components {
              * @description Present only when the session implements the RM0 stream protocol.
              */
             protocol?: "rm0-v1" | null;
+            /**
+             * Recording Url
+             * @description Bounded SimRecording resource for this session (live copy, else persisted).
+             */
+            recording_url?: string | null;
         };
         /** SimulationDiagnostics */
         SimulationDiagnostics: {
@@ -4385,6 +6890,27 @@ export interface components {
              */
             tolerance: number;
         };
+        /**
+         * StateUncertainty
+         * @description One-sigma uncertainty of the starting state (e.g. GPS and heading sensor error).
+         */
+        StateUncertainty: {
+            /**
+             * Position Sd Ft
+             * @default 15
+             */
+            position_sd_ft: number;
+            /**
+             * Heading Sd Deg
+             * @default 1
+             */
+            heading_sd_deg: number;
+            /**
+             * Speed Sd Kt
+             * @default 0.2
+             */
+            speed_sd_kt: number;
+        };
         /** StationQuality */
         StationQuality: {
             /** Station Id */
@@ -4396,6 +6922,48 @@ export interface components {
             age_s: number;
             /** Flags */
             flags?: string[];
+        };
+        /** Storyboard */
+        Storyboard: {
+            mission: components["schemas"]["Mission"];
+            /** Max Interp Gap S */
+            max_interp_gap_s: number;
+            stats: components["schemas"]["TrackStats"];
+            /**
+             * Track
+             * @description Shape-preserving decimated track for display.
+             */
+            track: components["schemas"]["TrackFix"][];
+            /**
+             * Events
+             * @description Time order; events without a time come last.
+             */
+            events: components["schemas"]["StoryboardEvent"][];
+            validity: components["schemas"]["Validity"];
+        };
+        /** StoryboardEvent */
+        StoryboardEvent: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "report";
+            /**
+             * Event Id
+             * @description media_id or report_id.
+             */
+            event_id: string;
+            /** T Utc */
+            t_utc?: string | null;
+            /** Title */
+            title: string;
+            /** Body */
+            body?: string | null;
+            /** Media Url */
+            media_url?: string | null;
+            /** Tags */
+            tags?: string[];
+            located: components["schemas"]["LocatedAt"];
         };
         /** SyntheticForecastRequest */
         SyntheticForecastRequest: {
@@ -4818,6 +7386,95 @@ export interface components {
              */
             forecast?: components["schemas"]["EnvironmentSnapshot"][] | null;
         };
+        /**
+         * TrackFix
+         * @description One recorded (or simulated) position. Shared by S5 ingestion and S6 simulated tracks.
+         */
+        TrackFix: {
+            /**
+             * T Utc
+             * Format: date-time
+             */
+            t_utc: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /**
+             * Heading True Deg
+             * @description Bow heading, if recorded.
+             */
+            heading_true_deg?: number | null;
+            /**
+             * Cog True Deg
+             * @description Course over ground, if recorded.
+             */
+            cog_true_deg?: number | null;
+            /**
+             * Sog Kt
+             * @description Speed over ground, if recorded.
+             */
+            sog_kt?: number | null;
+            /** Hdop */
+            hdop?: number | null;
+            /**
+             * Quality
+             * @default unknown
+             * @enum {string}
+             */
+            quality: "good" | "degraded" | "unknown";
+            /**
+             * Source
+             * @description e.g. gps, ais, nmea, simulated:<job_id>.
+             */
+            source?: string | null;
+        };
+        /**
+         * TrackIngest
+         * @description JSON track ingestion. Fixes are merged with any existing track for the mission.
+         */
+        TrackIngest: {
+            /** Fixes */
+            fixes: components["schemas"]["TrackFix"][];
+        };
+        /** TrackIngestResult */
+        TrackIngestResult: {
+            /** Mission Id */
+            mission_id: string;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "csv" | "gpx" | "nmea" | "geojson" | "json";
+            /** Accepted */
+            accepted: number;
+            /** Rejected */
+            rejected: number;
+            /**
+             * Duplicates
+             * @description Fixes with a timestamp already present; the first one is kept.
+             */
+            duplicates: number;
+            /**
+             * Reordered
+             * @description Fixes received out of time order (stored sorted).
+             */
+            reordered: number;
+            /**
+             * Errors
+             * @description First errors, with line/record numbers.
+             */
+            errors?: string[];
+            /**
+             * Fix Count
+             * @description Total fixes now stored for the mission.
+             */
+            fix_count: number;
+            /** Start Utc */
+            start_utc?: string | null;
+            /** End Utc */
+            end_utc?: string | null;
+        };
         /** TrackPoint */
         TrackPoint: {
             /** Lat */
@@ -4835,6 +7492,254 @@ export interface components {
             /** Ukc Ft */
             ukc_ft: number;
         };
+        /** TrackStats */
+        TrackStats: {
+            /** Fix Count */
+            fix_count: number;
+            /** Start Utc */
+            start_utc?: string | null;
+            /** End Utc */
+            end_utc?: string | null;
+            /** Duration S */
+            duration_s: number;
+            /** Distance Nm */
+            distance_nm: number;
+            /** Max Gap S */
+            max_gap_s: number;
+            /**
+             * Gaps Over Limit
+             * @description Gaps longer than max_interp_gap_s.
+             */
+            gaps_over_limit: number;
+        };
+        /** TransitForces */
+        TransitForces: {
+            hull: components["schemas"]["BodyWrench"];
+            propeller: components["schemas"]["BodyWrench"];
+            rudder: components["schemas"]["BodyWrench"];
+            wind: components["schemas"]["BodyWrench"];
+            tugs: components["schemas"]["BodyWrench"];
+            bow_thruster: components["schemas"]["BodyWrench"];
+        };
+        /** TransitFrame */
+        TransitFrame: {
+            /** T S */
+            t_s: number;
+            /** T Utc */
+            t_utc?: string | null;
+            /** Vessels */
+            vessels: components["schemas"]["TransitVesselState"][];
+        };
+        /**
+         * TransitHelmCommand
+         * @description Scripted helm/engine order at a simulation time. A null field leaves that control to the autopilot.
+         */
+        TransitHelmCommand: {
+            /** T S */
+            t_s: number;
+            /** Rudder Deg */
+            rudder_deg?: number | null;
+            /** Engine Order */
+            engine_order?: number | null;
+        };
+        /** TransitPreset */
+        TransitPreset: {
+            /** Preset Id */
+            preset_id: string;
+            /** Title */
+            title: string;
+            /** Description */
+            description: string;
+            request: components["schemas"]["TransitRequest"];
+            validity: components["schemas"]["Validity"];
+        };
+        /** TransitRequest */
+        TransitRequest: {
+            /** Vessels */
+            vessels: components["schemas"]["VesselTransit"][];
+            /** @description Steady wind/current for the whole run. Null means explicitly calm (labeled), not unknown. */
+            environment?: components["schemas"]["EnvironmentSnapshot"] | null;
+            /**
+             * Start Utc
+             * @description Optional UTC epoch for track timestamps.
+             */
+            start_utc?: string | null;
+            /** @description Local plane origin; default the first vessel's start. */
+            origin?: components["schemas"]["GeoPoint"] | null;
+            /**
+             * Duration S
+             * @default 3600
+             */
+            duration_s: number;
+            /**
+             * Dt S
+             * @default 0.2
+             */
+            dt_s: number;
+            /**
+             * Sample Interval S
+             * @description Output frame spacing; default 2 s.
+             */
+            sample_interval_s?: number | null;
+        };
+        /** TransitSeries */
+        TransitSeries: {
+            /** Job Id */
+            job_id: string;
+            /** Frames */
+            frames: components["schemas"]["TransitFrame"][];
+        };
+        /** TransitStart */
+        TransitStart: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Heading True Deg */
+            heading_true_deg: number;
+            /**
+             * Speed Kt
+             * @description Initial surge speed through the water.
+             * @default 0
+             */
+            speed_kt: number;
+        };
+        /**
+         * TransitTugCommand
+         * @description Timed tug force on the hull at a named point. Direction is relative to the bow, clockwise: 0 = ahead
+         *     (towing forward), 90 = toward starboard, 180 = astern (braking), 270 = toward port.
+         */
+        TransitTugCommand: {
+            /** T S */
+            t_s: number;
+            /** Tug Id */
+            tug_id: string;
+            /**
+             * Point
+             * @enum {string}
+             */
+            point: "bow" | "stern" | "port_shoulder" | "starboard_shoulder" | "port_quarter" | "starboard_quarter";
+            /** Force Lbf */
+            force_lbf: number;
+            /** Direction Rel Deg */
+            direction_rel_deg: number;
+        };
+        /** TransitTugState */
+        TransitTugState: {
+            /** Tug Id */
+            tug_id: string;
+            /**
+             * Point
+             * @enum {string}
+             */
+            point: "bow" | "stern" | "port_shoulder" | "starboard_shoulder" | "port_quarter" | "starboard_quarter";
+            /** Force Lbf */
+            force_lbf: number;
+            /** Direction Rel Deg */
+            direction_rel_deg: number;
+            /**
+             * Lat
+             * @description Hull contact point; tug hull kinematics are not modeled.
+             */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "command" | "auto_assist";
+        };
+        /** TransitVesselState */
+        TransitVesselState: {
+            /** Vessel Id */
+            vessel_id: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** X East Ft */
+            x_east_ft: number;
+            /** Y North Ft */
+            y_north_ft: number;
+            /** Heading True Deg */
+            heading_true_deg: number;
+            /**
+             * Cog True Deg
+             * @description Null when nearly stopped.
+             */
+            cog_true_deg?: number | null;
+            /** Sog Kt */
+            sog_kt: number;
+            /**
+             * Stw Kt
+             * @description Surge speed through the water, + ahead.
+             */
+            stw_kt: number;
+            /** U Kt */
+            u_kt: number;
+            /**
+             * V Kt
+             * @description Sway through the water, + to port.
+             */
+            v_kt: number;
+            /**
+             * R Degps
+             * @description Yaw rate, + counterclockwise (to port).
+             */
+            r_degps: number;
+            /** Rudder Deg */
+            rudder_deg: number;
+            /**
+             * Engine Order
+             * @description Commanded order.
+             */
+            engine_order: number;
+            /**
+             * Thrust Lbf
+             * @description Delivered thrust after engine lag, + ahead.
+             */
+            thrust_lbf: number;
+            /**
+             * Leg Index
+             * @description Index of the waypoint being steered for.
+             */
+            leg_index: number;
+            /**
+             * Cross Track Ft
+             * @description Signed distance from the current leg, + to port of track.
+             */
+            cross_track_ft: number;
+            /** Distance To Go Nm */
+            distance_to_go_nm: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "underway" | "arrived" | "stopped_short" | "invalid";
+            /** Tugs */
+            tugs?: components["schemas"]["TransitTugState"][];
+            forces: components["schemas"]["TransitForces"];
+        };
+        /** TransitWaypoint */
+        TransitWaypoint: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Name */
+            name?: string | null;
+            /**
+             * Speed Kt
+             * @description Target speed through the water on the leg ending here.
+             */
+            speed_kt: number;
+            /**
+             * Acceptance Radius Ft
+             * @description Switch to the next leg inside this radius; default two ship lengths. The final waypoint is the arrival point.
+             */
+            acceptance_radius_ft?: number | null;
+        };
         /** TugAssignment */
         TugAssignment: {
             /** Tug Id */
@@ -4850,6 +7755,29 @@ export interface components {
             force_lbf: number;
             /** Direction True Deg */
             direction_true_deg?: number | null;
+        };
+        /**
+         * TugAssistSettings
+         * @description Automatic low-speed assist: tugs supply the yaw moment the rudder cannot and brake on arrival.
+         */
+        TugAssistSettings: {
+            /**
+             * Policy
+             * @default auto
+             * @enum {string}
+             */
+            policy: "manual" | "auto";
+            /**
+             * Tug Ids
+             * @description Tugs available; empty uses the catalog's first two.
+             */
+            tug_ids?: string[];
+            /**
+             * Assist Below Kt
+             * @description Automatic assist applies below this speed.
+             * @default 5
+             */
+            assist_below_kt: number;
         };
         /** TugCommand */
         TugCommand: {
@@ -5075,6 +8003,263 @@ export interface components {
             legs: components["schemas"]["UkcLeg"][];
             window: components["schemas"]["TimeWindow"];
         };
+        /** UltimateCapacityBasis */
+        UltimateCapacityBasis: {
+            /** Basis Id */
+            basis_id: string;
+            /**
+             * Evidence Status
+             * @enum {string}
+             */
+            evidence_status: "sourced" | "synthetic_test_fixture";
+            /**
+             * Citation
+             * @description Source of the capacity and material-law range.
+             */
+            citation: string;
+            /**
+             * Wind Basis
+             * @description Wind averaging duration and reference height the supplied gust speed is stated on.
+             */
+            wind_basis: string;
+            /**
+             * Capacity Uncertainty
+             * @description Stated uncertainty of the capacity; informational, not applied to the threshold.
+             */
+            capacity_uncertainty?: string | null;
+            /** Lines */
+            lines: components["schemas"]["LineUltimateCapacity"][];
+        };
+        /** UltimateDirectionResult */
+        UltimateDirectionResult: {
+            /** Wind Rel Deg */
+            wind_rel_deg: number;
+            /** Wind From True Deg */
+            wind_from_true_deg: number;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "threshold_found" | "ultimate_at_zero_wind" | "indeterminate_component_failed_first" | "indeterminate_material_range" | "indeterminate_nonconvergence" | "indeterminate_search_ceiling";
+            /**
+             * Threshold Wind Kt
+             * @description Highest verified speed below modeled ultimate capacity; 0 at zero-wind failure; None unless a threshold was found.
+             */
+            threshold_wind_kt?: number | null;
+            /**
+             * Threshold Gust Kt
+             * @description threshold_wind_kt times the request's held gust/sustained ratio.
+             */
+            threshold_gust_kt?: number | null;
+            /** Bracket Kt */
+            bracket_kt?: number[] | null;
+            /** Governing Line */
+            governing_line?: string | null;
+            /**
+             * Governing Utilization Of Ultimate
+             * @description Tension / ultimate capacity of the governing line at the upper bracket end.
+             */
+            governing_utilization_of_ultimate?: number | null;
+            /**
+             * Wll Crossing Bracket Kt
+             * @description Coarse wind-speed interval of the first WLL crossing (a warning, not a stop); None if none before the stop.
+             */
+            wll_crossing_bracket_kt?: number[] | null;
+            /**
+             * Stop Kt
+             * @description Speed at which a non-ultimate stop or nonconvergence occurred.
+             */
+            stop_kt?: number | null;
+            /** Stop Elements */
+            stop_elements?: string[];
+            /** Nonmonotone In Bracket */
+            nonmonotone_in_bracket?: boolean | null;
+            /** Reason */
+            reason?: string | null;
+        };
+        /** UltimateGustRequest */
+        UltimateGustRequest: {
+            /**
+             * Scenario Id
+             * @description Informational; inputs are always taken from the body.
+             */
+            scenario_id?: string | null;
+            /**
+             * Ship Class Id
+             * @example DDG-51-FIIA
+             */
+            ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /**
+             * Berth Id
+             * @example NAVSTA-NORFOLK-P12-N
+             */
+            berth_id: string;
+            config: components["schemas"]["MooringConfig"];
+            environment: components["schemas"]["EnvironmentSnapshot"];
+            /** Tugs */
+            tugs?: components["schemas"]["TugAssignment"][];
+            /**
+             * Mst
+             * @description Sets the design factor: 3.0 (I, II, IIA) or 2.5 (III).
+             * @default II
+             * @enum {string}
+             */
+            mst: "I" | "II" | "IIA" | "III";
+            /**
+             * Lines Wet
+             * @description Apply the wet-strength factor (nylon loses 15%).
+             * @default true
+             */
+            lines_wet: boolean;
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Water level when the lines were installed and pretensioned. Defaults to environment.water_level_mllw_ft (lines installed at the analysis water level). A different value keeps rest lengths from that state.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
+            /** @description Required for a threshold; absent -> outcome 'unavailable'. */
+            capacity_basis?: components["schemas"]["UltimateCapacityBasis"] | null;
+            /**
+             * Step Deg
+             * @default 30
+             */
+            step_deg: number;
+            /**
+             * Max Search Kt
+             * @description Search ceiling; no stop below it is indeterminate, never 'unlimited'.
+             * @default 150
+             */
+            max_search_kt: number;
+            /**
+             * Sampling Step Kt
+             * @default 5
+             */
+            sampling_step_kt: number;
+            /**
+             * Tolerance Kt
+             * @default 0.25
+             */
+            tolerance_kt: number;
+        };
+        /** UltimateGustResponse */
+        UltimateGustResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /** @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes. */
+            manifest?: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["UltimateGustResult"];
+        };
+        /** UltimateGustResult */
+        UltimateGustResult: {
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "threshold_found" | "unavailable" | "indeterminate";
+            /** Reasons */
+            reasons?: string[];
+            /** Basis Id */
+            basis_id?: string | null;
+            /** Evidence Status */
+            evidence_status?: ("sourced" | "synthetic_test_fixture") | null;
+            /** Citation */
+            citation?: string | null;
+            /** Wind Basis */
+            wind_basis?: string | null;
+            /**
+             * Complete
+             * @description True only if every searched direction produced a threshold; otherwise the governing value is the lowest found, not a proven minimum.
+             * @default false
+             */
+            complete: boolean;
+            governing?: components["schemas"]["UltimateDirectionResult"] | null;
+            /** @description Search along the request's own wind direction. */
+            assessed?: components["schemas"]["UltimateDirectionResult"] | null;
+            /** Assessed Gust Kt */
+            assessed_gust_kt?: number | null;
+            /**
+             * Assessed Gust Margin Kt
+             * @description Assessed-direction threshold gust minus the request gust; negative means the modeled ultimate is exceeded.
+             */
+            assessed_gust_margin_kt?: number | null;
+            /** Directions */
+            directions?: components["schemas"]["UltimateDirectionResult"][];
+            /**
+             * Validated Rupture Prediction
+             * @description Always false: a physical breaking claim needs its own validation evidence.
+             * @default false
+             * @constant
+             */
+            validated_rupture_prediction: false;
+        };
+        /** UncertaintySettings */
+        UncertaintySettings: {
+            /**
+             * Samples
+             * @description Monte Carlo samples per alternative; 0 = no corridor.
+             * @default 0
+             */
+            samples: number;
+            /**
+             * Seed
+             * @default 0
+             */
+            seed: number;
+            /**
+             * Model
+             * @description Seeded gust and current perturbations from the S10 uncertainty model (unqualified), plus initial-state spread.
+             * @default s10_gust_current
+             * @constant
+             */
+            model: "s10_gust_current";
+            /**
+             * Percentile
+             * @description Corridor encloses this share of sampled footprints.
+             * @default 90
+             */
+            percentile: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -5139,6 +8324,365 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /** VesselTransit */
+        VesselTransit: {
+            /** Vessel Id */
+            vessel_id: string;
+            /** Ship Class Id */
+            ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            start: components["schemas"]["TransitStart"];
+            /** Route */
+            route: components["schemas"]["TransitWaypoint"][];
+            /**
+             * Mode
+             * @default own_thrust
+             * @enum {string}
+             */
+            mode: "own_thrust" | "tug_assisted";
+            propulsion?: components["schemas"]["PropulsionAssumptions"];
+            autopilot?: components["schemas"]["AutopilotSettings"];
+            /** Helm Commands */
+            helm_commands?: components["schemas"]["TransitHelmCommand"][];
+            /** Tug Commands */
+            tug_commands?: components["schemas"]["TransitTugCommand"][];
+            tug_assist?: components["schemas"]["TugAssistSettings"] | null;
+        };
+        /** WaterLevelForecastPoint */
+        WaterLevelForecastPoint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            component: "water_level";
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /** Water Level Mllw Ft */
+            water_level_mllw_ft: number;
+            /** Original */
+            original?: {
+                [key: string]: number | string;
+            } | null;
+        };
+        /**
+         * WaveBerthExposureAvailability
+         * @description Status of one physically distinct berth exposure; this model carries no measurements.
+         */
+        WaveBerthExposureAvailability: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "ocean_swell" | "local_chop" | "ship_wake" | "tug_wake";
+            /**
+             * State
+             * @default unavailable
+             * @constant
+             */
+            state: "unavailable";
+            /** Reason Code */
+            reason_code?: ("NO_BERTH_WAVE_TRANSFER" | "NO_DIRECTIONAL_FETCH" | "NO_WAKE_SOURCE" | "SOURCE_UNAVAILABLE") | null;
+            /** Reason */
+            reason?: string | null;
+            /** Limitations */
+            limitations?: string[];
+        };
+        /**
+         * WaveBulkParameters
+         * @description Provider bulk parameters; total sea and partitions are deliberately distinct.
+         */
+        WaveBulkParameters: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "total_sea" | "swell" | "wind_sea" | "provider_partition";
+            /** Provider Partition Id */
+            provider_partition_id?: string | null;
+            /** Significant Height Ft */
+            significant_height_ft: number;
+            /** Period S */
+            period_s?: number | null;
+            /**
+             * Period Basis
+             * @default unknown
+             * @enum {string}
+             */
+            period_basis: "dominant" | "average" | "peak" | "primary_mean" | "provider_partition" | "provider_partition_mean" | "unknown";
+            /** Direction From True Deg */
+            direction_from_true_deg?: number | null;
+            /**
+             * Direction Basis
+             * @default unknown
+             * @enum {string}
+             */
+            direction_basis: "mean" | "dominant" | "peak" | "primary" | "provider_partition" | "unknown";
+        };
+        /**
+         * WaveComposeRequest
+         * @description Bounded public wave acquisition with a reproducible availability cutoff.
+         */
+        WaveComposeRequest: {
+            /** Berth Id */
+            berth_id: string;
+            /**
+             * As Of Utc
+             * Format: date-time
+             * @description Availability cutoff for observations and forecast cycles; provider retrieval after this time is excluded.
+             */
+            as_of_utc: string;
+            /**
+             * Horizon Start Utc
+             * Format: date-time
+             */
+            horizon_start_utc: string;
+            /**
+             * Horizon End Utc
+             * Format: date-time
+             */
+            horizon_end_utc: string;
+            /**
+             * Observation Lookback Hours
+             * @default 24
+             */
+            observation_lookback_hours: number;
+            /**
+             * Max Forecast Gap Hours
+             * @default 3
+             */
+            max_forecast_gap_hours: number;
+            /**
+             * Observation Station Id
+             * @default 44099
+             * @constant
+             */
+            observation_station_id: "44099";
+            /**
+             * Independent Check Station Id
+             * @default 44014
+             * @constant
+             */
+            independent_check_station_id: "44014";
+            /**
+             * Forecast Source
+             * @default gfs-wave
+             * @constant
+             */
+            forecast_source: "gfs-wave";
+            /**
+             * Include Spectrum
+             * @default true
+             */
+            include_spectrum: boolean;
+        };
+        /** WaveSourceLocation */
+        WaveSourceLocation: {
+            /** Latitude Deg */
+            latitude_deg: number;
+            /** Longitude Deg */
+            longitude_deg: number;
+            /** Water Depth M */
+            water_depth_m?: number | null;
+            /** Grid Cell */
+            grid_cell?: string | null;
+        };
+        /**
+         * WaveSpectrum
+         * @description Native NDBC density/coefficient representation, not a reconstructed 2-D spectrum.
+         */
+        WaveSpectrum: {
+            /**
+             * Representation
+             * @enum {string}
+             */
+            representation: "frequency_density" | "ndbc_fourier_coefficients";
+            /** Frequency Bin Count */
+            frequency_bin_count: number;
+            /**
+             * Density Coverage
+             * @enum {string}
+             */
+            density_coverage: "complete" | "partial" | "unavailable";
+            /**
+             * Alpha1 Coverage
+             * @default unavailable
+             * @enum {string}
+             */
+            alpha1_coverage: "complete" | "partial" | "unavailable";
+            /**
+             * Alpha2 Coverage
+             * @default unavailable
+             * @enum {string}
+             */
+            alpha2_coverage: "complete" | "partial" | "unavailable";
+            /**
+             * R1 Coverage
+             * @default unavailable
+             * @enum {string}
+             */
+            r1_coverage: "complete" | "partial" | "unavailable";
+            /**
+             * R2 Coverage
+             * @default unavailable
+             * @enum {string}
+             */
+            r2_coverage: "complete" | "partial" | "unavailable";
+            /** Bins */
+            bins: components["schemas"]["WaveSpectrumBin"][];
+        };
+        /**
+         * WaveSpectrumBin
+         * @description One provider-native frequency bin; Fourier coefficients are never reconstructed.
+         */
+        WaveSpectrumBin: {
+            /** Frequency Hz */
+            frequency_hz: number;
+            /** Energy Density M2 Per Hz */
+            energy_density_m2_per_hz?: number | null;
+            /**
+             * Alpha1 Direction From True Deg
+             * @description NDBC alpha1 mean direction waves come from, clockwise from true north.
+             */
+            alpha1_direction_from_true_deg?: number | null;
+            /**
+             * Alpha2 Direction From True Deg
+             * @description NDBC alpha2 principal direction waves come from, clockwise from true north.
+             */
+            alpha2_direction_from_true_deg?: number | null;
+            /** R1 */
+            r1?: number | null;
+            /** R2 */
+            r2?: number | null;
+            /** Quality Flags */
+            quality_flags?: string[];
+        };
+        /** WaveSpectrumComponent */
+        WaveSpectrumComponent: {
+            /**
+             * Label
+             * @enum {string}
+             */
+            label: "total_sea" | "swell" | "wind_sea";
+            /**
+             * Hs Ft
+             * @description Significant wave height (4 sqrt(m0)) of this component.
+             */
+            hs_ft: number;
+            /**
+             * Peak Period S
+             * @description Spectral peak period.
+             */
+            peak_period_s: number;
+            /**
+             * From True Deg
+             * @description Provenance only; the surrogate is a scalar elevation at one point and does not model direction.
+             */
+            from_true_deg?: number | null;
+            /**
+             * Gamma
+             * @description JONSWAP peak enhancement. A scenario shape parameter, not fitted to data.
+             * @default 3.3
+             */
+            gamma: number;
+        };
+        /** WaveSpectrumInput */
+        WaveSpectrumInput: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "total" | "partitions";
+            /** Components */
+            components: components["schemas"]["WaveSpectrumComponent"][];
+            /**
+             * Reported Total Hs Ft
+             * @description Provider's reported total Hs alongside partitions. Checked for consistency, never added.
+             */
+            reported_total_hs_ft?: number | null;
+            /**
+             * Source
+             * @description Where these labeled parameters came from (e.g. a D4 record id or 'hand-entered scenario').
+             */
+            source: string;
+        };
+        /** WaveSurrogateRequest */
+        WaveSurrogateRequest: {
+            /** Seed */
+            seed: number;
+            /**
+             * Duration S
+             * @default 600
+             */
+            duration_s: number;
+            /**
+             * Dt S
+             * @default 0.5
+             */
+            dt_s: number;
+            /** @description None means waves are unavailable (not zero). */
+            spectrum?: components["schemas"]["WaveSpectrumInput"] | null;
+        };
+        /** WaveSurrogateResult */
+        WaveSurrogateResult: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "synthetic" | "unavailable";
+            /**
+             * Label
+             * @default SYNTHETIC / UNQUALIFIED: seeded random-phase JONSWAP-shaped surface elevation for visualization only. Not a forecast, not a measurement, and not berth forcing (offshore availability is not berth forcing).
+             */
+            label: string;
+            /**
+             * Qualified
+             * @default false
+             * @constant
+             */
+            qualified: false;
+            /** Seed */
+            seed: number;
+            /** Reasons */
+            reasons?: string[];
+            series?: components["schemas"]["WaveSurrogateSeries"] | null;
+            /**
+             * Target Hs Ft
+             * @description sqrt(sum of component Hs^2): energy-additive, each source once.
+             */
+            target_hs_ft?: number | null;
+            /**
+             * Realized Hs Ft
+             * @description 4 x standard deviation of the generated series.
+             */
+            realized_hs_ft?: number | null;
+            /** Mean Zero Crossing Period S */
+            mean_zero_crossing_period_s?: number | null;
+            /** Source */
+            source?: string | null;
+            /** Notes */
+            notes?: string[];
+        };
+        /** WaveSurrogateSeries */
+        WaveSurrogateSeries: {
+            /** T S */
+            t_s: number[];
+            /**
+             * Elevation Ft
+             * @description Sum of the component elevations; each partition added once.
+             */
+            elevation_ft: number[];
+            /** Components */
+            components?: {
+                [key: string]: number[];
+            };
+        };
         /** Waypoint */
         Waypoint: {
             /** Lat */
@@ -5151,6 +8695,51 @@ export interface components {
             channel_depth_mllw_ft: number;
             /** Width Ft */
             width_ft: number;
+        };
+        /**
+         * WhatIf
+         * @description An alternative set of commands from now on. Times are seconds from the prediction start.
+         */
+        WhatIf: {
+            /** Alt Id */
+            alt_id: string;
+            /** Label */
+            label: string;
+            /** Helm Commands */
+            helm_commands?: components["schemas"]["TransitHelmCommand"][];
+            /** Tug Commands */
+            tug_commands?: components["schemas"]["TransitTugCommand"][];
+        };
+        /** WindForecastPoint */
+        WindForecastPoint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            component: "wind";
+            /**
+             * Valid From Utc
+             * Format: date-time
+             */
+            valid_from_utc: string;
+            /**
+             * Valid To Utc
+             * Format: date-time
+             */
+            valid_to_utc: string;
+            /** Wind Speed Kt */
+            wind_speed_kt: number;
+            /**
+             * Wind Gust Kt
+             * @description Missing provider gust stays null and prevents a complete load-model snapshot.
+             */
+            wind_gust_kt?: number | null;
+            /** Wind From True Deg */
+            wind_from_true_deg: number;
+            /** Original */
+            original?: {
+                [key: string]: number | string;
+            } | null;
         };
         /**
          * WrenchLbf
@@ -5324,6 +8913,12 @@ export interface components {
         };
         /** BerthingSimResult */
         BerthingSimResult: {
+            /**
+             * Forcing Revision
+             * @description Revision id of the forcing series used; absent for the frozen environment.
+             * @default null
+             */
+            forcing_revision: string | null;
             /**
              * Transitions
              * @default null
@@ -5658,6 +9253,12 @@ export interface components {
         };
         /** ForecastDockingResult */
         ForecastDockingResult: {
+            forecast_manifest?: components["schemas"]["ForecastResolutionManifest"] | null;
+            /**
+             * Result Hash
+             * @description Hash of the semantic assessment, excluding newly allocated result IDs and execution timestamps.
+             */
+            result_hash?: string | null;
             /**
              * @description Selected arrival's configuration with modeled unstretched paid-out lengths made explicit. Reproduces the static installation assumption; not a deck-handling instruction.
              * @default null
@@ -5793,115 +9394,6 @@ export interface components {
             /** Message */
             message: string;
         };
-        /** MotionSceneDepth */
-        MotionSceneDepth: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            position: components["schemas"]["BerthPosition"];
-            /**
-             * Depth Mllw Ft
-             * @default null
-             */
-            depth_mllw_ft: number | null;
-        };
-        /** MotionSceneFender */
-        MotionSceneFender: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            /** Fender Id */
-            fender_id: string;
-            position: components["schemas"]["BerthPosition"];
-            /**
-             * Length Ft
-             * @default null
-             */
-            length_ft: number | null;
-            /**
-             * Standoff Ft
-             * @default null
-             */
-            standoff_ft: number | null;
-        };
-        /** MotionScenePierFitting */
-        MotionScenePierFitting: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            /** Fitting Id */
-            fitting_id: string;
-            position: components["schemas"]["BerthPosition"];
-            /**
-             * Kind
-             * @default null
-             */
-            kind: string | null;
-            /**
-             * Capacity Lbf
-             * @default null
-             */
-            capacity_lbf: number | null;
-        };
-        /** MotionSceneShipFitting */
-        MotionSceneShipFitting: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            /** Fitting Id */
-            fitting_id: string;
-            position: components["schemas"]["ShipPoint"];
-            /**
-             * Kind
-             * @default null
-             */
-            kind: string | null;
-            /**
-             * Capacity Lbf
-             * @default null
-             */
-            capacity_lbf: number | null;
-        };
         /** RecommendResponse */
         RecommendResponse: {
             /**
@@ -5990,27 +9482,6 @@ export interface components {
             /** Notes */
             notes?: string[];
         };
-        /** ShipPoint */
-        ShipPoint: {
-            /**
-             * X Ft
-             * @description Forward from the ship reference origin.
-             * @default null
-             */
-            x_ft: number | null;
-            /**
-             * Y Ft
-             * @description Port from the ship reference origin.
-             * @default null
-             */
-            y_ft: number | null;
-            /**
-             * Z Ft
-             * @description Up from the declared reference waterline/loading.
-             * @default null
-             */
-            z_ft: number | null;
-        };
         /** SimControlMessage */
         SimControlMessage: {
             /**
@@ -6030,59 +9501,6 @@ export interface components {
             kind: "fender_contact" | "line_overload" | "speed_exceeded" | "all_fast";
             /** Detail */
             detail: string;
-        };
-        /**
-         * SimLifecycle
-         * @description Server lifecycle metadata; defining this schema does not enable a new runtime protocol.
-         */
-        SimLifecycle: {
-            /**
-             * Type
-             * @default session_lifecycle
-             * @constant
-             */
-            type: "session_lifecycle";
-            /**
-             * Schema Version
-             * @default rm0-v1
-             * @constant
-             */
-            schema_version: "rm0-v1";
-            /** Session Id */
-            session_id: string;
-            /**
-             * Run Id
-             * @description Changes on reset; sequence remains monotonic for the session.
-             */
-            run_id: string;
-            /** Sequence */
-            sequence: number;
-            /** T S */
-            t_s: number;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "created" | "running" | "paused" | "reset" | "ended" | "error";
-            /**
-             * Scene Id
-             * @default null
-             */
-            scene_id: string | null;
-            /**
-             * Scene Revision
-             * @default null
-             */
-            scene_revision: string | null;
-            /**
-             * Message
-             * @default null
-             */
-            message: string | null;
-            /** @default null */
-            validity: components["schemas"]["Validity"] | null;
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
         };
         /** SimLineEventMessage */
         SimLineEventMessage: {
@@ -6106,151 +9524,17 @@ export interface components {
             event: "secured" | "tensioned" | "released";
         };
         /**
-         * SimRecording
-         * @description Bounded display recording. Sequence gaps mean decimation, never missing physics integration steps.
+         * SimSpeedMessage
+         * @description Client message: simulated seconds per wall second. The physics step never changes.
          */
-        SimRecording: {
+        SimSpeedMessage: {
             /**
-             * Schema Version
-             * @default rm0-v1
+             * Type
              * @constant
              */
-            schema_version: "rm0-v1";
-            /** Recording Id */
-            recording_id: string;
-            /** Session Id */
-            session_id: string;
-            /** Scene Id */
-            scene_id: string;
-            /** Scene Revision */
-            scene_revision: string;
-            /**
-             * Duration S
-             * @description Recorded simulation duration, excluding paused wall time.
-             * @default null
-             */
-            duration_s: number | null;
-            sampling: components["schemas"]["SimSamplingPolicy"];
-            /** Frames */
-            frames: components["schemas"]["SimFrame"][];
-            /** Lifecycle */
-            lifecycle?: components["schemas"]["SimLifecycle"][];
-            /** @default null */
-            validity: components["schemas"]["Validity"] | null;
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-        };
-        /** SimSamplingPolicy */
-        SimSamplingPolicy: {
-            /**
-             * Physics Dt S
-             * @description Integrator step if fixed; rendering never controls it.
-             * @default null
-             */
-            physics_dt_s: number | null;
-            /**
-             * Display Interval S
-             * @default null
-             */
-            display_interval_s: number | null;
-            /**
-             * Max Pending Frames
-             * @default null
-             */
-            max_pending_frames: number | null;
-            /**
-             * Slow Client Policy
-             * @default drop_display_frames
-             * @constant
-             */
-            slow_client_policy: "drop_display_frames";
-            /**
-             * Description
-             * @default Keep the newest display frame; never skip or slow physics. Sequence gaps disclose dropped frames.
-             */
-            description: string;
-        };
-        /**
-         * SimScene
-         * @description Static scene fetched once. Producers publish a new revision whenever scene content changes.
-         */
-        SimScene: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            /**
-             * Schema Version
-             * @default rm0-v1
-             * @constant
-             */
-            schema_version: "rm0-v1";
-            /** Scene Id */
-            scene_id: string;
-            /** Revision */
-            revision: string;
-            /** Berth Id */
-            berth_id: string;
-            /** Ship Class Id */
-            ship_class_id: string;
-            /** Loading */
-            loading: string;
-            /**
-             * Face Bearing True Deg
-             * @default null
-             */
-            face_bearing_true_deg: number | null;
-            /**
-             * Deck Height Mllw Ft
-             * @description Fixed pier-deck elevation above MLLW.
-             * @default null
-             */
-            deck_height_mllw_ft: number | null;
-            /**
-             * Ship Reference
-             * @description Origin used by ship geometry and frame motion.
-             * @default midships at the reference waterline
-             */
-            ship_reference: string;
-            /**
-             * Berth Outline
-             * @default null
-             */
-            berth_outline: components["schemas"]["BerthPosition"][] | components["schemas"]["BerthPosition"][] | null;
-            /**
-             * Ship Hull Outline
-             * @default null
-             */
-            ship_hull_outline: components["schemas"]["ShipPoint"][] | components["schemas"]["ShipPoint"][] | null;
-            /**
-             * Ship Fittings
-             * @default null
-             */
-            ship_fittings: components["schemas"]["MotionSceneShipFitting"][] | null;
-            /**
-             * Pier Fittings
-             * @default null
-             */
-            pier_fittings: components["schemas"]["MotionScenePierFitting"][] | null;
-            /**
-             * Fenders
-             * @default null
-             */
-            fenders: components["schemas"]["MotionSceneFender"][] | null;
-            /**
-             * Depth Profile
-             * @default null
-             */
-            depth_profile: components["schemas"]["MotionSceneDepth"][] | null;
+            type: "set_speed";
+            /** Speed */
+            speed: number;
         };
         /**
          * SimTugCommandMessage
@@ -6408,6 +9692,114 @@ export interface components {
              */
             p_any_bounds: number[] | null;
         };
+        /** TransitEvent */
+        TransitEvent: {
+            /** T S */
+            t_s: number;
+            /** Vessel Id */
+            vessel_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "waypoint_reached" | "arrived" | "rudder_saturated" | "tug_saturated" | "large_cross_track" | "missed_approach" | "stopped_short" | "integration_failed";
+            /** Detail */
+            detail: string;
+        };
+        /** TransitResponse */
+        TransitResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["TransitResult"];
+        };
+        /** TransitResult */
+        TransitResult: {
+            /** Series Url */
+            series_url: string;
+            /** Vessels */
+            vessels: components["schemas"]["TransitVesselSummary"][];
+            /** Events */
+            events: components["schemas"]["TransitEvent"][];
+        };
+        /** TransitVesselSummary */
+        TransitVesselSummary: {
+            /** Vessel Id */
+            vessel_id: string;
+            /** Ship Class Id */
+            ship_class_id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "own_thrust" | "tug_assisted";
+            /** Arrived */
+            arrived: boolean;
+            /**
+             * Arrival T S
+             * @default null
+             */
+            arrival_t_s: number | null;
+            /** Distance Nm */
+            distance_nm: number;
+            /** Max Cross Track Ft */
+            max_cross_track_ft: number;
+            /** Max Rudder Deg */
+            max_rudder_deg: number;
+            /** Max Tug Force Lbf */
+            max_tug_force_lbf: number;
+            /** Max Speed Assumed Kt */
+            max_speed_assumed_kt: number;
+            /**
+             * Track
+             * @description Sampled positions in the S5 fix format, for storyboard replay.
+             */
+            track: components["schemas"]["TrackFix"][];
+        };
         /**
          * UncertaintyModel
          * @description A versioned description of what is random in the environment and how it was obtained.
@@ -6547,6 +9939,37 @@ export interface operations {
             };
         };
     };
+    env_availability_api_v1_env_availability_get: {
+        parameters: {
+            query: {
+                berth_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentAvailability"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     env_forecast_api_v1_env_forecast_get: {
         parameters: {
             query: {
@@ -6567,6 +9990,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForecastSeries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    env_forecast_compose_api_v1_env_forecast_compose_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComposedForecastRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposedForecast"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    env_waves_compose_api_v1_env_waves_compose_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaveComposeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposedWaves"];
                 };
             };
             /** @description Validation Error */
@@ -6746,6 +10235,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShipClass"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ship_capabilities_api_v1_ships__class_id__capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                class_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetQualification"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_ship_input_api_v1_ships_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShipClass"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetQualification"];
                 };
             };
             /** @description Validation Error */
@@ -7228,6 +10781,39 @@ export interface operations {
             };
         };
     };
+    wave_surrogate_api_v1_loads_wave_surrogate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaveSurrogateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaveSurrogateResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     analyze_api_v1_mooring_analyze_post: {
         parameters: {
             query?: never;
@@ -7446,6 +11032,72 @@ export interface operations {
             };
         };
     };
+    horsepower_plan_api_v1_tugs_horsepower_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HorsepowerRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HorsepowerPlan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ultimate_gust_api_v1_risk_ultimate_gust_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UltimateGustRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UltimateGustResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     recommend_api_v1_mooring_recommend_post: {
         parameters: {
             query?: never;
@@ -7499,6 +11151,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_forecast_api_v1_mooring_forecast_resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForecastResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastResolvedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forecast_recheck_api_v1_mooring_forecast_plan_recheck_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForecastRecheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastRecheckResponse"];
                 };
             };
             /** @description Validation Error */
@@ -7644,6 +11362,39 @@ export interface operations {
             };
         };
     };
+    sequence_search_api_v1_mooring_sequence_search_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SequenceSearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SequenceSearchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     simulate_api_v1_berthing_simulate_post: {
         parameters: {
             query?: never;
@@ -7728,6 +11479,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SimSessionCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    session_scene_api_v1_berthing_sessions__session_id__scene_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimScene"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recordings_api_v1_berthing_recordings_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                after_session_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimRecordingList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    session_recording_api_v1_berthing_sessions__session_id__recording_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimRecording"];
                 };
             };
             /** @description Validation Error */
@@ -7902,6 +11747,563 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_missions_api_v1_missions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mission"][];
+                };
+            };
+        };
+    };
+    create_mission_api_v1_missions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MissionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mission"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_mission_api_v1_missions__mission_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mission"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_track_api_v1_missions__mission_id__track_get: {
+        parameters: {
+            query?: {
+                max_points?: number;
+            };
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionTrack"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_track_api_v1_missions__mission_id__track_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackIngest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackIngestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_track_file_api_v1_missions__mission_id__track_file_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_ingest_track_file_api_v1_missions__mission_id__track_file_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackIngestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_media_api_v1_missions__mission_id__media_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_media_api_v1_missions__mission_id__media_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_media_api_v1_missions__mission_id__media_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_media_api_v1_missions__mission_id__media__media_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+                media_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_reports_api_v1_missions__mission_id__reports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_report_api_v1_missions__mission_id__reports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    storyboard_api_v1_missions__mission_id__storyboard_get: {
+        parameters: {
+            query?: {
+                max_interp_gap_s?: number;
+                max_points?: number;
+            };
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Storyboard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    storyboard_geojson_api_v1_missions__mission_id__storyboard_geojson_get: {
+        parameters: {
+            query?: {
+                max_interp_gap_s?: number;
+            };
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/geo+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simulate_api_v1_transit_simulate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    series_api_v1_transit_simulations__job_id__series_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransitSeries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    presets_api_v1_transit_presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransitPreset"][];
+                };
+            };
+        };
+    };
+    predict_trajectory_api_v1_predict_trajectory_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PredictionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    presets_api_v1_predict_presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionPreset"][];
                 };
             };
         };

@@ -1,5 +1,32 @@
 # Frontend plan
 
+> Priorities, owners, dependencies and reviewers: [master plan execution ownership](../docs/MASTER_PLAN.md#execution-ownership).
+> **Kori owns UI execution**; Snyder supplies modeling interfaces, Cruz supplies source contracts, and Bixler owns integrated demo/release evidence.
+
+Integration status checked 5 November 2026 against `dev` through `a5a8b2f`: U1–U7 (#18), D1/D2/D4 (#13),
+exercise (#21), S2/S3/P5/P6/S4/S8 (#22), A3/A8/A11 (#23), tab UI (#26), compatibility (#24) and docs (#20) are merged. The current UI packet integrates their
+available contracts; [delivery evidence](KORI_UI_DELIVERY.md) records its local checks and remaining work.
+Combined checks include the tabbed workspace. A merged panel does not close hosting, live-provider or engineering acceptance gates.
+
+| Master-plan item | Merged implementation | Remaining integration / acceptance |
+| --- | --- | --- |
+| U1 | Explicit Intake → Planner → independent Safety review → sheet; initial/final demo outcomes (#18) | Bixler/Kori record the complete browser chain on the release candidate. |
+| U2 | Live rm0 frames, speed control, reconnect sequence and recordings (#6/#18) | Preserve limited vessel labels; rehearse reconnect and playback through the target proxy. |
+| U3/U4 | Public availability separate from selected forcing; exact depth/bin public acquisition, canonical resolution and hash-pinned arrival planning, selected configuration and recheck | A3 agent-wide binding merged in #23; explicit public revision acquisition/selection and live-provider rehearsal remain. Partial forecasts block planning; training remains an explicit separate choice. |
+| U5/U7 | Simulation/source clocks and forcing revisions; persistent synthetic metadata and coverage-stop reasons; DOF-gated Cesium motion/water display | Forcing authoring and target-host rehearsal remain; absent/limited states stay visible. |
+| U6 | Test-toolchain upgrade (#18) | PR reports 365 UI tests, typecheck/lint/build and zero audit findings; these are branch evidence, not a new release rehearsal. |
+| U8 | Missions/transit backup-camera overlay (#14) | S7 limits remain visible; berthing prediction, live own-ship state and calibrated uncertainty are separate work. |
+| U9 / R2 | Two-axis placement and fitting drag/reconnect, cancellation, numeric/keyboard alternatives and stale-result guards | See [delivery evidence](KORI_UI_DELIVERY.md); seed layouts remain unqualified. |
+| U9 / R3 | Catalog coverage and selected-side bitt gates; class changes clear old lines and agent results | A8 capability routes/templates merged in #23; connect their UI display and obtain approved additional-class data. |
+| U10 / R6 | Existing sustained/gust/advisory limits and search outcomes; P6 backend merged in #22 | Approved capacity basis, UI basis-selection workflow and A9 Safety integration remain; no invented breaking threshold. |
+| U11 / R7 | Review state, intermediate checks/issues/limitations, citations and stale-layout indicators; S8 bounded static search backend merged in #22 | Connect the proposal UI; transient handling qualification and forecast revision binding remain open. |
+| U12 / R8 | Structural strain explicitly unavailable; fitting utilization is not strain | P7's reviewed structural model, contract and asset data. |
+| U13 / R1 | A11 saved SVG/identity merged in #23; existing HTML preview includes the assessed diagram | Connect U13 sidebar to immutable saved bytes and rehearse target PDF support; use the [consumer fixture](../agents/tests/fixtures/reviewed_sheet.README.md), never the current canvas. |
+| S5 UI findings 12–16 | Mission selection guards, complete-track playback, dateline/antipodal handling and authenticated media/downloads | Shared track/storyboard revision token remains a backend dependency; see [delivery evidence](KORI_UI_DELIVERY.md). |
+
+The following numbered phases retain their historical overnight IDs and implementation history. They are not the
+current work queue. Current gaps and assignments are in the master plan; the [Bixler handoff](../docs/BIXLER_IMPLEMENTATION.md) describes the merged A3/A8/A11 consumer contracts.
+
 How we turn the drone-simulator in this folder into the mooring assistant UI, as a reusable shell that other
 applications can plug into. Goals, structure and conventions are in [README.md](README.md). The repo-wide plan is
 [`../docs/PLAN.md`](../docs/PLAN.md); the frontend's first milestone is its gate **G0** ("the UI can render a scenario
@@ -13,20 +40,24 @@ from mocks"), and the frontend demo contribution is part of **G2** (approved saf
 | 1 Strip and rebase | Done | Drone code, models and backends removed; `app.sh` and the dev/preview proxies rewritten. |
 | 2 Scene model and shell | Done | Rotating entities was left out (nothing needs it yet). |
 | 3 Mooring adapter (G0) | Done | DDG 51 at Pier 12 North renders from the mocks with analyzed, colored lines. |
-| 4 Canvas editing, 2D/3D | Done | Ship drag, click-to-add lines, recommend, saved scenarios. Ships are generated hulls with per-class deck profiles. |
+| 4 Canvas editing, 2D/3D | Implemented | Two-axis ship drag, fitting drag/create/reconnect, cancellation, click/numeric/keyboard alternatives, recommend and saved scenarios. Ships are generated hulls with per-class deck profiles. |
 | 5 Live dashboard | Done | Env streams (live, replay, storm ramp), alerts, forecast, wind limits, gust risk. |
 | 6 Agent plan | Done | SSE steps, proposal preview, apply with undo, tugs on canvas, line sequence, follow-ups. |
-| 7 Safety sheet | Done | Service-rendered sheet, margins, rationale links, layout image, approvals, print. |
+| 7 Safety sheet | HTML assessed graphic implemented; U13 sidebar pending | A11 freezes the reviewed layout and renders saved SVG in the sheet HTML. Sidebar integration and target PDF support remain; a current canvas capture is not an assessed layout. |
 | 8 Demo hardening | Done for the mock stack | Error and retry states, accessibility fixes, production build checked, [DEMO.md](DEMO.md). |
-| 9 Motion view, 2D (overnight U2) | Done | SVG plan view in `src/apps/mooring/motion/`: legacy and `rm0-v1` frames, live session and recording replay, badges, commands. Live frames are still legacy until the simulator publishes `rm0-v1` and a scene. Live speed control waits on the protocol. |
+| 9 Motion view, 2D (overnight U2) | Done | SVG plan view in `src/apps/mooring/motion/`: legacy and `rm0-v1` frames, live session and recording replay, badges, commands. S1 now publishes live `rm0-v1`, scene and lifecycle data; #18 integrates speed, reconnect and recordings. |
 | 10 Data-source honesty (U3) | Done | Status panel, capability list, standing seed-data banner. |
-| 11 Berth from an image (U5) | Done | Upload, detections, confirmation gate, save and select. Against the mock vision backend. |
-| 12 `make demo-check` (U6) | Done | API, proxy and headless-browser checks; see [README](README.md). |
-| 13 3D motion view (U4) | Done (best effort) | Map mode in the Cesium scene with camera presets; position, heading and simulated heave only. Verified with the recorded fixture; live frames still lack positions for tugs and lines. |
+| 11 Berth from an image (U5) | Done for the catalog/fake-LLM demo | Upload, detections, confirmation gate, save and select. No-LLM path is a labeled catalog draft; optional extraction remains unqualified. |
+| 12 `make demo-check` (U6) | Baseline implemented; full gate pending | API, proxy and existing browser smoke; separate readiness profile lists missing acceptance checks. |
+| 13 3D motion view (U4) | Done (best effort) | Map mode in the Cesium scene with camera presets; position, heading and simulated heave only. S1 supplies live tug/line geometry; #18 consumes roll/pitch and water fields only when present. |
 | 14 Intake agent in the UI | Done | Environment intake panel, deterministic summary labeled. |
 | 15 Hardening (U7, partial) | Done | Error boundaries per panel, reduced-motion support, narrow-width layout, per-frame cost test (30 lines, 3 tugs), optional bearer token for REST. |
+| 16 Exercise simulator | Done (client-side) | Second app on the shell: Mapbox 3D map, deterministic ship simulation, scenario editor, presets. Added the shell's `Canvas` slot and app tabs. See the README. |
+| 17 Aircraft, missiles, mines, red team | Done (client-side) | Aircraft, missiles with defences, mines, hit points and damage, an events log, and a Monte Carlo red-team runner with outcomes, sweeps, sensitivity ranking and exact replay of any run. See the README. |
+| 18 Sensors, shared library, editing on the map | Done (client-side, plus a small server route) | Red team on worker threads with combined outcomes, convergence, baseline comparison and export; sensors and detection, sea state, decoys, submarines and torpedoes; a shared scenario library, server-provided Mapbox token and client error log on the modeling service (outside the contract); drag ships and waypoints on the map, run-path overlay, video recording, a lazy-loaded exercise chunk and `npm run test:e2e`. See the README. |
+| 19 Storyboard | Done (client-side) | Pictures and captions pinned to a time and a unit, popping up in bubbles beside them as the run plays, built automatically from what happens in the run, with a stock library of public-domain photographs, map capture, file upload, an on-page strip that follows the clock, and a printable page that replaces the slide deck. See the README. |
 
-Verified in headless Chromium (software WebGL) against the running mock servers, plus 41 unit tests, type checking and
+Historical initial-pass evidence: headless Chromium (software WebGL) against the running mock servers, plus 41 unit tests, type checking and
 lint. Since the first pass: Cesium is lazy-loaded and split from the app (app code 251 kB, Cesium its own chunk), a
 Navy/Metric toggle was added, ships got per-class superstructure, and a regression where the app's empty overlay layer
 swallowed every canvas click was fixed and covered by a test.
@@ -34,8 +65,10 @@ swallowed every canvas click was fixed and covered by a test.
 Unused simulator leftovers (carrier models, model-generation script, the old README, the root package.json) and the
 unused lucide-react dependency have been deleted; they are in git history.
 
-Still not done: rotating entities (nothing needs it), real 3D ship models (none in the repo), testing on a real GPU, a
-real backend (mock responses only), and any browser other than Chromium.
+Still not done: rotating entities, real 3D ship models, testing on a real GPU, and any browser other than Chromium.
+The backend uses implemented modeling/agent workflows with seed data and unqualified dynamics. Live rm0 UI integration
+is merged. Public forecast acquisition is integrated with D2 and canonical planning resolution; actual provider,
+release-candidate browser/hosting acceptance and the remaining requirements stay open in the master plan.
 
 ## What the simulator gave us, and what it did not (at the start)
 

@@ -9,6 +9,8 @@ from mooring.core.schemas import (
     AnalyzeResponse,
     ExceedanceRequest,
     HoldTugRequest,
+    HorsepowerPlan,
+    HorsepowerRequest,
     JobAccepted,
     LimitEnvelopeRequest,
     LimitEnvelopeResponse,
@@ -18,8 +20,14 @@ from mooring.core.schemas import (
     TideSweepResponse,
     TimelineRequest,
     TugPlanResponse,
+    UltimateGustRequest,
+    UltimateGustResponse,
 )
 from mooring.examples import ex
+
+from mooring import refdata
+from mooring.moored.ultimate import ultimate_gust as _ultimate_gust
+from mooring.tugs.horsepower import minimize_horsepower
 
 from ..inputs import check_analyze
 from ..backend import moored_tugs, optimizer, risk, solver
@@ -82,6 +90,31 @@ def hold_plan(req: Annotated[HoldTugRequest, Body(openapi_examples=ex("tugs_hold
     return moored_tugs.hold_plan(req)
 
 
+@router.post("/tugs/horsepower-plan", response_model=HorsepowerPlan, tags=["M6 Tugs"],
+             summary="Minimum-total-horsepower tug assignment for a required wrench (catalog data, validity limited)")
+def horsepower_plan(req: HorsepowerRequest):
+    ship = refdata.ship(req.ship_class_id)  # unknown ship -> 404 via the shared handler
+    if req.available_tug_ids is None:
+        fleet = refdata.tugs()
+    else:
+        try:
+            fleet = [refdata.tug(i) for i in req.available_tug_ids]
+        except refdata.NotFound as e:
+            raise refdata.InvalidReference(str(e)) from None
+    fleet = sorted(fleet, key=lambda t: t.tug_id)  # request order must not change the plan
+    w = req.required_wrench
+    return minimize_horsepower(ship, (w.fx_lbf, w.fy_lbf, w.mz_ftlbf), fleet, efficiency=req.efficiency, margin=req.margin)
+
+
+# ---- M5 Risk: ultimate gust ----
+
+@router.post("/risk/ultimate-gust", response_model=UltimateGustResponse, tags=["M5 Risk"],
+             summary="Modeled ultimate-load gust threshold; 'unavailable' envelope (200) without a supplied capacity basis")
+def ultimate_gust(req: UltimateGustRequest):
+    check_analyze(req)
+    return _ultimate_gust(req)
+
+
 # ---- M7 Optimizer ----
 
 @router.post("/mooring/recommend", response_model=JobAccepted, status_code=202, tags=["M7 Planning"],
@@ -91,7 +124,7 @@ def recommend(req: Annotated[RecommendRequest, Body(openapi_examples=ex("mooring
 
 
 # ---- Advance docking forecast assessment ----
-from mooring.core.schemas.forecast_planning import ForecastDockingRequest
+from mooring.core.schemas.forecast_planning import ForecastDockingRequest, ForecastResolveRequest, ForecastResolvedResponse
 from mooring.moored.forecast_planning import assess as assess_forecast_docking
 
 
@@ -99,3 +132,20 @@ from mooring.moored.forecast_planning import assess as assess_forecast_docking
              summary="Assess arrivals at least 24 hours ahead (job result: ForecastDockingResponse)")
 def forecast_plan(req: ForecastDockingRequest):
     return JOBS.submit_task("mooring.forecast_plan", lambda ctx: assess_forecast_docking(req, ctx))
+
+
+@router.post("/mooring/forecast/resolve", response_model=ForecastResolvedResponse, tags=["M7 Planning"],
+             summary="Freeze an explicit forecast series and its as-of/horizon identity")
+def resolve_forecast(req: ForecastResolveRequest):
+    from mooring.moored.forecast_service import resolve
+    return resolve(req)
+
+
+from mooring.core.schemas.forecast_planning import ForecastRecheckRequest, ForecastRecheckResponse
+
+
+@router.post("/mooring/forecast-plan/recheck", response_model=ForecastRecheckResponse, tags=["M7 Planning"],
+             summary="Compare replacement guidance with a saved plan; never change or approve it")
+def forecast_recheck(req: ForecastRecheckRequest):
+    from mooring.moored.forecast_recheck import recheck
+    return recheck(req)

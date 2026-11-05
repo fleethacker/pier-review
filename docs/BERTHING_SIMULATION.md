@@ -1,6 +1,9 @@
 # Berthing simulation: synthetic demonstration only
 
-The batch and interactive APIs use `mooring.berthing.simulator` and shared RK4 mechanics. This is an implemented adapter, pending review, **not vessel-qualified dynamics or a Phase 2 release**. Every result, frame and session acknowledgement includes `VESSEL_DYNAMICS_UNQUALIFIED`. Seed outputs are limited (at least AMBER); invalid output is RED.
+Ownership: **Snyder M-SIM** implements, **Snyder M-PLAN** independently reviews/benchmarks, **Kori** owns consumers,
+and **Bixler** owns integrated acceptance. Follow [execution ownership](MASTER_PLAN.md#execution-ownership).
+
+The batch and interactive APIs use `mooring.berthing.simulator` and shared RK4 mechanics. This adapter and the S1 runtime extensions are implemented (current PR #6); physical qualification and the Phase 2 release gate remain open. Every result, frame and session acknowledgement includes `VESSEL_DYNAMICS_UNQUALIFIED`. Seed outputs are limited (at least AMBER); invalid output is RED.
 
 ## Parameters and physical limits
 
@@ -16,11 +19,12 @@ Tugs map in catalog order to distinct water-side push points ordered fore to aft
 
 The simulation clock is the integrator's time. Batch and interactive modes use the same fixed integration boundaries, shortened at command times and near contact. Commands sort by simulation timestamp, then arrival order for ties. A past timestamp is rejected. Once the simulation reaches its duration, further force/line commands require a reset. Clients should provide `t_s` for reproducibility; omitted WS timestamps schedule at the next integration boundary for compatibility. A late network arrival cannot be applied retroactively.
 
-Interactive scheduling follows monotonic elapsed time, with at most ten nominal time increments of catch-up (contact may subdivide these) per scheduler iteration. Commands and frame delivery never advance time. Under CPU overload the simulation may lag wall time; it never skips physics steps to hide that lag. Python workers and sessions still share the process/GIL; this is not a real-time service.
+Interactive scheduling follows monotonic elapsed time. Each worker chunk performs at most ten work units: one accepted integration segment (including contact subdivisions) or one applied timestamped command counts as a unit. Dense commands cannot hide unlimited work inside one nominal timestep. Yielding retains the original fixed-grid/command boundaries, pending commands, crossing events and diagnostics; it is not an invalid simulation. A recorded boundary frame waits until all commands at that timestamp finish. Commands and display reads also acquire the session lock in workers, so waiting for that session cannot block the ASGI event loop. Cancellation, including repeated cancellation during attach/commands/detach, joins owned work before releasing controller ownership. Commands and frame delivery never advance time. Under CPU overload or very small timesteps the simulation may lag wall time; it reports lag and never skips physics steps. Python workers and sessions still share the process/GIL; this is not a real-time service.
 
 * New session: starts running when its first controller connects.
 * `pause`: freeze at the last completed integration boundary. `resume`: re-anchor scheduling there, with no catch-up for the pause.
 * `reset`: restore the original scenario/environment/initial state, clear commands and diagnostics, return to time zero **paused**.
+* `set_speed`: set simulated seconds per wall second in `(0, 16]`; preserve elapsed demand and fractional steps at the previous speed. Repeating the current speed or `resume` is idempotent. Speed never changes the integration timestep.
 * Disconnect: freeze and release the controller. Reconnect: return the saved state **paused**, requiring explicit `resume`.
 * Ownership: creating authenticated principal owns the session; only one controller is allowed. Unauthenticated demo mode has no user separation.
 
@@ -44,10 +48,46 @@ One latest-frame slot replaces unread frames; no frame history queues behind a s
 
 Session duration bounds simulation time, not the lifetime of an idle connected socket. There is no distributed session registry or controller handoff between processes. Proxy connection/idle caps and deployment-specific limits remain required.
 
-Batch `sample_interval_s` defaults to 1 s, independent of `dt_s`. Dense samples do not alter integration, maxima or transitions. Batch jobs report progress from integrated time and check cooperative cancellation per step. Frames (including validity history), final energy diagnostics and resolved input snapshots persist in SQLite when `MOORING_DB` is configured. Series are exposed only for succeeded jobs; cancelled/failed jobs do not expose series. A cancellation racing final persistence can leave unreachable audit artifacts; cleanup/retention is not automatic. Interactive sessions and their history are ephemeral; only their latest frame is retained.
+Batch `sample_interval_s` defaults to 1 s, independent of `dt_s`. Dense samples do not alter integration, maxima or transitions. Batch jobs report progress from integrated time and check cooperative cancellation per step. Frames (including validity history), final energy diagnostics and resolved input snapshots persist in SQLite when `MOORING_DB` is configured. Series are exposed only for succeeded jobs; cancelled/failed jobs do not expose series. A cancellation racing final persistence can leave unreachable audit artifacts; cleanup/retention is not automatic.
+
+Interactive `rm0-v1` recordings are sampled at simulation-time boundaries, independently of the latest-only display. Each is bounded by 10,000 frames, 1,000 lifecycle messages and `MOORING_RECORDING_MAX_BYTES` (32 MiB default) of compact frame JSON. Truncation is explicit. Pause/reset persistence is throttled to two wall seconds; disconnect/end/error force persistence. A reset starts a new run, but the recording keeps prior runs and their validity: retained invalid history keeps the whole recording invalid.
+
+Saved recordings and their immutable scenes survive session expiry and, with file-backed `MOORING_DB`, server restart. `GET /berthing/recordings?limit=20&after_session_id=...` returns an owner-scoped page (maximum 100) with scene/recording URLs; IDs sort lexically, not chronologically. `next_cursor`, when present, requests the next page. This index contains saved snapshots, not unsaved live sessions. Existing scene and recording URLs remain valid after expiry; active controllers and physics state are still ephemeral. There is no automatic archive retention policy.
+
+Rich line geometry starts at the named ship bitt, passes through the configured/paired chock when present, and ends at the pier fitting. The model resolves the external lead-to-pier wrench and pier reaction. It does not resolve inner-segment tension/friction or individual redirected bitt/chock reactions; those ship fitting loads are `unavailable` with null values and `ROUTING_REACTION_UNMODELED`. Direct bitt-to-pier reactions remain available. This limitation does not change the integrator's net line wrench.
 
 ## Evidence and blockers
 
 `test_s17_simulation.py` covers batch/WS trajectory agreement, sampling independence, pause/reset/disconnect/reconnect, rate/capacity/slew bounds, output backpressure, cancellation, spring contact energy, timestep refinement and agreement with static equilibrium. These are synthetic analytic/consistency checks. `test_s15_s16_dynamics.py` remains unchanged.
 
 Missing: sourced vessel mass/added-mass/damping derivatives, qualified velocity-relative environment coupling, independently sourced contact benchmark, validated dynamic line/rupture behavior, supported vessel/depth/speed envelope and subject-matter acceptance. Passing tests or `backend="real"` does not resolve these blockers.
+
+## Simulation-time forcing (S2)
+
+By default the environment is the frozen scenario snapshot (unchanged behavior, hashes and wire shapes). An optional `forcing` object on `POST /berthing/simulate` and `POST /berthing/sessions` selects an immutable forcing series (`mooring.berthing.forcing.ForcingSeries`), resolved at **integration-stage time** (every RK4 stage, event function, energy-power evaluation and frame sample) as a pure function of simulation time. It holds no cursor or RNG state, so batch, interactive and WS runs with the same timed commands give identical results.
+
+* `steady`: scenario environment held constant. `ramp`: linear move from the scenario values at `ramp_start_s` to `target` (values given only for the channels to move; directions take the shortest arc) at `target.t_s`, then held. `gusts`: seeded synthetic wind-speed fluctuation (Gaussian knots every `gust_correlation_s`, linearly interpolated; `seed` is required; same seed, same series; sustained and gust speeds are shifted together and never below zero). `replay`: piecewise-linear interpolation of supplied `samples`; each channel is supplied in all samples or none.
+* `tide_amplitude_ft` / `tide_period_s` / `tide_phase_rad` add a synthetic sinusoidal water-level term to any kind (zero at t = 0). **Water level changes depth and line geometry only**: line rest (paid-out unstretched) lengths are never altered, so tension changes by geometry and elasticity alone.
+* `vessel_relative_wind` (default off) subtracts ship ground velocity from the wind (apparent wind). Current is deliberately **not** made relative: velocity-dependent water drag stays entirely in the body damping term, whereas the static current load stays the M3 load at the current speed, so water drag is not counted twice. This is a demonstration coupling, not a qualified relative-flow hydrodynamic model.
+* `forcing_revision` (`frc-` plus a hash of the spec, base environment values and duration) is on frames, session creation (`forcing_synthetic` too) and batch results so a UI can show simulation time against forcing revision. The series is immutable; a different series is a different revision. Reset keeps the same series.
+* Frames carry `environment` at `t_s` only when a forcing series is selected. Synthetic series are labeled provenance `mock`; replay is `unknown` (origin not verified). Replay channels the series does not supply are reported `unavailable` with values absent (the physics then uses the scenario base value, stated in the provenance note); missing is never zero.
+
+**Uncovered-forcing policy** (`on_uncovered`). Synthetic series cover `[0, duration_s]`; replay covers its first to last sample time. Time before the first sample always fails (including at creation: 422 for sessions). Time after coverage: `stop` (default) ends the run with an invalid RED result and reason `FORCING_UNCOVERED` (a session stops with an error alert until reset); `invalidate` holds the last covered value, marks the run invalid with `FORCING_UNCOVERED`, and frames report the environment validity as invalid. Neither policy extrapolates.
+
+## Using composed forecasts (D2) and offshore waves (D4)
+
+`mooring.berthing.forcing_adapters.composed_forecast_to_forcing(forecast, anchor_utc, *, allow_mock=False, horizon_s=None, max_gap_s=10800)` turns a `ComposedForecast` into a **replay** `ForcingSpec` with simulation t = 0 at `anchor_utc` (`..._detail` also returns a report of used/skipped components). It reads the manifest component series, not `snapshots`, so partial forecasts work.
+
+* Current and water-level points are instantaneous and linearly interpolated. Wind points are intervals: the value is anchored at the interval midpoint, interpolated between midpoints, and held only out to the first/last interval bound. A gap in wind (or an over-`max_gap_s` gap) inside the window raises `ValueError` rather than being bridged. Missing gust in any wind point omits the gust channel.
+* An unavailable, mock-labelled (unless `allow_mock`), poor/suspect or empty component contributes **no channel**: the frame reports it `unavailable` and the physics uses the scenario base value. It is never zero and never substituted.
+* The replay window is the intersection of the contributing components' coverage; an anchor outside it raises `ValueError`. No extrapolation.
+* `ForcingSpec.label` starts `REPLAY (not live)` and carries the manifest `revision` (content hash), anchor and component states, so `forcing_revision` (a hash of the spec) changes with the forecast revision. Frame provenance stays `unknown` (supplied replay samples). Replay is never relabelled live.
+* The simulator base environment's `valid_at_utc` is not moved to the anchor; `t_s` is relative to the anchor.
+
+`mooring.data_simulation.wave_adapter.offshore_waves_to_surrogate(series, at_utc, seed, representation="total"|"partitions")` returns `(WaveSurrogateRequest, report)` from an `OffshoreWaveSeries`, using the latest point at or before `at_utc` (no look-ahead, 3 h hold limit). Total sea **or** partitions, never both; a total beside partitions is only the consistency check. Periods that are not peak/dominant/provider-partition are refused unless `allow_period_proxy`. Spectrum-only series, unavailable series, poor quality or stale points give `spectrum=None`, so the surrogate result is `unavailable` (never zero waves). The source string is labelled "offshore source, not berth forcing".
+
+## S3 wiring (tug geometry and vertical state)
+
+Tug commands are validated and evolved through `s3_tug_geometry` (`bind_push_point`, `TugLimits.from_specs`, `slew_force`, `tug_contact`, `total_wrench`); force and wrench results are numerically identical to the earlier inline ramp (same bounds, same slew rate, same `x_pp * fy` yaw moment). Tug position, velocity and acceleration remain null (not modeled).
+
+Rich rm0-v1 frames fill `pose.heave_mllw_ft` and the heave/roll/pitch DOF flags from `s3_vertical.vertical_state`. Heave is `prescribed` (water level above MLLW from the S2 forcing series, zero waterline offset) only when a forcing series supplying `water_level_mllw_ft` is selected; otherwise heave stays null with DOF `not_simulated`, never zero. Roll and pitch stay `not_simulated`: no GM, displacement or roll/pitch model is supplied or invented.

@@ -1,6 +1,7 @@
 """Opt-in single-process API controls. No trusted proxy or remote identity service assumed."""
 import hmac
 import json
+import re
 import os
 import threading
 import time
@@ -50,6 +51,14 @@ class RateLimit:
 RATE = RateLimit()
 
 
+UPLOAD_PATH=re.compile(r"^/api/v1/missions/[^/]+/(media|track|track/file)$")
+FORECAST_PATHS = {
+    "/api/v1/mooring/forecast/resolve",
+    "/api/v1/mooring/forecast-plan",
+    "/api/v1/mooring/forecast-plan/recheck",
+}
+
+
 class Controls:
     """Buffer bounded HTTP bodies before parsing; scope identity through response streaming."""
     def __init__(self, app): self.app=app
@@ -82,6 +91,15 @@ class Controls:
         try:
             maximum=int(os.environ.get("MOORING_RATE_PER_MINUTE","600" if enabled else "0"))
             limit=int(os.environ.get("MOORING_MAX_BODY_BYTES","1048576"))
+            if scope.get("method") == "POST" and scope["path"] in FORECAST_PATHS:
+                # Native six-minute forecasts retain every knot and its provenance.
+                # Respect an explicitly configured global cap unless separately overridden.
+                limit=int(os.environ.get("MOORING_MAX_FORECAST_BODY_BYTES",
+                    os.environ.get("MOORING_MAX_BODY_BYTES", str(4*1024*1024))))
+            if scope.get("method")=="POST" and UPLOAD_PATH.match(scope["path"]):
+                # S5 uploads (images <= 8 MB, track files <= 20 MB, JSON tracks) get their own, still bounded, limit;
+                # the routes enforce their per-item limits after this.
+                limit=int(os.environ.get("MOORING_MAX_UPLOAD_BYTES",str(32*1024*1024)))
             if maximum < 0 or limit <= 0: raise ValueError()
         except ValueError:
             return await reject(503,"Request limit configuration is invalid")

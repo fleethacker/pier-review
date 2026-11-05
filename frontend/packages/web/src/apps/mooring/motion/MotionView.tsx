@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '../../../lib/cn';
 import { STATUS_COLOR } from '../../../shell/theme';
 import { Button, inputClass } from '../../../shell/ui';
@@ -6,8 +6,10 @@ import { fmt, useUnitSystem } from '../units';
 import { DEFAULT_FACE_BEARING } from './frames';
 import type { Badge, ValidityState, ViewFrame } from './frames';
 import type { MotionController, MotionState } from './controller';
-import { REPLAY_SPEEDS } from './controller';
+import { clockText } from './clock';
+import { LIVE_SPEEDS, REPLAY_SPEEDS } from './controller';
 import { EnvironmentGlyph, MotionCanvas } from './MotionCanvas';
+import { drawableWaterLevelFt } from './sceneMapper';
 
 const VALIDITY_COLOR: Record<ValidityState, string> = {
   valid: STATUS_COLOR.GREEN,
@@ -53,7 +55,13 @@ export function Badges({ frame, state }: { frame: ViewFrame | null; state: Motio
       <Pill color={env ? '#8ba4c4' : STATUS_COLOR.NONE}>
         environment: {env ? `${sourceText ?? 'source not stated'}${ageS != null ? `, ${ageS.toFixed(0)} s old` : ', age not stated'}` : 'not in frame'}
       </Pill>
+      {(state.forcingSynthetic ?? state.clock?.training) && (
+        <Pill color={STATUS_COLOR.AMBER} title="The forcing in this session is synthetic training data, not an observation or forecast.">
+          training · synthetic forcing
+        </Pill>
+      )}
       <Pill color={state.source === 'live' ? '#00e5ff' : '#a78bfa'}>{state.source === 'live' ? 'live session' : state.source === 'recording' ? 'replay' : 'idle'}</Pill>
+      {state.forcingRevision && <Pill color="#8ba4c4">forcing revision: {state.forcingRevision}</Pill>}
       {frame?.assumedFaceBearing && <Pill color={STATUS_COLOR.AMBER} title="This frame carries no scene, so the berth orientation was assumed.">berth orientation assumed</Pill>}
     </div>
   );
@@ -175,6 +183,7 @@ function Readouts({ frame }: { frame: ViewFrame | null }) {
                 </span>
                 <div className="text-mil-dim">
                   {t.actualForce ? `push ${fmt.lbf(Math.hypot(t.actualForce.x, t.actualForce.y))}` : t.legacyForceLbf != null ? `force ${fmt.lbf(t.legacyForceLbf)} (position not supplied)` : 'force unavailable'}
+                  {!t.position && ' · tug position/kinematics not modeled'}
                 </div>
               </li>
             ))}
@@ -184,7 +193,7 @@ function Readouts({ frame }: { frame: ViewFrame | null }) {
 
       <Section title={`Alerts (${frame.alerts.length})`}>
         {frame.alerts.length === 0 ? <p className="text-mil-dim">None in this frame.</p> : (
-          <ul className="space-y-1">
+          <ul className="space-y-1" aria-live="polite" aria-relevant="additions text" aria-label="Alerts in this frame">
             {frame.alerts.map((a, i) => (
               <li key={`${a.code ?? 'text'}-${i}`} style={a.severity ? { color: a.severity === 'RED' ? STATUS_COLOR.RED : a.severity === 'AMBER' ? STATUS_COLOR.AMBER : undefined } : undefined}>
                 {a.severity ? `${a.severity}: ` : ''}{a.message}
@@ -218,15 +227,36 @@ function LiveControls({ c, s, tugIds, lineNumbers }: { c: MotionController; s: M
         <Button size="sm" onClick={() => c.resume()} disabled={!connected} aria-keyshortcuts="Space">Resume</Button>
         <Button size="sm" variant="secondary" onClick={() => c.pause()} disabled={!connected}>Pause</Button>
         <Button size="sm" variant="secondary" onClick={() => c.reset()} disabled={!connected}>Reset</Button>
-        <label className="flex items-center gap-1 text-[10px] text-mil-dim" title="The session protocol has pause, resume and reset only; speed cannot be changed on a live session.">
+        <label className="flex items-center gap-1 text-[10px] text-mil-dim" title="Simulated seconds per wall second. The physics time step never changes.">
           Speed
-          <select className={cn(inputClass, 'h-8 w-28')} disabled aria-label="Speed (fixed for live sessions)">
-            <option>1× fixed</option>
+          <select
+            className={cn(inputClass, 'h-8 w-20')}
+            value={s.speed}
+            disabled={!connected}
+            aria-label="Session speed"
+            onChange={(e) => c.setSpeed(Number(e.target.value))}
+          >
+            {(LIVE_SPEEDS as readonly number[]).includes(s.speed) ? null : <option value={s.speed}>{s.speed}×</option>}
+            {LIVE_SPEEDS.map((v) => <option key={v} value={v}>{v}×</option>)}
           </select>
         </label>
         <ChipText tone={s.link === 'open' ? undefined : 'warn'}>link: {s.link}</ChipText>
         <ChipText>session: {s.lifecycle ?? 'state not reported'}</ChipText>
       </div>
+      {s.clock && (
+        <div className="flex flex-wrap items-center gap-2 text-[10px]" aria-label="Simulation time">
+          <ChipText>sim {clockText(s.clock.simS)}</ChipText>
+          <ChipText>wall running {clockText(s.clock.wallRunningS)}</ChipText>
+          <ChipText>
+            {s.clock.effectiveSpeed == null ? 'rate: measuring' : `rate ${s.clock.effectiveSpeed.toFixed(1)}× (asked ${s.speed}×)`}
+          </ChipText>
+          <ChipText tone={s.clock.forcingTS == null ? 'warn' : undefined}>
+            {s.clock.forcingTS == null
+              ? 'forcing time: not reported by this simulator'
+              : `forcing at t=${s.clock.forcingTS.toFixed(1)} s${s.clock.forcingRevision || s.forcingRevision ? ` · revision ${s.clock.forcingRevision ?? s.forcingRevision}` : ' · no forcing revision'}`}
+          </ChipText>
+        </div>
+      )}
       <div className="flex items-end gap-2">
         <label className="text-[10px] text-mil-dim">
           Tug
@@ -277,6 +307,7 @@ function ReplayControls({ c, s }: { c: MotionController; s: MotionState }) {
         max={rec.durationS}
         step={0.5}
         value={Math.min(s.cursorS, rec.durationS)}
+        aria-valuetext={`${s.cursorS.toFixed(1)} of ${rec.durationS.toFixed(0)} seconds`}
         onChange={(e) => c.seek(Number(e.target.value))}
       />
       <span className="w-28 text-right font-mono text-[11px]">{s.cursorS.toFixed(1)} / {rec.durationS.toFixed(0)} s</span>
@@ -297,14 +328,31 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
   const [offset, setOffset] = useState(120);
   const face = s.scene?.face_bearing_true_deg ?? DEFAULT_FACE_BEARING;
   const map = s.view === 'map';
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // The full-screen plan view is modal: move focus into it so keyboard and screen-reader users start inside it.
+  useEffect(() => {
+    if (!map) dialogRef.current?.focus();
+  }, [map]);
+  const waterFt = s.frame ? drawableWaterLevelFt(s.frame) : null;
+  const announcement = [
+    `Frame validity ${s.frame?.badge.validity ?? 'no frame'}`,
+    `provenance ${s.frame?.badge.provenance ?? 'unknown'}`,
+    `link ${s.link}`,
+    `session ${s.lifecycle ?? 'state not reported'}`,
+  ].join(', ');
 
   // Keyboard: space toggles run/pause, r resets, Escape closes. Ignored while typing in a field.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
+      // Escape closes from anywhere except an open list or a text area; the other shortcuts are ignored in fields.
+      if (e.key === 'Escape') {
+        if (e.defaultPrevented || (t && (t.tagName === 'SELECT' || t.tagName === 'TEXTAREA'))) return;
+        c.close();
+        return;
+      }
       if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON')) return;
-      if (e.key === 'Escape') c.close();
-      else if (e.key === ' ') {
+      if (e.key === ' ') {
         e.preventDefault();
         if (c.s.source === 'recording') {
           if (c.s.playing) c.pauseReplay();
@@ -321,10 +369,15 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
 
   return (
     <div
-      className={cn('flex flex-col', map ? 'pointer-events-none absolute inset-0 z-20' : 'pointer-events-auto fixed inset-0 z-50 bg-mil-bg')}
+      className={cn('flex flex-col outline-none', map ? 'pointer-events-none absolute inset-0 z-20' : 'pointer-events-auto fixed inset-0 z-50 bg-mil-bg')}
       role="dialog"
+      aria-modal={!map}
       aria-label="Motion view"
+      tabIndex={-1}
+      ref={dialogRef}
     >
+      {/* Announces only when validity, provenance, link or session state changes, not on every frame. */}
+      <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
       <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-3 border-b border-mil-border bg-mil-panel px-3 py-2">
         <div className="flex flex-wrap items-center gap-3">
           <span className="mil-label">Motion view</span>
@@ -335,6 +388,22 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
             ft
           </label>
           <Button size="sm" variant="secondary" onClick={() => void c.loadRecording()} disabled={s.busy}>Replay recording</Button>
+          {s.sessionRecordings.length > 0 && (
+            <select
+              className={cn(inputClass, 'h-8 w-48')}
+              aria-label="Session recordings"
+              value=""
+              disabled={s.busy}
+              onChange={(e) => e.target.value && void c.loadSessionRecording(e.target.value)}
+            >
+              <option value="">Session recordings…</option>
+              {s.sessionRecordings.map((r) => (
+                <option key={r.sessionId} value={r.sessionId}>
+                  {r.startedAt.slice(11, 19)}Z · {r.sessionId}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div role="group" aria-label="View" className="flex">
@@ -364,22 +433,26 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
 
       <div className={cn('border-b border-mil-border px-3 py-2', map ? 'pointer-events-auto bg-mil-panel/95' : '')}><Badges frame={s.frame} state={s} /></div>
 
-      {(s.error || s.notice || s.sceneError || s.lifecycleMessage) && (
+      {(s.error || s.notice || s.sceneError || s.lifecycleMessage || s.lifecycleReasons.length > 0) && (
         <div className={cn('space-y-1 border-b border-mil-border px-3 py-1 text-[11px]', map ? 'pointer-events-auto bg-mil-panel/95' : '')}>
           {s.error && <p role="alert" className="text-mil-red">{s.error}</p>}
           {s.notice && <p role="status" className="text-mil-amber">{s.notice}</p>}
-          {s.sceneError && <p className="text-mil-dim">{s.sceneError}</p>}
-          {s.lifecycleMessage && <p className="text-mil-dim">Session: {s.lifecycleMessage}</p>}
+          {s.sceneError && <p role="status" className="text-mil-dim">{s.sceneError}</p>}
+          {s.lifecycleMessage && <p role="status" className="text-mil-dim">Session: {s.lifecycleMessage}</p>}
+          {s.lifecycleReasons.length > 0 && <ul role={s.lifecycleInvalid ? 'alert' : 'status'} className={s.lifecycleInvalid ? 'text-mil-red' : 'text-mil-amber'}>
+            {s.lifecycleReasons.map((reason) => <li key={reason}>{reason}</li>)}
+          </ul>}
         </div>
       )}
 
       <div className="flex min-h-0 flex-1">
         <div className={cn('relative min-w-0 flex-1', map && 'pointer-events-none')}>
           {map ? (
-            <div className="pointer-events-none absolute bottom-2 left-3 max-w-[70%] rounded-sm border border-mil-border bg-mil-panel/85 p-2 text-[10px] text-mil-dim">
+            <div role="status" className="pointer-events-none absolute bottom-2 left-3 max-w-[70%] rounded-sm border border-mil-border bg-mil-panel/85 p-2 text-[10px] text-mil-dim">
               {s.frame ? (
                 <>
-                  <p>Map view draws position, heading and simulated heave from the frame. Drag to pan; in 3D, drag to orbit.</p>
+                  <p>Map view draws position, heading, and heave, roll and pitch when the frame supplies them. Drag to pan; in 3D, drag to orbit.</p>
+                  {waterFt != null && <p className="mt-0.5">Water surface drawn at {fmt.ft(waterFt, 1)} MLLW from the frame: display only, not a simulated free surface.</p>}
                   {s.notDrawn.length > 0 && <p className="mt-0.5">Not drawn: {s.notDrawn.join(', ')}.</p>}
                 </>
               ) : (

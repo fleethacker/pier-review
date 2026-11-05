@@ -15,13 +15,13 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       UV_LOCKED: "1"   # fail if uv.lock is out of date instead of re-resolving
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.12.1"
       - name: Install locked dependencies
@@ -32,14 +32,14 @@ jobs:
         run: make test
 
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:
         working-directory: frontend/packages/web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -50,3 +50,45 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  demo:
+    name: Demo API and proxy baseline (A1)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      UV_LOCKED: "1"
+      AGENTS_LLM_PROVIDER: none
+      MOORING_ENV_SOURCE: mock
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.12.1"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/packages/web/package-lock.json
+      - name: Install locked dependencies
+        run: |
+          uv sync --locked --all-packages
+          npm ci --no-audit --no-fund --prefix frontend/packages/web
+      - name: Four-case planning, advance planning, REST/SSE/WebSocket proxy
+        run: make demo-check DEMO_CHECK_ARGS="--no-browser --logs demo-check-logs"
+      - name: Preserve demo logs for the item owner
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: demo-check-logs
+          path: demo-check-logs/
+          if-no-files-found: ignore
+      - name: Record coverage and failure ownership
+        if: always()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          A1 baseline covers API planning chains and REST/SSE/WebSocket proxy behavior.
+          Browser acceptance and full release readiness remain separate gates.
+          For failures, download `demo-check-logs`: Bixler owns agents/integration,
+          Snyder owns modeling/motion, Cruz owns source availability, Kori owns UI.
+          See docs/MASTER_PLAN.md and run make demo-check-readiness before release.
+          EOF

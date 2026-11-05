@@ -1,5 +1,50 @@
 # Advance docking planning
 
+Ownership: **Snyder M-PLAN** owns P1/P2 modeling and **Snyder M-SIM** independently reviews; **Cruz** owns D2 acquisition, **Bixler** A3 agent binding, and **Kori** U4. P1/P2 and U4 are merged (#4/#8/#18); public composition remains in open #13. Follow [execution ownership](MASTER_PLAN.md#execution-ownership); agent-wide manifest/watch integration is still required.
+
+## Canonical forecast binding (P1)
+
+`POST /api/v1/mooring/forecast/resolve` accepts a `ForecastResolveRequest`: `berth_id`,
+`as_of_utc`, `from_utc`, `to_utc`, and exactly one supplied `forecast` or
+`forecast_binding={"source":"scenario","env_scenario_id":"..."}`. The generated
+`mooring_forecast_resolve.json` example contains explicitly synthetic supplied data.
+The horizon starts at or after the cutoff and ends within 120 hours; the separate
+forecast-plan endpoint retains its default 24-hour arrival requirement.
+
+Both endpoints use `moored/forecast_resolver.py`. A frozen revision holds canonical
+UTC snapshot bytes; returned models are independent copies. Its `content_hash`
+includes the complete series and component provenance. Its `binding_hash` also
+includes source/scenario identity, declared revision, cutoff, requested horizon and
+maximum-gap policy. Equivalent timestamp offsets and component ordering retain
+identity. Source IDs and revision names are caller declarations, not provider
+authentication; the content hash is always computed independently. An optional
+`forecast_binding.expected_content_hash` rejects changed content with 422.
+
+Resolution returns the exact frozen series, `forecast_manifest`, `coverage_complete`
+and explicit problems. Incomplete/unavailable coverage is RED/invalid; usable sampled
+coverage remains AMBER/limited. Forecast planning still rejects individual uncovered
+arrivals while preserving usable alternatives. No extrapolation or current-point
+substitution is performed. Agent consumers can call this HTTP interface and carry
+its result ID/manifest through their own workflow; they must not import the modeling
+implementation. Agent consumer wiring and D2 public forecast composition remain
+separate work.
+
+Explicit scenarios are sampled at every requested time, including both endpoints,
+in `data_simulation/scenario_forecast.py`. Ramps change over time. Replay is explicitly
+retimed training data, with the complete original snapshot, original times and hash
+retained in metadata; it never becomes public forecast guidance. Source validity
+intervals are translated, never extended. Finite archives do not loop. The bundled
+one-hour recorded-format fixture cannot support a next-day docking forecast. Missing
+scenario data, foreign scenario ownership and unavailable source samples fail visibly.
+
+Each forecast-plan result now includes `forecast_manifest` and `result_hash`.
+The resolved-input snapshot retains the exact series and asset records. Fresh
+analysis/recommendation IDs remain in audit references, outside deterministic hashes.
+Repeating the same resolved calculation therefore produces the same input/result
+hashes and distinct auditable result IDs. No earlier stored result is rewritten.
+
+## Planning supplied arrivals
+
 `POST /api/v1/mooring/forecast-plan` returns a job; its result is `ForecastDockingResponse`. Use `contract/examples/modeling/mooring_forecast_plan.json` for a complete, explicitly synthetic 48-hour example. By default, arrival must be at least 24 hours after `as_of_utc`; docking and holding must end within 120 hours. Explicit short-lead reassessment is described below.
 
 The caller supplies an ordered, timezone-aware forecast. Agent C owns `/env/forecast` and public-provider normalization. The modeling endpoint does not fetch the network: it evaluates the supplied snapshots and retains their source, issue and valid times. Submit forecasts whose availability no later than planning time is established by actual issuance or the component retrieval provenance described below. An observation in the future, missing/stale component flag, or uncovered interval is unavailable, not zero. Forecasts with unknown averaging metadata remain limited under the loads model.
@@ -56,7 +101,17 @@ Optional `EnvironmentMetadata.components` keeps wind, current and water-level pr
 
 Each component can declare its own valid interval, quality and limitations. The interval must cover the full period for which its snapshot is held. Unknown quality remains limited; poor/suspect inputs cannot establish a supported arrival. The result separates actual `issued_at_utc` from `retrieved_at_utc`, and lists the individual sources. Legacy snapshots without components retain their previous issue-time gate and wire shape.
 
-This additive interface supports caller-composed NWS weather plus tidal current/level predictions. It does not enable a complete live `/env/forecast` provider. Tidal-only predictions omit weather residuals; a current station/bin is not a qualified pier-wide or draft-averaged flow profile. Preserve those limitations in the component metadata. Public raw responses and retrieval manifests stay outside the repository.
+`POST /env/forecast/compose` now supplies this additive interface with a frozen component manifest and revision. It
+composes NWS weather plus exact-depth CO-OPS current/level predictions, or an applicable decoded CBOFS cache artifact.
+The legacy `GET /env/forecast` remains the explicitly synthetic compatibility path in mock mode. Tidal-only fallback
+keeps wind unavailable; a current station/bin is not a qualified pier-wide or draft-averaged flow profile. Preserve those
+limitations and the manifest revision when handing snapshots to planning consumers. Public raw responses stay outside
+the repository; a bounded CBOFS acquisition process publishes only a verified decoded cache artifact.
+
+Composition and planning share a 1,201-snapshot bound (120 hours at six-minute cadence, inclusive endpoints).
+Supplied forecasts retain their native samples; the planner does not discard peaks to fit a smaller series.
+The resolve, plan and recheck HTTP routes have a default 4 MiB body cap for this metadata-bearing series;
+see `MOORING_MAX_FORECAST_BODY_BYTES` in `DEPLOYMENT_READINESS.md` when configuring tighter deployment limits.
 
 A temporary composed-data smoke on 5 November used 72 hourly snapshots (05 Nov 05:00Z through 08 Nov 04:00Z), NWS actual issue 04 Nov 23:38:07Z and separate CO-OPS retrieval times around 05 Nov 04:41Z. Seven arrivals 24–30 hours after as-of produced 63 static assessments. The unchanged example line plan was overloaded for every arrival (maximum utilizations 119.0–216.0% WLL); the result stayed RED/limited and selected no arrival. This verifies ingestion/provenance and an honest rejection, not a qualified forecast, optimal-plan search or operational readiness. Request/result and raw source manifests are temporary artifacts outside git; air/water densities remain schema assumptions rather than measured inputs.
 
@@ -81,5 +136,43 @@ Berthing-window bounds require explicit timezones and ordered endpoints; samplin
 ## Reassessment closer to arrival
 
 Set `allow_short_lead=true` when a new forecast or changed conditions require reassessment less than 24 hours before arrival. The default remains false and is omitted on the wire for compatibility. Arrival must still be at or after the new `as_of_utc`; coverage, issue/retrieval availability, quality, budgets and static-only validity rules do not change. The result identifies a short-lead reassessment instead of implying a new 24-hour advance forecast.
+
+### Explicit revision comparison (P2)
+
+`POST /api/v1/mooring/forecast-plan/recheck` accepts an owned `prior_result_id`, a
+new `as_of_utc`, and either supplied snapshots or an explicit scenario binding.
+It returns a new immutable comparison result with `state=unchanged`,
+`recheck_required`, or `unavailable`. It performs no physics and never modifies an
+earlier assessment or transfers an approval. An unchanged overloaded result stays
+RED; an invalid/unknown prior result cannot become usable through this comparison.
+
+Source identity, declared revision, and canonical content/provenance are compared
+separately from the moving assessment cutoff. Changed issue or retrieval provenance
+conservatively requires recheck. Future-issued, poor/stale, uncovered or inaccessible
+data cannot produce a usable comparison; missing/foreign historical result IDs return
+404. Saved input hashes are verified before reconstructing the earlier operation.
+
+A changed, usable revision returns `reassessment_request` for a separate, explicit
+call to `/mooring/forecast-plan`. It preserves the selected arrival's complete docking
+and holding period, resolved paid-out lengths, wet/dry properties, tug assignments and
+`installed_at_water_level_mllw_ft`. If no arrival was selected, the original candidate
+interval/configuration remains. Arrival cannot be in the past, and a recheck cutoff
+cannot precede the original cutoff. The new calculation and any approval require
+independent review; the comparison itself never marks a plan approved.
+
+For scenario rechecks, optional `forecast_binding.sample_from_utc` and
+`sample_to_utc` retain the original sampling window even when coverage is checked
+only for a selected arrival. This prevents an unchanged scenario from appearing
+revised merely because the comparison uses fewer arrival alternatives. Suggested
+reassessment requests retain these endpoints and pin the exact compared content.
+Earlier training samples may be retained for identity; the actual new cutoff still
+governs availability checks, and the requested operation must remain in the future.
+Sampling windows are bounded, must cover the operation and cannot extend an archive
+or sample before scenario creation. Supplied series are never resampled.
+
+The generated `mooring_forecast_recheck.json` fixture uses synthetic data; replace
+its placeholder prior ID with your own completed forecast-plan result ID. UI/agent
+workflow wiring is separate: display the comparison and require an explicit new
+calculation/review rather than silently replacing the previously reviewed plan.
 
 Use fresh supplied snapshots and retain `selected_config` when rechecking the same installation. A revised calculation produces new result IDs; an earlier approval does not transfer. The generated `contract/examples/modeling/mooring_forecast_reassessment.json` is an explicitly synthetic example with four hours of lead. It demonstrates the API option, not a public forecast composer or an automatic F24-to-Safety approval workflow.

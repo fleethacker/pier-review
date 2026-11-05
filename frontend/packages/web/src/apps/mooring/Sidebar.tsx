@@ -10,12 +10,16 @@ import { ResultPanel } from './panels/ResultPanel';
 import { ScenarioPanel } from './panels/ScenarioPanel';
 import { SequencePanel } from './panels/SequencePanel';
 import { SetupPanel } from './panels/SetupPanel';
+import { DemoCasesPanel } from './demo/DemoCasesPanel';
+import { AdvancePanel } from './advance/AdvancePanel';
 import { IntakePanel } from './intake/IntakePanel';
 import { StatusPanel } from './status/StatusPanel';
 import { BerthVisionPanel } from './vision/BerthVisionPanel';
+import type { MooringTab } from './tabs';
 
 export function Sidebar() {
   useUnitSystem();
+  const tab = useMooring((s) => s.tab);
   const c = useController();
   const phase = useMooring((s) => s.phase);
   const error = useMooring((s) => s.error);
@@ -46,42 +50,79 @@ export function Sidebar() {
           </button>
         </div>
       )}
-      <ErrorBoundary name="Berth, ship and layout">
-        <SetupPanel />
-      </ErrorBoundary>
-      <ErrorBoundary name="Berth from an image">
-        <BerthVisionPanel />
-      </ErrorBoundary>
-      <ErrorBoundary name="Environment">
-        <EnvPanel />
-      </ErrorBoundary>
-      <ErrorBoundary name="Data sources">
-        <StatusPanel />
-      </ErrorBoundary>
-      <ErrorBoundary name="Environment intake">
-        <IntakePanel />
-      </ErrorBoundary>
-      <ErrorBoundary name="Planning agent">
-        <AgentPanel />
-      </ErrorBoundary>
-      <ErrorBoundary name="Mooring lines">
-        <LinesPanel />
-      </ErrorBoundary>
-      <ErrorBoundary name="Analysis">
-        <ResultPanel />
-      </ErrorBoundary>
-      <ErrorBoundary name="Line sequence">
-        <SequencePanel />
-      </ErrorBoundary>
-      <ErrorBoundary name="Motion">
-        <MotionLauncher />
-      </ErrorBoundary>
-      <ErrorBoundary name="Recommendations">
-        <RecommendPanel />
-      </ErrorBoundary>
-      <ErrorBoundary name="Saved scenarios">
-        <ScenarioPanel />
-      </ErrorBoundary>
+      <TabPanels tab={tab} />
     </div>
   );
+}
+
+/** The panels of one tab, in working order. */
+function TabPanels({ tab }: { tab: MooringTab }) {
+  switch (tab) {
+    case 'setup':
+      return (
+        <>
+          <ErrorBoundary name="Demo cases">
+            <DemoCasesPanel />
+          </ErrorBoundary>
+          <ErrorBoundary name="Saved scenarios">
+            <ScenarioPanel />
+          </ErrorBoundary>
+          <ErrorBoundary name="Berth, ship and layout">
+            <SetupPanel />
+          </ErrorBoundary>
+          <ErrorBoundary name="Berth from an image">
+            <BerthVisionPanel />
+          </ErrorBoundary>
+        </>
+      );
+    case 'conditions':
+      return (
+        <>
+          <ErrorBoundary name="Environment">
+            <EnvPanel />
+          </ErrorBoundary>
+          <ErrorBoundary name="Data sources">
+            <StatusPanel />
+          </ErrorBoundary>
+          <ErrorBoundary name="Environment intake">
+            <IntakePanel />
+          </ErrorBoundary>
+        </>
+      );
+    case 'lines':
+      return (
+        <>
+          <ErrorBoundary name="Recommendations">
+            <RecommendPanel />
+          </ErrorBoundary>
+          <ErrorBoundary name="Mooring lines">
+            <LinesPanel />
+          </ErrorBoundary>
+          <ErrorBoundary name="Analysis">
+            <ResultPanel />
+          </ErrorBoundary>
+          <ErrorBoundary name="Line sequence">
+            <SequencePanel />
+          </ErrorBoundary>
+        </>
+      );
+    case 'plan':
+      return (
+        <ErrorBoundary name="Planning agent">
+          <AgentPanel />
+        </ErrorBoundary>
+      );
+    case 'advance':
+      return (
+        <ErrorBoundary name="Advance planning">
+          <AdvancePanel />
+        </ErrorBoundary>
+      );
+    case 'motion':
+      return (
+        <ErrorBoundary name="Motion">
+          <MotionLauncher />
+        </ErrorBoundary>
+      );
+  }
 }

@@ -140,14 +140,19 @@ def test_interactive_session_ws():
     body = copy.deepcopy(EXAMPLES["berthing_session"])
     body["scenario_id"] = scenario_id()
     sess = client.post(f"{P}/berthing/sessions", json=body).json()
-    with client.websocket_connect(sess["ws_url"] + "?limit=3") as ws:
+    with client.websocket_connect(sess["ws_url"] + "?limit=8") as ws:
         ws.send_json({"type": "tug_command", "tug_id": "T1", "force_lbf": 50000, "direction_rel_deg": 90})
-        frames = [ws.receive_json() for _ in range(3)]
-    assert any(f["tugs"] for f in frames)
+        messages = [ws.receive_json() for _ in range(8)]
+    # rm0-v1 streams interleave session_lifecycle messages with frames.
+    frames = [m for m in messages if m.get("type") != "session_lifecycle"]
+    assert frames and any(f["tugs"] for f in frames)
 
 
 def test_env_ws():
-    with client.websocket_connect("/ws/env?berth_id=NAVSTA-NORFOLK-P12-N&interval_s=0&limit=2") as ws:
+    source = client.post(f"{P}/env/scenarios", json=EXAMPLES["env_scenario"]).json()["env_scenario_id"]
+    with client.websocket_connect(
+        f"/ws/env?berth_id=NAVSTA-NORFOLK-P12-N&mode=scenario&env_scenario_id={source}&interval_s=0&limit=2"
+    ) as ws:
         a, b = ws.receive_json(), ws.receive_json()
     assert "wind_speed_kt" in a and "water_level_mllw_ft" in b
 

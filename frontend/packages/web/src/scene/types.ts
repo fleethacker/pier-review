@@ -18,6 +18,13 @@ export interface Pose {
   y: number;
   z: number;
   headingDeg: number;
+  /**
+   * Attitude, degrees. Right-hand rotations about the entity's own +x (roll) and +y (pitch) axes, applied as
+   * heading * pitch * roll about the pose origin (so +roll raises the entity's +y side, +pitch lowers its +x end).
+   * Absent means "not supplied" and is drawn level; set only from values a source actually provided.
+   */
+  rollDeg?: number;
+  pitchDeg?: number;
 }
 
 export type Geometry =
@@ -27,6 +34,8 @@ export type Geometry =
       points: [number, number][];
       /** Extrusion height above the pose z. 0 renders a flat polygon. */
       heightM: number;
+      /** Local z of the polygon base above the pose origin (rotates with roll and pitch). Default 0. */
+      baseM?: number;
     }
   | { type: 'point'; sizePx: number };
 
@@ -50,6 +59,8 @@ export interface SceneEntity {
   label?: string;
   /** Draw the label all the time, not only on hover or selection (point entities). */
   labelAlways?: boolean;
+  /** Leave out of camera fitting (large decoration such as a water plane). */
+  excludeFromFit?: boolean;
   /** Skip the dark outline; for translucent decoration such as shadows, halos and wakes. */
   noOutline?: boolean;
   pose: Pose;
@@ -60,6 +71,8 @@ export interface SceneEntity {
   status?: Status;
   selectable?: boolean;
   editable?: EditPolicy;
+  /** Compatible endpoint groups for pointer-created links. No application semantics live in the shell. */
+  connectable?: { group: string; accepts: string[] };
   /** Clicking or dragging this entity acts on another one (a ship's deckhouse stands in for the ship). */
   selectsId?: string;
   props?: PropRow[];
@@ -85,6 +98,8 @@ export interface SceneLink {
   strands?: number;
   label?: string;
   selectable?: boolean;
+  /** Select the link, then drag either named endpoint to reconnect only this link. */
+  editableEndpoints?: { from: string; to: string };
   props?: PropRow[];
 }
 
@@ -137,4 +152,15 @@ export type SceneEdit = {
   pose: Pose;
   /** False while dragging, true on release. */
   final: boolean;
+  /** A cancelled move restores its original pose; it is not a committed edit. */
+  cancelled?: boolean;
+} | {
+  type: 'connect';
+  fromEntityId: string;
+  toEntityId: string | null;
+  /** Present only when reconnecting an endpoint of the selected link. */
+  linkId?: string;
+  endpoint?: 'from' | 'to';
+  final: boolean;
+  cancelled?: boolean;
 };

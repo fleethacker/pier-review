@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 from pydantic import ValidationError
+from mooring.core.schemas.forecast_planning import ForecastResolvedResponse
 
 from mooring.core.schemas import (
     AnalyzeResponse,
@@ -147,6 +148,9 @@ class ModelingClient:
     async def forecast(self, berth_id: str, hours: int = 24, step_min: int = 30) -> ForecastSeries:
         params = {"berth_id": berth_id, "hours": hours, "step_min": step_min}
         return _validate_response(ForecastSeries, await self._req("GET", "/env/forecast", params=params))
+
+    async def resolve_forecast(self, body: dict) -> ForecastResolvedResponse:
+        return _validate_response(ForecastResolvedResponse, await self._req("POST", "/mooring/forecast/resolve", json=body))
 
     # ---- Generic access (used by the tool gateway) ----
     async def request(self, method: str, path: str, **kw) -> Any:

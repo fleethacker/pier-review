@@ -1,14 +1,29 @@
 # Remaining modeling development: execution plan
 
+> Packet **scope and acceptance** still come from this file. **Priorities, owners, reviewers and order** come from
+> [master plan execution ownership](MASTER_PLAN.md#execution-ownership), which wins on conflict.
+
+Snyder owns modeling implementation and independent benchmarks; Cruz owns provider/chart/telemetry inputs; Bixler owns
+reference-data qualification coordination, agents and release controls; Kori owns consumer UI. Use the master plan's
+per-item primary owner and dependencies before touching shared files. This document's historical S00–S21 packet numbers
+are distinct from the master plan's S1–S8 workstream IDs.
+
+Status note (5 November 2026, `dev` at `3ababad`): many foundation packets are already implemented. P1/P2 (#4/#8), S1 (#6),
+limited S7/U8 (#14) and U1–U7 UI (#18) have merged; D1–D4 remains in open #13. Consult
+[the capability ledger](MODELING_BUILDOUT_STATUS.md) and the master status board before selecting unfinished work.
+The original audit below explains the acceptance requirements; it is not a claim that every historical defect remains.
+
 Reviewed 4 November 2026 against `dev` at `5345bdd6e8bb48471463531c500c57e8ba1a0fc3` (PRs #6, #7 and #8 merged).
 
 **This is the implementation authority for remaining modeling work.** [PLAN.md](PLAN.md) remains the product roadmap; its illustrative APIs and module sketches are not implementation specifications. The generated [contract](../contract/README.md) defines the current API. This plan describes changes to make through schemas, tests and regenerated contracts, never by hand-editing generated files.
 
-Start with **S00**, then take the first unfinished packet whose dependencies have merged. Each packet is a separate PR into `dev`; packets explicitly split into sub-PRs must be completed in that order. Do not implement the whole roadmap in one branch. The complete sequence includes M1, M2, remaining M3 integration, M4–M7 and M11–M13. LLM agents, frontend features and automated operational approval are outside this workstream, except compatibility tests and documented integration requirements.
+For new work, use the master plan priority and the first unfinished packet whose dependencies have merged. The original sequence started with **S00**; do not reimplement completed foundations. Each packet is a separate PR into `dev`; packets explicitly split into sub-PRs must be completed in that order. Do not implement the whole roadmap in one branch. The complete sequence includes M1, M2, remaining M3 integration, M4–M7 and M11–M13. LLM agents, frontend features and automated operational approval are outside this workstream, except compatibility tests and documented integration requirements.
 
 ## Adversarial review: what would make the old plan fail?
 
-| Priority | Finding and evidence in current code | Required correction |
+Historical findings at the reviewed baseline: use the capability ledger for current closure evidence.
+
+| Priority | Finding and evidence at the reviewed baseline | Required correction |
 | --- | --- | --- |
 | P0 | A believable response is not proof of equilibrium. `moored/mock/solver.py` distributes loads with springs, fixes yaw and does not establish a three-component balance. Missing fitting ratings can still look GREEN. | S00 separates validity from status; S01 qualifies data; S05–S06 require independent force/moment residuals, active contacts and constraint diagnostics. |
 | P0 | The advertised async infrastructure computes before submitting. Routers pass completed results to `core/jobs.py`, which delays revealing them. | S02 implements actual bounded background execution. At the old target of 50 ms/solve, 2,000 samples cost 100 seconds; a 48-hour half-hour timeline with 97 points costs roughly 2.7 hours if repeated naively, before overhead. Budget and benchmark the whole operation. |
@@ -51,7 +66,7 @@ S00 must implement and document these decisions, with exact field placement sett
 
 ## Packet order and dependencies
 
-The order below is the default execution order. Dependencies are hard gates, not an invitation to parallelize incomplete assumptions. S20 can be advanced after its dependencies if live sensor integration becomes a priority. S14 is the Phase 1 gate; S17 and S19 are later phase gates.
+The order below records the original packet dependencies; current execution priority and ownership are in the master plan. Dependencies are hard gates, not an invitation to parallelize incomplete assumptions. S20 can be advanced after its dependencies if live sensor integration becomes a priority. S14 is the Phase 1 gate; S17 and S19 are later phase gates.
 
 | Packet | Deliverable | Required packets |
 | --- | --- | --- |

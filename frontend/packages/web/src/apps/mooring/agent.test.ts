@@ -33,6 +33,13 @@ const plan = {
   holding_tugs: [tug],
 } as unknown as AgentPlan;
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((ok, fail) => { resolve = ok; reject = fail; });
+  return { promise, resolve, reject };
+}
+
 let c: MooringController;
 beforeEach(() => {
   vi.resetAllMocks();
@@ -57,6 +64,71 @@ it('does not apply a plan computed before an environment edit', async () => {
   c.agent.applyPlan(plan);
   expect(c.state.get().lines.map((l) => l.line_number)).toEqual([1]);
   expect(c.agent.state.get().error).toMatch(/environment changed/);
+});
+
+describe('class and berth selection invalidation', () => {
+  it('serializes follow-ups and invalidates old review evidence before the submission finishes', async () => {
+    vi.stubGlobal('EventSource', class { addEventListener() {} close() {} });
+    c.agent.state.set({ planId: plan.plan_id, plan, phase: 'done',
+      review: { state: 'ready', progress: 1, error: null, review: { review_id: 'old' } as never } });
+    const pending = deferred<unknown>();
+    vi.mocked(agents.POST).mockReturnValue(pending.promise as never);
+    const first = c.agent.ask('Revise the line plan');
+    await c.agent.ask('A concurrent second request');
+    expect(agents.POST).toHaveBeenCalledTimes(1);
+    expect(c.agent.state.get()).toMatchObject({ phase: 'saving', review: { state: 'idle', review: null } });
+    c.agent.resetForSelection();
+    pending.resolve({ data: {} });
+    await first;
+    expect(c.agent.state.get()).toMatchObject({ phase: 'idle', planId: null, chat: [] });
+  });
+
+  it('clears the previous plan, review, sheet and undo immediately', () => {
+    c.agent.state.set({ phase: 'done', planId: plan.plan_id, plan, objective: 'storm_prep',
+      undo: { lines: [line(3)], tugs: [] },
+      review: { state: 'ready', progress: 1, error: null, review: { review_id: 'r' } as never },
+      sheet: { state: 'ready', error: null, html: 'old', image: null, sheet: { sheet_id: 's' } as never } });
+    c.agent.resetForSelection();
+    expect(c.agent.state.get()).toMatchObject({ phase: 'idle', planId: null, plan: null, undo: null,
+      objective: 'storm_prep', review: { state: 'idle', review: null }, sheet: { state: 'idle', sheet: null } });
+  });
+
+  it.each(['resolve', 'reject'])('ignores a late plan submission %s after selection changed', async (outcome) => {
+    const pending = deferred<unknown>();
+    vi.spyOn(c, 'ensureScenario').mockResolvedValue('s1');
+    vi.mocked(agents.POST).mockReturnValue(pending.promise as never);
+    const running = c.agent.run();
+    await Promise.resolve();
+    expect(agents.POST).toHaveBeenCalled();
+    c.agent.resetForSelection();
+    if (outcome === 'resolve') pending.resolve({ data: { plan_id: 'old', events_url: '/old' } });
+    else pending.reject(new Error('old request failed'));
+    await running;
+    expect(c.agent.state.get()).toMatchObject({ phase: 'idle', planId: null, error: null });
+  });
+
+  it('ignores late stream events and a completed plan fetched for the old selection', async () => {
+    const handlers = new Map<string, (event: Event) => void>();
+    const close = vi.fn();
+    vi.stubGlobal('EventSource', class {
+      addEventListener(name: string, handler: (event: Event) => void) { handlers.set(name, handler); }
+      close = close;
+    });
+    vi.spyOn(c, 'ensureScenario').mockResolvedValue('s1');
+    vi.mocked(agents.POST).mockResolvedValue({ data: { plan_id: 'p1', events_url: '/events' } } as never);
+    await c.agent.run();
+    const pending = deferred<unknown>();
+    vi.mocked(agents.GET).mockReturnValue(pending.promise as never);
+    handlers.get('done')!(new Event('done'));
+    c.agent.resetForSelection();
+    handlers.get('proposal')!({ data: JSON.stringify({ config: plan.config }) } as MessageEvent);
+    pending.resolve({ data: plan });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(close).toHaveBeenCalled();
+    expect(c.agent.state.get()).toMatchObject({ phase: 'idle', plan: null, proposal: null });
+    expect(c.state.get().lines.map((item) => item.line_number)).toEqual([1]);
+  });
 });
 
 describe('applying and undoing an agent plan', () => {
@@ -94,7 +166,9 @@ describe('applying and undoing an agent plan', () => {
 
 describe('safety sheet image provenance', () => {
   it('does not attach the current edited map to an immutable plan sheet', async () => {
-    c.agent.state.set({ planId: plan.plan_id, plan });
+    // A sheet is only built from an explicit independent review of this plan.
+    c.agent.state.set({ planId: plan.plan_id, plan, phase: 'done',
+      review: { state: 'ready', progress: 1, error: null, review: { review_id: 'rev-1', plan_id: plan.plan_id } as never } });
     c.state.set({ lines: [line(99)], shipXFt: 900 });
     const capture = vi.fn(() => 'data:image/jpeg;base64,unreviewed-map');
     c.host.store.capture = capture;

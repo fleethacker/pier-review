@@ -157,6 +157,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/predictions/{result_id}/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Explain a saved prediction, retaining its warnings, validity and unknown coverage */
+        get: operations["prediction_brief_api_v1_predictions__result_id__brief_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/safety/reviews": {
         parameters: {
             query?: never;
@@ -398,6 +415,10 @@ export interface components {
         };
         /** AgentPlan */
         AgentPlan: {
+            forecast_manifest?: components["schemas"]["ForecastResolutionManifest"] | null;
+            /** Forecast Result Id */
+            forecast_result_id?: string | null;
+            forecast_request?: components["schemas"]["ForecastResolveRequest"] | null;
             /** Plan Id */
             plan_id: string;
             /** Scenario Id */
@@ -965,6 +986,116 @@ export interface components {
              */
             reference: string;
         };
+        /**
+         * ForecastBinding
+         * @description Explicit input selection. Provider acquisition remains outside the planner.
+         */
+        ForecastBinding: {
+            /**
+             * Source
+             * @enum {string}
+             */
+            source?: "supplied" | "scenario";
+            /**
+             * Source Id
+             * @description Caller-declared dataset/product identity; not proof of provider authenticity.
+             */
+            source_id?: string | null;
+            /** Env Scenario Id */
+            env_scenario_id?: string | null;
+            /**
+             * Revision
+             * @description Declared provider/scenario revision. Content is hashed independently even when this is unchanged.
+             */
+            revision?: string | null;
+            /**
+             * Expected Content Hash
+             * @description Optional pin: reject different content instead of silently evaluating a changed revision.
+             */
+            expected_content_hash?: string | null;
+            /**
+             * Sample From Utc
+             * @description Scenario-only sampling window retained when rechecking a selected operation from a wider original series.
+             */
+            sample_from_utc?: string | null;
+            /** Sample To Utc */
+            sample_to_utc?: string | null;
+        };
+        /**
+         * ForecastResolutionManifest
+         * @description Immutable identity of the exact series and the requested temporal binding.
+         */
+        ForecastResolutionManifest: {
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "supplied" | "scenario";
+            /** Source Id */
+            source_id?: string | null;
+            /** Env Scenario Id */
+            env_scenario_id?: string | null;
+            /** Revision */
+            revision: string;
+            /** Content Hash */
+            content_hash: string;
+            /** Binding Hash */
+            binding_hash: string;
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /**
+             * From Utc
+             * Format: date-time
+             */
+            from_utc: string;
+            /**
+             * To Utc
+             * Format: date-time
+             */
+            to_utc: string;
+            /** Max Gap Min */
+            max_gap_min: number;
+        };
+        /** ForecastResolveRequest */
+        ForecastResolveRequest: {
+            /** Berth Id */
+            berth_id: string;
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /**
+             * From Utc
+             * Format: date-time
+             */
+            from_utc: string;
+            /**
+             * To Utc
+             * Format: date-time
+             */
+            to_utc: string;
+            /** Max Gap Min */
+            max_gap_min?: number;
+            /**
+             * Step Min
+             * @description Sampling interval for an explicitly selected scenario; supplied series retain every knot.
+             */
+            step_min?: number;
+            /** Forecast */
+            forecast?: components["schemas"]["EnvironmentSnapshot"][] | null;
+            forecast_binding?: components["schemas"]["ForecastBinding"] | null;
+        };
+        /** GeoPoint */
+        GeoPoint: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+        };
         /** GoNoGo */
         GoNoGo: {
             /**
@@ -983,6 +1114,30 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HazardApproach */
+        HazardApproach: {
+            /** T S */
+            t_s: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "pier" | "fender" | "coastline" | "vessel";
+            /** Element Id */
+            element_id: string;
+            /**
+             * Clearance Ft
+             * @description Hull-to-hazard distance at that time; <= 0 means contact.
+             */
+            clearance_ft: number;
+            /** @description Closest point on the hull. */
+            position: components["schemas"]["GeoPoint"];
+            /**
+             * Probability
+             * @description Share of uncertainty samples that breach; null without samples. Not a calibrated probability.
+             */
+            probability?: number | null;
+        };
         /** Health */
         Health: {
             /**
@@ -998,12 +1153,17 @@ export interface components {
         };
         /** IntakeReport */
         IntakeReport: {
+            forecast_manifest?: components["schemas"]["ForecastResolutionManifest"] | null;
+            /** Forecast Result Id */
+            forecast_result_id?: string | null;
+            /** @description Frozen explicit selection used to re-resolve the same supplied/scenario source; no public latest-revision discovery is implied. */
+            forecast_request?: components["schemas"]["ForecastResolveRequest"] | null;
             /** Report Id */
             report_id: string;
             /**
              * Created At Utc
              * Format: date-time
-             * @description UTC availability cutoff captured after input retrieval; assessment processing may finish later.
+             * @description UTC availability cutoff; explicit forecast selections retain their resolver as_of cutoff. Assessment processing may finish later.
              */
             created_at_utc: string;
             /** Berth Id */
@@ -1052,6 +1212,8 @@ export interface components {
         };
         /** IntakeRequest */
         IntakeRequest: {
+            /** @description Explicit supplied/scenario forecast selection using the canonical modeling resolver. Its interval must match horizon_hours; no default provider is substituted. */
+            forecast_request?: components["schemas"]["ForecastResolveRequest"] | null;
             /**
              * Scenario Id
              * @description Takes berth, ship and side from the scenario.
@@ -1123,6 +1285,27 @@ export interface components {
             } | null;
             /** Error */
             error?: string | null;
+        };
+        /**
+         * ManifestRecord
+         * @description A resolved reference record that went into a result.
+         */
+        ManifestRecord: {
+            /**
+             * Kind
+             * @example ship
+             * @example berth
+             * @example line_spec
+             * @example tug
+             */
+            kind: string;
+            /** Id */
+            id: string;
+            /**
+             * Revision
+             * @description Content hash or version of the record; null if unversioned.
+             */
+            revision?: string | null;
         };
         /** MooringConfig */
         MooringConfig: {
@@ -1299,6 +1482,110 @@ export interface components {
             /** Why */
             why: string;
         };
+        /** PredictedTick */
+        PredictedTick: {
+            /**
+             * T S
+             * @description Seconds after as_of_utc.
+             */
+            t_s: number;
+            /**
+             * T Utc
+             * Format: date-time
+             */
+            t_utc: string;
+            position: components["schemas"]["GeoPoint"];
+            /** Heading True Deg */
+            heading_true_deg: number;
+            /** Sog Kt */
+            sog_kt: number;
+            /** Cog True Deg */
+            cog_true_deg?: number | null;
+            /** Rudder Deg */
+            rudder_deg: number;
+            /** Engine Order */
+            engine_order: number;
+            /**
+             * Footprint
+             * @description Hull outline at this tick (parametric planform).
+             */
+            footprint: components["schemas"]["GeoPoint"][];
+            /**
+             * Position Sd Ft
+             * @description Spread of sampled positions; null without samples.
+             */
+            position_sd_ft?: number | null;
+        };
+        /** PredictionAlternativeBrief */
+        PredictionAlternativeBrief: {
+            /** Alt Id */
+            alt_id: string;
+            /** Label */
+            label: string;
+            /** Explanation */
+            explanation: string;
+            final_tick?: components["schemas"]["PredictedTick"] | null;
+            first_breach?: components["schemas"]["HazardApproach"] | null;
+            closest_approach?: components["schemas"]["HazardApproach"] | null;
+            /** Corridor Available */
+            corridor_available: boolean;
+            /** Uncertainty Note */
+            uncertainty_note: string;
+            /** Cites */
+            cites: string[];
+        };
+        /** PredictionBrief */
+        PredictionBrief: {
+            /** Prediction Result Id */
+            prediction_result_id: string;
+            /** Model */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /** Inputs Hash */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /**
+             * Input Age S
+             * @description Age at the model's assessment time, not age when this brief is read.
+             */
+            input_age_s: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            validity: components["schemas"]["Validity"] | null;
+            manifest: components["schemas"]["ResultManifest"] | null;
+            /** Summary */
+            summary: string;
+            /** Hazards Checked */
+            hazards_checked: ("pier" | "fender" | "coastline" | "vessel")[];
+            /** Hazards Unavailable */
+            hazards_unavailable: string[];
+            /** Alternatives */
+            alternatives: components["schemas"]["PredictionAlternativeBrief"][];
+            /** Warnings */
+            warnings: components["schemas"]["Finding"][];
+            /** Assumptions */
+            assumptions: string[];
+            /** Cites */
+            cites: string[];
+            /**
+             * Disclaimer
+             * @default Decision support for a demonstrator; not navigational guidance.
+             */
+            disclaimer: string;
+        };
         /**
          * Provenance
          * @description Where a value came from, so the UI and safety sheet can show how much to trust it.
@@ -1341,9 +1628,46 @@ export interface components {
              */
             cites: string[];
         };
+        /**
+         * ResultManifest
+         * @description What a result depended on, so it can be reproduced. `inputs_hash` still hashes the request as sent;
+         *     `resolved_inputs_hash` hashes the request after defaults and references are resolved.
+         */
+        ResultManifest: {
+            /**
+             * Resolved Inputs Hash
+             * @description sha256 of the canonical resolved inputs.
+             */
+            resolved_inputs_hash?: string | null;
+            /** Code Version */
+            code_version?: string | null;
+            /** Records */
+            records?: components["schemas"]["ManifestRecord"][];
+            /**
+             * Environment Hash
+             * @description sha256 of the environment snapshot used.
+             */
+            environment_hash?: string | null;
+            /** Numerical Settings */
+            numerical_settings?: {
+                [key: string]: number | string | boolean;
+            };
+            /** Rng Seed */
+            rng_seed?: number | null;
+            /** Rng Model Revision */
+            rng_model_revision?: string | null;
+        };
         /** SafetyReview */
         SafetyReview: {
             validity?: components["schemas"]["Validity"] | null;
+            forecast_manifest?: components["schemas"]["ForecastResolutionManifest"] | null;
+            /** Forecast Result Id */
+            forecast_result_id?: string | null;
+            /**
+             * Geometry Snapshot Verified
+             * @description True only when independent-review result manifests match all captured immutable reference revisions; null means unverified.
+             */
+            geometry_snapshot_verified?: boolean | null;
             /** Review Id */
             review_id: string;
             /** Plan Id */
@@ -1399,6 +1723,10 @@ export interface components {
         };
         /** SafetySheet */
         SafetySheet: {
+            layout?: components["schemas"]["SheetLayout"] | null;
+            forecast_manifest?: components["schemas"]["ForecastResolutionManifest"] | null;
+            /** Forecast Result Id */
+            forecast_result_id?: string | null;
             validity?: components["schemas"]["Validity"] | null;
             /** Analysis Result Id */
             analysis_result_id?: string | null;
@@ -1609,6 +1937,45 @@ export interface components {
             evolution: "moor" | "berthing" | "storm_prep" | "unmoor";
             /** Planned Utc */
             planned_utc?: string | null;
+        };
+        /**
+         * SheetLayout
+         * @description Immutable, self-contained graphic associated with one sheet version and analysis.
+         */
+        SheetLayout: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "unavailable";
+            /** Sheet Id */
+            sheet_id: string;
+            /** Sheet Version */
+            sheet_version: number;
+            /** Plan Id */
+            plan_id: string;
+            /** Review Id */
+            review_id: string | null;
+            /** Analysis Result Id */
+            analysis_result_id: string | null;
+            /** Geometry Hash */
+            geometry_hash?: string | null;
+            /**
+             * Sheet Binding Hash
+             * @description Hash of sheet identity, depicted environment, lines and tug assignments.
+             */
+            sheet_binding_hash?: string | null;
+            /** Ship Revision */
+            ship_revision?: string | null;
+            /** Berth Revision */
+            berth_revision?: string | null;
+            /**
+             * Svg
+             * @description Self-contained SVG generated from saved assessment geometry; no external assets.
+             */
+            svg?: string | null;
+            /** Unavailable Reason */
+            unavailable_reason?: string | null;
         };
         /** SheetLineRow */
         SheetLineRow: {
@@ -2138,68 +2505,6 @@ export interface components {
             message: string;
         };
         /**
-         * ManifestRecord
-         * @description A resolved reference record that went into a result.
-         */
-        ManifestRecord: {
-            /**
-             * Kind
-             * @example ship
-             * @example berth
-             * @example line_spec
-             * @example tug
-             */
-            kind: string;
-            /** Id */
-            id: string;
-            /**
-             * Revision
-             * @description Content hash or version of the record; null if unversioned.
-             * @default null
-             */
-            revision: string | null;
-        };
-        /**
-         * ResultManifest
-         * @description What a result depended on, so it can be reproduced. `inputs_hash` still hashes the request as sent;
-         *     `resolved_inputs_hash` hashes the request after defaults and references are resolved.
-         */
-        ResultManifest: {
-            /**
-             * Resolved Inputs Hash
-             * @description sha256 of the canonical resolved inputs.
-             * @default null
-             */
-            resolved_inputs_hash: string | null;
-            /**
-             * Code Version
-             * @default null
-             */
-            code_version: string | null;
-            /** Records */
-            records?: components["schemas"]["ManifestRecord"][];
-            /**
-             * Environment Hash
-             * @description sha256 of the environment snapshot used.
-             * @default null
-             */
-            environment_hash: string | null;
-            /** Numerical Settings */
-            numerical_settings?: {
-                [key: string]: number | string | boolean;
-            };
-            /**
-             * Rng Seed
-             * @default null
-             */
-            rng_seed: number | null;
-            /**
-             * Rng Model Revision
-             * @default null
-             */
-            rng_model_revision: string | null;
-        };
-        /**
          * SafetyWatchUnavailable
          * @description Terminal SSE source_unavailable event; contains no fabricated measurement.
          */
@@ -2637,6 +2942,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentMessageAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    prediction_brief_api_v1_predictions__result_id__brief_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                result_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionBrief"];
                 };
             };
             /** @description Validation Error */

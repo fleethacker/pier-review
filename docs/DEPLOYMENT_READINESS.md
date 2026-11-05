@@ -1,6 +1,100 @@
 # Deployment readiness (S21): what exists and what does not
 
-**The modeling service is not ready for live use.** The controls below are implemented locally, pending review. This is not deployment approval or a completed S21 gate.
+**The modeling service is not ready for live use.** The local controls below do not establish deployment approval or a completed S21 gate.
+
+**Execution owners:** Bixler leads A1/A2/A4 rehearsal and release; Kori owns browser/UI acceptance, Snyder modeling/runtime
+limits and Cruz provider availability/freshness. Review responsibilities and dependencies are in the
+[master plan ownership table](MASTER_PLAN.md#execution-ownership).
+
+Integration snapshot: `dev` at `3ababad`, 5 November 2026. S1 rich sessions (#6), P1/P2 forecast resolution/recheck (#4/#8),
+limited S7/U8 prediction (#14) and U1–U7 UI (#18) are merged. Subsequent PR preparation integrated `dev` at `684db99`,
+including D1–D4 provider composition (#13) and the exercise/source UI updates (#21).
+Rehearse their combined release candidate before marking any end-to-end gate passed. Historical local evidence below
+is retained with its original scope; this documentation refresh did not rerun tests or the hosting rehearsal.
+
+The later Bixler implementation branch is being exercised locally with the expanded HTTP/SSE/WebSocket and browser
+checks; its exact results are recorded in [BIXLER_IMPLEMENTATION.md](BIXLER_IMPLEMENTATION.md). New sheets embed a
+self-contained saved SVG, so browser printing does not need a map token. Native server PDF support still depends on
+the libraries below; browser-exported PDF evidence does not establish server-renderer or Domino availability.
+
+## A2: Domino demo launch and rehearsal
+
+**Target rehearsal remains pending.** Validation for this change is local, as requested by Bixler. The supplied
+Domino URL served its management interface; no running-app test or deployment was performed. No target logs
+or clean-`main` deployment evidence were available for this change. The launcher improvements and local lifecycle
+tests do not establish that the hosting proxy supports live streams. Record the deployed commit, app URL, run
+timestamp and check output when completing this gate.
+
+The updated launcher completed a local offline rehearsal on 5 November 2026: both API proxies, four planning
+chains, forecast planning, browser sheet/print controls and live WebSocket controls passed. All services stopped
+after SIGINT. See [local evidence and screenshots](LOCAL_REHEARSAL.md); server-generated PDF was not part of this run.
+
+Configure the app command as `./app.sh`, with the repository root as its working directory. The compute environment
+needs `uv`, Python 3.12 (or permission for `uv` to install the pinned version), and **Node >=22.17.0 with npm**.
+The current lockfile requires that Node version; the old Node 20 image needs the documented runtime setup. PR #18 adds `frontend/domino-app.sh` for that environment; Bixler/Kori must verify it on the actual target rather than treating the wrapper as hosting evidence.
+`app.sh` fails with an installation hint when a runtime is missing instead of downloading a Linux-x64 runtime into
+an arbitrary host. Dependency installation uses the committed Python and npm lockfiles and requires package access
+or prepopulated caches. Runtime data and planning can run offline after installation.
+
+| App environment variable | Demo setting / meaning |
+| --- | --- |
+| `PORT` | `8888` by default; expose only this UI port through the Domino app proxy. |
+| `AGENTS_LLM_PROVIDER` | `none` for the rehearsal without an LLM key. |
+| `MOORING_ENV_SOURCE` | `mock` for the offline rehearsal; preserve the synthetic labels. Public data is a separate opt-in check. |
+| `VITE_MAPBOX_TOKEN` | Optional public `pk.` Mapbox token, configured **before launch/build**. Vite embeds it in browser assets. Restart/rebuild after changing it; no token uses the drawn-water fallback. Do not supply a secret Mapbox token. |
+| `APP_STARTUP_TIMEOUT_S` | Health-readiness deadline per endpoint, default 60 seconds, maximum 600. |
+| `MODELING_PORT`, `AGENTS_PORT` | Local service ports, default `8000` and `8001`. Override for an isolated local rehearsal; both remain bound to loopback. |
+| `PDF_LIBRARY_PATH` | Optional macOS native-library directory, such as `/opt/homebrew/lib`, when Pango is already installed. |
+
+The launcher supervises dependency installation and the build before starting either API, waits for the APIs and
+both UI proxy health routes, then supervises all three services. A backend or UI exit ends the app with an error.
+SIGINT/SIGTERM stops the active installer/build or service process groups, including descendants,
+with a five-second grace period before forced cleanup. This is single-process demo supervision; it does not add
+restart recovery or production service orchestration.
+
+The hosting proxy must forward `api/modeling/*` and `api/agents/*` beneath the app's external path prefix, preserve
+WebSocket upgrade requests to `api/modeling/ws/sim/*`, and stream agent SSE without buffering. Keep the connection
+open for the whole planning/watch session. A successful `/health` request alone does not verify these requirements.
+The browser uses same-origin relative paths; leave `VITE_MODELING_URL` and `VITE_AGENTS_URL` unset for this setup.
+
+Rehearse from a fresh checkout of the release commit on `main`, after its CI has passed:
+
+```bash
+git clone --branch main https://github.com/fleethacker/pier-review.git pier-review-rehearsal
+cd pier-review-rehearsal
+git rev-parse HEAD
+AGENTS_LLM_PROVIDER=none MOORING_ENV_SOURCE=mock ./app.sh
+```
+
+Use that commit for the Domino app as well. From a machine that can reach its external URL, run the target checks
+with the **complete app prefix**, including the trailing slash:
+
+```bash
+uv run --all-packages python scripts/demo_check.py \
+  --base-url 'https://<domino-host>/<app-prefix>/' --no-browser \
+  --logs /tmp/pier-review-target-check
+```
+
+These checks create demo scenarios, plans, reviews, sheets and approvals in the target app. Use the dedicated demo
+instance. The command checks actual HTTP/SSE/WebSocket behavior through the external proxy; it does not establish
+browser completion of Intake/review selection or UI motion controls. Run the browser flow as well where supported,
+then manually follow [the demo script](../frontend/DEMO.md), including print preview and any feature explicitly
+reported as missing by the checks. A gateway login/authorization failure must be resolved using the target's
+supported access mechanism before counting rehearsal as passed. The current browser's authentication boundary
+is documented below.
+
+### PDF and the HTML fallback
+
+The printable HTML sheet is the fallback when native PDF libraries are absent. For an approved demo sheet, open
+`api/agents/api/v1/safety-sheets/<sheet-id>/render?format=html` beneath the app URL, then use the browser's print
+dialog (or Save as PDF). Confirm the review identity, qualification limits and signatures remain visible.
+`format=pdf` returns HTTP 501 with setup instructions when Pango/GObject are unavailable; do not interpret that as
+a rendered PDF. The runtime's `pdf_available()` probe only checks library import, so test an actual sheet render
+on the target if offering server-generated PDF.
+
+For Debian/Ubuntu-based images, the renderer's setup message names `libpango-1.0-0` and `libpangoft2-1.0-0`;
+macOS development uses Pango. Install native libraries in the managed environment image, then test the PDF route.
+If that cannot be completed, state **HTML print supported; server PDF unavailable** in the rehearsal record.
 
 ## Implemented controls
 
@@ -11,12 +105,14 @@
 | API identity | `MOORING_API_KEYS` JSON object mapping principal names to unique bearer keys of at least 32 characters | Constant-time byte comparisons. Applies to HTTP except health, and WebSocket handshakes. No identity provider, roles or revocation service. |
 | Ownership | SQLite ownership records plus worker context propagation | Jobs/status/SSE/cancellation, results, scenarios and simulator sessions separated by principal. Unknown or another owner's ids return 404 / WS 4404. Legacy unowned resources remain inaccessible when enforcement is enabled. |
 | HTTP body cap | `MOORING_MAX_BODY_BYTES=1048576` | 413 before JSON parsing; proxy must also cap upload size/time and connections. Invalid limit configuration returns 503. |
+| Forecast body cap | `MOORING_MAX_FORECAST_BODY_BYTES=4194304` | Resolve, plan and recheck POSTs accept up to 4 MiB by default to retain five days of six-minute forcing and provenance. An explicit `MOORING_MAX_BODY_BYTES` also governs these routes unless separately overridden. Other routes keep their existing limits; oversize forecasts return 413. |
 | HTTP rate cap | `MOORING_RATE_PER_MINUTE=600` with auth; `0` (disabled) in demo mode | Fixed 60-second window per principal, injected clock in tests; 429 plus `Retry-After`. Process-local; counter resets on restart. Explicit 0 disables. |
 | Simulation sessions | [Simulation control and limits](BERTHING_SIMULATION.md) | Bounded count/duration/commands; one controller; disconnect pauses; latest-frame backpressure. Ephemeral, one process. |
 | Logs | JSON events on logger `mooring.operations` | Job ids, terminal state/duration/result id; stored result id, validity and reason codes. No bodies or credentials. Configure the logger at INFO to retain events. |
 | Metrics | Authenticated `GET /api/v1/metrics` when auth is enabled | Queue depth, active jobs, saturation, cancellation, terminal-job counts and total duration seconds. `solver_failures` counts invalid stored results; failed jobs have a separate counter. Aggregate operational data, shared across authorized principals; no ids. In-process counters, no exporter/histograms. |
 | Backup/restore | `python -m mooring.core.backup backup SOURCE NEW_BACKUP` / `restore BACKUP NEW_DATABASE` | SQLite online backup; integrity check; exclusive new target path, file mode 0600. Restore migrates the copy. Tests preserve result ids/hashes/snapshots/ownership and migrate v1 to current. |
 | Capability statement | `/capabilities`, `/qualification`, `/rules` | Machine-readable limitations. Synthetic dynamics remain unqualified. |
+| Environmental providers | Required `MOORING_ENV_SOURCE`; optional `MOORING_CBOFS_ARTIFACT` and `MOORING_GFS_WAVE_ARTIFACT`; live checks require `MOORING_LIVE_SMOKE=1` | Source modes fail closed; decoded artifacts are integrity/provenance-identity checked, but self-hashes do not authenticate provider bytes. Wave composition is restricted to the reviewed Pier 12 North target and exact offshore GFS cell; GFS cycle, maximum lead, native partitions and 18-hour issue freshness are enforced. NDBC response bytes/elapsed time and composition time are bounded, and rows over three hours old are unavailable. Provider availability and passing parsers do not establish engineering applicability. NDBC/GFS-Wave output is offshore-only and not load-ready. |
 
 ## Authentication default and deployment boundary
 

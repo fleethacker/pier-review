@@ -15,4 +15,5 @@ it('renders zero limits and zero current wind without NaN coordinates', () => {
   const { container } = render(<PolarEnvelope points={[0, 90, 180, 270].map((angle) => ({ angle, limit: 0 }))} currentWindKt={0} />);
   expect(container.innerHTML).not.toMatch(/NaN|Infinity/);
   expect(container.querySelector('svg')).not.toBeNull();
+  expect(container.querySelector('circle[stroke-dasharray] title')?.textContent).toBe('Dashed ring: sustained wind 0 kt');
 });

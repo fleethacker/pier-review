@@ -11,7 +11,25 @@ export interface ShipDims {
   parts: { id: string; points: [number, number][]; heightM: number; liftM: number; color?: string }[];
 }
 
-export const MOTION_KINDS = ['motion-ship', 'motion-ship-part', 'motion-tug'];
+export const MOTION_KINDS = ['motion-ship', 'motion-ship-part', 'motion-tug', 'motion-water'];
+
+const DRAWABLE_DOF = new Set(['simulated', 'prescribed']);
+const WATER_HALF_M = 300;
+const WATER_SNAP_M = 100;
+
+/** Roll or pitch is drawn only when the frame calls that axis simulated or prescribed AND supplies a value. */
+export function drawableAttitude(ship: ViewFrame['ship']): { rollDeg: number | null; pitchDeg: number | null } {
+  return {
+    rollDeg: ship.rollDeg != null && DRAWABLE_DOF.has(ship.dofs.roll) ? ship.rollDeg : null,
+    pitchDeg: ship.pitchDeg != null && DRAWABLE_DOF.has(ship.dofs.pitch) ? ship.pitchDeg : null,
+  };
+}
+
+/** Water level (ft MLLW) to draw, or null. The adapter already nulls it unless the water component is available. */
+export function drawableWaterLevelFt(frame: ViewFrame): number | null {
+  const w = frame.environment?.water;
+  return w && w.availability === 'available' ? w.levelMllwFt : null;
+}
 
 const TUG_L = 28;
 const TUG_B = 9;
@@ -38,8 +56,15 @@ export interface MotionSceneParts {
 export function motionSceneParts(frame: ViewFrame, scene: SimScene | null, dims: ShipDims | null): MotionSceneParts {
   const notDrawn: string[] = [];
   const { ship } = frame;
-  const heave = ship.heaveMllwFt;
-  const pose = { x: ft(ship.x_ft), y: ft(ship.y_ft), z: heave != null ? ft(heave) : 0, headingDeg: ship.yawDeg };
+  const heave = DRAWABLE_DOF.has(ship.dofs.heave) ? ship.heaveMllwFt : null;
+  const { rollDeg, pitchDeg } = drawableAttitude(ship);
+  const tilted = !!(rollDeg || pitchDeg);
+  const levelPose = { x: ft(ship.x_ft), y: ft(ship.y_ft), z: heave != null ? ft(heave) : 0, headingDeg: ship.yawDeg };
+  const pose = {
+    ...levelPose,
+    ...(rollDeg != null ? { rollDeg } : {}),
+    ...(pitchDeg != null ? { pitchDeg } : {}),
+  };
 
   const hull: [number, number][] | null = scene?.ship_hull_outline?.length
     ? scene.ship_hull_outline.map((p): [number, number] => [ft(p.x_ft ?? 0), ft(p.y_ft ?? 0)])
@@ -56,11 +81,13 @@ export function motionSceneParts(frame: ViewFrame, scene: SimScene | null, dims:
       selectable: false,
     });
     for (const p of dims?.parts ?? []) {
+      const lift = (dims?.freeboardM ?? 0) + p.liftM;
       entities.push({
         id: `motion-ship-part:${p.id}`,
         kind: 'motion-ship-part',
-        pose: { ...pose, z: pose.z + (dims?.freeboardM ?? 0) + p.liftM },
-        geometry: { type: 'polygon', points: p.points, heightM: p.heightM },
+        // Tilted: keep the ship's pivot and carry the lift in the geometry so the part rotates with the hull.
+        pose: tilted ? pose : { ...pose, z: pose.z + lift },
+        geometry: { type: 'polygon', points: p.points, heightM: p.heightM, ...(tilted ? { baseM: lift } : {}) },
         color: p.color ?? '#7ba3d1',
         selectable: false,
       });
@@ -70,7 +97,28 @@ export function motionSceneParts(frame: ViewFrame, scene: SimScene | null, dims:
     notDrawn.push('hull outline');
   }
   if (heave == null) notDrawn.push('heave (not simulated)');
-  notDrawn.push('roll and pitch');
+  if (rollDeg == null && pitchDeg == null) notDrawn.push('roll and pitch');
+  else if (rollDeg == null) notDrawn.push('roll');
+  else if (pitchDeg == null) notDrawn.push('pitch');
+
+  // Display-only water surface at the level the frame supplied; never a default level.
+  const waterFt = drawableWaterLevelFt(frame);
+  if (waterFt == null) notDrawn.push('water surface');
+  else {
+    const cx = Math.round(levelPose.x / WATER_SNAP_M) * WATER_SNAP_M;
+    const cy = Math.round(levelPose.y / WATER_SNAP_M) * WATER_SNAP_M;
+    entities.push({
+      id: 'motion-water',
+      kind: 'motion-water',
+      pose: { x: cx, y: cy, z: ft(waterFt), headingDeg: 0 },
+      geometry: { type: 'polygon', points: [[-WATER_HALF_M, -WATER_HALF_M], [WATER_HALF_M, -WATER_HALF_M], [WATER_HALF_M, WATER_HALF_M], [-WATER_HALF_M, WATER_HALF_M]], heightM: 0 },
+      color: '#2a7fbf',
+      opacity: 0.3,
+      noOutline: true,
+      excludeFromFit: true,
+      selectable: false,
+    });
+  }
 
   const tugsWithoutPosition = frame.tugs.filter((t) => !t.position).length;
   for (const t of frame.tugs) {

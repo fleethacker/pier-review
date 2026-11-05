@@ -4,6 +4,8 @@ import { openJsonStream } from '../streams';
 import type { StreamHandle, StreamStatus } from '../streams';
 import { adaptFrame, frameIndexAt, parseSimMessage } from './frames';
 import type { SimFrame, SimLifecycle, SimRecording, SimScene, Vec2, ViewFrame } from './frames';
+import { forcingOf, SimClock } from './clock';
+import type { SimClockView } from './clock';
 import { motionSceneParts } from './sceneMapper';
 import type { MotionSceneParts, ShipDims } from './sceneMapper';
 import type { CameraPreset } from '../../../scene/types';
@@ -28,6 +30,10 @@ export interface MotionState {
   /** Lifecycle state last reported by the session; null until one arrives (legacy sessions never send one). */
   lifecycle: SimLifecycle['state'] | null;
   lifecycleMessage: string | null;
+  lifecycleReasons: string[];
+  lifecycleInvalid: boolean;
+  forcingRevision: string | null;
+  forcingSynthetic: boolean | null;
   scene: SimScene | null;
   sceneError: string | null;
   frame: ViewFrame | null;
@@ -44,7 +50,24 @@ export interface MotionState {
   playing: boolean;
   speed: number;
   cursorS: number;
+  /** Live sessions: simulation vs wall time and when the forcing applies. Null for recordings and before the first frame. */
+  clock: SimClockView | null;
+  /** Interactive sessions started from this browser whose recording can be replayed (live copy, else persisted). */
+  sessionRecordings: SessionRecordingRef[];
 }
+
+export interface SessionRecordingRef {
+  sessionId: string;
+  recordingUrl: string;
+  sceneUrl: string | null;
+  startedAt: string;
+  forcingRevision?: string | null;
+  forcingSynthetic?: boolean | null;
+}
+
+/** Live speeds the session protocol accepts (simulated seconds per wall second; the physics step never changes). */
+export const LIVE_SPEEDS = [0.5, 1, 2, 4, 8, 16] as const;
+const MAX_SESSION_RECORDINGS = 10;
 
 const INITIAL: MotionState = {
   open: false,
@@ -55,6 +78,10 @@ const INITIAL: MotionState = {
   sessionId: null,
   lifecycle: null,
   lifecycleMessage: null,
+  lifecycleReasons: [],
+  lifecycleInvalid: false,
+  forcingRevision: null,
+  forcingSynthetic: null,
   scene: null,
   sceneError: null,
   frame: null,
@@ -68,6 +95,8 @@ const INITIAL: MotionState = {
   playing: false,
   speed: 1,
   cursorS: 0,
+  sessionRecordings: [],
+  clock: null,
 };
 
 /** What the motion view needs from the mooring setup. */
@@ -118,8 +147,13 @@ export class MotionController {
   private replayTimer: ReturnType<typeof setInterval> | undefined;
   private replayClock = 0;
   private disposed = false;
+  private loadEpoch = 0;
+  private forcingSyntheticOverride: boolean | null = null;
   private rawFrames: SimFrame[] = [];
   private sessionLayoutKey: string | null = null;
+  /** Newest lifecycle sequence received; a reconnect asks only for lifecycle messages after it. */
+  private lastLifecycleSeq = -1;
+  private readonly simClock = new SimClock();
 
   constructor(
     private readonly host: MotionHost,
@@ -154,7 +188,7 @@ export class MotionController {
       return;
     }
     this.stopEverything();
-    this.state.set({ ...INITIAL });
+    this.state.set({ ...INITIAL, sessionRecordings: this.s.sessionRecordings });
   }
 
   dispose(): void {
@@ -164,6 +198,8 @@ export class MotionController {
   }
 
   private stopEverything(): void {
+    this.loadEpoch += 1;
+    this.forcingSyntheticOverride = null;
     this.stopReplay();
     this.stream?.close();
     this.stream = null;
@@ -179,6 +215,12 @@ export class MotionController {
   /** Draws one frame now (replay, scrub) or the newest pending frame (live). */
   private show(raw: SimFrame): void {
     const frame = adaptFrame(raw, { faceBearingDeg: this.face() });
+    const forcing = forcingOf(raw);
+    this.state.set({ forcingRevision: forcing.forcingRevision ?? this.s.forcingRevision,
+      forcingSynthetic: this.forcingSyntheticOverride ?? (this.s.forcingSynthetic === true || forcing.training) });
+    const clock = this.s.source === 'live' ? this.simClock.observe(raw, Date.now(), this.s.lifecycle === 'running') : null;
+    if (clock) clock.training = this.s.forcingSynthetic ?? clock.training;
+    if (clock || this.s.clock) this.state.set({ clock });
     const p = { x: frame.ship.x_ft, y: frame.ship.y_ft };
     this.state.set((s) => {
       // A new run (reset) starts a fresh trail; time never runs backwards within a run.
@@ -237,7 +279,7 @@ export class MotionController {
 
   // ---- scene ----------------------------------------------------------------------------------------------
 
-  private async loadScene(url: string | null | undefined): Promise<void> {
+  private async loadScene(url: string | null | undefined, epoch = this.loadEpoch): Promise<void> {
     if (!url) {
       this.state.set({ scene: null, sceneError: 'This session does not publish a scene; the berth outline is not drawn.' });
       return;
@@ -245,24 +287,32 @@ export class MotionController {
     try {
       const res = await fetch(url, { headers: authHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      this.state.set({ scene: (await res.json()) as SimScene, sceneError: null });
+      const scene = (await res.json()) as SimScene;
+      if (epoch !== this.loadEpoch || this.disposed) return;
+      this.state.set({ scene, sceneError: null });
     } catch (e) {
+      if (epoch !== this.loadEpoch || this.disposed) return;
       this.state.set({ scene: null, sceneError: `Scene unavailable: ${e instanceof Error ? e.message : String(e)}` });
     }
   }
 
   // ---- recording playback -----------------------------------------------------------------------------------
 
-  async loadRecording(url: string = FIXTURE_RECORDING_URL, sceneUrl: string | null = FIXTURE_SCENE_URL, label = 'Recorded fixture (mock)'): Promise<void> {
+  async loadRecording(url: string = FIXTURE_RECORDING_URL, sceneUrl: string | null = FIXTURE_SCENE_URL, label = 'Recorded fixture (mock)', forcing?: Pick<SessionRecordingRef, 'forcingRevision' | 'forcingSynthetic'>): Promise<void> {
     this.stopEverything();
+    const epoch = this.loadEpoch;
+    this.forcingSyntheticOverride = forcing?.forcingSynthetic ?? null;
+    this.state.set({ forcingRevision: forcing?.forcingRevision ?? null, forcingSynthetic: forcing?.forcingSynthetic ?? null, lifecycleReasons: [], lifecycleInvalid: false });
     this.state.set({ busy: true, error: null, source: 'recording', link: 'idle', lifecycle: null, frame: null, trail: [], playing: false, sessionId: null });
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: authHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const rec = (await res.json()) as SimRecording;
+      if (epoch !== this.loadEpoch || this.disposed) return;
       if (!rec.frames?.length) throw new Error('The recording has no frames.');
       this.rawFrames = rec.frames;
-      await this.loadScene(sceneUrl);
+      await this.loadScene(sceneUrl, epoch);
+      if (epoch !== this.loadEpoch || this.disposed) return;
       this.state.set({
         recording: { id: rec.recording_id, durationS: rec.duration_s ?? rec.frames[rec.frames.length - 1].t_s, frames: rec.frames, label },
         busy: false,
@@ -271,6 +321,7 @@ export class MotionController {
       });
       this.seek(rec.frames[0].t_s);
     } catch (e) {
+      if (epoch !== this.loadEpoch || this.disposed) return;
       this.state.set({ busy: false, source: 'none', recording: null, error: `Could not load the recording: ${e instanceof Error ? e.message : String(e)}` });
     }
   }
@@ -323,8 +374,20 @@ export class MotionController {
     this.rawFrames = [];
   }
 
+  /** Recording: playback rate. Live: asks the session to run at this many simulated seconds per wall second. */
   setSpeed(speed: number): void {
     if (this.s.source === 'recording') this.state.set({ speed });
+    else if (this.s.source === 'live' && speed > 0 && speed <= 16) {
+      // The session confirms the applied speed in its next lifecycle message.
+      if (this.send({ type: 'set_speed', speed })) this.state.set({ speed });
+    }
+  }
+
+  /** Replay the recording of a session started from this browser. */
+  async loadSessionRecording(sessionId: string): Promise<void> {
+    const ref = this.s.sessionRecordings.find((r) => r.sessionId === sessionId);
+    if (!ref) return;
+    await this.loadRecording(ref.recordingUrl, ref.sceneUrl, `Session ${sessionId} recording (synthetic dynamics)`, ref);
   }
 
   // ---- live session -----------------------------------------------------------------------------------------
@@ -346,21 +409,43 @@ export class MotionController {
       return;
     }
     this.stopEverything();
+    const epoch = this.loadEpoch;
+    this.lastLifecycleSeq = -1;
+    this.simClock.reset();
+    this.state.set({ speed: 1, clock: null, forcingRevision: null, forcingSynthetic: null, lifecycleReasons: [], lifecycleInvalid: false });
     this.state.set({ busy: true, error: null, source: 'live', link: 'connecting', frame: null, trail: [], lifecycle: null, lifecycleMessage: null, lastSequence: null, droppedForDisplay: 0, recording: null, playing: false });
     try {
       const scenarioId = await this.host.ensureScenario();
+      if (epoch !== this.loadEpoch || this.disposed) return;
       if (inputKey !== this.host.layoutKey()) throw new Error('Inputs changed while saving the scenario. Start a new session.');
       if (!scenarioId) throw new Error('A scenario is needed to start a session; set up the berth, ship and lines first.');
       const created = unwrap(await modeling.POST('/api/v1/berthing/sessions', { body: { scenario_id: scenarioId, initial_state: initial } }));
+      if (epoch !== this.loadEpoch || this.disposed) return;
       if (inputKey !== this.host.layoutKey()) throw new Error('Inputs changed while creating the session. The new session remains paused; start again.');
       this.sessionLayoutKey = layoutKey;
-      this.state.set({ sessionId: created.session_id });
-      await this.loadScene(created.scene_url ? serviceUrl(MODELING_BASE, created.scene_url) : null);
-      if (this.disposed) return;
+      this.forcingSyntheticOverride = created.forcing_synthetic ?? null;
+      this.state.set({ sessionId: created.session_id, forcingRevision: created.forcing_revision ?? null,
+        forcingSynthetic: created.forcing_synthetic ?? null });
+      const sceneUrl = created.scene_url ? serviceUrl(MODELING_BASE, created.scene_url) : null;
+      const recordingUrl = created.recording_url;
+      if (recordingUrl) {
+        const ref: SessionRecordingRef = {
+          sessionId: created.session_id,
+          recordingUrl: serviceUrl(MODELING_BASE, recordingUrl),
+          sceneUrl,
+          startedAt: new Date().toISOString(),
+          forcingRevision: created.forcing_revision,
+          forcingSynthetic: created.forcing_synthetic,
+        };
+        this.state.set({ sessionRecordings: [ref, ...this.s.sessionRecordings].slice(0, MAX_SESSION_RECORDINGS) });
+      }
+      await this.loadScene(sceneUrl, epoch);
+      if (epoch !== this.loadEpoch || this.disposed) return;
       if (inputKey !== this.host.layoutKey()) throw new Error('Inputs changed while loading the scene. The session remains paused; start again.');
       this.connect(created.session_id);
       this.state.set({ busy: false });
     } catch (e) {
+      if (epoch !== this.loadEpoch || this.disposed) return;
       const detail = e instanceof Error ? e.message : String(e);
       this.state.set({
         busy: false,
@@ -374,14 +459,18 @@ export class MotionController {
   }
 
   private connect(sessionId: string): void {
-    const url = wsUrl(MODELING_BASE, `/ws/sim/${encodeURIComponent(sessionId)}`, {});
+    // On reconnect, ask only for lifecycle messages newer than the last one seen; frames are latest-state only.
+    const url = () =>
+      wsUrl(MODELING_BASE, `/ws/sim/${encodeURIComponent(sessionId)}`, {
+        after_sequence: this.lastLifecycleSeq >= 0 ? this.lastLifecycleSeq : undefined,
+      });
     let first = true;
     this.stream = openJsonStream<unknown>(
       url,
       (raw) => {
         const msg = parseSimMessage(raw);
         if (msg.kind === 'frame') this.receive(msg.frame);
-        else if (msg.kind === 'lifecycle') this.state.set({ lifecycle: msg.lifecycle.state, lifecycleMessage: msg.lifecycle.message ?? null });
+        else if (msg.kind === 'lifecycle') this.onLifecycle(msg.lifecycle);
       },
       (link) => {
         if (this.disposed) return;
@@ -394,6 +483,19 @@ export class MotionController {
         if (link === 'error') this.state.set({ notice: 'Connection lost; retrying…' });
       },
     );
+  }
+
+  private onLifecycle(lifecycle: SimLifecycle): void {
+    // Retained lifecycle messages can be resent; never step backwards.
+    if (lifecycle.sequence <= this.lastLifecycleSeq) return;
+    this.lastLifecycleSeq = lifecycle.sequence;
+    this.state.set({
+      lifecycle: lifecycle.state,
+      lifecycleMessage: lifecycle.message ?? null,
+      lifecycleReasons: (lifecycle.validity?.reasons ?? []).map((reason) => `${reason.code}: ${reason.message}`),
+      lifecycleInvalid: lifecycle.validity?.state === 'invalid',
+      ...(lifecycle.speed != null ? { speed: lifecycle.speed } : {}),
+    });
   }
 
   /** Control messages and commands. Returns false when there is no live session to send to. */

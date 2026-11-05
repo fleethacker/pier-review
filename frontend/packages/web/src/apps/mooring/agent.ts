@@ -1,5 +1,5 @@
 import { Store } from '../../lib/store';
-import { agents, AGENTS_BASE, modeling, unwrap, describeError } from './api';
+import { agents, AGENTS_BASE, awaitJob, modeling, unwrap, describeError } from './api';
 import type { MooringController } from './controller';
 import type {
   AgentPlan,
@@ -7,6 +7,7 @@ import type {
   Approval,
   MooringConfig,
   MooringLine,
+  SafetyReview,
   SafetySheet,
   TugAssignment,
 } from './types';
@@ -26,10 +27,19 @@ export interface ChatItem {
   cites: string[];
 }
 
+export interface ReviewState {
+  state: 'idle' | 'running' | 'ready' | 'error';
+  progress: number;
+  error: string | null;
+  review: SafetyReview | null;
+}
+
 export interface AgentState {
   phase: 'idle' | 'saving' | 'running' | 'done' | 'error';
   error: string | null;
   planId: string | null;
+  /** The Intake report the Planner was given; the independent review is bound to the same report. */
+  intakeReportId: string | null;
   objective: Objective;
   targetMarginPct: number;
   steps: AgentStep[];
@@ -37,6 +47,8 @@ export interface AgentState {
   plan: AgentPlan | null;
   chat: ChatItem[];
   undo: { lines: MooringLine[]; tugs: TugAssignment[] } | null;
+  /** Independent Safety review of the finished plan. A sheet is only built from an explicit, ready review. */
+  review: ReviewState;
   sheet: {
     state: 'idle' | 'creating' | 'ready' | 'error';
     error: string | null;
@@ -50,6 +62,7 @@ const INITIAL: AgentState = {
   phase: 'idle',
   error: null,
   planId: null,
+  intakeReportId: null,
   objective: 'moor_for_forecast',
   targetMarginPct: 70,
   steps: [],
@@ -57,10 +70,14 @@ const INITIAL: AgentState = {
   plan: null,
   chat: [],
   undo: null,
+  review: { state: 'idle', progress: 0, error: null, review: null },
   sheet: { state: 'idle', error: null, sheet: null, html: null, image: null },
 };
 
 const message = describeError;
+
+/** SafetyReviewRequest's documented default. The independent review does not inherit the Planner's target margin. */
+export const REVIEW_TARGET_PCT_WLL = 80;
 
 /** The planning agent and safety sheet flow. Reads and writes the mooring plan through the controller. */
 export class AgentSession {
@@ -69,6 +86,8 @@ export class AgentSession {
   private disposed = false;
   private context: string | null = null;
   private sheetRequest = 0;
+  private reviewRequest = 0;
+  private planRequest = 0;
 
   constructor(private readonly parent: MooringController) {}
 
@@ -78,8 +97,21 @@ export class AgentSession {
 
   dispose(): void {
     this.disposed = true;
+    this.planRequest++;
     this.sheetRequest++;
+    this.reviewRequest++;
     this.source?.close();
+  }
+
+  /** A different ship, berth or side-to must not retain the previous selection's plan or late responses. */
+  resetForSelection(): void {
+    this.planRequest++;
+    this.sheetRequest++;
+    this.reviewRequest++;
+    this.source?.close();
+    this.source = null;
+    this.context = null;
+    this.state.set({ ...INITIAL, objective: this.s.objective, targetMarginPct: this.s.targetMarginPct });
   }
 
   setObjective(objective: Objective): void {
@@ -92,7 +124,10 @@ export class AgentSession {
 
   async run(): Promise<void> {
     if (this.s.phase === 'running' || this.s.phase === 'saving') return;
+    const request = ++this.planRequest;
+    const current = () => !this.disposed && request === this.planRequest;
     this.sheetRequest++;
+    this.reviewRequest++;
     this.source?.close();
     this.context = this.parent.contextKey();
     this.state.set({
@@ -104,13 +139,15 @@ export class AgentSession {
       plan: null,
       chat: [],
       planId: null,
+      intakeReportId: null,
+      review: INITIAL.review,
       sheet: INITIAL.sheet,
     });
     try {
       const inputs = this.parent.scenarioKey();
       const intakeReportId = this.parent.intake.reportId();
       const scenarioId = await this.parent.ensureScenario(`Agent run ${new Date().toISOString().slice(11, 19)}Z`);
-      if (this.disposed) return;
+      if (!current()) return;
       if (inputs !== this.parent.scenarioKey()) throw new Error('Inputs changed while saving. Run a new plan.');
       if (!scenarioId) throw new Error('Choose a ship and berth first.');
       const accepted = unwrap(
@@ -124,10 +161,11 @@ export class AgentSession {
           },
         }),
       );
-      this.state.set({ phase: 'running', planId: accepted.plan_id });
+      if (!current()) return;
+      this.state.set({ phase: 'running', planId: accepted.plan_id, intakeReportId });
       this.listen(accepted.events_url, accepted.plan_id);
     } catch (e) {
-      this.state.set({ phase: 'error', error: message(e) });
+      if (current()) this.state.set({ phase: 'error', error: message(e) });
     }
   }
 
@@ -135,41 +173,48 @@ export class AgentSession {
     this.source?.close();
     const source = new EventSource(`${AGENTS_BASE}${eventsUrl}`);
     this.source = source;
+    const request = this.planRequest;
+    const current = () => !this.disposed && this.source === source && request === this.planRequest;
     const parse = <T,>(ev: Event): T => JSON.parse((ev as MessageEvent).data) as T;
 
     source.addEventListener('step', (ev) => {
+      if (!current()) return;
       const d = parse<{ iteration: number; thought_summary: string; tool: string; result_id: string | null }>(ev);
       this.state.set({
         steps: [...this.s.steps, { iteration: d.iteration, tool: d.tool, summary: d.thought_summary, resultId: d.result_id }],
       });
     });
     source.addEventListener('proposal', (ev) => {
+      if (!current()) return;
       this.state.set({ proposal: parse<NonNullable<AgentState['proposal']>>(ev) });
     });
     source.addEventListener('message', (ev) => {
+      if (!current()) return;
       const d = parse<{ text: string; cites: string[] }>(ev);
       this.state.set({ chat: [...this.s.chat, { role: 'agent', text: d.text, cites: d.cites }] });
     });
     source.addEventListener('done', () => {
+      if (!current()) return;
       source.close();
-      void this.finish(planId);
+      void this.finish(planId, request);
     });
     source.onerror = () => {
       // EventSource retries by itself; only give up if the stream never produced anything.
-      if (source.readyState === EventSource.CLOSED && this.s.phase === 'running') {
+      if (current() && source.readyState === EventSource.CLOSED && this.s.phase === 'running') {
         this.state.set({ phase: 'error', error: 'The agent event stream closed unexpectedly.' });
       }
     };
   }
 
-  private async finish(planId: string): Promise<void> {
+  private async finish(planId: string, request: number): Promise<void> {
+    const current = () => !this.disposed && request === this.planRequest && this.s.planId === planId;
     try {
       const plan = unwrap(await agents.GET('/api/v1/agent/plans/{plan_id}', { params: { path: { plan_id: planId } } }));
-      if (this.disposed) return;
+      if (!current()) return;
       this.state.set({ phase: 'done', plan });
       this.applyPlan(plan);
     } catch (e) {
-      this.state.set({ phase: 'error', error: message(e) });
+      if (current()) this.state.set({ phase: 'error', error: message(e) });
     }
   }
 
@@ -208,8 +253,15 @@ export class AgentSession {
 
   async ask(text: string): Promise<void> {
     const planId = this.s.planId;
-    if (!planId || !text.trim()) return;
-    this.state.set({ chat: [...this.s.chat, { role: 'user', text, cites: [] }] });
+    if (!planId || !text.trim() || this.s.phase !== 'done') return;
+    const request = ++this.planRequest;
+    const current = () => !this.disposed && request === this.planRequest && this.s.planId === planId;
+    this.source?.close();
+    this.source = null;
+    this.sheetRequest++;
+    this.reviewRequest++;
+    this.state.set({ phase: 'saving', chat: [...this.s.chat, { role: 'user', text, cites: [] }],
+      review: INITIAL.review, sheet: INITIAL.sheet });
     try {
       unwrap(
         await agents.POST('/api/v1/agent/plans/{plan_id}/messages', {
@@ -217,22 +269,72 @@ export class AgentSession {
           body: { text },
         }),
       );
-      this.state.set({ phase: 'running', steps: [] });
+      if (!current()) return;
+      // A follow-up can change the plan: the old review and sheet no longer describe it.
+      this.sheetRequest++;
+      this.reviewRequest++;
+      this.state.set({ phase: 'running', steps: [], review: INITIAL.review, sheet: INITIAL.sheet });
       this.listen(`/api/v1/agent/plans/${planId}/events`, planId);
     } catch (e) {
-      this.state.set({ error: message(e) });
+      if (current()) this.state.set({ phase: 'error', error: message(e) });
     }
+  }
+
+  // ---- independent safety review ---------------------------------------------------------------------------
+
+  /** Ask the Safety agent to review the finished plan independently, with the Intake report the Planner used. */
+  async review(): Promise<void> {
+    const planId = this.s.planId;
+    if (!planId || this.s.phase !== 'done' || this.s.review.state === 'running') return;
+    const request = ++this.reviewRequest;
+    this.sheetRequest++;
+    const current = () => !this.disposed && request === this.reviewRequest && this.s.planId === planId;
+    this.state.set({ review: { state: 'running', progress: 0, error: null, review: null }, sheet: INITIAL.sheet });
+    try {
+      const intakeReportId = this.s.intakeReportId;
+      const accepted = unwrap(
+        await agents.POST('/api/v1/safety/reviews', {
+          body: {
+            plan_id: planId,
+            // The reviewer's own threshold (the contract default), not the Planner's target.
+            target_margin_pct_wll: REVIEW_TARGET_PCT_WLL,
+            ...(intakeReportId ? { intake_report_id: intakeReportId } : {}),
+          },
+        }),
+      );
+      if (!current()) return;
+      const review = await awaitJob<SafetyReview>(AGENTS_BASE, accepted, (progress) => {
+        if (current()) this.setReview({ progress });
+      });
+      if (!current()) return;
+      if (review.plan_id !== planId) throw new Error('The service returned a review of a different plan.');
+      this.setReview({ state: 'ready', progress: 1, review });
+    } catch (e) {
+      if (current()) this.setReview({ state: 'error', error: message(e) });
+    }
+  }
+
+  private setReview(patch: Partial<ReviewState>): void {
+    this.state.set({ review: { ...this.s.review, ...patch } });
   }
 
   // ---- safety sheet ----------------------------------------------------------------------------------------
 
+  /** Build the sheet from the plan and the explicit review shown in the UI, never an implicit one. */
   async createSheet(): Promise<void> {
     const planId = this.s.planId;
+    const review = this.s.review.review;
     if (!planId) return;
+    if (!review || this.s.review.state !== 'ready' || review.plan_id !== planId) {
+      this.setSheet({ state: 'error', error: 'Run the independent safety review before building the sheet.' });
+      return;
+    }
     const request = ++this.sheetRequest;
     this.setSheet({ state: 'creating', error: null });
     try {
-      const created = unwrap(await agents.POST('/api/v1/safety-sheets', { body: { plan_id: planId } }));
+      const created = unwrap(
+        await agents.POST('/api/v1/safety-sheets', { body: { plan_id: planId, review_id: review.review_id } }),
+      );
       if (!this.currentSheetRequest(request)) return;
       await this.loadSheet(created.sheet_id, request);
       if (!this.currentSheetRequest(request)) return;

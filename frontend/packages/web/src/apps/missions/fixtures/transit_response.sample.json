@@ -1,0 +1,244 @@
+{
+ "result_id": "sample-transit",
+ "model": "mooring.transit.sample",
+ "model_version": "MOCK",
+ "backend": "mock",
+ "inputs_hash": "MOCK",
+ "computed_at_utc": "2026-11-05T12:00:00Z",
+ "status": "AMBER",
+ "assumptions": [
+  "MOCK fixture: kinematic path, not a simulation.",
+  "Propulsion (speed, thrust lag, rudder rate) is assumed, not from ship data.",
+  "Deep water: no squat, bank effect or under-keel clearance.",
+  "Tug hull kinematics are not modeled; forces act at fixed contact points."
+ ],
+ "warnings": [],
+ "validity": {
+  "state": "limited",
+  "reasons": [
+   {
+    "code": "SURROGATE_MANEUVERING_MODEL",
+    "message": "Surrogate maneuvering model; not navigational advice.",
+    "affected_components": []
+   },
+   {
+    "code": "PROPULSION_ASSUMED",
+    "message": "Propulsion data are assumptions; reference data has none.",
+    "affected_components": [
+     "MOCK-A",
+     "MOCK-B"
+    ]
+   }
+  ]
+ },
+ "manifest": null,
+ "result": {
+  "series_url": "/api/v1/transit/simulations/sample-job/series",
+  "vessels": [
+   {
+    "vessel_id": "MOCK-A",
+    "ship_class_id": "mock-ship-a",
+    "mode": "own_thrust",
+    "arrived": true,
+    "arrival_t_s": 285,
+    "distance_nm": 0.9,
+    "max_cross_track_ft": 6,
+    "max_rudder_deg": 8,
+    "max_tug_force_lbf": 0,
+    "max_speed_assumed_kt": 14,
+    "track": [
+     {
+      "t_utc": "2026-11-05T12:00:00Z",
+      "lat": 36.9585,
+      "lon": -76.3,
+      "heading_true_deg": 270,
+      "sog_kt": 11,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:00:45Z",
+      "lat": 36.9585,
+      "lon": -76.302863,
+      "heading_true_deg": 270,
+      "sog_kt": 11,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:01:30Z",
+      "lat": 36.9585,
+      "lon": -76.305726,
+      "heading_true_deg": 270,
+      "sog_kt": 11,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:02:15Z",
+      "lat": 36.958104,
+      "lon": -76.308516,
+      "heading_true_deg": 240,
+      "sog_kt": 11,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:03:00Z",
+      "lat": 36.956733,
+      "lon": -76.310805,
+      "heading_true_deg": 230,
+      "sog_kt": 11,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:03:45Z",
+      "lat": 36.95532,
+      "lon": -76.312898,
+      "heading_true_deg": 230,
+      "sog_kt": 8,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:04:30Z",
+      "lat": 36.954446,
+      "lon": -76.314194,
+      "heading_true_deg": 230,
+      "sog_kt": 3.5,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:04:45Z",
+      "lat": 36.954289,
+      "lon": -76.314426,
+      "heading_true_deg": 230,
+      "sog_kt": 2,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     }
+    ]
+   },
+   {
+    "vessel_id": "MOCK-B",
+    "ship_class_id": "mock-ship-b",
+    "mode": "tug_assisted",
+    "arrived": true,
+    "arrival_t_s": 285,
+    "distance_nm": 0.9,
+    "max_cross_track_ft": 6,
+    "max_rudder_deg": 8,
+    "max_tug_force_lbf": 30000,
+    "max_speed_assumed_kt": 14,
+    "track": [
+     {
+      "t_utc": "2026-11-05T12:00:00Z",
+      "lat": 36.95,
+      "lon": -76.305,
+      "heading_true_deg": 350,
+      "sog_kt": 6,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:00:45Z",
+      "lat": 36.951237,
+      "lon": -76.305271,
+      "heading_true_deg": 350,
+      "sog_kt": 6,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:01:30Z",
+      "lat": 36.952474,
+      "lon": -76.305542,
+      "heading_true_deg": 350,
+      "sog_kt": 6,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:02:15Z",
+      "lat": 36.953711,
+      "lon": -76.305813,
+      "heading_true_deg": 355,
+      "sog_kt": 6,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:03:00Z",
+      "lat": 36.954963,
+      "lon": -76.305949,
+      "heading_true_deg": 355,
+      "sog_kt": 5.3,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:03:45Z",
+      "lat": 36.955922,
+      "lon": -76.306054,
+      "heading_true_deg": 355,
+      "sog_kt": 3.2,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:04:30Z",
+      "lat": 36.956443,
+      "lon": -76.306111,
+      "heading_true_deg": 355,
+      "sog_kt": 1.1,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     },
+     {
+      "t_utc": "2026-11-05T12:04:45Z",
+      "lat": 36.95652,
+      "lon": -76.306119,
+      "heading_true_deg": 355,
+      "sog_kt": 0.5,
+      "quality": "good",
+      "source": "simulated:sample-job"
+     }
+    ]
+   }
+  ],
+  "events": [
+   {
+    "t_s": 105,
+    "vessel_id": "MOCK-A",
+    "kind": "waypoint_reached",
+    "detail": "MOCK: waypoint 1 reached"
+   },
+   {
+    "t_s": 120,
+    "vessel_id": "MOCK-A",
+    "kind": "rudder_saturated",
+    "detail": "MOCK: rudder at 35 deg limit"
+   },
+   {
+    "t_s": 180,
+    "vessel_id": "MOCK-B",
+    "kind": "tug_saturated",
+    "detail": "MOCK: tug force at bollard pull"
+   },
+   {
+    "t_s": 285,
+    "vessel_id": "MOCK-A",
+    "kind": "arrived",
+    "detail": "MOCK: arrived"
+   },
+   {
+    "t_s": 285,
+    "vessel_id": "MOCK-B",
+    "kind": "arrived",
+    "detail": "MOCK: arrived"
+   }
+  ]
+ }
+}

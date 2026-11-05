@@ -12,11 +12,11 @@ import math
 import threading
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Protocol, TypeVar, runtime_checkable
+from typing import Any, Literal, Protocol, TypeVar, runtime_checkable
 
 import httpx
 
@@ -75,13 +75,20 @@ class FixtureProvider:
     """Replay a checked-in JSON fixture through the provider interface."""
 
     path: Path
+    basis: Literal["observation", "prediction", "scenario"]
+    source_kind: Literal["replay", "forecast", "mock"]
     provider_id: str = "recorded-fixture"
 
     def __post_init__(self) -> None:
         from .replay import ReplaySource
 
         raw = json.loads(self.path.read_text(encoding="utf-8"))
-        self._source = ReplaySource(raw)
+        self._source = ReplaySource(
+            raw,
+            station=self.provider_id,
+            basis=self.basis,
+            source_kind=self.source_kind,
+        )
 
     def snapshot(self, at: datetime) -> ProviderResult:
         from .replay import Unavailable as ReplayUnavailable
@@ -183,6 +190,8 @@ class HttpPayload:
     from_cache: bool = False
     stale: bool = False
     age_s: float = 0.0
+    # Recorded once at transport completion; age is not a reproducible timestamp.
+    retrieved_at_utc: datetime | None = None
 
     def json(self) -> Any:
         try:
@@ -197,6 +206,50 @@ Transport = Callable[[str, Mapping[str, str], float, Mapping[str, str]], HttpPay
 def httpx_transport(url: str, params: Mapping[str, str], timeout_s: float, headers: Mapping[str, str]) -> HttpPayload:
     response = httpx.get(url, params=params, timeout=timeout_s, headers=headers, follow_redirects=False)
     return HttpPayload(response.status_code, response.content, dict(response.headers))
+
+
+def bounded_httpx_transport(
+    url: str,
+    params: Mapping[str, str],
+    timeout_s: float,
+    headers: Mapping[str, str],
+    *,
+    max_response_bytes: int,
+    max_elapsed_s: float,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> HttpPayload:
+    """Stream with byte and elapsed-time caps, including slow-drip responses."""
+    started = monotonic()
+    elapsed_limit = min(max_elapsed_s, timeout_s)
+
+    def ensure_elapsed_bound() -> None:
+        if monotonic() - started >= elapsed_limit:
+            raise httpx.TimeoutException(f"response exceeded {elapsed_limit}s elapsed limit")
+
+    with httpx.stream(
+        "GET",
+        url,
+        params=params,
+        timeout=httpx.Timeout(timeout_s, read=min(timeout_s, 1.0)),
+        headers=headers,
+        follow_redirects=False,
+    ) as response:
+        ensure_elapsed_bound()
+        declared = response.headers.get("content-length")
+        if declared is not None:
+            try:
+                if int(declared) > max_response_bytes:
+                    raise httpx.HTTPError(f"response exceeds {max_response_bytes} bytes")
+            except ValueError:
+                pass
+        content = bytearray()
+        for chunk in response.iter_bytes():
+            ensure_elapsed_bound()
+            content.extend(chunk)
+            if len(content) > max_response_bytes:
+                raise httpx.HTTPError(f"response exceeds {max_response_bytes} bytes")
+        ensure_elapsed_bound()
+        return HttpPayload(response.status_code, bytes(content), dict(response.headers))
 
 
 @dataclass
@@ -225,14 +278,40 @@ class ProviderHttpClient:
         return url, tuple(sorted((str(k), str(v)) for k, v in params.items()))
 
     def _cached(self, payload: HttpPayload, *, age_s: float, stale: bool) -> HttpPayload:
-        return HttpPayload(payload.status_code, payload.content, payload.headers, True, stale, age_s)
+        return replace(payload, from_cache=True, stale=stale, age_s=age_s)
 
-    def get(self, url: str, params: Mapping[str, str] | None = None) -> HttpPayload:
-        # A shared provider client coalesces cache misses and serializes its rate/breaker state.
-        with self._lock:
-            return self._get(url, params)
+    def get(
+        self, url: str, params: Mapping[str, str] | None = None, *,
+        deadline_monotonic: float | None = None, monotonic: Callable[[], float] = time.monotonic,
+    ) -> HttpPayload:
+        """Serialize provider state within an optional caller-owned elapsed budget.
 
-    def _get(self, url: str, params: Mapping[str, str] | None = None) -> HttpPayload:
+        The budget includes lock contention, rate waits, retries and transport.
+        Transports must honor their timeout; streaming adapters also bound total
+        response elapsed time rather than only an individual socket operation.
+        """
+        if deadline_monotonic is not None and not math.isfinite(deadline_monotonic):
+            raise ValueError("provider deadline must be finite")
+
+        def remaining() -> float:
+            budget = math.inf if deadline_monotonic is None else deadline_monotonic - monotonic()
+            if budget <= 0:
+                raise ProviderError("unavailable", f"{self.provider_id} total request deadline exceeded")
+            return budget
+
+        if deadline_monotonic is None:
+            acquired = self._lock.acquire()
+        else:
+            acquired = self._lock.acquire(timeout=remaining())
+        if not acquired:
+            raise ProviderError("unavailable", f"{self.provider_id} total request deadline exceeded waiting for provider lock")
+        try:
+            remaining()
+            return self._get(url, params, remaining=remaining)
+        finally:
+            self._lock.release()
+
+    def _get(self, url: str, params: Mapping[str, str] | None, *, remaining: Callable[[], float]) -> HttpPayload:
         params = params or {}
         key = self._key(url, params)
         now = self.clock.now()
@@ -252,32 +331,40 @@ class ProviderHttpClient:
             raise
         last_error = "no attempt"
         for attempt in range(self.policy.retries + 1):
+            remaining()
             if self._last_call is not None:
                 wait = self.policy.min_interval_s - (self.clock.now() - self._last_call).total_seconds()
                 if wait > 0:
-                    self.clock.sleep(wait)
+                    self.clock.sleep(min(wait, remaining()))
+                    remaining()
             self._last_call = self.clock.now()
             self.calls += 1
             try:
                 payload = self.transport(
                     url,
                     params,
-                    self.policy.timeout_s,
+                    min(self.policy.timeout_s, remaining()),
                     {"User-Agent": self.user_agent, "Accept": "application/json"},
                 )
             except (httpx.HTTPError, OSError, TimeoutError) as exc:
                 last_error = f"{type(exc).__name__}: {exc}"
             else:
+                remaining()
                 if payload.status_code == 429 or payload.status_code >= 500:
                     last_error = f"HTTP {payload.status_code}"
                 else:
                     self.breaker.succeeded()
                     if 200 <= payload.status_code < 300:
-                        self._cache[key] = (self.clock.now(), payload)
+                        retrieved = self.clock.now().astimezone(UTC)
+                        payload = replace(payload, retrieved_at_utc=retrieved)
+                        self._cache[key] = (retrieved, payload)
                     return payload
+            remaining()
             if attempt < self.policy.retries:
-                self.clock.sleep(self.policy.backoff_s * (2**attempt))
+                self.clock.sleep(min(self.policy.backoff_s * (2**attempt), remaining()))
+                remaining()
 
+        remaining()
         self.breaker.failed()
         if hit:
             # Retries, transport latency and backoff all age the cached value.

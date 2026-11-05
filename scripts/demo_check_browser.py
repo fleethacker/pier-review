@@ -60,7 +60,8 @@ def main() -> int:
         page = browser.new_page(viewport={"width": 1600, "height": 1000}, reduced_motion="reduce")
         page.set_default_timeout(45_000)
         PAGE.append(page)
-        page.route("**/*", lambda route: route.continue_() if urlparse(route.request.url).hostname in {"127.0.0.1", "localhost"} else route.abort())
+        allowed_hosts = {"127.0.0.1", "localhost", urlparse(URL).hostname}
+        page.route("**/*", lambda route: route.continue_() if urlparse(route.request.url).hostname in allowed_hosts else route.abort())
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
         intake_context: dict = {}
         def on_console(m):
@@ -74,29 +75,56 @@ def main() -> int:
 
         page.on("console", on_console)
 
+        def tab(name: str) -> None:
+            """The mooring panels live in tabs on the top bar; open the one a step needs."""
+            t = page.get_by_role("tab", name=name, exact=True)
+            t.click()
+            expect(t).to_have_attribute("aria-selected", "true")
+
+        def landing():
+            page.goto(URL.rstrip("/") + "/", wait_until="load")
+            apps = page.get_by_role("list", name="Applications")
+            expect(apps.get_by_role("button", name="Open Mooring Assistant")).to_be_visible()
+            expect(apps.get_by_role("button", name="Open Mission simulation")).to_be_visible()
+            shot(page, "00-landing")
+            apps.get_by_role("button", name="Open Mooring Assistant").click()
+            expect(page.get_by_role("tab", name="Setup", exact=True)).to_have_attribute("aria-selected", "true")
+            assert "app=mooring" in page.url, page.url
+            return "landing page lists Mooring Assistant and Mission simulation; the box opens Mooring Assistant on its Setup tab"
+
         def load():
-            page.goto(URL, wait_until="load")
+            if "app=mooring" not in page.url:
+                page.goto(URL.rstrip("/") + "/?app=mooring", wait_until="load")
             expect(page.get_by_text("All results limited: seed data")).to_be_visible()
+            tab("Plan & review")
             expect(page.get_by_role("button", name="Ask the agent to plan")).to_be_enabled()
+            tab("Setup")
             saved = page.locator("select").filter(has=page.locator("option", has_text="demo-check supported-limited"))
             saved.select_option(label="demo-check supported-limited")
+            tab("Lines")
             expect(page.get_by_text("Overall AMBER", exact=True).first).to_be_visible()
             shot(page, "01-loaded")
             return "app loaded against the services; seed-data banner visible"
 
         def sources():
+            tab("Conditions")
             expect(page.get_by_label("Data sources")).to_be_visible()
             text = page.get_by_label("Data sources").inner_text().lower()
             assert "unavailable" in text and "mock" in text, "source states should include mock and unavailable"
-            assert "waves" in text and "never shown as zero" in text
+            for label in ("Waves", "Wake", "Telemetry"):
+                row = page.get_by_label("Data sources").get_by_role("listitem").filter(has=page.get_by_text(label, exact=True))
+                assert "unavailable" in row.inner_text().lower(), f"{label} must stay unavailable in the offline demo"
+            assert "berth applicability" in text and "unavailable, not zero" in text
             return "waves, wake and telemetry say unavailable; environment says mock"
 
         def lines():
+            tab("Lines")
             text = page.locator("aside").first.inner_text()
             assert re.search(r"\bL?1\b", text), "no lines listed"
             return "lines listed with their analysis"
 
         def intake():
+            tab("Conditions")
             with page.expect_response(lambda r: r.url.endswith("/api/v1/intake/reports") and r.request.method == "POST") as submitted:
                 page.get_by_role("button", name="Assess conditions").click()
             response = submitted.value
@@ -115,6 +143,7 @@ def main() -> int:
             return "selected scenario assessed with MST, windows and deterministic summary; current wind matches the saved inputs"
 
         def plan():
+            tab("Plan & review")
             attempts = 0
             for attempts in range(1, 4):
                 with page.expect_response(lambda r: r.url.endswith("/api/v1/agent/plans") and r.request.method == "POST") as submitted:
@@ -142,11 +171,36 @@ def main() -> int:
             note = f" (took {attempts} attempts: transient timeout under CPU load)" if attempts > 1 else ""
             return f"planner used the displayed Intake and scenario, returned AMBER/limited, and applied its plan{note}"
 
+        review_context: dict = {}
+
+        def review():
+            create = page.get_by_role("button", name=re.compile("Create safety sheet|Rebuild safety sheet"))
+            assert create.is_disabled(), "the sheet must not be buildable before the independent review"
+            with page.expect_response(lambda r: r.url.endswith("/api/v1/safety/reviews") and r.request.method == "POST") as submitted:
+                page.get_by_role("button", name="Run independent review").click()
+            response = submitted.value
+            assert response.ok, "review submission failed"
+            body = response.request.post_data_json
+            assert body.get("intake_report_id") == intake_context.get("report_id"), "review was not bound to the Planner's Intake report"
+            section = page.get_by_label("Independent safety review")
+            expect(section.get_by_text(re.compile(r"^Review \S+ · "))).to_be_visible(timeout=120_000)
+            job = page.request.get(f"{URL}/api/agents/api/v1/jobs/{response.json()['job_id']}").json()
+            assert job["state"] == "succeeded", job
+            result = job["result"]
+            assert result["plan_id"] == body["plan_id"], "review is of a different plan"
+            review_context.update(review_id=result["review_id"], status=result["status"], verdict=result["verdict"])
+            assert result["review_id"] in section.inner_text(), "review identity not shown"
+            expect(create).to_be_enabled()
+            shot(page, "02b-review")
+            return f"independent review {result['status']}/{result['verdict']} bound to the Planner's Intake report; sheet unlocked only after it"
+
         def sheet():
             dialog = page.get_by_role("dialog").first
             attempts = 0
             for attempts in range(1, 4):
-                page.get_by_role("button", name=re.compile("Create safety sheet|Rebuild safety sheet")).click()
+                with page.expect_request(lambda r: r.url.endswith("/api/v1/safety-sheets") and r.method == "POST") as created:
+                    page.get_by_role("button", name=re.compile("Create safety sheet|Rebuild safety sheet")).click()
+                assert created.value.post_data_json.get("review_id") == review_context.get("review_id"), "sheet was not built from the displayed review"
                 try:
                     expect(dialog).to_be_visible(timeout=75_000)
                     break
@@ -156,6 +210,8 @@ def main() -> int:
                     if attempts == 3:
                         raise
                     page.wait_for_timeout(3000)
+            identity = dialog.get_by_label("Sheet review identity")
+            expect(identity).to_contain_text(review_context["review_id"])
             shot(page, "03-sheet")
             dialog.locator("input").first.fill("Demo Check")
             dialog.get_by_role("button", name="Approve", exact=True).click()
@@ -163,10 +219,11 @@ def main() -> int:
             expect(dialog.get_by_role("button", name=re.compile("print", re.I))).to_be_enabled(timeout=30_000)
             shot(page, "04-approved")
             note = f" (took {attempts} attempts: transient service timeout)" if attempts > 1 else ""
-            return f"sheet rendered, approval recorded, print available{note}"
+            return f"sheet rendered with its review identity, approval recorded, print available{note}"
 
         def motion_replay():
             page.get_by_role("button", name="Close", exact=True).first.click()
+            tab("Motion")
             page.get_by_role("button", name="Open motion view").click()
             page.get_by_role("button", name="Replay recording").click()
             view = page.get_by_role("dialog", name="Motion view")
@@ -230,6 +287,7 @@ def main() -> int:
         def vision():
             # A real (small) image on disk is needed for the file chooser.
             img = SHOTS / "01-loaded.png"
+            tab("Setup")
             page.get_by_label("Berth image").set_input_files(str(img))
             page.get_by_role("button", name="Analyze image").click()
             expect(page.get_by_text("draft: needs your confirmation")).to_be_visible()
@@ -246,12 +304,14 @@ def main() -> int:
             expect(page.get_by_text(re.compile("berth data: estimated", re.I))).to_be_visible()
             return "image analyzed, flagged items gated the confirm button, berth saved and selected, labeled with estimated catalog provenance (no pixel extraction claimed)"
 
+        step("Landing page: a box per application opens it", landing)
         step("Load the app and see the standing seed-data banner", load)
         step("Data-source panel is honest", sources)
         step("Analyzed lines are listed", lines)
         step("Intake agent assessment", intake)
         if step("Phase 1: agent plans (SSE steps)", plan):
-            step("Phase 1: safety sheet, approval and print", sheet)
+            if step("Phase 1: explicit independent safety review", review):
+                step("Phase 1: safety sheet, approval and print", sheet)
         if step("Motion: open the view and replay the recording", motion_replay):
             step("Motion: Cesium map mode with 3D camera presets", motion_map)
             step("Motion: live session through the proxy", motion_live)
@@ -267,6 +327,7 @@ def main() -> int:
                 body = {**case["scenario_request"], "env_source": {"mode": "scenario", "env_scenario_id": env["env_scenario_id"]}}
                 case["saved_id"] = page.request.post(base + "/scenarios", data=body).json()["scenario_id"]
             page.reload(wait_until="load")
+            tab("Plan & review")
             expect(page.get_by_role("button", name="Ask the agent to plan")).to_be_enabled()
             for case in cases:
                 expected = ("AMBER", "limited") if case["case_id"] == "ddg-supported-limited" else (
@@ -278,12 +339,14 @@ def main() -> int:
                     return (body["environment"]["wind_speed_kt"] == case["environment_request"]["wind_speed_kt"]
                             and body["environment"]["water_level_mllw_ft"] == case["environment_request"]["water_level_mllw_ft"]
                             and len(body["config"]["lines"]) == len(case["analysis_request"]["config"]["lines"]))
+                tab("Setup")
                 with page.expect_response(matches) as analyzed:
                     page.locator("select").filter(has=page.locator(f"option[value='{case['saved_id']}']")).select_option(case["saved_id"])
                 response = analyzed.value
                 assert response.ok, f"{case['case_id']} failed with HTTP {response.status}"
                 result = response.json()
                 assert (result["status"], result["validity"]["state"]) == expected, (case["case_id"], result)
+                tab("Lines")
                 expect(page.get_by_text(f"Overall {expected[0]}", exact=True).first).to_be_visible()
                 if expected[1] == "invalid":
                     expect(page.get_by_text("Line loads unavailable", exact=False).first).to_be_visible()
@@ -291,6 +354,63 @@ def main() -> int:
             return "saved supported, overloaded, invalid-depth and underconstrained inputs show their expected initial outcomes; invalid loads withheld"
 
         step("Four saved-scenario analysis outcomes", four_cases)
+
+        def demo_case_panel():
+            tab("Setup")
+            panel = page.get_by_label("Demo cases")
+            expected = {"ddg-supported-limited": ("AMBER", "limited"), "ddg-overloaded": ("RED", "limited"),
+                        "ddg-invalid-data": ("RED", "invalid"), "ddg-undetermined": ("RED", "invalid")}
+            cases = page.request.get(f"{URL}/api/modeling/api/v1/demo/docking-cases").json()
+            assert {c["case_id"] for c in cases} == set(expected), "unexpected demo case list"
+            rows = panel.get_by_role("listitem")
+            expect(rows).to_have_count(4)
+            outcomes = page.get_by_label("Case outcomes")
+            for i, case in enumerate(cases):
+                status, validity = expected[case["case_id"]]
+                rows.nth(i).get_by_role("button", name=re.compile("^(Load|Reload)$")).click()
+                expect(outcomes.get_by_text(f"validity {validity}").first).to_be_visible(timeout=60_000)
+                text = outcomes.inner_text().lower()  # labels are uppercased by CSS
+                assert "initial: plan as supplied" in text and status.lower() in text, (case["case_id"], text[:300])
+                assert "run the planning agent on this case" in text, "a final outcome was shown before planning this case"
+                shot(page, f"10-case-{case['case_id']}")
+            return "each named case loads from the panel with its initial outcome; final outcome waits for Planner and review"
+
+        step("Demo-case panel: initial vs final outcomes", demo_case_panel)
+
+        def advance_planning():
+            # Back on the saved supported scenario: bind a labeled training series, assess arrivals >= 24 h ahead, apply.
+            tab("Setup")
+            page.locator("select").filter(has=page.locator("option", has_text="demo-check supported-limited")).select_option(label="demo-check supported-limited")
+            tab("Lines")
+            expect(page.get_by_text("Overall AMBER", exact=True).first).to_be_visible()
+            tab("Advance (24 h+)")
+            panel_source = page.get_by_label("Forecast source")
+            assert "no synthetic fallback" in panel_source.inner_text(), "public acquisition must never silently use training data"
+            assert panel_source.get_by_role("button", name="Fetch public forecast").is_disabled(), "public acquisition requires an explicit current depth and bin"
+            page.get_by_role("button", name="Use training scenario").click()
+            cov = page.get_by_label("Series coverage")
+            expect(cov.get_by_text(re.compile(r": covered\."))).to_be_visible(timeout=60_000)
+            assert "not a weather forecast" in cov.inner_text()
+            with page.expect_response(lambda r: r.url.endswith("/api/v1/mooring/forecast-plan") and r.request.method == "POST") as submitted:
+                page.get_by_role("button", name="Assess arrivals").click()
+            body = submitted.value.request.post_data_json
+            assert body["forecast_binding"]["source"] == "supplied" and body["holding_hours"] == 6, body.get("forecast_binding")
+            result = page.get_by_label("Advance planning result")
+            expect(result.get_by_label("Arrival alternatives")).to_be_visible(timeout=240_000)
+            text = result.inner_text()
+            assert "validity limited" in text, "forecast planning must stay limited"
+            shot(page, "11-advance-planning")
+            if "Selected arrival" in text:
+                result.get_by_role("button", name="Apply selected configuration").click()
+                expect(result.get_by_role("status").filter(has_text="Applied the configuration")).to_be_visible()
+                assert "Recheck required" not in result.inner_text(), "applying the selected configuration must not mark it stale"
+                page.get_by_label("Holding hours").fill("12")
+                expect(result.get_by_text(re.compile("Recheck required"))).to_be_visible()
+                assert result.get_by_role("button", name="Apply selected configuration").is_disabled()
+                return "training series bound and covered; alternatives assessed; selected configuration applied; changed holding marks recheck required"
+            return "training series bound and covered; alternatives assessed; no arrival supported (no configuration published)"
+
+        step("Advance planning: training series, alternatives, apply, recheck", advance_planning)
 
         def clean():
             real = [e for e in errors if "GL Driver" not in e]

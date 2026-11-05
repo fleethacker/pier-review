@@ -1,8 +1,13 @@
 import { Store } from '../../lib/store';
 import type { AppHost } from '../../scene/app';
 import type { SceneEdit, SceneState } from '../../scene/types';
+import { canDropConnection } from '../../scene/linkEditing';
 import { awaitJob, describeError, modeling, MODELING_BASE, unwrap, wsUrl } from './api';
 import { AgentSession } from './agent';
+import { classSupport } from './classSupport';
+import { DemoCaseSession } from './demo/cases';
+import { AdvanceSession } from './advance/session';
+import type { MooringTab } from './tabs';
 import { IntakeSession } from './intake/controller';
 import { MotionController } from './motion/controller';
 import { MOTION_KINDS } from './motion/sceneMapper';
@@ -30,6 +35,7 @@ import type {
   BerthSummary,
   Alert,
   Environment,
+  EnvironmentAvailability,
   LineSpec,
   MooringLine,
   MooringConfig,
@@ -119,6 +125,8 @@ export interface WindSample {
 export type RiskKind = 'timeline' | 'envelope' | 'exceedance';
 
 export interface MooringState {
+  /** Which tab's panels the sidebar shows; the shell's tab bar sets it. */
+  tab: MooringTab;
   phase: 'loading' | 'ready' | 'error';
   error: string | null;
   ships: ShipClassSummary[];
@@ -138,6 +146,8 @@ export interface MooringState {
   ship: ShipClass | null;
   lines: MooringLine[];
   env: Environment | null;
+  /** Independent per-component status; unlike env, this can report partial availability without invented values. */
+  envAvailability: EnvironmentAvailability | null;
   analysis: { state: 'idle' | 'pending' | 'ok' | 'error'; response: AnalyzeResponse | null; error: string | null };
   recommend: { state: 'idle' | 'running' | 'error'; progress: number; candidates: Candidate[]; error: string | null };
   addLine: { active: boolean; shipFittingId: string | null; specId: string; parts: 1 | 2 | 3 };
@@ -145,6 +155,8 @@ export interface MooringState {
   notice: string | null;
   backend: string | null;
   envMode: { kind: EnvMode; status: StreamStatus | 'idle'; detail: string | null };
+  /** Last environment fetch failure (unsupported or misconfigured source, provider down). Cleared by the next good snapshot. */
+  envError: string | null;
   /** What the service says each capability is qualified for, and its module status; null until loaded or if unreachable. */
   capabilities: Capability[] | null;
   modules: Record<string, string> | null;
@@ -166,6 +178,7 @@ export interface MooringState {
 }
 
 const INITIAL: MooringState = {
+  tab: 'setup',
   phase: 'loading',
   error: null,
   ships: [],
@@ -184,6 +197,7 @@ const INITIAL: MooringState = {
   ship: null,
   lines: [],
   env: null,
+  envAvailability: null,
   analysis: { state: 'idle', response: null, error: null },
   recommend: { state: 'idle', progress: 0, candidates: [], error: null },
   addLine: { active: false, shipFittingId: null, specId: '', parts: 1 },
@@ -191,6 +205,7 @@ const INITIAL: MooringState = {
   notice: null,
   backend: null,
   envMode: { kind: 'manual', status: 'idle', detail: null },
+  envError: null,
   capabilities: null,
   modules: null,
   apiVersion: null,
@@ -211,6 +226,8 @@ export class MooringController {
   readonly state = new Store<MooringState>(INITIAL);
   readonly intake: IntakeSession = new IntakeSession(this);
   readonly agent: AgentSession = new AgentSession(this);
+  readonly demo: DemoCaseSession = new DemoCaseSession(this);
+  readonly advance: AdvanceSession = new AdvanceSession(this);
   /** While true the Cesium scene belongs to the motion view, and layout redraws are held back. */
   private motionHoldsScene = false;
   private savedScenarioKey: string | null = null;
@@ -265,6 +282,8 @@ export class MooringController {
   private analyzeTimer: ReturnType<typeof setTimeout> | undefined;
   private analyzeSeq = 0;
   private selectionSeq = 0;
+  private scenarioLoadSeq = 0;
+  private envRefreshSeq = 0;
   private analyzeAbort: AbortController | null = null;
   private recommendAbort: AbortController | null = null;
   private readonly candidateContexts = new WeakMap<Candidate, string>();
@@ -290,6 +309,8 @@ export class MooringController {
     this.envStream?.close();
     this.alertStream?.close();
     this.agent.dispose();
+    this.demo.dispose();
+    this.advance.dispose();
     this.intake.dispose();
     this.motion.dispose();
     this.unsubscribeScene();
@@ -372,38 +393,62 @@ export class MooringController {
   /** Reload berth, ship and environment for the current selection, redraw everything, optionally recommend lines. */
   private async loadSelection(opts: { recommend: boolean }): Promise<void> {
     const seq = ++this.selectionSeq;
+    this.agent.resetForSelection();
+    this.dragStart = null;
+    this.cancelAddLine();
     this.resetAnalysis();
-    this.state.set({ recommend: { state: 'idle', progress: 0, candidates: [], error: null }, tugAssignments: [] });
+    this.state.set({ lines: [], scenarioId: null, recommend: { state: 'idle', progress: 0, candidates: [], error: null }, tugAssignments: [] });
+    this.pushScene('update');
     this.recommendAbort?.abort();
     const { berthId, shipClassId } = this.s;
-    const [berth, ship, env] = await Promise.all([
+    const [berth, ship, env, envAvailability] = await Promise.all([
       modeling.GET('/api/v1/berths/{berth_id}', { params: { path: { berth_id: berthId } } }).then(unwrap),
       shipClassId
         ? modeling.GET('/api/v1/ships/{class_id}', { params: { path: { class_id: shipClassId } } }).then(unwrap)
         : Promise.resolve(null),
-      this.s.env ?? this.fetchEnv(berthId),
+      // A failing environment source must not block the berth and ship, nor leave old values looking current.
+      this.s.env ?? this.fetchEnv(berthId).then(
+        (e) => { if (seq === this.selectionSeq) this.state.set({ envError: null }); return e; },
+        (e) => { if (seq === this.selectionSeq) this.state.set({ envError: message(e) }); return null; },
+      ),
+      this.fetchEnvAvailability(berthId).catch(() => null),
     ]);
     if (this.disposed || seq !== this.selectionSeq) return;
     const loading = ship?.loading_conditions.find((c) => c.name === this.s.loading)?.name ?? ship?.loading_conditions[0]?.name ?? '';
     const shipXFt = this.s.shipXFt > 0 && this.s.shipXFt < berth.face_length_ft ? this.s.shipXFt : Math.round(berth.face_length_ft / 2 / 5) * 5;
-    this.state.set({ berth, ship, env, loading, shipXFt, lines: [], scenarioId: null });
+    this.state.set({ berth, ship, env, envAvailability, loading, shipXFt, lines: [], scenarioId: null });
     this.resetAnalysis();
     this.pushScene('full');
-    if (opts.recommend && ship && (ship.fittings?.length ?? 0) > 0) void this.recommend({ apply: true });
+    if (opts.recommend && classSupport(ship, this.s.shipClassId, loading, this.s.side).canPlan) void this.recommend({ apply: true });
   }
 
   private async fetchEnv(berthId: string): Promise<Environment> {
     return unwrap(await modeling.GET('/api/v1/env/now', { params: { query: { berth_id: berthId } } }));
   }
 
+  private async fetchEnvAvailability(berthId: string): Promise<EnvironmentAvailability> {
+    return unwrap(await modeling.GET('/api/v1/env/availability', { params: { query: { berth_id: berthId } } }));
+  }
+
   async refreshEnv(): Promise<void> {
-    try {
-      const env = await this.fetchEnv(this.s.berthId);
-      this.state.set({ env });
+    const request = ++this.envRefreshSeq;
+    const { berthId } = this.s;
+    const selection = this.selectionSeq;
+    const intent = this.scenarioLoadSeq;
+    const [snapshot, availability] = await Promise.allSettled([
+      this.fetchEnv(berthId), this.fetchEnvAvailability(berthId),
+    ]);
+    if (this.disposed || request !== this.envRefreshSeq || selection !== this.selectionSeq
+      || intent !== this.scenarioLoadSeq || berthId !== this.s.berthId) return;
+    this.state.set({ envAvailability: availability.status === 'fulfilled' ? availability.value : null });
+    if (snapshot.status === 'fulfilled') {
+      this.state.set({ env: snapshot.value, envError: null });
       this.pushScene('update');
       this.scheduleAnalyze();
-    } catch (e) {
-      this.state.set({ notice: `Could not refresh environment: ${message(e)}` });
+    } else {
+      const error = message(snapshot.reason);
+      this.state.set({ envError: error, notice: `Could not refresh environment: ${error}` });
+      this.resetAnalysis();
     }
   }
 
@@ -419,30 +464,38 @@ export class MooringController {
   }
 
   async setBerth(berthId: string): Promise<void> {
-    await this.setEnvMode('manual');
+    ++this.scenarioLoadSeq;
+    void this.setEnvMode('manual');
     this.alertStream?.close();
-    this.state.set({ berthId, env: null });
-    await this.guarded(() => this.loadSelection({ recommend: true }));
-    await this.setEnvMode('manual');
-    this.startAlerts();
+    this.state.set({ berthId, env: null, envAvailability: null });
+    const loading = this.loadSelection({ recommend: true });
+    const selection = this.selectionSeq;
+    await this.guarded(() => loading);
+    if (!this.disposed && selection === this.selectionSeq && this.s.berth?.berth_id === berthId) this.startAlerts();
   }
 
   async setShip(shipClassId: string): Promise<void> {
+    ++this.scenarioLoadSeq;
     this.state.set({ shipClassId, loading: '' });
     await this.guarded(() => this.loadSelection({ recommend: true }));
   }
 
   async setSide(side: SideTo): Promise<void> {
+    ++this.scenarioLoadSeq;
+    this.agent.resetForSelection();
+    this.dragStart = null;
+    this.cancelAddLine();
     this.state.set({ side, tugAssignments: [], recommend: { state: 'idle', progress: 0, candidates: [], error: null } });
     await this.guarded(async () => {
       this.state.set({ lines: [], scenarioId: null });
       this.resetAnalysis();
       this.pushScene('full');
-      if (this.s.ship && (this.s.ship.fittings?.length ?? 0) > 0) void this.recommend({ apply: true });
+      if (classSupport(this.s.ship, this.s.shipClassId, this.s.loading, side).canPlan) void this.recommend({ apply: true });
     });
   }
 
   setLoading(loading: string): void {
+    ++this.scenarioLoadSeq;
     this.state.set({ loading });
     this.pushScene('update');
     this.scheduleAnalyze();
@@ -450,7 +503,8 @@ export class MooringController {
 
   setShipX(shipXFt: number): void {
     const berth = this.s.berth;
-    if (!berth) return;
+    if (!berth || !Number.isFinite(shipXFt)) return;
+    ++this.scenarioLoadSeq;
     const clamped = Math.min(Math.max(shipXFt, 0), berth.face_length_ft);
     this.state.set({ shipXFt: clamped });
     this.pushScene('update');
@@ -458,6 +512,8 @@ export class MooringController {
   }
 
   setStandoff(value: number | null): void {
+    if (value !== null && (!Number.isFinite(value) || value < 0)) return;
+    ++this.scenarioLoadSeq;
     this.state.set({ standoffOverrideFt: value });
     this.pushScene('update');
     this.scheduleAnalyze();
@@ -465,8 +521,13 @@ export class MooringController {
 
   setEnv(patch: Partial<Environment>): void {
     if (!this.s.env) return;
+    ++this.scenarioLoadSeq;
     if (this.s.envMode.kind !== 'manual') void this.setEnvMode('manual');
-    this.state.set({ env: { ...this.s.env, ...patch } });
+    this.state.set({ envError: null, env: { ...this.s.env, ...patch,
+      source: 'scenario', valid_at_utc: new Date().toISOString(), quality: [],
+      metadata: { basis: 'scenario', source: 'Manual UI snapshot', quality: 'unknown', components: [] },
+      tide_stage: null, wind_rel_ship_deg: null, current_rel_ship_deg: null,
+    } });
     this.pushScene('update');
     this.scheduleAnalyze();
   }
@@ -516,6 +577,7 @@ export class MooringController {
   }
 
   addLine(shipFittingId: string, pierFittingId: string): void {
+    if (!this.validLineFittings(shipFittingId, pierFittingId)) return;
     const { lines, addLine } = this.s;
     const next = lines.length === 0 ? 1 : Math.max(...lines.map((l) => l.line_number)) + 1;
     const line: MooringLine = {
@@ -535,7 +597,17 @@ export class MooringController {
   }
 
   updateLine(lineNumber: number, patch: Partial<MooringLine>): void {
+    const line = this.s.lines.find((l) => l.line_number === lineNumber);
+    if (!line || !this.validLineFittings(patch.ship_fitting_id ?? line.ship_fitting_id,
+      patch.pier_fitting_id ?? line.pier_fitting_id)) return;
     this.setLines(this.s.lines.map((l) => (l.line_number === lineNumber ? { ...l, ...patch } : l)));
+  }
+
+  private validLineFittings(shipId: string, pierId: string): boolean {
+    const { ship, berth, side, shipClassId, berthId, loading } = this.s;
+    return classSupport(ship, shipClassId, loading, side).canPlan && berth?.berth_id === berthId
+      && !!ship?.fittings?.some((f) => f.fitting_id === shipId && f.kind === 'bitt' && f.side === side)
+      && !!berth?.fittings.some((f) => f.fitting_id === pierId);
   }
 
   /** Double up or single up every line at once, keeping each line's rope and fittings. */
@@ -545,6 +617,7 @@ export class MooringController {
   }
 
   private setLines(lines: MooringLine[]): void {
+    ++this.scenarioLoadSeq;
     this.state.set({ lines, scenarioId: null });
     this.pushScene('update');
     this.scheduleAnalyze();
@@ -552,12 +625,47 @@ export class MooringController {
 
   // ---- canvas edits ----------------------------------------------------------------------------------------
 
+  private dragStart: { shipXFt: number; standoffOverrideFt: number | null } | null = null;
+
   onEdit(edit: SceneEdit): void {
-    if (edit.type !== 'move' || edit.entityId !== IDS.ship) return;
+    ++this.scenarioLoadSeq;
+    if (edit.type === 'connect') {
+      if (!edit.final) { this.resetAnalysis(); return; }
+      if (edit.cancelled || !edit.toEntityId || !canDropConnection(this.host.store.getState(), edit, edit.toEntityId)) {
+        this.scheduleAnalyze();
+        return;
+      }
+      if (edit.linkId) {
+        const line = this.s.lines.find((l) => IDS.line(l.line_number) === edit.linkId);
+        if (line && edit.endpoint) this.updateLine(line.line_number, edit.endpoint === 'from'
+          ? { ship_fitting_id: edit.toEntityId.slice(5) } : { pier_fitting_id: edit.toEntityId.slice(5) });
+      } else {
+        const shipId = edit.fromEntityId.startsWith('sfit:') ? edit.fromEntityId : edit.toEntityId;
+        const pierId = edit.fromEntityId.startsWith('pier:') ? edit.fromEntityId : edit.toEntityId;
+        this.addLine(shipId.slice(5), pierId.slice(5));
+        this.state.set({ addLine: { ...this.s.addLine, shipFittingId: null } });
+        this.host.store.select(null);
+      }
+      return;
+    }
+    if (edit.entityId !== IDS.ship) return;
+    const { ship, berth } = this.s;
+    if (!ship || !berth || !classSupport(ship, this.s.shipClassId, this.s.loading, this.s.side).canPlan
+      || berth.berth_id !== this.s.berthId) return;
+    if (edit.cancelled) {
+      if (this.dragStart) this.state.set(this.dragStart);
+      this.dragStart = null;
+      this.pushScene('ship');
+      this.scheduleAnalyze();
+      return;
+    }
+    if (!Number.isFinite(edit.pose.x) || !Number.isFinite(edit.pose.y)) return;
+    this.dragStart ??= { shipXFt: this.s.shipXFt, standoffOverrideFt: this.s.standoffOverrideFt };
     if (this.s.analysis.state !== 'idle') this.resetAnalysis();
-    this.state.set({ shipXFt: Math.round(toFt(edit.pose.x)) });
+    this.state.set({ shipXFt: Math.min(berth.face_length_ft, Math.max(0, Math.round(toFt(edit.pose.x)))),
+      standoffOverrideFt: Math.max(0, Math.round(toFt(edit.pose.y) - ship.beam_ft / 2)) });
     this.pushScene('ship');
-    if (edit.final) this.scheduleAnalyze();
+    if (edit.final) { this.dragStart = null; this.scheduleAnalyze(); }
   }
 
   // ---- analysis --------------------------------------------------------------------------------------------
@@ -627,6 +735,12 @@ export class MooringController {
   async recommend(opts: { apply: boolean }): Promise<void> {
     const { ship, berth, side, shipXFt, loading, standoffOverrideFt, tugAssignments } = this.s;
     if (!ship || !berth) return;
+    const support = classSupport(ship, this.s.shipClassId, loading, side);
+    if (!support.canPlan || berth.berth_id !== this.s.berthId) {
+      this.state.set({ recommend: { state: 'error', progress: 0, candidates: [],
+        error: support.reason ?? 'Waiting for the selected berth data.' } });
+      return;
+    }
     this.recommendAbort?.abort();
     const abort = (this.recommendAbort = new AbortController());
     const context = this.contextKey();
@@ -745,10 +859,19 @@ export class MooringController {
   }
 
   async loadScenario(id: string): Promise<void> {
+    // A previous automatic plan must not apply while this newer selection waits for its scenario/environment.
+    this.recommendAbort?.abort();
+    this.agent.resetForSelection();
+    this.state.set({ recommend: { state: 'idle', progress: 0, candidates: [], error: null } });
+    const request = ++this.selectionSeq;
+    const scenarioRequest = ++this.scenarioLoadSeq;
+    const current = () => !this.disposed && scenarioRequest === this.scenarioLoadSeq;
     await this.guarded(async () => {
       const sc = unwrap(await modeling.GET('/api/v1/scenarios/{scenario_id}', { params: { path: { scenario_id: id } } }));
+      if (!current() || request !== this.selectionSeq) return;
       await this.setEnvMode('manual');
       const env = unwrap(await modeling.GET('/api/v1/scenarios/{scenario_id}/environment', { params: { path: { scenario_id: id } } }));
+      if (!current() || request !== this.selectionSeq) return;
       this.state.set({
         berthId: sc.berth_id,
         shipClassId: sc.ship_class_id,
@@ -759,7 +882,10 @@ export class MooringController {
         env,
         tugAssignments: sc.tugs ?? [],
       });
-      await this.loadSelection({ recommend: false });
+      const loading = this.loadSelection({ recommend: false });
+      const selection = this.selectionSeq;
+      await loading;
+      if (!current() || selection !== this.selectionSeq) return;
       this.state.set({ lines: sc.config?.lines ?? [], tugAssignments: sc.tugs ?? [], scenarioId: sc.scenario_id });
       this.savedScenarioKey = this.scenarioKey();
       this.pushScene('update');
@@ -827,6 +953,7 @@ export class MooringController {
   private onEnvMessage(m: Partial<Environment>): void {
     if (this.disposed || !this.s.env) return;
     const env = { ...this.s.env, ...m } as Environment;
+    if (this.s.envError) this.state.set({ envError: null });
     const sample: WindSample = { t: Date.now(), wind: env.wind_speed_kt, gust: env.wind_gust_kt };
     this.state.set({ env, windHistory: [...this.s.windHistory, sample].slice(-120) });
     this.pushScene('update');
@@ -930,6 +1057,7 @@ export class MooringController {
   }
 
   setTugAssignments(tugAssignments: TugAssignment[]): void {
+    ++this.scenarioLoadSeq;
     this.state.set({ tugAssignments });
     this.pushScene('update');
     this.scheduleAnalyze();
@@ -992,7 +1120,7 @@ export class MooringController {
     }
     const frame = store.getState().frame;
     if (!frame || !s.ship) return;
-    const hasFittings = (s.ship.fittings?.length ?? 0) > 0;
+    const hasFittings = s.berth.berth_id === s.berthId && classSupport(s.ship, s.shipClassId, s.loading, s.side).canPlan;
     const ship = shipEntities(s.ship, s.loading, s.side, s.shipXFt, standoff, analysis, hasFittings, s.berth);
     // Keep the drag in progress: the shell already owns the hull pose while the pointer is down.
     store.upsertEntities(mode === 'ship' ? ship : [...pierEntities(s.berth, analysis), ...ship]);

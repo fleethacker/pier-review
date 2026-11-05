@@ -65,6 +65,10 @@ def test_plan_runs_and_cites_results(plan_id):
     assert all(item.cites for item in plan.rationale)
     for rid in {c for item in plan.rationale for c in item.cites}:
         assert modeling.get(f"{P}/results/{rid}").status_code == 200, rid
+    from mooring_agents.planner.agent import PLANS
+    geometry = PLANS[plan_id].geometry_snapshot
+    assert geometry is not None and geometry.unavailable_reason is None
+    assert geometry.analysis_result_id == plan.analysis_result_id
 
 
 def test_plan_events_stream(plan_id):
@@ -114,6 +118,51 @@ def test_berth_vision_round_trip():
     saved = client.post(f"{P}/berth-vision/{r.json()['job_id']}/confirm", json={"berth": result["draft_berth"]})
     assert saved.status_code == 201
     assert modeling.get(f"{P}/berths/{saved.json()['berth_id']}").status_code == 200
+
+
+def test_image_fixture_proposal_requires_confirmation_before_registration(monkeypatch):
+    import base64
+    import hashlib
+    from pathlib import Path
+    from mooring_agents.shared import llm
+
+    png = (Path(__file__).parent / 'fixtures' / 'berth-draft.png').read_bytes()
+    source = modeling.get(f'{P}/berths/NAVSTA-NORFOLK-P12-N').json()
+    kind = source['fittings'][0]['kind']
+    monkeypatch.delenv('BOLLARD_MODEL_PATH', raising=False)
+
+    class Fake:
+        async def chat(self, messages, **kwargs):
+            assert base64.b64decode(messages[-1].images[0].data_base64) == png
+            return llm.Reply(text=json.dumps({'detections': [dict(item_id='FIXTURE1',
+                kind=kind, center_px=[50, 25], confidence=.99)]}), stop_reason='completed')
+
+    monkeypatch.setattr(llm, 'get_llm', lambda: Fake())
+    meta = {'image_kind': 'satellite', 'berth_id': source['berth_id'],
+            'georef': {'scale_ft_per_px': 2}, 'pier_face_start_px': [0, 0], 'pier_face_end_px': [100, 0]}
+    accepted = client.post(f'{P}/berth-vision/analyze', files={'image': ('pier.png', png, 'image/png')},
+                           data={'metadata': json.dumps(meta)})
+    assert accepted.status_code == 202, accepted.text
+    result = completed_status(accepted.json()['status_url'])['result']
+    draft = result['result']['draft_berth']
+    assert result['status'] == 'AMBER' and result['validity']['state'] == 'limited'
+    assert result['result']['extraction_source'] == 'llm'
+    assert result['result']['image_sha256'] == hashlib.sha256(png).hexdigest()
+    assert result['result']['detections'][0]['needs_confirmation']
+    assert result['result']['detections'][0]['center_px'] == [50, 25]
+    assert draft['fittings'][0]['x_ft'] == 100
+    assert draft['provenance']['confidence'] == 'estimated'
+    assert modeling.get(f"{P}/berths/{draft['berth_id']}").status_code == 404
+    geometry = modeling.get(f"{P}/results/{result['result']['geometry_result_id']}")
+    assert geometry.status_code == 200
+    assert geometry.json()['result']['geometry_source'] == 'image anchors plus catalog'
+
+    confirmed = client.post(f"{P}/berth-vision/{accepted.json()['job_id']}/confirm", json={'berth': draft})
+    assert confirmed.status_code == 201, confirmed.text
+    saved = modeling.get(f"{P}/berths/{confirmed.json()['berth_id']}").json()
+    assert saved['fittings'] == draft['fittings']
+    assert saved['provenance']['confidence'] == 'estimated'
+    assert 'engineering qualification not established' in saved['provenance']['notes']
 
 
 def test_bad_vision_metadata_is_422():
@@ -364,7 +413,8 @@ def test_printed_sheet_preserves_environment_basis_direction_and_forecast_proven
     sheet.environment.forecast_summary = 'Coverage incomplete <img src="bad">; use only assessed inputs.'
     text = renderer.render_html(sheet)
     assert 'flowing toward 217° true' in text and '2.75 ft MLLW' in text
-    assert 'assessment MST' in text and text.count('<thead>') == 2
+    assert 'assessment MST' in text and text.count('<thead>') == 3
+    assert '<h2>Pier fitting margins</h2>' in text
     assert 'Wind averaging: 60 s' in text and 'gust duration: 30 s' in text and 'reference height: 10 m' in text
     assert 'issued unknown; retrieved 2026-11-05 06:00Z' in text
     assert 'not a provider issue time or proof of freshness' in text

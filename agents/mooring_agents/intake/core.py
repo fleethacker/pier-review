@@ -11,6 +11,7 @@ from mooring.core.forecast_provenance import availability_problem
 from ..physics.toolkit import PhysicsToolkit, calls_for
 from ..physics.client import ModelingError
 from ..shared.environment_quality import component_issues
+from ..shared.forecast import bound_samples, resolve_forecast
 from .schemas import ConcernWindow, DataQualityIssue, IntakeReport, IntakeRequest, MstAssessment, PlanningCondition
 
 from .thresholds import (
@@ -53,6 +54,8 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
     access.claim("agent_report", report_id)
     tk.plan_id = tk.plan_id or report_id  # ties this report's tool calls together in the ledger
     berth_id, ship_id, side = req.berth_id, req.ship_class_id, req.side_to
+    if berth_id is None and req.forecast_request is not None:
+        berth_id = req.forecast_request.berth_id
     env_scenario_id = req.env_scenario_id
     quality = []
     forecast_complete = True
@@ -70,13 +73,22 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
     if not berth_id:
         raise ModelingError(422, "Give scenario_id or berth_id")
     berth = await tk.berth(berth_id)
+    resolution = None
+    if req.forecast_request is not None:
+        if req.forecast_request.berth_id != berth_id:
+            raise ModelingError(422, "Forecast and scenario berth do not match")
+        resolution = await resolve_forecast(tk, req.forecast_request)
     saved_mock = saved_source is not None and saved_source.env_source.mode == "mock"
-    current = (await tk.scenario_environment(req.scenario_id) if saved_source is not None
+    current = (bound_samples(resolution)[0] if resolution is not None else
+               await tk.scenario_environment(req.scenario_id) if saved_source is not None
                else await tk.env_now(berth_id, env_scenario_id))
-    if problem := availability_problem(current, utcnow()):
+    assessed_cutoff = resolution.result.forecast_manifest.as_of_utc if resolution is not None else utcnow()
+    if problem := availability_problem(current, assessed_cutoff):
         raise ModelingError(422, "Current environment is unavailable for assessment: " + problem)
     current = current.model_copy(update={"valid_at_utc": current.valid_at_utc.astimezone(UTC)})
-    if env_scenario_id:
+    if resolution is not None:
+        series = bound_samples(resolution)
+    elif env_scenario_id:
         scenario = await tk.environment_scenario(env_scenario_id)
         if scenario.kind == "steady":
             # The declared source is constant by definition. Never freeze ramps or replay series.
@@ -118,7 +130,7 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
         series = [current]
         quality.append(DataQualityIssue(station_id="forecast", issue="missing", severity="RED",
             detail="Forecast timestamps are unordered, duplicated or lack a timezone; only the current snapshot was assessed."))
-    elif forecast_complete:
+    elif forecast_complete and resolution is None:
         tolerance = timedelta(minutes=FORECAST_STEP_MIN * 2)
         start = current.valid_at_utc
         if (start.tzinfo is None or times[0] > start or
@@ -129,7 +141,7 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
                 detail="Forecast samples do not cover the entire requested horizon without gaps; only available samples were assessed."))
 
     # Never let unavailable future guidance drive deterministic findings or optional LLM selection.
-    assessed_at = utcnow()
+    assessed_at = assessed_cutoff if resolution is not None else utcnow()
     available = []
     unavailable = set()
     for sample in series:
@@ -214,10 +226,11 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
         conditions.append(PlanningCondition(label="Strongest current in horizon" if forecast_complete else "Strongest current among available samples", environment=worst_cur,
                                             why=f"Current peaks at {worst_cur.current_speed_kt:.1f} kt at "
                                                 f"{worst_cur.valid_at_utc:%H:%MZ}."))
-    conditions.append(PlanningCondition(label="Now", environment=current, why="Conditions at the time of planning."))
+    conditions.append(PlanningCondition(label="Forecast interval start" if resolution is not None else "Now", environment=current,
+        why="Actual supplied sample covering the bound interval start." if resolution is not None else "Conditions at the time of planning."))
 
     berthing = []
-    if ship_id and side and not env_scenario_id and not saved_mock:
+    if ship_id and side and not env_scenario_id and not saved_mock and resolution is None:
         start = utcnow().replace(second=0, microsecond=0)
         try:
             bw = await tk.windows({"berth_id": berth_id, "ship_class_id": ship_id, "side_to": side,
@@ -246,9 +259,15 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
                f"{f', {len(reds)} severe' if reds else ''}. Gusts peak {worst_gust.wind_gust_kt:.0f} kt; "
                f"MST {mst_req} conditions{'; exceeds ship MST' if exceeds else ''}."
                f"{f' {len(berthing)} berthing window(s) found.' if berthing else ''}")
+    if resolution is not None:
+        manifest = resolution.result.forecast_manifest
+        summary = summary.replace(f"Next {req.horizon_hours} h", f"Bound forecast {manifest.from_utc.isoformat()} to {manifest.to_utc.isoformat()}", 1)
     if not forecast_complete:
         summary = "Forecast coverage incomplete; available samples only. " + summary
     report = IntakeReport(report_id=report_id, created_at_utc=assessed_at, berth_id=berth_id, ship_class_id=ship_id,
+                          forecast_manifest=resolution.result.forecast_manifest if resolution is not None else None,
+                          forecast_result_id=resolution.result_id if resolution is not None else None,
+                          forecast_request=req.forecast_request.model_copy(deep=True) if req.forecast_request is not None else None,
                           side_to=side, horizon_hours=req.horizon_hours, current=current, mst=mst, windows=windows,
                           planning_conditions=conditions, berthing_windows=berthing, data_quality=quality,
                           summary=summary, summary_source="deterministic", narration_note=None, backend="mock",

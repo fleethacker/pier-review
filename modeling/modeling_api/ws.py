@@ -6,6 +6,7 @@ Every channel accepts `limit` (close after N server messages; 0 = run until the 
 import asyncio
 import hmac
 import json
+import math
 import os
 from datetime import datetime, timedelta
 
@@ -13,10 +14,13 @@ from mooring.environment.coops import ProviderError
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import TypeAdapter, ValidationError
 
+from mooring import refdata
 from mooring.core.schemas import (
     AnalyzeRequest,
     SimControlMessage,
+    SimLifecycle,
     SimLineEventMessage,
+    SimSpeedMessage,
     SimTugCommandMessage,
     TelemetryBatch,
     TelemetryRecord,
@@ -27,7 +31,7 @@ from .state import SESSIONS
 
 router = APIRouter()
 
-SimClientMessage = TypeAdapter(SimTugCommandMessage | SimLineEventMessage | SimControlMessage)
+SimClientMessage = TypeAdapter(SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage)
 
 
 @router.websocket("/ws/env")
@@ -35,32 +39,48 @@ async def ws_env(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", mode: st
                  env_scenario_id: str | None = None, replay_start_utc: datetime | None = None,
                  speed: float = 1.0, interval_s: float = 1.0, limit: int = 0):
     await ws.accept()
+    if mode not in {"live", "replay", "scenario"}:
+        await ws.close(code=4400, reason="Environment mode must be live, replay or scenario")
+        return
+    if mode == "scenario" and not env_scenario_id:
+        await ws.close(code=4400, reason="Scenario mode requires env_scenario_id")
+        return
+    if mode == "replay" and replay_start_utc is None:
+        await ws.close(code=4400, reason="Replay mode requires replay_start_utc")
+        return
+    if (not math.isfinite(speed) or speed <= 0 or not math.isfinite(interval_s) or interval_s < 0
+            or limit < 0 or (limit == 0 and interval_s == 0)):
+        await ws.close(
+            code=4400,
+            reason="Invalid speed/interval/limit; values must be finite and an unbounded stream needs a positive interval",
+        )
+        return
     started = datetime.now().astimezone()
     replay_start = replay_start_utc or (started - timedelta(days=1))
     sent = 0
     try:
         while limit == 0 or sent < limit:
             if mode == "scenario" and env_scenario_id:
-                snap = env.scenario_snapshot(env_scenario_id, datetime.now().astimezone())
+                snap = await asyncio.to_thread(env.scenario_snapshot, env_scenario_id, datetime.now().astimezone(), berth_id)
             elif mode == "replay":
                 elapsed = (datetime.now().astimezone() - started) * speed
-                try:
-                    snap = env.replay_snapshot(berth_id, replay_start + elapsed)
-                except ProviderError as e:
-                    await ws.send_json({"error": e.kind, "detail": str(e)})
-                    await ws.close(code=1013)
-                    return
+                snap = await asyncio.to_thread(env.replay_snapshot, berth_id, replay_start + elapsed)
             else:
-                try:
-                    snap = env.now(berth_id)
-                except ProviderError as e:   # documented provider failure: tell the client and close, never synthesize
-                    await ws.send_json({"error": e.kind, "detail": str(e)})
-                    await ws.close(code=1013)
-                    return
+                snap = await asyncio.to_thread(env.live_snapshot, berth_id)
             await ws.send_json(snap.model_dump(mode="json"))
             sent += 1
             await asyncio.sleep(interval_s)
     except WebSocketDisconnect:
+        return
+    except ProviderError as exc:
+        await ws.send_json({"error": exc.kind, "detail": str(exc)})
+        await ws.close(code=1013)
+        return
+    except refdata.NotFound:
+        await ws.close(code=4404, reason="Environment scenario, berth or reference not found")
+        return
+    except refdata.InvalidReference:
+        await ws.close(code=4400, reason="Invalid environment scenario or berth reference")
         return
     await ws.close()
 
@@ -106,11 +126,12 @@ async def ws_alerts(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", scena
 
 
 @router.websocket("/ws/sim/{session_id}")
-async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0):
+async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence: int = -1):
     # This handler alone is changed; /ws/env is owned by another workstream.
     import anyio
     from mooring.core import access
     from .security import identity, AccessError
+    from .sim_sessions import session_wait, session_work
     from mooring.core.envelopes import new_id
     try:
         principal, enabled = identity(ws.headers)
@@ -127,7 +148,9 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0):
             await ws.close(code=4404,reason="Session not found")
             return
         session=SESSIONS[session_id]
-        try: session.attach(connection)
+        try:
+            await session_work(session.attach,connection)
+            await session_work(session.resync,after_sequence)
         except ValueError:
             await ws.close(code=4409,reason="Session already controlled")
             return
@@ -146,19 +169,25 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0):
                     return
                 try:
                     msg=SimClientMessage.validate_json(text)
-                    session.receive(connection,msg)
+                    await session_work(session.receive,connection,msg)
                 except (ValidationError,ValueError) as exc:
                     # Invalid commands close the controller; no partial application.
                     await ws.close(code=1008,reason=("Invalid command schema" if isinstance(exc,ValidationError) else str(exc))[:120])
                     return
         async def send_frames():
-            sent=0
+            # Retained lifecycle messages newer than after_sequence, then only the newest frame. A slow client
+            # skips intermediate frames (sequence gaps); it never queues them and never slows physics.
+            # On (re)connect the current latest frame is always sent so the client has a starting state, even if
+            # its sequence <= after_sequence; consumers drop frames they already hold by (run_id, sequence).
+            sent=0; last_lifecycle=after_sequence; last_frame=-1
             while limit==0 or sent<limit:
                 session.changed.clear()
-                frame=session.latest
-                await asyncio.wait_for(ws.send_json(frame.model_dump(mode="json")),timeout=2.0)
-                sent+=1
-                if limit and sent>=limit: return
+                for message in await session_work(session.pending_messages,last_lifecycle,last_frame):
+                    await asyncio.wait_for(ws.send_json(message.model_dump(mode="json")),timeout=2.0)
+                    sent+=1
+                    if isinstance(message,SimLifecycle): last_lifecycle=message.sequence
+                    elif message.sequence is not None: last_frame=message.sequence
+                    if limit and sent>=limit: return
                 await session.changed.wait()
         receive_task=asyncio.create_task(receive_commands())
         send_task=asyncio.create_task(send_frames())
@@ -172,19 +201,22 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0):
         finally:
             for task in (receive_task,send_task): task.cancel()
             with anyio.CancelScope(shield=True):
-                await asyncio.gather(receive_task,send_task,return_exceptions=True)
+                await session_wait(asyncio.gather(receive_task,send_task,return_exceptions=True))
         try: await ws.close()
         except RuntimeError: pass
     except asyncio.CancelledError:
         pass  # ASGI disconnect/server cancellation still performs ownership cleanup.
     finally:
-        if session is not None and session.connection==connection:
-            session.detach(connection)
-            if ticker:
-                ticker.cancel()
-                with anyio.CancelScope(shield=True):
-                    await asyncio.gather(ticker,return_exceptions=True)
-        access.principal.reset(token); access.enforced.reset(enforcement)
+        try:
+            if session is not None and session.connection==connection:
+                async def release_controller():
+                    if ticker:
+                        ticker.cancel()
+                        await asyncio.gather(ticker,return_exceptions=True)
+                    await session_work(session.detach,connection)
+                await session_wait(asyncio.create_task(release_controller()))
+        finally:
+            access.principal.reset(token); access.enforced.reset(enforcement)
 
 
 @router.websocket("/ws/telemetry")

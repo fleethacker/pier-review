@@ -23,6 +23,7 @@ from .schemas import (
     SheetHeader,
     SheetLineRow,
 )
+from .layout import build_layout, sheet_binding_hash
 
 from ..shared.storage import AgentStore
 
@@ -97,7 +98,13 @@ def _build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
         sources=[Provenance(source="NSTM 582 (paragraph references only)", confidence="published"),
                  Provenance(source="UFC 4-159-03 Chapter 4", confidence="published"),
                  Provenance(source=f"{a.model} ({a.backend}); reference data qualification is reported in validity", confidence="estimated")],
-        approvals=[], disclaimer=DISCLAIMER)
+        approvals=[], disclaimer=DISCLAIMER,
+        forecast_manifest=review.forecast_manifest.model_copy(deep=True) if review and review.forecast_manifest else None,
+        forecast_result_id=review.forecast_result_id if review else None)
+    sheet.layout = build_layout(rec, sheet, review)
+    # In-memory documents need the same detachment as serialized documents: later plan
+    # edits must not mutate a previously issued sheet through shared model objects.
+    sheet = sheet.model_copy(deep=True)
     access.claim("agent_sheet", sheet.sheet_id)
     SHEETS[sheet.sheet_id] = sheet
     return sheet
@@ -187,13 +194,31 @@ def render_html(s: SafetySheet) -> str:
                     if s.installed_at_water_level_mllw_ft is not None else "not recorded in this legacy sheet; inspect the cited inputs")
     citations = "".join(f"<li>{e(cite)}</li>" for cite in s.cited_result_ids)
     assumptions = "".join(f"<li>{e(item)}</li>" for item in s.assumptions)
+    layout_matches = s.layout and s.layout.sheet_binding_hash == sheet_binding_hash(s)
+    layout_reason = (s.layout.unavailable_reason or "saved layout binding or assessment validity is not usable"
+                     if s.layout else "no geometry was saved with this legacy sheet")
+    layout = (s.layout.svg if usable and layout_matches and s.layout.state == "available" and s.layout.svg else
+              "<p>Layout unavailable: " + e(layout_reason) + ". No current map is substituted.</p>")
+    fitting_rows = "".join(f"<tr><td>{e(r.fitting_id)}</td>" +
+        (f"<td>{r.load_lbf:,.0f}</td><td>{r.pct:.0f}%</td><td>{r.status}</td>" if usable else
+         "<td>Unavailable</td><td>Unavailable</td><td>Unavailable</td>") + "</tr>" for r in s.fitting_utilization)
+    forecast_binding = ""
+    if s.forecast_manifest:
+        manifest = s.forecast_manifest.model_dump(mode="json")
+        forecast_binding = "<h3>Frozen forecast binding</h3><dl>" + "".join(
+            f"<dt>{e(key)}</dt><dd>{e(str(value))}</dd>" for key, value in manifest.items()
+            if key in {"source", "source_id", "env_scenario_id", "revision", "content_hash", "binding_hash", "as_of_utc", "from_utc", "to_utc"}) + "</dl>"
+        if s.forecast_result_id:
+            forecast_binding += f"<p>Forecast resolution result: {e(s.forecast_result_id)}.</p>"
     return f"""<!doctype html><html><head><meta charset="utf-8"><title>Mooring Evolution Safety Sheet</title>
 <style>body{{font-family:system-ui,sans-serif;margin:24px;color:#111}}table{{border-collapse:collapse}}
-td,th{{border:1px solid #999;padding:4px 8px;text-align:left}}.st{{font-weight:700}}thead{{display:table-header-group}}tr{{break-inside:avoid}}</style></head><body>
+td,th{{border:1px solid #999;padding:4px 8px;text-align:left}}.st{{font-weight:700}}thead{{display:table-header-group}}tr{{break-inside:avoid}}.layout svg{{width:100%;height:auto}}.layout{{break-inside:avoid}}</style></head><body>
 <h1>Mooring Evolution Safety Sheet</h1>
 {validity_banner}
 <p>Sheet {e(s.sheet_id)} v{s.version} &middot; Status <span class="st">{s.status}</span> &middot;
 {e(s.header.ship_class_id)} {e(s.header.side_to)} side to {e(s.header.berth_id)}</p>
+<p>Independent review: {e(s.review_id) if s.review_id else 'not recorded in this sheet; independent review is not established'}.</p>
+<h2>Assessed graphical layout</h2><div class="layout">{layout}</div>
 <p>Wind {s.environment.observed.wind_speed_kt:.0f} kt gusting {s.environment.observed.wind_gust_kt:.0f} kt from
 {s.environment.observed.wind_from_true_deg:03.0f}° true; current {s.environment.observed.current_speed_kt:.1f} kt
 flowing toward {s.environment.observed.current_set_true_deg:03.0f}° true; water level
@@ -202,7 +227,7 @@ flowing toward {s.environment.observed.current_set_true_deg:03.0f}° true; water
 These are assessed inputs, not a live observation display.</p>
 <p>Line-installation water level: {installation}.</p>
 {_environment_provenance_html(s.environment.observed)}
-<h2>Forecast assessment</h2><p>{e(s.environment.forecast_summary or 'No forecast summary recorded.')}</p>
+<h2>Forecast assessment</h2><p>{e(s.environment.forecast_summary or 'No forecast summary recorded.')}</p>{forecast_binding}
 {f'<h2>Bridge brief</h2><p>{e(s.brief)}</p>' if s.brief else ''}
 <h2>Directional gust thresholds</h2>
 <p>Modeling result references: {e(', '.join(s.threshold_result_ids)) or 'Unavailable in this archived sheet'}.</p>
@@ -211,6 +236,7 @@ These are assessed inputs, not a live observation display.</p>
 <h2>Line plan</h2><p>Static loads for the evaluated condition, result {e(s.analysis_result_id or 'unavailable in this archived sheet')}.
 Other reviewed conditions may govern individual elements.</p><table><thead><tr><th>#</th><th>Role</th><th>Line</th><th>Parts</th><th>Ship fitting</th>
 <th>Pier fitting</th><th>Tension (lbf)</th><th>% WLL</th><th>Status</th></tr></thead><tbody>{lines}</tbody></table>
+<h2>Pier fitting margins</h2><table><thead><tr><th>Fitting</th><th>Load (lbf)</th><th>% capacity</th><th>Status</th></tr></thead><tbody>{fitting_rows}</tbody></table>
 <h2>Holding assistance</h2><p>{holding_note}</p><ul>{holding}</ul>
 <h2>Berthing tug plan</h2><p>{tug_line}</p>
 <h2>Go / no-go</h2><ul>{gng}</ul>

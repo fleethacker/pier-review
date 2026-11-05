@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const stream = vi.hoisted(() => ({
   handlers: null as null | { onMessage: (m: unknown) => void; onStatus: (s: string) => void },
+  url: null as null | string | (() => string),
   send: vi.fn<(data: string) => boolean>(() => true),
   close: vi.fn(),
 }));
@@ -13,11 +14,13 @@ vi.mock('../api', () => ({
   authHeaders: () => ({}),
   modeling: { POST: vi.fn() },
   unwrap: <T,>(r: { data: T }) => r.data,
-  wsUrl: (_base: string, p: string) => `ws://localhost${p}`,
+  wsUrl: (_base: string, p: string, q: Record<string, unknown> = {}) =>
+    `ws://localhost${p}${Object.entries(q).filter(([, v]) => v !== undefined).map(([k, v], i) => `${i ? '&' : '?'}${k}=${v}`).join('')}`,
 }));
 vi.mock('../streams', () => ({
-  openJsonStream: (_url: string, onMessage: (m: unknown) => void, onStatus: (s: string) => void) => {
+  openJsonStream: (url: string | (() => string), onMessage: (m: unknown) => void, onStatus: (s: string) => void) => {
     stream.handlers = { onMessage, onStatus };
+    stream.url = url;
     return { send: stream.send, close: stream.close };
   },
 }));
@@ -336,7 +339,9 @@ it('starts a new session when only the initial offset changes', async () => {
   stream.handlers!.onStatus('open');
   await m.startSession(240);
   expect(modeling.POST).toHaveBeenCalledTimes(2);
-  expect(vi.mocked(modeling.POST).mock.calls.at(-1)?.[1]?.body).toMatchObject({ initial_state: { y_ft: 290 } });
+  // New multipart endpoints widen POST's overloads; read the init argument structurally.
+  const init = vi.mocked(modeling.POST).mock.calls.at(-1)?.[1] as { body?: unknown } | undefined;
+  expect(init?.body).toMatchObject({ initial_state: { y_ft: 290 } });
   m.dispose();
 });
 
@@ -360,5 +365,160 @@ it('does not connect a stale session if inputs change while its scene loads', as
   await start;
   expect(stream.handlers).toBeNull();
   expect(m.s.error).toMatch(/changed/i);
+  m.dispose();
+});
+
+
+describe('rm0-v1 session protocol (S1)', () => {
+  const lifecycle = (sequence: number, state: string, speed?: number) => ({
+    type: 'session_lifecycle', schema_version: 'rm0-v1', session_id: 's1', run_id: 'r1', sequence, t_s: 0, state,
+    scene_id: 'sc', scene_revision: '1', ...(speed !== undefined ? { speed } : {}),
+  });
+  async function rich() {
+    vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's1', ws_url: '/ws/sim/s1', protocol: 'rm0-v1',
+      scene_url: '/api/v1/berthing/sessions/s1/scene', recording_url: '/api/v1/berthing/sessions/s1/recording' } } as never);
+    const m = make();
+    await m.startSession(120);
+    return m;
+  }
+  const url = () => (typeof stream.url === 'function' ? stream.url() : stream.url);
+
+  it('reconnects asking only for lifecycle messages after the last one seen', async () => {
+    const m = await rich();
+    expect(url()).toBe('ws://localhost/ws/sim/s1');
+    stream.handlers!.onMessage(lifecycle(4, 'running'));
+    expect(url()).toBe('ws://localhost/ws/sim/s1?after_sequence=4');
+    m.dispose();
+  });
+
+  it('ignores a resent older lifecycle message', async () => {
+    const m = await rich();
+    stream.handlers!.onMessage(lifecycle(5, 'paused'));
+    stream.handlers!.onMessage(lifecycle(3, 'running'));
+    expect(m.s.lifecycle).toBe('paused');
+    m.dispose();
+  });
+
+  it('sends set_speed on a live session and follows the speed the session reports', async () => {
+    const m = await rich();
+    m.setSpeed(4);
+    expect(JSON.parse(stream.send.mock.calls.at(-1)![0])).toEqual({ type: 'set_speed', speed: 4 });
+    expect(m.s.speed).toBe(4);
+    stream.handlers!.onMessage(lifecycle(6, 'running', 2));
+    expect(m.s.speed).toBe(2);
+    stream.send.mockClear();
+    m.setSpeed(32);
+    expect(stream.send).not.toHaveBeenCalled();
+    m.dispose();
+  });
+
+  it('does not claim a speed change that could not be sent', async () => {
+    const m = await rich();
+    stream.send.mockReturnValue(false);
+    m.setSpeed(8);
+    expect(m.s.speed).toBe(1);
+    m.dispose();
+  });
+
+  it('lists the session recording and replays it with the session scene', async () => {
+    const m = await rich();
+    expect(m.s.sessionRecordings).toEqual([expect.objectContaining({
+      sessionId: 's1',
+      recordingUrl: 'http://localhost/api/modeling/api/v1/berthing/sessions/s1/recording',
+      sceneUrl: 'http://localhost/api/modeling/api/v1/berthing/sessions/s1/scene',
+    })]);
+    await m.loadSessionRecording('s1');
+    expect(fetch).toHaveBeenCalledWith('http://localhost/api/modeling/api/v1/berthing/sessions/s1/recording', expect.anything());
+    expect(m.s.source).toBe('recording');
+    expect(m.s.recording?.label).toMatch(/Session s1 recording/);
+    m.close();
+    expect(m.s.sessionRecordings).toHaveLength(1);
+    m.dispose();
+  });
+
+  it('shows simulation time for live frames and none for recordings', async () => {
+    const m = await rich();
+    stream.handlers!.onMessage(lifecycle(1, 'running'));
+    stream.handlers!.onMessage({ ...legacy(2.5, 3), environment: { t_s: 2.5 } });
+    flush();
+    expect(m.s.clock).toMatchObject({ simS: 2.5, forcingTS: 2.5, forcingRevision: null });
+    await m.loadRecording();
+    expect(m.s.clock).toBeNull();
+    m.dispose();
+  });
+
+  it('does not list a recording for a legacy session', async () => {
+    vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's0', ws_url: '/ws/sim/s0' } } as never);
+    const m = make();
+    await m.startSession(120);
+    expect(m.s.sessionRecordings).toEqual([]);
+    m.dispose();
+  });
+});
+
+it('retains synthetic forcing metadata and surfaces uncovered validity through lifecycle messages', async () => {
+  vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's1', ws_url: '/ws/sim/s1', forcing_revision: 'rev-a', forcing_synthetic: true } } as never);
+  const m = make();
+  await m.startSession();
+  expect(m.s).toMatchObject({ forcingRevision: 'rev-a', forcingSynthetic: true });
+  stream.handlers!.onMessage({ ...legacy(2, 1), forcing_revision: 'rev-a' });
+  flush();
+  expect(m.s).toMatchObject({ forcingRevision: 'rev-a', forcingSynthetic: true });
+  stream.handlers!.onMessage({ type: 'session_lifecycle', schema_version: 'rm0-v1', session_id: 's1', run_id: 'r1', sequence: 2, t_s: 2, state: 'paused', scene_id: 'sc', scene_revision: '1', validity: { state: 'invalid', reasons: [{ code: 'FORCING_UNCOVERED', message: 'Forcing ends before this step.' }] } });
+  expect(m.s.lifecycleInvalid).toBe(true);
+  expect(m.s.lifecycleReasons).toEqual(['FORCING_UNCOVERED: Forcing ends before this step.']);
+  m.dispose();
+});
+
+it('keeps explicit real forcing authoritative even with mock dynamics or component provenance', async () => {
+  vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's1', ws_url: '/ws/sim/s1', forcing_synthetic: false } } as never);
+  const m = make();
+  await m.startSession();
+  stream.handlers!.onMessage({ ...recording.frames[10], sequence: 1 });
+  flush();
+  expect(m.s.forcingSynthetic).toBe(false);
+  expect(m.s.clock?.training).toBe(false);
+  m.dispose();
+});
+
+it('does not apply an old session recording or its provenance after another recording is selected', async () => {
+  let finish!: (value: unknown) => void;
+  const old = new Promise((resolve) => { finish = resolve; });
+  vi.stubGlobal('fetch', vi.fn((url: string) => url === '/old' ? old : Promise.resolve({ ok: true, json: async () => ({ ...recording, recording_id: 'new' }) })));
+  const m = make();
+  m.state.set({ sessionRecordings: [{ sessionId: 'old', recordingUrl: '/old', sceneUrl: null, startedAt: '', forcingRevision: 'old-revision', forcingSynthetic: true }] });
+  const pending = m.loadSessionRecording('old');
+  await m.loadRecording('/new', null, 'New');
+  finish({ ok: true, json: async () => ({ ...recording, recording_id: 'old' }) });
+  await pending;
+  expect(m.s.recording?.id).toBe('new');
+  expect(m.s.forcingRevision).not.toBe('old-revision');
+  m.dispose();
+});
+
+it.each([false, true])('ignores a session creation completing after a recording selection (reject=%s)', async (reject) => {
+  let release!: () => void;
+  let entered!: () => void;
+  const started = new Promise<void>((resolve) => { entered = resolve; });
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  vi.mocked(modeling.POST).mockImplementationOnce(async () => {
+    entered();
+    await pending;
+    if (reject) throw new Error('Old provider failure');
+    return { data: { session_id: 'old', forcing_synthetic: true, forcing_revision: 'old' } } as never;
+  });
+  const m = make();
+  const creating = m.startSession();
+  await started;
+  await m.loadRecording();
+  const selected = m.s.recording!.id;
+  release();
+  await creating;
+  expect(m.s.source).toBe('recording');
+  expect(m.s.recording?.id).toBe(selected);
+  expect(m.s.sessionId).toBeNull();
+  expect(m.s.forcingRevision).not.toBe('old');
+  expect(m.s.error).toBeNull();
+  expect(stream.handlers).toBeNull();
   m.dispose();
 });

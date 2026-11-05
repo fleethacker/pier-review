@@ -1,5 +1,7 @@
 # Human-supplied data requests
 
+Execution owners: **Bixler** coordinates requests, approved catalog intake and status; **Snyder** specifies and reviews physical/model applicability; **Cruz** supplies public-source/datum evidence; **Kori** displays capability and missing-input states. Tie deliveries to R3/R4/R6/R8 and the [master ownership table](MASTER_PLAN.md#execution-ownership). Naming a team owner does not replace the source authority or engineering approval required below.
+
 Public feeds cannot qualify the assets below. Do not infer, scrape, or invent
 missing values. Synthetic seed records may support a labeled demonstration,
 but they cannot make an operational result valid. Before committing supplied
@@ -108,3 +110,10 @@ never zero. Synthetic training records cannot qualify an asset. Numeric or confi
 affected recommendations and require fresh independent review.
 
 Current seed inventory limitation (5 November 2026): CG-47, LHD-1 and CVN-68 have hull/load inputs but no vessel fitting layouts. The template service refuses to construct their line plans. DDG-51-FIIA has a seed layout for limited demonstrations. Prioritize approved fitting coordinates and ratings for any additional class before promising mooring/sequence support; do not borrow the DDG layout.
+
+A8 now provides `POST /api/v1/ships/validate` for an unsaved `ShipClass` and
+`GET /api/v1/ships/{class_id}/capabilities` for installed records. Both return capability states and named missing-input
+reasons. Validation checks IDs, coordinates/side, paired chocks, ratings, inventory and source metadata; it does not
+register records or grant qualification. Template selection uses actual fitting geometry rather than DDG-specific
+IDs. Synthetic non-DDG tests demonstrate software support only. Approved additional-class records, loading-specific
+fitting heights, review metadata and the controlled registration workflow remain outstanding.

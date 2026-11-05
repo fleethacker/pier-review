@@ -88,6 +88,28 @@ def test_bad_quality_missing_fields_and_malformed_rows():
         assert e.value.kind == "malformed"
 
 
+@pytest.mark.parametrize("parser", [coops.parse_wind, coops.parse_water_level, coops.parse_currents])
+@pytest.mark.parametrize("row", [None, "invalid row", 12])
+def test_nonobject_observation_rows_raise_provider_error(parser, row):
+    with pytest.raises(ProviderError, match="list of objects") as error:
+        parser({"data": [row]})
+    assert error.value.kind == "malformed"
+
+
+def test_explicit_current_bin_mismatch_is_never_relabelled_during_parsing_or_join():
+    doc = L("currents_cb0402_bin4.json")
+    for row in doc["data"]:
+        row["b"] = "1"
+    with pytest.raises(ProviderError, match="differs from requested bin 4"):
+        coops.parse_currents(doc, expected_bin=4)
+    parsed = coops.parse_currents(doc)
+    assert all(row["bin"] == "1" for row in parsed)
+    with pytest.raises(ProviderError, match="differs from requested bin 4"):
+        coops.assemble(coops.parse_wind(L("wind_8638614.json")),
+                      coops.parse_water_level(L("water_level_8638610.json")), parsed,
+                      wind_station="8638614", level_station="8638610", current_station="cb0402", bin=4)
+
+
 def test_water_level_flags_mark_suspect_and_preliminary_is_disclosed():
     doc = {"data": [{"t": "2026-01-01 00:00", "v": "1.0", "f": "0,0,1,0", "q": "p"}, {"t": "2026-01-01 00:06", "v": "1.1", "f": "0,0,0,0", "q": "p"}]}
     lv = coops.parse_water_level(doc)
@@ -237,6 +259,32 @@ def coops_mode(monkeypatch):
 
 def configure(transport, now=NOW):
     live.configure(Fetcher(transport, clock=lambda: now, sleep=lambda s: None, retries=0, min_interval_s=0.0), clock=lambda: now)
+
+
+@pytest.mark.parametrize("bad_product,component", [("wind", "wind"), ("water_level", "water_level"), ("currents", "current")])
+def test_malformed_observation_preserves_other_component_availability(coops_mode, bad_product, component):
+    configure(recorded_transport({bad_product: {"data": [None]}}))
+    status = live.component_availability("NAVSTA-NORFOLK-P12-N", NOW)
+    by_component = {item.component: item for item in status.components}
+    assert by_component[component].state == "unavailable"
+    assert "malformed" in by_component[component].reason
+    assert all(by_component[name].state == "live" for name in ("wind", "current", "water_level") if name != component)
+    assert not status.complete_snapshot_available
+
+
+def test_wrong_current_bin_stays_unavailable_and_is_not_cached(coops_mode):
+    doc = L("currents_cb0402_bin4.json")
+    for row in doc["data"]:
+        row["b"] = "1"
+    f = Fetcher(recorded_transport({"currents": doc}), clock=lambda: NOW, sleep=lambda _: None,
+                retries=0, min_interval_s=0)
+    live.configure(f, clock=lambda: NOW)
+    status = live.component_availability("NAVSTA-NORFOLK-P12-N", NOW)
+    by_component = {item.component: item for item in status.components}
+    assert by_component["current"].state == "unavailable"
+    assert "differs from requested bin 4" in by_component["current"].reason
+    assert by_component["wind"].state == by_component["water_level"].state == "live"
+    assert len(f.cache) == 2  # only the unaffected wind and water-level documents
 
 
 def test_env_now_serves_the_latest_recorded_observation_with_metadata(coops_mode):

@@ -220,10 +220,11 @@ def bounded_httpx_transport(
 ) -> HttpPayload:
     """Stream with byte and elapsed-time caps, including slow-drip responses."""
     started = monotonic()
+    elapsed_limit = min(max_elapsed_s, timeout_s)
 
     def ensure_elapsed_bound() -> None:
-        if monotonic() - started >= max_elapsed_s:
-            raise httpx.TimeoutException(f"response exceeded {max_elapsed_s}s elapsed limit")
+        if monotonic() - started >= elapsed_limit:
+            raise httpx.TimeoutException(f"response exceeded {elapsed_limit}s elapsed limit")
 
     with httpx.stream(
         "GET",
@@ -279,12 +280,38 @@ class ProviderHttpClient:
     def _cached(self, payload: HttpPayload, *, age_s: float, stale: bool) -> HttpPayload:
         return replace(payload, from_cache=True, stale=stale, age_s=age_s)
 
-    def get(self, url: str, params: Mapping[str, str] | None = None) -> HttpPayload:
-        # A shared provider client coalesces cache misses and serializes its rate/breaker state.
-        with self._lock:
-            return self._get(url, params)
+    def get(
+        self, url: str, params: Mapping[str, str] | None = None, *,
+        deadline_monotonic: float | None = None, monotonic: Callable[[], float] = time.monotonic,
+    ) -> HttpPayload:
+        """Serialize provider state within an optional caller-owned elapsed budget.
 
-    def _get(self, url: str, params: Mapping[str, str] | None = None) -> HttpPayload:
+        The budget includes lock contention, rate waits, retries and transport.
+        Transports must honor their timeout; streaming adapters also bound total
+        response elapsed time rather than only an individual socket operation.
+        """
+        if deadline_monotonic is not None and not math.isfinite(deadline_monotonic):
+            raise ValueError("provider deadline must be finite")
+
+        def remaining() -> float:
+            budget = math.inf if deadline_monotonic is None else deadline_monotonic - monotonic()
+            if budget <= 0:
+                raise ProviderError("unavailable", f"{self.provider_id} total request deadline exceeded")
+            return budget
+
+        if deadline_monotonic is None:
+            acquired = self._lock.acquire()
+        else:
+            acquired = self._lock.acquire(timeout=remaining())
+        if not acquired:
+            raise ProviderError("unavailable", f"{self.provider_id} total request deadline exceeded waiting for provider lock")
+        try:
+            remaining()
+            return self._get(url, params, remaining=remaining)
+        finally:
+            self._lock.release()
+
+    def _get(self, url: str, params: Mapping[str, str] | None, *, remaining: Callable[[], float]) -> HttpPayload:
         params = params or {}
         key = self._key(url, params)
         now = self.clock.now()
@@ -304,22 +331,25 @@ class ProviderHttpClient:
             raise
         last_error = "no attempt"
         for attempt in range(self.policy.retries + 1):
+            remaining()
             if self._last_call is not None:
                 wait = self.policy.min_interval_s - (self.clock.now() - self._last_call).total_seconds()
                 if wait > 0:
-                    self.clock.sleep(wait)
+                    self.clock.sleep(min(wait, remaining()))
+                    remaining()
             self._last_call = self.clock.now()
             self.calls += 1
             try:
                 payload = self.transport(
                     url,
                     params,
-                    self.policy.timeout_s,
+                    min(self.policy.timeout_s, remaining()),
                     {"User-Agent": self.user_agent, "Accept": "application/json"},
                 )
             except (httpx.HTTPError, OSError, TimeoutError) as exc:
                 last_error = f"{type(exc).__name__}: {exc}"
             else:
+                remaining()
                 if payload.status_code == 429 or payload.status_code >= 500:
                     last_error = f"HTTP {payload.status_code}"
                 else:
@@ -329,9 +359,12 @@ class ProviderHttpClient:
                         payload = replace(payload, retrieved_at_utc=retrieved)
                         self._cache[key] = (retrieved, payload)
                     return payload
+            remaining()
             if attempt < self.policy.retries:
-                self.clock.sleep(self.policy.backoff_s * (2**attempt))
+                self.clock.sleep(min(self.policy.backoff_s * (2**attempt), remaining()))
+                remaining()
 
+        remaining()
         self.breaker.failed()
         if hit:
             # Retries, transport latency and backoff all age the cached value.

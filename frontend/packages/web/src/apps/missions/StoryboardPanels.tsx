@@ -5,7 +5,7 @@ import { timeSpan } from './controller';
 import { useController, useMissions } from './context';
 import { CreateMissionForm, ImageUploadForm, ReportForm, TrackResult, TrackUploadForm } from './forms';
 import { fmtClock, fmtDuration, fmtUtc, num } from './fmt';
-import { ErrorLine, Heading, Notice, ValidityBadge, ValidityReasons } from './parts';
+import { ErrorLine, FollowToggle, Heading, Notice, ValidityBadge, ValidityReasons } from './parts';
 import { DISCREPANCY_WARN_M, KIND_ICON, locateStyle } from './styling';
 import type { StoryboardEvent } from './types';
 
@@ -162,6 +162,7 @@ export function StoryboardSide() {
           <li>White arrow-point: ship at the scrubber time (hidden where position is not established)</li>
           <li>Events in a gap, before or after the track, or with no time have no marker.</li>
         </ul>
+        <FollowToggle label="Keep the ship centered (the map shows about 8 km at a time)" />
       </section>
     </div>
   );

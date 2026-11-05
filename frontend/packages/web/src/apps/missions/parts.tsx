@@ -1,4 +1,5 @@
 import { cn } from '../../lib/cn';
+import { useController, useMissions } from './context';
 import type { Validity } from './types';
 
 const VALIDITY_CLASS: Record<Validity['state'], string> = {
@@ -57,3 +58,14 @@ export const chipBtn = (active: boolean) =>
     'border px-2 py-1 font-mono text-[10px] uppercase tracking-wider focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-mil-cyan/60',
     active ? 'border-mil-cyan/60 bg-mil-cyan/20 text-mil-cyan' : 'border-mil-border text-mil-text hover:text-white',
   );
+
+export function FollowToggle({ label }: { label: string }) {
+  const c = useController();
+  const follow = useMissions((s) => s.follow);
+  return (
+    <label className="mt-2 flex items-center gap-2 text-[11px] text-mil-text">
+      <input type="checkbox" checked={follow} onChange={(e) => c.setFollow(e.target.checked)} />
+      {label}
+    </label>
+  );
+}

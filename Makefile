@@ -1,4 +1,4 @@
-.PHONY: install mock modeling agents contract contract-check test check smoke-live demo-check
+.PHONY: install mock modeling agents contract contract-check test check smoke-live demo-check missions-check
 
 # Optional installed native-library path, assigned inside the recipe for macOS make.
 PDF_LIBRARY_PATH ?=
@@ -35,3 +35,6 @@ smoke-live:           ## Opt-in live provider checks (never part of CI)
 
 demo-check:         ## Check the browser and API demonstration (see scripts/demo_check.py)
 	uv run --all-packages python scripts/demo_check.py
+
+missions-check:     ## Browser check of the Missions app against a running UI + modeling (UI_URL, SHOTS_DIR; see scripts/check_missions_ui.py)
+	uv run --all-packages --with playwright --with pillow python scripts/check_missions_ui.py $${UI_URL:-http://localhost:4000} $${SHOTS_DIR:-/tmp/missions-check}

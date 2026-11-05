@@ -52,6 +52,27 @@ describe('sample data mode', () => {
     expect(c.currentEventId()).toBe('rep-2');
   });
 
+  it('frames the data with invisible fit anchors, and follows the ship in the 2D view only', async () => {
+    const { store, c } = make();
+    await c.init();
+    expect(Object.keys(store.getState().entities).filter((i) => i.startsWith('fit-anchor'))).toHaveLength(2);
+    const t0 = Date.parse(sampleStoryboard.track[0].t_utc);
+    const rev = () => store.getState().cameraPreset?.revision ?? 0;
+    const before = rev();
+    c.setScrub(t0 + 90_000);
+    expect(rev()).toBeGreaterThan(before);
+    expect(store.getState().cameraPreset?.target).toBeDefined();
+    c.setFollow(false);
+    const off = rev();
+    c.setScrub(t0 + 120_000);
+    expect(rev()).toBe(off);
+    c.setFollow(true);
+    store.setViewMode('3d');
+    const in3d = rev();
+    c.setScrub(t0 + 150_000);
+    expect(rev()).toBe(in3d);
+  });
+
   it('refuses writes with a clear message', async () => {
     const { c } = make();
     await c.init();

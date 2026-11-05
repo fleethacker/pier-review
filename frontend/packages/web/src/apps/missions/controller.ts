@@ -18,6 +18,8 @@ import {
   VESSEL_COLORS,
   centroid,
   eventIdFromEntity,
+  fitAnchors,
+  TRANSIT_FIT_PAD_M,
   makeProjector,
   shipMarker,
   storyboardContent,
@@ -76,6 +78,8 @@ export interface MissionsState {
   clock: Clock;
   vessels: TransitVesselState[];
   selectedVesselId: string | null;
+  /** Keep the map centered on the ship (storyboard) or the vessels (transit); the shell cannot show more than about 8 km at once. */
+  follow: boolean;
 }
 
 const initial: MissionsState = {
@@ -106,6 +110,7 @@ const initial: MissionsState = {
   clock: { t: 0, playing: false, speed: 10 },
   vessels: [],
   selectedVesselId: null,
+  follow: true,
 };
 
 export function prefersReducedMotion(): boolean {
@@ -267,6 +272,7 @@ export class MissionsController {
     if (this.state.tab !== 'storyboard' || !this.projector) return;
     if (pos.established && pos.lat != null && pos.lon != null) {
       this.host.store.replaceEntitiesOfKind(['ship-marker'], [shipMarker(pos.lat, pos.lon, pos.headingDeg ?? null, this.projector, sb.mission.vessel_id)]);
+      this.followCamera([pos]);
     } else {
       this.host.store.replaceEntitiesOfKind(['ship-marker'], []);
     }
@@ -484,6 +490,7 @@ export class MissionsController {
 
   selectVessel(id: string): void {
     this.store.setState({ selectedVesselId: id });
+    this.followCamera(this.followTargets(this.state.vessels));
   }
 
   /** Jump to a transit event. */
@@ -537,7 +544,7 @@ export class MissionsController {
       const c = centroid(sb.track);
       this.projector = makeProjector(c.lat, c.lon);
       const { entities, links } = storyboardContent(sb, this.projector, this.state.selectedEventId);
-      s.setContent({ frame: this.projector.frame, entities, links, vectors: [] });
+      s.setContent({ frame: this.projector.frame, entities: [...fitAnchors(sb.track, this.projector), ...entities], links, vectors: [] });
       this.updateShip();
     } else {
       const series = this.state.series;
@@ -549,7 +556,7 @@ export class MissionsController {
       }
       const c = centroid(series.frames.flatMap((f) => f.vessels));
       this.projector = makeProjector(c.lat, c.lon);
-      s.setContent({ frame: this.projector.frame, entities: [], links: [], vectors: [] });
+      s.setContent({ frame: this.projector.frame, entities: fitAnchors(first, this.projector, TRANSIT_FIT_PAD_M), links: [], vectors: [] });
       this.pushTransit();
     }
   }
@@ -562,6 +569,31 @@ export class MissionsController {
     s.replaceEntitiesOfKind(['vessel', 'vessel-marker'], vesselEntities(vessels, p, this.looks));
     s.setLinks(vessels.flatMap((v) => trailLinks(v.vessel_id, trailPoints(series.frames, v.vessel_id, clock.t, { lat: v.lat, lon: v.lon }), p, this.looks.get(v.vessel_id)?.color ?? '#fff')));
     s.setVectors(vessels.flatMap((v) => (v.tugs ?? []).map((t) => tugVector(t, v, p))));
+    this.followCamera(this.followTargets(vessels));
+  }
+
+  /** The selected vessel if there is one (vessels can be miles apart, farther than the map can show), else all of them. */
+  private followTargets(vessels: TransitVesselState[]): TransitVesselState[] {
+    const sel = vessels.find((v) => v.vessel_id === this.state.selectedVesselId);
+    return sel ? [sel] : vessels;
+  }
+
+  setFollow(follow: boolean): void {
+    this.store.setState({ follow });
+    if (!follow) return;
+    if (this.state.tab === 'transit') this.followCamera(this.followTargets(this.state.vessels));
+    else if (this.state.shipPosition?.established) this.followCamera([this.state.shipPosition as { lat: number; lon: number }]);
+  }
+
+  /** Re-center the top view on the given positions. Only in the 2D view: the preset call would switch a 3D view back to 2D. */
+  private followCamera(points: { lat?: number | null; lon?: number | null }[]): void {
+    const p = this.projector;
+    const s = this.host.store;
+    if (!this.state.follow || !p || s.getState().viewMode !== '2d') return;
+    const pts = points.filter((q): q is { lat: number; lon: number } => q.lat != null && q.lon != null);
+    if (pts.length === 0) return;
+    const xy = pts.map((q) => p.toXY(q.lat, q.lon));
+    s.setCameraPreset('top', { x: xy.reduce((a, q) => a + q.x, 0) / xy.length, y: xy.reduce((a, q) => a + q.y, 0) / xy.length });
   }
 }
 

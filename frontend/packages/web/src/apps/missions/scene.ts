@@ -78,6 +78,38 @@ export function eventEntity(e: StoryboardEvent, p: Projector, selected: boolean)
   };
 }
 
+const FIT_PAD_FRACTION = 0.2;
+const FIT_MIN_PAD_M = 300;
+/** Transit frames the start (the shell cannot show a whole route) with room for a hull and tug arrows. */
+export const TRANSIT_FIT_PAD_M = 800;
+export const FIT_ANCHOR_KIND = 'fit-anchor';
+
+/**
+ * The shell fits the camera to entities only, not to links or vectors. Two invisible points at the opposite corners
+ * of the data's bounding box make the track or the transit route frame correctly, even before the first marker exists.
+ */
+export function fitAnchors(points: { lat: number; lon: number }[], p: Projector, minPadM = FIT_MIN_PAD_M): SceneEntity[] {
+  if (points.length === 0) return [];
+  const xy = points.map((q) => p.toXY(q.lat, q.lon));
+  const xs = xy.map((q) => q.x);
+  const ys = xy.map((q) => q.y);
+  // The shell fits tightly (a vessel at the end of a route sat on the canvas edge), so pad the box.
+  const pad = Math.max(minPadM, FIT_PAD_FRACTION * Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)));
+  const corners = [
+    [Math.min(...xs) - pad, Math.min(...ys) - pad],
+    [Math.max(...xs) + pad, Math.max(...ys) + pad],
+  ];
+  return corners.map(([x, y], i) => ({
+    id: `fit-anchor:${i}`,
+    kind: FIT_ANCHOR_KIND,
+    pose: { x, y, z: 0, headingDeg: 0 },
+    geometry: { type: 'point' as const, sizePx: 1 },
+    opacity: 0,
+    noOutline: true,
+    selectable: false,
+  }));
+}
+
 export const SHIP_ID = 'mission-ship';
 
 /** Storyboard map content: the track polyline, event markers (never for unlocated events). */

@@ -2,7 +2,7 @@ import { cn } from '../../lib/cn';
 import { Button, Field, Select, inputClass } from '../../shell/ui';
 import { useController, useMissions } from './context';
 import { fmtSimTime, num } from './fmt';
-import { ErrorLine, Heading, Notice, ValidityBadge, ValidityReasons, chipBtn } from './parts';
+import { ErrorLine, FollowToggle, Heading, Notice, ValidityBadge, ValidityReasons, chipBtn } from './parts';
 import { SPEEDS, endTime } from './playback';
 import { VESSEL_COLORS } from './scene';
 import type { TransitEvent, VesselTransit } from './types';
@@ -140,6 +140,7 @@ export function TransitSide() {
       <p>Hull outline follows the ship heading; scaled to ship length when the ship class is known, otherwise a fixed glyph labeled "not to scale".</p>
       <p>Thin trail: recent path (last 300 points). Orange arrow: tug force at its hull contact point, length proportional to force.</p>
       <p>Tug hull positions are not modeled; the arrow shows force only.</p>
+      <FollowToggle label="Keep the vessels centered (the map shows about 8 km at a time)" />
     </section>
   );
 }

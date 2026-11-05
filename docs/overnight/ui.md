@@ -2,6 +2,9 @@
 
 ## Requests
 
+- B 01:27 EST: Intake now shares F24 temporal availability checks from core/forecast_provenance.py. Future observations, future-issued guidance and public forecasts lacking availability provenance are excluded from windows/MST/planning conditions and optional narration, with RED missing-data findings. Invalid current temporal provenance returns422. Intake created_at_utc is the availability cutoff captured after retrieval; actual issuance versus retrieval distinction preserved. No source substitution or physical arithmetic added.
+
+
 - B 01:21 EST: Berth confirmation/registration requires nonempty depth_profile, unique x stations, unique fitting/fender IDs and bounded lat/lon; malformed data returns422 without poisoning the catalog. Single-point and unordered unique profiles remain supported. Current vision fixtures pass. Preserve field errors rather than substituting a depth or merging duplicate assets.
 
 - B 01:19 EST browser evidence: all four named saved scenarios loaded through canonical source resolution with no page errors (AMBER/limited supported, RED/limited storm, RED/invalid inadequate depth and underconstrained). 84 UI/1608 Python tests pass. Explicit Intake/review flow is still open. ResultPanel also prints diagnostic numerical metrics for invalid results (e.g. underconstrained 0%); recommend suppressing or clearly marking these unusable rather than presenting them as a usable margin. Shared saved-source change only; held feature branch unchanged.

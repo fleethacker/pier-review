@@ -9,6 +9,7 @@ from datetime import timedelta
 from mooring import refdata
 from mooring.core.envelopes import envelope, resolved_inputs_hash
 from mooring.core import store
+from mooring.core.forecast_provenance import availability_problem
 from mooring.core.schemas import AnalyzeRequest, RecommendRequest, Validity, ValidityReason, ResultManifest, ManifestRecord
 from mooring.core.schemas.forecast_planning import (
     DockingArrivalWindow, DockingConditionResult, ForecastDockingRequest, ForecastDockingResponse, ForecastDockingResult,
@@ -28,45 +29,22 @@ LIMITATIONS = ['Static line/holding assessment, not a validated docking maneuver
 
 
 def _input_problem(snapshot, as_of, valid_until=None):
+    if problem := availability_problem(snapshot, as_of):
+        return problem
     meta = snapshot.metadata
-    public_forecast = snapshot.source == 'forecast' or (snapshot.source == 'replay' and snapshot.valid_at_utc > as_of)
-    if public_forecast:
-        if meta is None or meta.basis != 'prediction':
-            return 'Public forecast or future replay requires prediction basis and availability provenance'
-        if meta.components:
-            if {item.component for item in meta.components} != {'wind', 'current', 'water_level'}:
-                return 'Composed forecasts require provenance for wind, current and water level'
-            for item in meta.components:
-                if item.basis != 'prediction':
-                    return f'{item.component}: future public guidance requires prediction basis'
-                available = item.issued_at_utc or item.retrieved_at_utc
-                if available is None or available > as_of:
-                    return f'{item.component}: availability by planning as-of time is not established'
-        elif meta.issued_at_utc is None:
-            return 'Public forecast or future replay lacks issuance time; observations are not advance guidance'
     for item in meta.components if meta else []:
         if item.quality in ('poor', 'suspect'):
             return f'{item.component}: source quality is poor or suspect'
-        if item.basis == 'observation' and snapshot.valid_at_utc > as_of:
-            return f'{item.component}: future observations cannot be used as a forecast'
-        if item.issued_at_utc and item.issued_at_utc > as_of:
-            return f'{item.component}: forecast was issued after planning as-of time'
         if item.valid_from_utc and snapshot.valid_at_utc < item.valid_from_utc:
             return f'{item.component}: snapshot precedes its declared validity interval'
         if item.valid_to_utc and (valid_until or snapshot.valid_at_utc) > item.valid_to_utc:
             return f'{item.component}: forecast would be held beyond its declared validity interval'
     if meta and meta.quality in ('poor', 'suspect'):
         return 'Environment quality is poor or suspect; a supported arrival cannot be established'
-    if meta and meta.basis == 'observation' and snapshot.valid_at_utc > as_of:
-        return 'Future observations cannot be used as a forecast'
     if meta and meta.valid_from_utc and snapshot.valid_at_utc < meta.valid_from_utc:
         return 'Snapshot precedes its declared validity interval'
     if meta and meta.valid_to_utc and (valid_until or snapshot.valid_at_utc) > meta.valid_to_utc:
         return 'Forecast would be held beyond its declared validity interval'
-    if meta and meta.issued_at_utc and meta.issued_at_utc > as_of:
-        return 'Forecast was issued after planning as-of time'
-    if snapshot.source in ('live', 'ship_sensor') and snapshot.valid_at_utc > as_of:
-        return 'Future observations cannot be used as a forecast'
     flags = {flag.lower() for quality in snapshot.quality for flag in quality.flags}
     if any(any(word in flag for word in ('missing', 'unavailable', 'stale')) for flag in flags):
         return 'Required environment component is missing, unavailable or stale'

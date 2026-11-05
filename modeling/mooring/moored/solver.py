@@ -11,11 +11,12 @@ Separation of concerns (S06): *numerical validity* (convergence, residual, rank,
 
 import math
 from collections import defaultdict
+from dataclasses import replace
 
 from mooring import qualification, refdata
 from mooring.core import store
 from mooring.core.envelopes import envelope, resolved_inputs_hash, status_from_pct, worst
-from mooring.core.geometry import depth_at, line_geometry, ship_heading_true, ship_to_berth
+from mooring.core.geometry import classify_role, depth_at, line_geometry, ship_heading_true, ship_to_berth
 from mooring.core.schemas import (
     AnalyzeRequest, AnalyzeResponse, AnalyzeResult, FenderResult, Finding, LineResult, ManifestRecord, MinMargin, Offset,
     PierFittingResult, ResultManifest, Rule, ShipFittingResult, SolverDiagnostics, SolverResidual, Validity, ValidityReason,
@@ -136,17 +137,26 @@ def build_result(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs
     pose = sol.pose
     df = design_factor(req.mst)
     heading0 = ship_heading_true(berth, cfg.side_to)
-    geoms = [line_geometry(rec.ln, ship, berth, cfg, req.installed_at_water_level_mllw_ft
-                           if req.installed_at_water_level_mllw_ft is not None else env.water_level_mllw_ft) for rec in system.lines]
+    nominal_geoms = [line_geometry(rec.ln, ship, berth, cfg, env.water_level_mllw_ft) for rec in system.lines]
     tens = system.line_tensions(pose)
-    line_results, states = [], {}
-    for (rec, st, t), g in zip(tens, geoms):
+    forward = system.frame.vector_to_berth(1, 0, pose)
+    port = system.frame.vector_to_berth(0, 1, pose)
+    line_results, states, geoms = [], {}, []
+    for (rec, st, t), g in zip(tens, nominal_geoms):
         n = rec.ln.line_number
         mbs = rec.model.mbs_eff_lbf
         wll = mbs / df
         horiz = math.hypot(st.ux, st.uy)
-        horiz_angle = math.degrees(math.atan2(abs(st.ux), abs(st.uy))) if horiz > 0 else 90.0  # from perpendicular to the face
+        along_ship = st.ux * forward[0] + st.uy * forward[1]
+        across_ship = st.ux * port[0] + st.uy * port[1]
+        horiz_angle = math.degrees(math.atan2(abs(along_ship), abs(across_ship))) if horiz > 0 else 90.0
         vert = math.degrees(math.atan2(abs(st.uz), horiz))
+        # Rules and displayed line geometry must describe the same solved pose/tide.
+        # Installation tide defines rest lengths, not the current line lead or span.
+        g = replace(g, length_ft=st.length_ft, horiz_length_ft=st.length_ft*horiz,
+                    horiz_angle_deg=horiz_angle, vert_angle_deg=vert, leads_forward=along_ship > 0,
+                    role=rec.ln.role or classify_role(ship, g.lead_point.x_ft, horiz_angle, along_ship > 0))
+        geoms.append(g)
         pct_wll = 100 * t / wll
         states[n] = (st, t)
         line_results.append(LineResult(

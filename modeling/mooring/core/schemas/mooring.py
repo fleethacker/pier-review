@@ -41,10 +41,10 @@ class LineResult(Model):
     tension_lbf: float
     pct_mbs: float
     pct_wll: float
-    horiz_angle_deg: float = Field(description="Angle from perpendicular to the ship; breast lines are under 45.")
-    vert_angle_deg: float
+    horiz_angle_deg: float = Field(description="Angle from perpendicular to the ship at the solved pose, including yaw; breast lines are under 45.")
+    vert_angle_deg: float = Field(description="Solved line angle above horizontal at the assessed water level.")
     breast_efficiency: float = Field(description="cos(horizontal angle): share of tension that holds the ship in.")
-    length_ft: float
+    length_ft: float = Field(description="Straight span between lead point and pier fitting at the solved pose; not unstretched paid-out length.")
     status: Status
 
 

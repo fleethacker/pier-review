@@ -34,3 +34,15 @@ def test_legacy_analyze_result_omits_inactive_resolved_configuration():
     result = analyze(docking_cases()[0].analysis_request).result.model_dump()
     result.pop('resolved_config')
     assert 'resolved_config' not in AnalyzeResult.model_validate(result).model_dump()
+
+
+@pytest.mark.parametrize('level', [-2.0, 4.0])
+def test_line_advisories_do_not_depend_on_installation_hint_when_spans_are_explicit(level):
+    req = docking_cases()[0].analysis_request.model_copy(deep=True)
+    req.installed_at_water_level_mllw_ft = req.environment.water_level_mllw_ft
+    resolved = analyze(req).result.resolved_config
+    req = req.model_copy(update={'config':resolved,
+        'environment':req.environment.model_copy(update={'water_level_mllw_ft':level})})
+    anchored = analyze(req)
+    no_hint = analyze(req.model_copy(update={'installed_at_water_level_mllw_ft':None}))
+    assert anchored.result.model_dump() == no_hint.result.model_dump()

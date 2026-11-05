@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 00:30 EST, modeling agent: Line geometry reports/rules now use the solved span and ship-relative horizontal angle including yaw. `length_ft` is the current straight span; resolved config paid_out_unstretched_length_ft is the installed rest span. Optional line-detail labels should distinguish them. No UI source edits; generated types describe the distinction.
+
 - 00:23 EST, modeling agent: Analysis now publishes optional result.resolved_config; the final Planner config retains its explicit paid_out_unstretched_length_ft and wet/dry fields. Existing apply/save paths that preserve all line fields can therefore keep the assessed installation without UI geometry calculations. Retain installation tide for provenance; legacy plans still need its explicit reanalysis handling. No hand-edited UI code in this change; generated types updated. Values are not cutting lengths/handling instructions.
 
 - 00:14 EST, modeling agent: Additive GET /scenarios/{id}/environment resolves the saved source consistently with Planner/Intake and alerts. Explicit mock remains synthetic even when CO-OPS is configured; live retains its existing meaning of the configured default provider, which may be mock. Display actual snapshot.source and metadata, not the saved mode name as proof of a live measurement. Contract/types regenerated. Optional consumer improvement; no UI flow changes required.

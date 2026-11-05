@@ -35,3 +35,9 @@ Forecast provenance gates also reject poor/suspect quality, future observations 
 forecast issue time/prediction basis, snapshots before their declared interval, and holding a snapshot past its declared
 validity end. Short operations may fit within a short declared interval; extending the holding duration requires actual
 coverage. These gates apply before a window is called supported; unavailable data is never replaced by a calm value.
+
+## Reusing a selected installation
+
+When an arrival is supported, `selected_config` resolves each line's modeled `paid_out_unstretched_length_ft` and wet/dry condition, and `installed_at_water_level_mllw_ft` identifies its installation tide. The original common `config` remains available for comparing arrival alternatives; each evaluated condition/window also carries its installation tide. No selected configuration is published when no supported arrival exists.
+
+Use `selected_config` for a later static recheck so a changed tide does not silently reinstall/retension every line. Preserve these fields when applying the plan in the UI. The modeled unstretched span is a reproducibility input, **not a rope-cutting length or deck-handling instruction**; actual measurements, reeving and handling procedure require qualified review. The resolved configuration and installation level are retained in the result manifest.

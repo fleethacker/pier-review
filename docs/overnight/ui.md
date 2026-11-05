@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 22:12 EST: F24 result adds optional selected_config with explicit modeled paid_out_unstretched_length_ft and wet/dry condition, plus installed_at_water_level_mllw_ft on selected result/window/condition. Preserve selected_config when applying/rechecking at later tides; otherwise implicit defaults can retension every line. No selected_config when no supported arrival. Values are modeled spans, not deck cutting/handling instructions; see docs/FORECAST_DOCKING.md.
+
 - B 22:08 EST: SafetySheet adds optional analysis_result_id, threshold_result_ids and holding_tugs (null/absent = unknown legacy record; [] = explicitly no prescribed assistance). Printable sheet separates holding assistance from berthing tug plan and labels evaluated-condition time/source and visible citations. Please preserve these distinctions in UI sheet views.
 
 - B 21:58 EST: safety watch adds optional requires_recheck/recheck_reasons to GustWarning, clears percentages when current/tide/density/wind basis differs from reviewed conditions, and emits RED for unusable inputs. New terminal SSE source_unavailable (SafetyWatchUnavailable) carries no measurements and a retryable flag; show unavailable, reconnect with backoff if retryable. Generated types refreshed only. This requests reanalysis, not a recalculated threshold.

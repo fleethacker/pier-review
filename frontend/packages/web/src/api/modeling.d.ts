@@ -5074,6 +5074,11 @@ export interface components {
         /** DockingArrivalWindow */
         DockingArrivalWindow: {
             /**
+             * Installed At Water Level Mllw Ft
+             * @default null
+             */
+            installed_at_water_level_mllw_ft: number | null;
+            /**
              * Arrival Utc
              * Format: date-time
              */
@@ -5106,6 +5111,11 @@ export interface components {
         };
         /** DockingConditionResult */
         DockingConditionResult: {
+            /**
+             * Installed At Water Level Mllw Ft
+             * @default null
+             */
+            installed_at_water_level_mllw_ft: number | null;
             /**
              * Valid At Utc
              * Format: date-time
@@ -5179,6 +5189,17 @@ export interface components {
         };
         /** ForecastDockingResult */
         ForecastDockingResult: {
+            /**
+             * @description Selected arrival's configuration with modeled unstretched paid-out lengths made explicit. Reproduces the static installation assumption; not a deck-handling instruction.
+             * @default null
+             */
+            selected_config: components["schemas"]["MooringConfig"] | null;
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Installation water level for selected_config; unknown/absent when no supported arrival was selected.
+             * @default null
+             */
+            installed_at_water_level_mllw_ft: number | null;
             /**
              * As Of Utc
              * Format: date-time

@@ -22,6 +22,12 @@ from mooring.core.schemas import (
 )
 
 from ..planner.schemas import RationaleItem
+from mooring.core.schemas.forecast_planning import ForecastResolutionManifest
+
+
+def _optional_wire_schema(schema):
+    # Generated TypeScript must allow legacy documents to omit additive fields.
+    schema.pop("default", None)
 
 # ---------- Review ----------
 
@@ -64,8 +70,14 @@ class DirectionalThreshold(Model):
 
 
 class SafetyReview(Model):
-    wire_omitted_defaults = {"validity": None}
+    wire_omitted_defaults = {"validity": None, "forecast_manifest": None, "forecast_result_id": None,
+                            "geometry_snapshot_verified": None}
     validity: Validity | None = None
+    forecast_manifest: ForecastResolutionManifest | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    forecast_result_id: str | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    geometry_snapshot_verified: bool | None = Field(default=None,
+        json_schema_extra=_optional_wire_schema,
+        description="True only when independent-review result manifests match the captured plan ship/berth revisions; null means unverified.")
     review_id: str
     plan_id: str
     created_at_utc: datetime
@@ -170,10 +182,33 @@ class ApprovalCreate(Model):
     comment: str | None = None
 
 
+class SheetLayout(Model):
+    """Immutable, self-contained graphic associated with one sheet version and analysis."""
+
+    state: Literal["available", "unavailable"]
+    sheet_id: str
+    sheet_version: int
+    plan_id: str
+    review_id: str | None
+    analysis_result_id: str | None
+    geometry_hash: str | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    sheet_binding_hash: str | None = Field(default=None, json_schema_extra=_optional_wire_schema,
+        description="Hash of sheet identity, depicted environment, lines and tug assignments.")
+    ship_revision: str | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    berth_revision: str | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    svg: str | None = Field(default=None, json_schema_extra=_optional_wire_schema,
+        description="Self-contained SVG generated from saved assessment geometry; no external assets.")
+    unavailable_reason: str | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+
+
 class SafetySheet(Model):
     wire_omitted_defaults = {"validity": None, "analysis_result_id": None,
                             "threshold_result_ids": [], "holding_tugs": None, "sequence_result_id": None,
-                            "installed_at_water_level_mllw_ft": None}
+                            "installed_at_water_level_mllw_ft": None, "layout": None,
+                            "forecast_manifest": None, "forecast_result_id": None}
+    layout: SheetLayout | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    forecast_manifest: ForecastResolutionManifest | None = Field(default=None, json_schema_extra=_optional_wire_schema)
+    forecast_result_id: str | None = Field(default=None, json_schema_extra=_optional_wire_schema)
     validity: Validity | None = None
     analysis_result_id: str | None = None
     installed_at_water_level_mllw_ft: float | None = None

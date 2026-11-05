@@ -18,6 +18,7 @@ from ..physics.toolkit import PhysicsToolkit, calls_for
 from .schemas import (AgentDoneEvent, AgentMessageEvent, AgentPlan, AgentPlanRequest, AgentProposalEvent,
                        AgentStepEvent, RationaleItem)
 from ..shared.llm import LLM, LLMNotConfigured, Message, ToolUse, get_llm
+from ..shared.layout import PlanGeometrySnapshot, capture_geometry
 
 PROMPTS = Path(__file__).with_name("prompts")
 TEMPERATURE = 0.0
@@ -40,6 +41,7 @@ class PlanRecord:
     messages: list[tuple[str, dict]] = field(default_factory=list)
     toolkit: PhysicsToolkit | None = None
     holding_tugs: list = field(default_factory=list)
+    geometry_snapshot: PlanGeometrySnapshot | None = None
 
 
 from pydantic import BaseModel, Field
@@ -56,6 +58,7 @@ class SavedPlan(BaseModel):
     events: list[tuple[str, dict]] = Field(default_factory=list)
     messages: list[tuple[str, dict]] = Field(default_factory=list)
     holding_tugs: list = Field(default_factory=list)
+    geometry_snapshot: PlanGeometrySnapshot | None = None
 
 
 def _save_record(rec):
@@ -256,8 +259,8 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None 
                                                result_id=result_id).model_dump(mode="json")))
 
     sc = scenario or await tk.scenario(req.scenario_id)
-    ship = await tk.ship(sc.ship_class_id)
-    berth = await tk.berth(sc.berth_id)
+    ship = (await tk.ship(sc.ship_class_id)).model_copy(deep=True)
+    berth = (await tk.berth(sc.berth_id)).model_copy(deep=True)
     other_conditions: list[Any] = []
     if req.intake_report_id:
         try:
@@ -499,7 +502,8 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None 
         holding_tugs=tugs, installed_at_water_level_mllw_ft=installation_tide, condition_analysis_result_ids=[check.result_id for check in checks])
     events.append(("done", AgentDoneEvent(plan_id=plan_id, status=status).model_dump(mode="json")))
     record = PlanRecord(plan=plan, scenario=sc, env=env, analysis=analysis, mst=ship.mst_class,
-                        events=events, toolkit=tk, holding_tugs=tugs)
+                        events=events, toolkit=tk, holding_tugs=tugs,
+                        geometry_snapshot=capture_geometry(ship, berth, analysis, cfg, env))
     PLANS[plan_id] = record
     return record
 

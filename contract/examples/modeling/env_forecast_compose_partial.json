@@ -1,0 +1,150 @@
+{
+  "manifest": {
+    "schema_version": "composed-forecast-v1",
+    "revision": "sha256:2e5b0a01e0b07448927a6fbb1dc937d035d43b905d9cab8015cc23255f162b13",
+    "request": {
+      "berth_id": "NAVSTA-NORFOLK-P12-N",
+      "source": {
+        "mode": "public",
+        "env_scenario_id": null
+      },
+      "as_of_utc": "2026-11-05T05:00:00Z",
+      "horizon_start_utc": "2026-11-06T05:00:00Z",
+      "horizon_end_utc": "2026-11-06T13:00:00Z",
+      "step_min": 60,
+      "current_depth_ft": 21.0,
+      "current_bin": "4"
+    },
+    "status": "partial",
+    "components": [
+      {
+        "availability": {
+          "component": "wind",
+          "state": "unavailable",
+          "source": null,
+          "basis": null,
+          "age_s": null,
+          "age_basis": null,
+          "issued_at_utc": null,
+          "retrieved_at_utc": null,
+          "valid_from_utc": null,
+          "valid_to_utc": null,
+          "quality": "unknown",
+          "limitations": [],
+          "station_id": null,
+          "grid_cell": null,
+          "current_depth_ft": null,
+          "current_bin": null,
+          "vertical_datum": null,
+          "wind_averaging_s": null,
+          "gust_duration_s": null,
+          "wind_reference_height_m": null,
+          "reason": "NWS wind forecast unavailable for the requested horizon"
+        },
+        "content_sha256": null,
+        "points": []
+      },
+      {
+        "availability": {
+          "component": "current",
+          "state": "prediction",
+          "source": "NOAA CO-OPS cb0402 currents_predictions bin 4",
+          "basis": "prediction",
+          "age_s": null,
+          "age_basis": null,
+          "issued_at_utc": null,
+          "retrieved_at_utc": "2026-11-05T04:41:00Z",
+          "valid_from_utc": "2026-11-06T05:00:00Z",
+          "valid_to_utc": "2026-11-06T13:00:00Z",
+          "quality": "unknown",
+          "limitations": [
+            "Retrieval establishes available-by time, not provider issuance or forecast freshness.",
+            "Station bin guidance is not a qualified pier-wide or vessel-draft current profile."
+          ],
+          "station_id": "cb0402",
+          "grid_cell": null,
+          "current_depth_ft": 21.0,
+          "current_bin": "4",
+          "vertical_datum": null,
+          "wind_averaging_s": null,
+          "gust_duration_s": null,
+          "wind_reference_height_m": null,
+          "reason": null
+        },
+        "content_sha256": "651d80a9a6320a2ec1d80dad492146c63bee0cb293fd9ce038d3941e7eccc1c9",
+        "points": [
+          {
+            "component": "current",
+            "valid_at_utc": "2026-11-06T05:00:00Z",
+            "current_speed_kt": 0.36,
+            "current_set_true_deg": 353.0,
+            "original": {
+              "speed_kt": 0.36,
+              "direction_deg": 353.0
+            }
+          },
+          {
+            "component": "current",
+            "valid_at_utc": "2026-11-06T13:00:00Z",
+            "current_speed_kt": 0.63,
+            "current_set_true_deg": 2.0,
+            "original": {
+              "speed_kt": 0.63,
+              "direction_deg": 2.0
+            }
+          }
+        ]
+      },
+      {
+        "availability": {
+          "component": "water_level",
+          "state": "prediction",
+          "source": "NOAA CO-OPS 8638610 water_level predictions",
+          "basis": "prediction",
+          "age_s": null,
+          "age_basis": null,
+          "issued_at_utc": null,
+          "retrieved_at_utc": "2026-11-05T04:41:00Z",
+          "valid_from_utc": "2026-11-06T05:00:00Z",
+          "valid_to_utc": "2026-11-06T13:00:00Z",
+          "quality": "unknown",
+          "limitations": [
+            "Retrieval establishes available-by time, not provider issuance or forecast freshness."
+          ],
+          "station_id": "8638610",
+          "grid_cell": null,
+          "current_depth_ft": null,
+          "current_bin": null,
+          "vertical_datum": "MLLW",
+          "wind_averaging_s": null,
+          "gust_duration_s": null,
+          "wind_reference_height_m": null,
+          "reason": null
+        },
+        "content_sha256": "8224260cf00d0123c8f819af1b6c0b653d8806c7110e99ef6cf141bf7e302305",
+        "points": [
+          {
+            "component": "water_level",
+            "valid_at_utc": "2026-11-06T05:00:00Z",
+            "water_level_mllw_ft": 1.77,
+            "original": {
+              "water_level_ft_mllw": 1.77
+            }
+          },
+          {
+            "component": "water_level",
+            "valid_at_utc": "2026-11-06T13:00:00Z",
+            "water_level_mllw_ft": 1.43,
+            "original": {
+              "water_level_ft_mllw": 1.43
+            }
+          }
+        ]
+      }
+    ],
+    "limitations": [
+      "CO-OPS-only fallback: wind is unavailable, so no complete load-model snapshot is emitted."
+    ]
+  },
+  "snapshots": []
+}

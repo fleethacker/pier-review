@@ -4,6 +4,8 @@ from typing import Annotated
 from fastapi import APIRouter, Body, HTTPException, Query
 
 from mooring.core.schemas import (
+    ComposedForecast,
+    ComposedForecastRequest,
     EnvironmentAvailability,
     EnvironmentSnapshot,
     EnvScenario,
@@ -66,6 +68,19 @@ def env_forecast(berth_id: str, hours: Annotated[int, Query(ge=1, le=120)] = 48,
 
     refdata.berth(berth_id)
     return guarded(impl.forecast, berth_id, hours, step_min)
+
+
+@router.post(
+    "/env/forecast/compose",
+    response_model=ComposedForecast,
+    responses={501: {"description": "D2 acquisition implementation is not installed on this contract branch"}},
+    summary="Acquire a frozen component-level forecast manifest",
+)
+def env_forecast_compose(
+    req: Annotated[ComposedForecastRequest, Body(openapi_examples=ex("env_forecast_compose"))],
+):
+    """D2 contract-first endpoint. Implementation follows on its dependent branch."""
+    raise HTTPException(status_code=501, detail="composed forecast acquisition is not implemented on this contract branch")
 
 
 @router.get("/env/history", response_model=HistorySeries, summary="Historical observations for replay")

@@ -58,6 +58,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/env/forecast/compose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acquire a frozen component-level forecast manifest
+         * @description D2 contract-first endpoint. Implementation follows on its dependent branch.
+         */
+        post: operations["env_forecast_compose_api_v1_env_forecast_compose_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/env/history": {
         parameters: {
             query?: never;
@@ -1472,6 +1492,103 @@ export interface components {
             /** Assets */
             assets: components["schemas"]["AssetQualification"][];
         };
+        /**
+         * ComposedForecast
+         * @description Public/scenario component series plus only the snapshots safe for existing load consumers.
+         */
+        ComposedForecast: {
+            manifest: components["schemas"]["ComposedForecastManifest"];
+            /** Snapshots */
+            snapshots?: components["schemas"]["EnvironmentSnapshot"][];
+        };
+        /**
+         * ComposedForecastManifest
+         * @description Frozen, content-addressed acquisition manifest shared by every consumer.
+         */
+        ComposedForecastManifest: {
+            /**
+             * Schema Version
+             * @default composed-forecast-v1
+             * @constant
+             */
+            schema_version: "composed-forecast-v1";
+            /**
+             * Revision
+             * @description SHA-256 of the canonical manifest excluding this revision field.
+             */
+            revision: string;
+            request: components["schemas"]["ComposedForecastRequest"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "complete" | "partial" | "unavailable";
+            /** Components */
+            components: components["schemas"]["ForecastComponentSeries"][];
+            /** Limitations */
+            limitations?: string[];
+        };
+        /**
+         * ComposedForecastRequest
+         * @description Bounded forecast acquisition request with an explicit source and planning clock.
+         */
+        ComposedForecastRequest: {
+            /** Berth Id */
+            berth_id: string;
+            source: components["schemas"]["ForecastSourceSelection"];
+            /**
+             * As Of Utc
+             * Format: date-time
+             * @description Availability cutoff. Every public component must be issued or recorded as retrieved by this time.
+             */
+            as_of_utc: string;
+            /**
+             * Horizon Start Utc
+             * Format: date-time
+             */
+            horizon_start_utc: string;
+            /**
+             * Horizon End Utc
+             * Format: date-time
+             */
+            horizon_end_utc: string;
+            /**
+             * Step Min
+             * @default 60
+             */
+            step_min: number;
+            /**
+             * Current Depth Ft
+             * @description Required current depth below the surface; a nearby model layer is not an implicit substitute.
+             */
+            current_depth_ft: number;
+            /**
+             * Current Bin
+             * @description Requested station bin or model-layer identifier; substitutions must be reported unavailable.
+             */
+            current_bin: string;
+        };
+        /** CurrentForecastPoint */
+        CurrentForecastPoint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            component: "current";
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /** Current Speed Kt */
+            current_speed_kt: number;
+            /** Current Set True Deg */
+            current_set_true_deg: number;
+            /** Original */
+            original?: {
+                [key: string]: number | string;
+            } | null;
+        };
         /** DepthPoint */
         DepthPoint: {
             /** X Ft */
@@ -2226,6 +2343,20 @@ export interface components {
             /** Mz Ftlbf */
             mz_ftlbf: number;
         };
+        /**
+         * ForecastComponentSeries
+         * @description One independently acquired prediction series and its content digest.
+         */
+        ForecastComponentSeries: {
+            availability: components["schemas"]["EnvironmentComponentAvailability"];
+            /**
+             * Content Sha256
+             * @description SHA-256 of the canonical component availability and decoded point content.
+             */
+            content_sha256?: string | null;
+            /** Points */
+            points?: (components["schemas"]["WindForecastPoint"] | components["schemas"]["CurrentForecastPoint"] | components["schemas"]["WaterLevelForecastPoint"])[];
+        };
         /** ForecastDockingRequest */
         ForecastDockingRequest: {
             /**
@@ -2320,6 +2451,19 @@ export interface components {
             step_min: number;
             /** Series */
             series: components["schemas"]["EnvironmentSnapshot"][];
+        };
+        /**
+         * ForecastSourceSelection
+         * @description Explicit acquisition source; a public request never falls through to a scenario.
+         */
+        ForecastSourceSelection: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "public" | "scenario";
+            /** Env Scenario Id */
+            env_scenario_id?: string | null;
         };
         /** GustModel */
         GustModel: {
@@ -5302,6 +5446,25 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /** WaterLevelForecastPoint */
+        WaterLevelForecastPoint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            component: "water_level";
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /** Water Level Mllw Ft */
+            water_level_mllw_ft: number;
+            /** Original */
+            original?: {
+                [key: string]: number | string;
+            } | null;
+        };
         /** Waypoint */
         Waypoint: {
             /** Lat */
@@ -5314,6 +5477,37 @@ export interface components {
             channel_depth_mllw_ft: number;
             /** Width Ft */
             width_ft: number;
+        };
+        /** WindForecastPoint */
+        WindForecastPoint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            component: "wind";
+            /**
+             * Valid From Utc
+             * Format: date-time
+             */
+            valid_from_utc: string;
+            /**
+             * Valid To Utc
+             * Format: date-time
+             */
+            valid_to_utc: string;
+            /** Wind Speed Kt */
+            wind_speed_kt: number;
+            /**
+             * Wind Gust Kt
+             * @description Missing provider gust stays null and prevents a complete load-model snapshot.
+             */
+            wind_gust_kt?: number | null;
+            /** Wind From True Deg */
+            wind_from_true_deg: number;
+            /** Original */
+            original?: {
+                [key: string]: number | string;
+            } | null;
         };
         /**
          * WrenchLbf
@@ -6771,6 +6965,46 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    env_forecast_compose_api_v1_env_forecast_compose_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComposedForecastRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposedForecast"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description D2 acquisition implementation is not installed on this contract branch */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

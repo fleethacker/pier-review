@@ -1,7 +1,7 @@
 """Environment schemas (module M1). Every data source is normalized into EnvironmentSnapshot."""
 
-from datetime import UTC, datetime
-from typing import Literal
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, ConfigDict, Field, model_validator
 
@@ -220,6 +220,230 @@ class ForecastSeries(Model):
     berth_id: str
     step_min: int
     series: list[EnvironmentSnapshot]
+
+
+class ForecastSourceSelection(Model):
+    """Explicit acquisition source; a public request never falls through to a scenario."""
+
+    mode: Literal["public", "scenario"]
+    env_scenario_id: str | None = None
+
+    @model_validator(mode="after")
+    def _scenario_reference(self):
+        if self.mode == "scenario" and not self.env_scenario_id:
+            raise ValueError("scenario forecast source needs env_scenario_id")
+        if self.mode == "public" and self.env_scenario_id:
+            raise ValueError("public forecast source cannot include env_scenario_id")
+        return self
+
+
+class ComposedForecastRequest(Model):
+    """Bounded forecast acquisition request with an explicit source and planning clock."""
+
+    berth_id: str
+    source: ForecastSourceSelection
+    as_of_utc: AwareDatetime = Field(
+        description="Availability cutoff. Every public component must be issued or recorded as retrieved by this time."
+    )
+    horizon_start_utc: AwareDatetime
+    horizon_end_utc: AwareDatetime
+    step_min: int = Field(default=60, ge=6, le=180)
+    current_depth_ft: float = Field(
+        ge=0, description="Required current depth below the surface; a nearby model layer is not an implicit substitute."
+    )
+    current_bin: str = Field(
+        min_length=1, description="Requested station bin or model-layer identifier; substitutions must be reported unavailable."
+    )
+
+    @model_validator(mode="after")
+    def _horizon(self):
+        self.as_of_utc = self.as_of_utc.astimezone(UTC)
+        self.horizon_start_utc = self.horizon_start_utc.astimezone(UTC)
+        self.horizon_end_utc = self.horizon_end_utc.astimezone(UTC)
+        if self.horizon_start_utc < self.as_of_utc:
+            raise ValueError("forecast horizon cannot begin before as_of_utc")
+        if self.horizon_end_utc <= self.horizon_start_utc:
+            raise ValueError("forecast horizon end must be after its start")
+        if self.horizon_end_utc > self.as_of_utc + timedelta(hours=120):
+            raise ValueError("forecast horizon cannot exceed 120 hours after as_of_utc")
+        return self
+
+
+class WindForecastPoint(Model):
+    component: Literal["wind"] = "wind"
+    valid_from_utc: AwareDatetime
+    valid_to_utc: AwareDatetime
+    wind_speed_kt: float = Field(ge=0)
+    wind_gust_kt: float | None = Field(
+        default=None, ge=0, description="Missing provider gust stays null and prevents a complete load-model snapshot."
+    )
+    wind_from_true_deg: float = Field(ge=0, lt=360)
+    original: dict[str, float | str] | None = None
+
+    @model_validator(mode="after")
+    def _interval(self):
+        if self.valid_to_utc.astimezone(UTC) <= self.valid_from_utc.astimezone(UTC):
+            raise ValueError("wind valid_to_utc must be after valid_from_utc")
+        return self
+
+
+class CurrentForecastPoint(Model):
+    component: Literal["current"] = "current"
+    valid_at_utc: AwareDatetime
+    current_speed_kt: float = Field(ge=0)
+    current_set_true_deg: float = Field(ge=0, lt=360)
+    original: dict[str, float | str] | None = None
+
+
+class WaterLevelForecastPoint(Model):
+    component: Literal["water_level"] = "water_level"
+    valid_at_utc: AwareDatetime
+    water_level_mllw_ft: float
+    original: dict[str, float | str] | None = None
+
+
+ForecastComponentPoint = Annotated[
+    WindForecastPoint | CurrentForecastPoint | WaterLevelForecastPoint,
+    Field(discriminator="component"),
+]
+
+
+class ForecastComponentSeries(Model):
+    """One independently acquired prediction series and its content digest."""
+
+    availability: EnvironmentComponentAvailability
+    content_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+        description="SHA-256 of the canonical component availability and decoded point content.",
+    )
+    points: list[ForecastComponentPoint] = Field(default_factory=list, max_length=1201)
+
+    @model_validator(mode="after")
+    def _component_and_state(self):
+        component = self.availability.component
+        if component not in {"wind", "current", "water_level"}:
+            raise ValueError("forecast component series supports wind, current and water_level only")
+        if self.availability.state not in {"prediction", "mock", "unavailable"}:
+            raise ValueError("forecast component state must be prediction, mock or unavailable")
+        if self.availability.state == "unavailable":
+            if self.points or self.content_sha256:
+                raise ValueError("an unavailable forecast component cannot carry points or a content digest")
+            return self
+        expected_basis = "prediction" if self.availability.state == "prediction" else "scenario"
+        if self.availability.basis != expected_basis:
+            raise ValueError(f"a {self.availability.state} forecast component needs {expected_basis} basis")
+        if not self.points or self.content_sha256 is None:
+            raise ValueError("an available forecast component needs points and a content digest")
+        if (self.availability.state == "prediction" and self.availability.issued_at_utc is None
+                and self.availability.retrieved_at_utc is None):
+            raise ValueError("an available forecast component needs issuance or recorded retrieval provenance")
+        if any(point.component != component for point in self.points):
+            raise ValueError("forecast points must match their component series")
+        times = [
+            point.valid_from_utc if isinstance(point, WindForecastPoint) else point.valid_at_utc
+            for point in self.points
+        ]
+        if any(b <= a for a, b in zip(times, times[1:])):
+            raise ValueError("forecast component points must be strictly increasing and unique")
+        if component == "current" and self.availability.current_depth_ft is None:
+            raise ValueError("a current forecast needs its selected depth")
+        if component == "water_level" and self.availability.vertical_datum != "MLLW":
+            raise ValueError("a water-level forecast must be normalized to MLLW")
+        return self
+
+
+class ComposedForecastManifest(Model):
+    """Frozen, content-addressed acquisition manifest shared by every consumer."""
+
+    schema_version: Literal["composed-forecast-v1"] = "composed-forecast-v1"
+    revision: str = Field(
+        pattern=r"^sha256:[0-9a-f]{64}$",
+        description="SHA-256 of the canonical manifest excluding this revision field.",
+    )
+    request: ComposedForecastRequest
+    status: Literal["complete", "partial", "unavailable"]
+    components: list[ForecastComponentSeries] = Field(min_length=3, max_length=3)
+    limitations: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _components_and_status(self):
+        by_component = {item.availability.component: item for item in self.components}
+        expected = {"wind", "current", "water_level"}
+        if set(by_component) != expected or len(by_component) != len(self.components):
+            raise ValueError("forecast manifest needs exactly one wind, current and water_level series")
+        states = [item.availability.state for item in self.components]
+        if self.status == "unavailable" and any(state != "unavailable" for state in states):
+            raise ValueError("an unavailable forecast cannot contain an available component")
+        if self.status == "partial" and all(state == "unavailable" for state in states):
+            raise ValueError("a partial forecast needs at least one available component")
+        if self.status == "complete":
+            expected_state = "prediction" if self.request.source.mode == "public" else "mock"
+            if any(state != expected_state for state in states):
+                raise ValueError(f"a complete {self.request.source.mode} forecast needs all three {expected_state} components")
+            wind = by_component["wind"]
+            if any(point.wind_gust_kt is None for point in wind.points):
+                raise ValueError("a complete forecast cannot hide missing wind gusts")
+            for component, item in by_component.items():
+                availability = item.availability
+                if (availability.valid_from_utc is None
+                        or availability.valid_from_utc.astimezone(UTC) > self.request.horizon_start_utc
+                        or availability.valid_to_utc is None
+                        or availability.valid_to_utc.astimezone(UTC) < self.request.horizon_end_utc):
+                    raise ValueError(f"a complete forecast needs full requested coverage for {component}")
+                first = item.points[0]
+                last = item.points[-1]
+                point_start = first.valid_from_utc if isinstance(first, WindForecastPoint) else first.valid_at_utc
+                point_end = last.valid_to_utc if isinstance(last, WindForecastPoint) else last.valid_at_utc
+                if (point_start.astimezone(UTC) > self.request.horizon_start_utc
+                        or point_end.astimezone(UTC) < self.request.horizon_end_utc):
+                    raise ValueError(f"a complete forecast point series does not cover the requested {component} horizon")
+        expected_available_state = "prediction" if self.request.source.mode == "public" else "mock"
+        if any(state not in {expected_available_state, "unavailable"} for state in states):
+            raise ValueError("forecast component state conflicts with the requested source mode")
+        current = by_component["current"].availability
+        if current.state != "unavailable" and (
+            current.current_depth_ft != self.request.current_depth_ft
+            or current.current_bin != self.request.current_bin
+        ):
+            raise ValueError("current forecast depth/bin does not match the explicit request")
+        if self.request.source.mode == "public":
+            for item in self.components:
+                availability = item.availability
+                if availability.state == "unavailable":
+                    continue
+                available_at = availability.issued_at_utc or availability.retrieved_at_utc
+                if available_at is None or available_at.astimezone(UTC) > self.request.as_of_utc:
+                    raise ValueError(f"{availability.component} was not available by forecast as_of_utc")
+        return self
+
+
+class ComposedForecast(Model):
+    """Public/scenario component series plus only the snapshots safe for existing load consumers."""
+
+    manifest: ComposedForecastManifest
+    snapshots: list[EnvironmentSnapshot] = Field(default_factory=list, max_length=1201)
+
+    @model_validator(mode="after")
+    def _snapshots_match_status(self):
+        if self.manifest.status == "unavailable" and self.snapshots:
+            raise ValueError("an unavailable forecast cannot contain snapshots")
+        if self.manifest.status == "complete" and not self.snapshots:
+            raise ValueError("a complete forecast needs load-model-ready snapshots")
+        expected_sources = {"forecast"} if self.manifest.request.source.mode == "public" else {"scenario", "mock"}
+        expected_basis = "prediction" if self.manifest.request.source.mode == "public" else "scenario"
+        for snapshot in self.snapshots:
+            if snapshot.source not in expected_sources or snapshot.metadata is None or snapshot.metadata.basis != expected_basis:
+                raise ValueError("composed snapshots must match the manifest source mode and metadata basis")
+            if {item.component for item in snapshot.metadata.components} != {"wind", "current", "water_level"}:
+                raise ValueError("composed snapshots need all three component provenance rows")
+        if self.manifest.status == "complete":
+            times = [snapshot.valid_at_utc.astimezone(UTC) for snapshot in self.snapshots]
+            if times[0] > self.manifest.request.horizon_start_utc or times[-1] < self.manifest.request.horizon_end_utc:
+                raise ValueError("complete snapshots must cover the requested forecast horizon")
+            if any(b <= a for a, b in zip(times, times[1:])):
+                raise ValueError("composed snapshots must be strictly increasing and unique")
+        return self
 
 
 class HistorySeries(Model):

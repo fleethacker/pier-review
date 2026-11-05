@@ -9406,6 +9406,13 @@ components:
       properties:
         config:
           $ref: '#/components/schemas/MooringConfig'
+        resolved_config:
+          anyOf:
+          - $ref: '#/components/schemas/MooringConfig'
+          - type: 'null'
+          default: null
+          description: Assessed installation with explicit unstretched spans and wet/dry condition, when available. Use for
+            fixed-installation rechecks; config retains assignment-only search semantics.
         min_margin_pct_wll:
           description: Highest utilization over every evaluated case (lower is better).
           title: Min Margin Pct Wll

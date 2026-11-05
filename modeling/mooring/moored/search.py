@@ -316,7 +316,7 @@ def recommend(req: RecommendRequest, ctx=None) -> RecommendResponse:
         lim = solver.limit_envelope(LimitEnvelopeRequest(**areq.model_dump(), step_deg=45, sampling_step_kt=10.0, tolerance_kt=1.0))
         worst_lim = lim.result.worst.limit_wind_kt
         candidates.append(Candidate(
-            config=cfg, tugs=req.tugs, min_margin_pct_wll=round(info["worst"], 1) if math.isfinite(info["worst"]) else 999.0, limit_wind_kt_worst=worst_lim,
+            config=cfg, resolved_config=resp.result.resolved_config, tugs=req.tugs, min_margin_pct_wll=round(info["worst"], 1) if math.isfinite(info["worst"]) else 999.0, limit_wind_kt_worst=worst_lim,
             line_count=len(cfg.lines), analysis_result_id=resp.result_id, feasible=info["feasible"], worst_case=info["worst_case"], cases_evaluated=info["cases_evaluated"],
             why=[f"{info['pattern']}, {info['spec']}.", f"Worst case across {len(cases)} cases: {info['worst_case']} at {info['worst']:.0f}%." if math.isfinite(info["worst"]) else f"Assessment stopped: {info['worst_case']}.",
                  "Feasible: every case solved and every element within its limit." if info["feasible"] else "NOT feasible: at least one case exceeds a limit or did not solve."]))

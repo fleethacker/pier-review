@@ -242,3 +242,71 @@ describe('applying an assessed recommendation', () => {
     c.dispose();
   });
 });
+
+it('keeps the resolved recommendation installation in subsequent analysis', () => {
+  const { c } = setup();
+  const assigned = { line_number: 1, spec_id: 'NYLON', parts: 2, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1' };
+  const resolved = { ...assigned, paid_out_unstretched_length_ft: 144, condition: 'wet' };
+  const candidate = {
+    config: { ship_x_ft: 500, side_to: 'starboard', lines: [assigned] },
+    resolved_config: { ship_x_ft: 500, side_to: 'starboard', lines: [resolved] },
+  } as unknown as Candidate;
+  c.applyCandidate(candidate);
+  expect(c.buildAnalyzeRequest()?.config.lines).toEqual([resolved]);
+  c.dispose();
+});
+
+it('searches recommendations with the selected standoff and existing assistance', async () => {
+  const { awaitJob } = await import('./api');
+  vi.mocked(awaitJob).mockResolvedValue({ result: { candidates: [] } });
+  post.mockResolvedValue({ data: { job_id: 'job_recommend', status_url: '/api/v1/jobs/job_recommend' } });
+  const { c } = setup();
+  const tugs: TugAssignment[] = [{ tug_id: 'HOLD', push_point_id: 'PP', mode: 'push', force_lbf: 200 }];
+  c.state.set({ standoffOverrideFt: 18, tugAssignments: tugs });
+  await c.recommend({ apply: false });
+  expect(post).toHaveBeenCalledWith('/api/v1/mooring/recommend', expect.objectContaining({
+    body: expect.objectContaining({ standoff_ft: 18, tugs }),
+  }));
+  c.dispose();
+});
+
+it('does not apply a recommendation after assistance changes during the search', async () => {
+  const { awaitJob } = await import('./api');
+  let complete!: (value: { result: { candidates: Candidate[] } }) => void;
+  const completed = new Promise<{ result: { candidates: Candidate[] } }>((resolve) => { complete = resolve; });
+  vi.mocked(awaitJob).mockReturnValue(completed);
+  post.mockResolvedValue({ data: { job_id: 'job_recommend', status_url: '/api/v1/jobs/job_recommend' } });
+  const { c } = setup();
+  const originalTug: TugAssignment = { tug_id: 'OLD', push_point_id: 'PP', mode: 'push', force_lbf: 200 };
+  const changedTug = { ...originalTug, force_lbf: 300 };
+  c.state.set({ tugAssignments: [originalTug] });
+  const pending = c.recommend({ apply: true });
+  c.setTugAssignments([changedTug]);
+  complete({ result: { candidates: [{
+    config: { ship_x_ft: 500, lines: [] }, tugs: [originalTug], min_margin_pct_wll: 10,
+    limit_wind_kt_worst: null, line_count: 0, analysis_result_id: 'old_result', why: [],
+  }] } });
+  await pending;
+  expect(c.state.get().tugAssignments).toEqual([changedTug]);
+  expect(c.state.get().recommend.candidates).toEqual([]);
+  c.dispose();
+});
+
+it('refuses a stored recommendation after its geometry changes', async () => {
+  const { awaitJob } = await import('./api');
+  const candidate: Candidate = {
+    config: { ship_x_ft: 500, lines: [{ line_number: 1, spec_id: 'NYLON', parts: 2,
+      ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1' }] },
+    min_margin_pct_wll: 10, limit_wind_kt_worst: null, line_count: 1,
+    analysis_result_id: 'old_geometry', why: [],
+  };
+  vi.mocked(awaitJob).mockResolvedValue({ result: { candidates: [candidate] } });
+  post.mockResolvedValue({ data: { job_id: 'job_recommend', status_url: '/api/v1/jobs/job_recommend' } });
+  const { c } = setup();
+  await c.recommend({ apply: false });
+  c.setShipX(600);
+  c.applyCandidate(candidate);
+  expect(c.state.get().lines).toEqual([]);
+  expect(c.state.get().recommend.error).toContain('changed');
+  c.dispose();
+});

@@ -5326,6 +5326,11 @@ export interface components {
         Candidate: {
             config: components["schemas"]["MooringConfig"];
             /**
+             * @description Assessed installation with explicit unstretched spans and wet/dry condition, when available. Use for fixed-installation rechecks; config retains assignment-only search semantics.
+             * @default null
+             */
+            resolved_config: components["schemas"]["MooringConfig"] | null;
+            /**
              * Min Margin Pct Wll
              * @description Highest utilization over every evaluated case (lower is better).
              */

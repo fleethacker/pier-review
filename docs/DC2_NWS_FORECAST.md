@@ -14,9 +14,10 @@ values are retained. NWS API documentation does not establish the averaging
 duration or gust duration for these grid fields, so both remain unset.
 
 Missing wind speed or direction makes that period unavailable. A missing gust
-stays `None`. DC2 does not create complete `EnvironmentSnapshot` objects,
-because those require current and water level; public forecast composition is
-therefore gated on DC3 rather than filling absent fields with synthetic zeroes.
+stays `None`. `POST /api/v1/env/forecast/compose` joins valid NWS intervals with
+exact CO-OPS or applicable decoded-CBOFS prediction points. It emits a complete
+`EnvironmentSnapshot` only where all values, including gust, exist; otherwise
+the response remains partial rather than filling absent fields with zeroes.
 
 Source: [NWS API Web Service](https://www.weather.gov/documentation/services-web-api).
 

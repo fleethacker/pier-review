@@ -51,7 +51,8 @@ def _missing_capabilities():
     from mooring.core.schemas import EnvironmentComponentAvailability
     return [
         EnvironmentComponentAvailability(
-            component="forecast", state="unavailable", reason="no composed forecast configured (D2)"
+            component="forecast", state="unavailable",
+            reason="forecast status requires an as-of time and horizon via POST /api/v1/env/forecast/compose"
         ),
         EnvironmentComponentAvailability(
             component="waves", state="unavailable", reason="no wave provider configured (D4)"
@@ -279,15 +280,15 @@ def replay_snapshot(berth_id, at, heading_true_deg=None):
 def provider_modules() -> dict[str, str]:
     mode = source_mode()
     coops = {
-        "mock": "disabled (explicit mock mode)",
-        "coops": "live only; no fallback",
-        "replay": "disabled (recorded replay mode)",
-        "auto": "live with recorded replay fallback; mock disabled",
+        "mock": "observations disabled; public predictions available only through bound compose requests",
+        "coops": "live observations without fallback; public predictions through bound compose requests",
+        "replay": "observations disabled; public predictions available only through bound compose requests",
+        "auto": "live observations with recorded replay fallback; public predictions through bound compose requests",
     }[mode]
     return {
         "Provider NOAA CO-OPS": coops,
-        "Provider NWS": "unavailable (NWS wind reader installed; composed forecast not wired)",
-        "Provider CBOFS": "unavailable (CBOFS reader installed; composed forecast not wired)",
+        "Provider NWS": "bound forecast composition (missing gust/coverage stays unavailable)",
+        "Provider CBOFS": "decoded cache artifact only when exact coordinate/depth/layer and publication evidence match",
     }
 
 
@@ -295,4 +296,13 @@ def forecast(berth_id, hours=48, step_min=30):
     if source_mode() == "mock":
         return _mock.forecast(berth_id, hours, step_min)
     from .coops import ProviderError
-    raise ProviderError("unavailable", "no composed forecast is enabled (D2); forecast components are unavailable, not synthesized")
+    raise ProviderError(
+        "unavailable",
+        "legacy GET /env/forecast has no public-provider mode; use bound POST /env/forecast/compose (values are not synthesized)",
+    )
+
+
+def compose_forecast(request):
+    """Resolve the D2 component-level forecast without changing the legacy compatibility endpoint."""
+    from .composed_forecast import compose
+    return compose(request)

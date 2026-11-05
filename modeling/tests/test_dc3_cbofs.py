@@ -30,7 +30,7 @@ def fixture():
 
 def test_samples_nearest_wet_cell_layer_mllw_and_toward_vector():
     issued = datetime(2026, 11, 5, tzinfo=UTC)
-    rows = CBOFSSampler().sample(fixture(), 36.9501, -76.3399, depth_m=5, issued_at=issued, as_of=issued)
+    rows = CBOFSSampler().sample(fixture(), 36.9501, -76.3399, depth_m=6, issued_at=issued, as_of=issued)
     assert rows[0].grid_longitude == -76.33
     assert rows[0].depth_m == 6
     assert rows[0].current_speed_kt == pytest.approx(0.5 * 1.9438444924406)
@@ -61,7 +61,7 @@ def test_invalid_sampling_location_or_depth_is_rejected(latitude, longitude, dep
 def sample(ds, **kwargs):
     issued = datetime(2026, 11, 5, tzinfo=UTC)
     return CBOFSSampler().sample(ds, kwargs.pop("latitude", 36.95), kwargs.pop("longitude", -76.33),
-                                depth_m=kwargs.pop("depth_m", 5), issued_at=issued, as_of=issued, **kwargs)
+                                depth_m=kwargs.pop("depth_m", 6), issued_at=issued, as_of=issued, **kwargs)
 
 
 @pytest.mark.parametrize("name,units", [("u_eastward", "knots"), ("v_northward", "mph"),
@@ -73,9 +73,9 @@ def test_units_are_required_and_never_silently_assumed(name, units):
         sample(ds)
 
 
-@pytest.mark.parametrize("lat,lon,depth", [(40, -76.33, 5), (36.95, -70, 5), (36.95, -76.33, 20)])
+@pytest.mark.parametrize("lat,lon,depth", [(40, -76.33, 6), (36.95, -70, 6), (36.95, -76.33, 20), (36.95, -76.33, 5)])
 def test_no_extrapolation_outside_domain_or_layers(lat, lon, depth):
-    with pytest.raises(ProviderError, match="outside"):
+    with pytest.raises(ProviderError, match="outside|exactly match"):
         sample(fixture(), latitude=lat, longitude=lon, depth_m=depth)
 
 
@@ -178,3 +178,66 @@ def test_encoded_fill_value_and_depth_orientation_are_honored():
     ds.Depth.attrs["positive"] = "up"
     with pytest.raises(ProviderError, match="positive down"):
         sample(ds)
+
+
+def test_bounded_acquisition_process_publishes_verified_decoded_cache(tmp_path):
+    from mooring.environment.cbofs_artifact import acquire_artifact, load_artifact
+
+    source = tmp_path / "source.nc"
+    fixture().to_netcdf(source, engine="netcdf4")
+    output = tmp_path / "decoded.json"
+    artifact = acquire_artifact(
+        output,
+        source=str(source),
+        latitude=36.95,
+        longitude=-76.33,
+        depth_m=6,
+        layer_id="6m",
+        issued_at_utc=datetime(2026, 11, 5, tzinfo=UTC),
+        retrieved_at_utc=datetime(2026, 11, 5, 0, 30, tzinfo=UTC),
+        publication_evidence="fixture: publication manifest",
+        total_timeout_s=10,
+        max_memory_mb=4096,
+    )
+    assert output.exists() and artifact == load_artifact(output)
+    assert artifact["request"]["depth_m"] == 6
+    assert len(artifact["rows"]) == 2
+
+
+def test_decoded_cache_tampering_and_oversize_fail_closed(tmp_path):
+    import json
+    from mooring.environment.cbofs_artifact import decode_artifact, load_artifact
+
+    source = tmp_path / "source.nc"
+    fixture().to_netcdf(source, engine="netcdf4")
+    artifact = decode_artifact(
+        str(source),
+        latitude=36.95,
+        longitude=-76.33,
+        depth_m=6,
+        layer_id="6m",
+        issued_at_utc=datetime(2026, 11, 5, tzinfo=UTC),
+        retrieved_at_utc=datetime(2026, 11, 5, 0, 30, tzinfo=UTC),
+        publication_evidence="fixture: publication manifest",
+    )
+    artifact["rows"][0]["current_speed_kt"] = 999
+    path = tmp_path / "tampered.json"
+    path.write_text(json.dumps(artifact))
+    with pytest.raises(ProviderError, match="revision mismatch"):
+        load_artifact(path)
+    with pytest.raises(ProviderError, match="exceeds"):
+        load_artifact(path, max_artifact_bytes=10)
+
+
+def test_acquisition_requires_traceable_publication_evidence(tmp_path):
+    from mooring.environment.cbofs_artifact import decode_artifact
+
+    source = tmp_path / "source.nc"
+    fixture().to_netcdf(source, engine="netcdf4")
+    with pytest.raises(ProviderError, match="publication evidence"):
+        decode_artifact(
+            str(source), latitude=36.95, longitude=-76.33, depth_m=6, layer_id="6m",
+            issued_at_utc=datetime(2026, 11, 5, tzinfo=UTC),
+            retrieved_at_utc=datetime(2026, 11, 5, 0, 30, tzinfo=UTC),
+            publication_evidence="trust me",
+        )

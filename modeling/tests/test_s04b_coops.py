@@ -298,8 +298,8 @@ def test_ws_replay_uses_manifest_backed_recorded_observations(monkeypatch):
 
 def test_version_reports_provider_modes(coops_mode):
     modules = client.get("/api/v1/version").json()["modules"]
-    assert modules["Provider NOAA CO-OPS"].startswith("live only")
-    assert modules["Provider NWS"].startswith("unavailable")
+    assert modules["Provider NOAA CO-OPS"].startswith("live observations")
+    assert modules["Provider NWS"].startswith("bound forecast composition")
 
 
 def test_explicit_mock_mode_stays_offline_and_deterministic(monkeypatch):

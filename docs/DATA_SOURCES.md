@@ -28,6 +28,13 @@ The supported `app.sh` and Makefile launchers make the explicit default choice `
 `GET /api/v1/env/availability` reports wind, current, water level, composed forecast, and waves independently. A missing
 component is `unavailable` with a reason and provenance; it is never numeric zero or silently replaced by a prediction.
 
+`POST /api/v1/env/forecast/compose` requires an explicit source, as-of cutoff, horizon, current depth and bin/layer.
+It returns a content-addressed component manifest. Public mode composes NWS wind with exact CO-OPS prediction products;
+an optional CBOFS artifact is used only after bounded out-of-process acquisition and exact applicability checks. Missing
+gusts, late retrieval, stale cache, gaps, depth mismatch and provider outages produce partial/unavailable components.
+Only aligned, fully populated prediction times are emitted as `EnvironmentSnapshot`s. The legacy forecast GET remains
+synthetic and works only in explicit mock mode.
+
 ENC chart data, live telemetry,
 and approved wave sources will be added by their item-specific PRs after source
 verification. DC4 Stage 1 source research is in

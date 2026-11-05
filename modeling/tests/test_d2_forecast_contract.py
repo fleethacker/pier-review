@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from fastapi import HTTPException
 from pydantic import ValidationError
 
 from modeling_api.main import openapi_schema
@@ -130,7 +129,8 @@ def test_contract_publishes_additive_compose_route_and_leaves_legacy_get_unchang
     )
 
 
-def test_contract_branch_endpoint_fails_explicitly_instead_of_inventing_forecast_values():
-    with pytest.raises(HTTPException) as exc:
-        env_forecast_compose(ComposedForecastRequest.model_validate(compose_request_example()))
-    assert exc.value.status_code == 501
+def test_implementation_route_dispatches_the_bound_request_without_rewriting_it(monkeypatch):
+    request = ComposedForecastRequest.model_validate(compose_request_example())
+    expected = ComposedForecast.model_validate(compose_partial_response_example())
+    monkeypatch.setattr("modeling_api.routers.env.impl.compose_forecast", lambda value: expected if value == request else None)
+    assert env_forecast_compose(request) == expected

@@ -12,8 +12,8 @@ velocity in m/s, and `zetatomllw` in metres relative to MLLW. The MSL `zeta` var
 The reader checks units, dimensions, finite coordinates, increasing depth/time coordinates and requested domain/layer
 bounds. Current direction is the direction of flow, calculated from east/north components.
 
-Selection is nearest wet cell within the supplied grid domain, then nearest declared standard layer. It does not move
-to another cell or layer if that selection has missing current values. Missing/fill values omit that timestamp and are
+Selection is the nearest wet cell within the supplied grid domain and an exactly requested declared standard layer. It
+does not move to another depth or cell if the requested layer is absent or has missing current values. Missing/fill values omit that timestamp and are
 listed in `omitted_times_utc`; an entirely missing selection is unavailable. Gaps must remain visible to a composing
 forecast service. There is no spatial interpolation, pier-current correction or verified cell-to-berth applicability.
 
@@ -21,10 +21,11 @@ forecast service. There is no spatial interpolation, pier-current correction or 
 initialization time is not proof that the forecast was available then; retain publication/retrieval evidence before
 making a historical availability claim. Every output carries explicit model-guidance and issue-time limitations.
 
-`open_subset` permits local files or NOAA HTTPS CBOFS datasets. Native HTTP operations have a 15-second timeout;
-this is not a total acquisition deadline. Callers must close datasets and enforce a total worker deadline. Native NetCDF
-access is restricted to a main-thread worker; do not call it in concurrent API threads. No retry/cache/stale fallback
-or complete public forecast endpoint is implemented by this reader. Default environment behavior is unchanged.
+`open_subset` permits local files or NOAA HTTPS CBOFS datasets. Native HTTP operations have a 15-second timeout.
+`scripts/acquire_cbofs_forecast.py` adds a total deadline, bounded retries, decoded-artifact size and child-process memory
+limit; the child main thread owns and closes NetCDF. API workers read only the verified JSON artifact named by
+`MOORING_CBOFS_ARTIFACT`. The composer uses it only when target coordinate, exact layer/depth, publication evidence and
+full requested horizon match. Otherwise it records why CBOFS was not used and tries the explicit CO-OPS prediction path.
 
 Tests use synthetic in-memory datasets and a tiny local NetCDF round trip; no network. Temporary live pulls are kept
 outside the repository. Comparison with a station can detect convention errors but cannot qualify pier guidance.

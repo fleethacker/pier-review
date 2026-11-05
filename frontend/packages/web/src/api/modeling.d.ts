@@ -67,10 +67,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Acquire a frozen component-level forecast manifest
-         * @description D2 contract-first endpoint. Implementation follows on its dependent branch.
-         */
+        /** Acquire a frozen component-level forecast manifest */
         post: operations["env_forecast_compose_api_v1_env_forecast_compose_post"];
         delete?: never;
         options?: never;
@@ -6998,13 +6995,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
-            };
-            /** @description D2 acquisition implementation is not installed on this contract branch */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };

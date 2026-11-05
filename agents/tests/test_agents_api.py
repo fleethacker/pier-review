@@ -384,3 +384,23 @@ def test_printed_sheet_retains_assumptions_and_escapes_provider_text(plan_id):
     assert "<script>unsafe()</script>" not in rendered
     sheet.assumptions = []
     assert "No assumptions recorded; inspect the cited inputs before use." in renderer.render_html(sheet)
+
+
+@pytest.mark.parametrize('payload', ['invalid_json', 'invalid_snapshot'])
+def test_safety_watch_malformed_modeling_response_emits_terminal_event(planned, monkeypatch, payload):
+    from mooring_agents.api.routers import safety as router
+    from mooring_agents.physics.client import ModelingClient
+    upstream = httpx.Response(200, text='<html>unavailable</html>') if payload == 'invalid_json' else httpx.Response(
+        200, json={'wind_gust_kt': 'bad'})
+    source = ModelingClient(transport=httpx.MockTransport(lambda request: upstream))
+    async def malformed_source(*args, **kwargs):
+        await source.scenario_environment('saved')
+        yield  # async generator contract; invalid upstream must never produce a warning
+    monkeypatch.setattr(router.safety, 'watch', malformed_source)
+    response = client.get(f'{P}/safety/watch/{planned}', params={'limit': 1})
+    assert response.status_code == 200
+    assert response.text.count('event: source_unavailable') == 1
+    assert 'event: warning' not in response.text
+    event = json.loads(next(line[6:] for line in response.text.splitlines() if line.startswith('data: ')))
+    assert event['severity'] == 'RED' and event['retryable']
+    assert 'gust_kt' not in event and 'pct_of_wll_limit' not in event

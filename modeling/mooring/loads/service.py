@@ -1,5 +1,7 @@
 """M3 HTTP services; the numerical implementation stays independent of envelopes."""
 
+from pydantic import ValidationError
+
 from mooring import refdata
 from mooring.core.envelopes import RESULTS, inputs_hash, new_id, status_with_validity, utcnow
 from mooring.core.schemas import (
@@ -12,6 +14,16 @@ from .helpers import off_pier
 from .validity import classify_findings, environment_findings, merge_reasons, wind_basis
 from .ufc import compute_loads, ship_inputs
 from .warnings import range_findings
+
+
+def _checked_loads(*args, **kwargs):
+    """Translate only nonfinite derived loads into the API's numerical-range error."""
+    try:
+        return compute_loads(*args, **kwargs)
+    except ValidationError as exc:
+        if all(error["type"] == "finite_number" for error in exc.errors()):
+            raise OverflowError("Derived loads exceed the supported numerical range") from exc
+        raise
 
 
 def _metadata(ship, loading, depth, water_density, use_gust, current_speed, results, env=None, require_basis=False):
@@ -86,7 +98,7 @@ def _response(cls, req, result, assumptions, warnings, validity, manifest=None):
 
 def environmental(req: LoadsRequest) -> LoadsResponse:
     ship = refdata.ship(req.ship_class_id)
-    result = compute_loads(ship, req.loading, req.heading_true_deg, req.environment, req.water_depth_ft,
+    result = _checked_loads(ship, req.loading, req.heading_true_deg, req.environment, req.water_depth_ft,
                            req.use_gust, req.shielding_factor)
     if req.side_to:
         result.off_pier_component_lbf = off_pier(result.total.fy_lbf, req.side_to)
@@ -105,7 +117,7 @@ def polar(req: PolarRequest) -> PolarResponse:
                                   wind_from_true_deg=rel,
                                   current_speed_kt=req.current_speed_kt if req.apply_to != "wind" else 0,
                                   current_set_true_deg=(rel + 180) % 360, water_level_mllw_ft=0)
-        result = compute_loads(ship, req.loading, 0, env, req.water_depth_ft, use_gust=False)
+        result = _checked_loads(ship, req.loading, 0, env, req.water_depth_ft, use_gust=False)
         results.append(result)
         points.append(PolarPoint(rel_deg=rel, **result.total.model_dump()))
     assumptions, warnings, validity = _metadata(ship, req.loading, req.water_depth_ft, env.water_density_kgm3, False,

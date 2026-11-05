@@ -112,6 +112,13 @@ async def invalid_body(_: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": _finite(jsonable_encoder(exc.errors()))})
 
 
+@app.exception_handler(OverflowError)
+async def numerical_range(_: Request, exc: OverflowError):
+    return JSONResponse(status_code=422, content={
+        "detail": "Inputs exceed the supported numerical range; no result is available."
+    })
+
+
 @app.exception_handler(JobQueueFull)
 async def queue_full(_: Request, exc: JobQueueFull):
     return JSONResponse(status_code=429, content={"detail": str(exc)}, headers={"Retry-After": str(exc.retry_after_s)})

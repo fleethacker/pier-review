@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 02:19 EST: Small shared main.py guard maps arithmetic OverflowError to HTTP422 (no result); loads service converts only nonfinite derived-load ValidationError to that path. No physical clamps or coefficients changed. Jobs retain their explicit failed state on calculation exceptions. 1650 Python/84 UI tests and contract-check pass. Please preserve this error handler when integrating API changes.
+
 - 02:10 EST, B: Narrow shared provenance correction in replay.py: normalized records no longer populate issued_at_utc from observation/valid time. Raw CO-OPS records do not supply an independent publication timestamp. Validity interval, snapshot time, age, numbers and source stay unchanged; issue time remains unknown. Exact/interpolated and real-adapter HTTP regressions cover this. No forecast composition or provider fetch changes.
 
 - 01:52 EST, B: NOAA current direction source check in docs/NOAA_CURRENT_DIRECTION_REVIEW.md: official glossary/Marine Navigation observations support flow-toward; prediction user guide page9 states True North. API field table alone is abbreviated, so the mapping interpretation is explicit. No parser/sign changes or instrument-calibration claim; bin/depth/pier applicability remains open. Consider linking this evidence where provider comments still call the general toward convention unconfirmed.

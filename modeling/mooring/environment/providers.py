@@ -287,7 +287,7 @@ class ProviderHttpClient:
         raise ProviderError(
             "unavailable",
             f"{self.provider_id} unavailable after {self.policy.retries + 1} attempts "
-            f"({last_error}); no usable cached response",
+            f"({last_error}); no usable cached data",
         )
 
     def invalidate(self, url: str, params: Mapping[str, str] | None = None) -> None:

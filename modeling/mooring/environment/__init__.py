@@ -71,11 +71,13 @@ def history(station_id, start, end, step_min=6):
 
 
 def replay_snapshot(berth_id, at, heading_true_deg=None):
-    """Replay a recorded/provider observation at an explicit historical time."""
+    """Replay a provider observation or explicitly synthetic fixture at an explicit time."""
+    from .errors import ProviderError
+    if at.tzinfo is None or at.utcoffset() is None:
+        raise ProviderError("malformed", "Replay time must include a timezone offset")
     if source_mode() == "coops":
         from . import live
         return live.at(berth_id, at, heading_true_deg)
-    from .errors import ProviderError
     from .replay import Unavailable, recorded_fixture_source
     snap = recorded_fixture_source().at(at, now=at)
     if isinstance(snap, Unavailable):

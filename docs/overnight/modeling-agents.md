@@ -68,3 +68,5 @@ NSTM references, line/pier capacities, wind averaging conversions, tug estimates
 - 21:19 EST: opt-in agent persistence now retains completed chains and audit/ownership without serializing credentials. Service-scoped job recovery prevents cross-service interruption. Durable chain, cross-owner reads, terminal SSE replay and concurrent approvals tests pass; full regression underway. Watcher found DC1 CO-OPS and DC2 NWS branches, queued for integration review.
 
 - 21:25 EST: PR #36 pushed (1237 Python/81 UI tests, no skips/xfails). Safety hardening preserves original plus supplemental conditions and every check failure, refuses unresolved RED plans, and takes the lowest/unknown solver limit across conditions. Forecast planning now rejects poor/suspect or expired-interval inputs. Focused 31 tests pass; full suite underway.
+
+- 21:30 EST: DC1 CO-OPS integration plus provenance/cache fixes: 1253 Python tests pass, no skips/xfails; focused provider/replay 67 pass. Bundled synthetic replay is now explicitly scenario-basis; historical CO-OPS snapshots say replay. No forecast fallback introduced.

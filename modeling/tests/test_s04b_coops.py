@@ -283,13 +283,14 @@ def test_ws_env_reports_provider_failure_and_does_not_synthesize(coops_mode):
     assert msg["error"] == "unavailable" and "unavailable" in msg["detail"]
 
 
-def test_ws_replay_uses_recorded_provider_data_not_synthetic(monkeypatch):
+def test_ws_replay_uses_bundled_fixture_with_explicit_synthetic_basis(monkeypatch):
     monkeypatch.delenv("MOORING_ENV_SOURCE", raising=False)
     with client.websocket_connect(
         "/ws/env?berth_id=NAVSTA-NORFOLK-P12-N&mode=replay&replay_start_utc=2026-03-01T12:00:00Z&interval_s=0&limit=1"
     ) as ws:
         msg = ws.receive_json()
-    assert msg["source"] == "replay" and msg["metadata"]["source"] == "recorded_fixture"
+    assert msg["source"] == "replay" and msg["metadata"]["source"] == "synthetic recorded-format fixture"
+    assert msg["metadata"]["basis"] == "scenario"
 
 
 def test_version_reports_provider_modes(coops_mode):
@@ -301,3 +302,24 @@ def test_version_reports_provider_modes(coops_mode):
 def test_default_mode_stays_offline_and_deterministic():
     r = client.get("/api/v1/env/now?berth_id=NAVSTA-NORFOLK-P12-N")
     assert r.status_code == 200 and r.json()["source"] == "mock"
+
+
+def test_malformed_json_is_not_retained_in_provider_cache():
+    f, _, calls = fetcher([(200, '<html>'), OK], retries=0, min_interval_s=0)
+    with pytest.raises(ProviderError, match='JSON'): f.get(P)
+    assert not f.get(P).stale and len(calls) == 2
+
+
+def test_replay_rejects_naive_time_without_guessing_a_timezone():
+    from mooring.environment import replay_snapshot
+    with pytest.raises(ProviderError, match='timezone'):
+        replay_snapshot('NAVSTA-NORFOLK-P12-N', datetime(2026, 3, 1, 12))
+
+
+def test_historical_provider_snapshot_is_labeled_replay(coops_mode):
+    from mooring.environment import replay_snapshot
+    configure(recorded_transport())
+    snapshot = replay_snapshot('NAVSTA-NORFOLK-P12-N', datetime(2026, 1, 1, 0, 30, tzinfo=UTC))
+    assert snapshot.source == 'replay'
+    assert snapshot.metadata.basis == 'observation'
+    assert 'NOAA CO-OPS' in snapshot.metadata.source

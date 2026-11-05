@@ -175,5 +175,5 @@ def recorded_fixture_source() -> "ReplaySource":
         import json
         from pathlib import Path
         raw = json.loads((Path(__file__).parent / "fixtures" / "replay_sample.json").read_text())
-        _FIXTURE_SOURCE = ReplaySource(raw, max_gap_s=900, stale_after_s=10**9, station="recorded_fixture", source_kind="replay")
+        _FIXTURE_SOURCE = ReplaySource(raw, max_gap_s=900, stale_after_s=10**9, station="synthetic recorded-format fixture", source_kind="replay", basis="scenario")
     return _FIXTURE_SOURCE

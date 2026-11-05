@@ -67,6 +67,8 @@ def at(berth_id: str, when: datetime, heading_true_deg: float | None = None):
     """Historical provider snapshot for replay; never substitute synthetic data."""
     from mooring.environment import with_relative
 
+    if when.tzinfo is None or when.utcoffset() is None:
+        raise coops.ProviderError("malformed", "Replay time must include a timezone offset")
     when = when.astimezone(UTC)
     src, notes, stale = _source(berth_id, when - timedelta(minutes=12), when + timedelta(minutes=12))
     snap = src.at(when, now=when)
@@ -75,7 +77,7 @@ def at(berth_id: str, when: datetime, heading_true_deg: float | None = None):
         raise coops.ProviderError("no_data", snap.reason + detail)
     if stale:
         snap = snap.model_copy(update={"metadata": snap.metadata.model_copy(update={"quality": "suspect"})})
-    return with_relative(snap, heading_true_deg)
+    return with_relative(snap.model_copy(update={"source": "replay"}), heading_true_deg)
 
 
 def history(station_id: str, start: datetime, end: datetime, step_min: int = 6) -> HistorySeries:

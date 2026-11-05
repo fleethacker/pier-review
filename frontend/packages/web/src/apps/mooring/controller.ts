@@ -3,6 +3,7 @@ import type { AppHost } from '../../scene/app';
 import type { SceneEdit, SceneState } from '../../scene/types';
 import { awaitJob, describeError, modeling, MODELING_BASE, unwrap, wsUrl } from './api';
 import { AgentSession } from './agent';
+import { IntakeSession } from './intake/controller';
 import { MotionController } from './motion/controller';
 import { MOTION_KINDS } from './motion/sceneMapper';
 import type { ShipDims } from './motion/sceneMapper';
@@ -208,6 +209,7 @@ const ANALYZE_DEBOUNCE_MS = 250;
 /** Owns the mooring app's state, talks to the modeling API and keeps the shared scene in sync. */
 export class MooringController {
   readonly state = new Store<MooringState>(INITIAL);
+  readonly intake: IntakeSession = new IntakeSession(this);
   readonly agent: AgentSession = new AgentSession(this);
   /** While true the Cesium scene belongs to the motion view, and layout redraws are held back. */
   private motionHoldsScene = false;
@@ -243,9 +245,7 @@ export class MooringController {
     tugIds: () => [...new Set(this.s.tugAssignments.map((t) => t.tug_id))],
     lineNumbers: () => [...new Set(this.s.lines.map((l) => l.line_number))],
     layoutKey: () => this.scenarioKey(),
-    ensureScenario: async () => this.s.scenarioId && this.savedScenarioKey === this.scenarioKey()
-      ? this.s.scenarioId
-      : this.saveScenario(`Motion session ${new Date().toISOString().slice(11, 16)}Z`),
+    ensureScenario: async () => this.ensureScenario(`Motion session ${new Date().toISOString().slice(11, 16)}Z`),
     initialState: (offsetFt) => {
       const { berth, ship, side, shipXFt, standoffOverrideFt } = this.s;
       if (!berth || !ship) return null;
@@ -290,6 +290,7 @@ export class MooringController {
     this.envStream?.close();
     this.alertStream?.close();
     this.agent.dispose();
+    this.intake.dispose();
     this.motion.dispose();
     this.unsubscribeScene();
     this.unsubscribeUnits();
@@ -671,17 +672,17 @@ export class MooringController {
     }
   }
 
-  /** Identity and geometry that make a generated plan applicable. */
+  /** Identity, geometry and environment that make a generated plan applicable. */
   contextKey(): string {
     const s = this.s;
-    return JSON.stringify([s.berthId, s.shipClassId, s.loading, s.side, s.shipXFt, s.standoffOverrideFt]);
+    return JSON.stringify([s.berthId, s.shipClassId, s.loading, s.side, s.shipXFt, s.standoffOverrideFt, s.env]);
   }
 
   applyCandidate(candidate: Candidate): void {
     const context = this.candidateContexts.get(candidate);
     if (context !== undefined && context !== this.contextKey()) {
       this.state.set({ recommend: { state: 'error', progress: 0, candidates: [],
-        error: 'Ship, berth or geometry changed. Run a new recommendation before applying it.' } });
+        error: 'Ship, berth, geometry or environment changed. Run a new recommendation before applying it.' } });
       return;
     }
     this.setTugAssignments(candidate.tugs ?? []);
@@ -695,8 +696,13 @@ export class MooringController {
     this.state.set({ scenarios });
   }
 
-  private scenarioKey(): string {
+  scenarioKey(): string {
     return JSON.stringify([this.contextKey(), this.s.lines, this.s.tugAssignments, this.s.env]);
+  }
+
+  async ensureScenario(name: string): Promise<string | null> {
+    return this.s.scenarioId && this.savedScenarioKey === this.scenarioKey()
+      ? this.s.scenarioId : this.saveScenario(name);
   }
 
   async saveScenario(name: string): Promise<string | null> {

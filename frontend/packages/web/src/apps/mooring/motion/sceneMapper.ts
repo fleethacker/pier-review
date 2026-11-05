@@ -17,7 +17,8 @@ const TUG_L = 28;
 const TUG_B = 9;
 const LINE_COLOR: Record<string, { status: Status; color?: string }> = {
   overloaded: { status: 'RED' },
-  taut: { status: 'GREEN' },
+  // Taut describes line state, not a capacity or safety assessment.
+  taut: { status: 'NONE', color: '#00bcd4' },
   slack: { status: 'NONE', color: '#6b7f99' },
   unknown: { status: 'NONE', color: '#6b7f99' },
 };

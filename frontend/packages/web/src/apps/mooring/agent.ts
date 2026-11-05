@@ -107,7 +107,11 @@ export class AgentSession {
       sheet: INITIAL.sheet,
     });
     try {
-      const scenarioId = await this.parent.saveScenario(`Agent run ${new Date().toISOString().slice(11, 19)}Z`);
+      const inputs = this.parent.scenarioKey();
+      const intakeReportId = this.parent.intake.reportId();
+      const scenarioId = await this.parent.ensureScenario(`Agent run ${new Date().toISOString().slice(11, 19)}Z`);
+      if (this.disposed) return;
+      if (inputs !== this.parent.scenarioKey()) throw new Error('Inputs changed while saving. Run a new plan.');
       if (!scenarioId) throw new Error('Choose a ship and berth first.');
       const accepted = unwrap(
         await agents.POST('/api/v1/agent/plans', {
@@ -116,6 +120,7 @@ export class AgentSession {
             objective: this.s.objective,
             target_margin_pct_wll: this.s.targetMarginPct,
             max_iterations: 8,
+            ...(intakeReportId ? { intake_report_id: intakeReportId } : {}),
           },
         }),
       );
@@ -179,7 +184,7 @@ export class AgentSession {
 
   private applicable(): boolean {
     if (this.context !== null && this.context !== this.parent.contextKey()) {
-      this.state.set({ error: 'Ship, berth or geometry changed. Run a new plan before applying or undoing it.' });
+      this.state.set({ error: 'Ship, berth, geometry or environment changed. Run a new plan before applying or undoing it.' });
       return false;
     }
     return true;

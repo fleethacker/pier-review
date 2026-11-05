@@ -1,65 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
 import { Button, BackendBadge, Panel, StatusChip, toStatus } from '../../../shell/ui';
-import { agents, AGENTS_BASE, awaitJob, describeError, unwrap } from '../api';
 import { useController, useMooring } from '../panels/context';
 import { dataQualityLine, formatSpan, summaryProvenance, worstSeverity } from './logic';
-import type { IntakeReport } from './logic';
-
-type Phase = 'idle' | 'running' | 'done' | 'error';
 
 /** Asks the intake agent to assess the environment for the chosen berth, ship and side over the next day. */
 export function IntakePanel() {
-  useController();
+  const controller = useController();
   const berth = useMooring((s) => s.berth);
-  const shipClassId = useMooring((s) => s.shipClassId);
-  const side = useMooring((s) => s.side);
-  const [phase, setPhase] = useState<Phase>('idle');
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [report, setReport] = useState<IntakeReport | null>(null);
-  const abort = useRef<AbortController | null>(null);
-  useEffect(() => () => abort.current?.abort(), []);
-
-  // A report describes one berth, ship and side; drop it when they change so it is never shown against the wrong one.
-  const key = `${berth?.berth_id}|${shipClassId}|${side}`;
-  const shownFor = useRef(key);
-  useEffect(() => {
-    if (shownFor.current !== key) {
-      shownFor.current = key;
-      abort.current?.abort();
-      setReport(null);
-      setPhase('idle');
-      setError(null);
-    }
-  }, [key]);
-
-  const run = async () => {
-    if (!berth) return;
-    abort.current?.abort();
-    abort.current = new AbortController();
-    setPhase('running');
-    setError(null);
-    setProgress(0);
-    try {
-      const accepted = unwrap(
-        await agents.POST('/api/v1/intake/reports', {
-          body: { berth_id: berth.berth_id, ship_class_id: shipClassId || null, side_to: side, horizon_hours: 24 },
-        }),
-      );
-      const result = await awaitJob<IntakeReport>(AGENTS_BASE, accepted, setProgress, abort.current.signal);
-      setReport(result);
-      setPhase('done');
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return;
-      setError(describeError(e));
-      setPhase('error');
-    }
-  };
+  const { phase, progress, error, report } = controller.intake.state.use((s) => s);
 
   return (
     <Panel title="Environment intake" className="space-y-2 p-4">
-      <p className="text-[11px] text-mil-dim">Assess the next 24 hours at this berth: wind and current limits, windows of concern, and data quality.</p>
-      <Button size="sm" disabled={!berth || phase === 'running'} onClick={() => void run()}>
+      <p className="text-[11px] text-mil-dim">Assess the selected scenario over 24 hours: wind and current limits, windows of concern, and data quality. Saved manual conditions stay steady; they are not a weather forecast.</p>
+      <Button size="sm" disabled={!berth || phase === 'running'} onClick={() => void controller.intake.run()}>
         {phase === 'running' ? `Assessing… ${Math.round(progress * 100)}%` : report ? 'Assess again' : 'Assess conditions'}
       </Button>
 
@@ -77,6 +29,7 @@ export function IntakePanel() {
           </div>
           <p className="text-white">{report.summary}</p>
           <p className="text-[10px] text-mil-dim">{summaryProvenance(report)}</p>
+          <p className="text-[10px] text-mil-dim">The next planning run uses this assessment. Editing the inputs clears it.</p>
 
           <div>
             <div className="mil-label mb-1">Mooring condition</div>

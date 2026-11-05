@@ -280,6 +280,8 @@ const FORCE_ROWS: { key: ForceKey; label: string }[] = [
   { key: 'fenders', label: 'Fenders' },
 ];
 
+const usableValidity = (validity: Validity | null | undefined) => validity?.state === 'valid' || validity?.state === 'limited';
+
 function adaptForces(forces: S['MotionForces'] | null | undefined): ViewForce[] {
   if (!forces) return [];
   const wave = (() => {
@@ -288,7 +290,7 @@ function adaptForces(forces: S['MotionForces'] | null | undefined): ViewForce[] 
       (c): c is NonNullable<typeof c> => !!c && (c as { availability: Availability }).availability === 'available',
     );
     const vecs = parts.map((c) => force((c as { force?: { x_lbf?: number | null; y_lbf?: number | null } | null }).force));
-    if (!parts.length || vecs.some((v) => v === null)) return null;
+    if (!parts.length || parts.some((c) => !usableValidity(c.validity)) || vecs.some((v) => v === null)) return null;
     return vecs.reduce<Vec2>((a, v) => ({ x: a.x + v!.x, y: a.y + v!.y }), { x: 0, y: 0 });
   })();
   return FORCE_ROWS.map(({ key, label }) => {
@@ -296,10 +298,10 @@ function adaptForces(forces: S['MotionForces'] | null | undefined): ViewForce[] 
       return { key, label, force: wave, yawMomentFtLbf: null, availability: wave ? 'available' : 'unavailable' };
     }
     const w = forces[key] as
-      | { availability: Availability; force?: { x_lbf?: number | null; y_lbf?: number | null } | null; yaw_moment_ftlbf?: number | null }
+      | { availability: Availability; validity?: Validity | null; force?: { x_lbf?: number | null; y_lbf?: number | null } | null; yaw_moment_ftlbf?: number | null }
       | null
       | undefined;
-    const availability = w?.availability ?? 'unavailable';
+    const availability = w?.availability === 'available' && !usableValidity(w.validity) ? 'unavailable' : w?.availability ?? 'unavailable';
     return {
       key,
       label,
@@ -317,6 +319,9 @@ export interface AdaptOptions {
 
 export function adaptFrame(frame: SimFrame, opts: AdaptOptions = {}): ViewFrame {
   const rm0 = isRm0(frame);
+  const usable = usableValidity(frame.validity);
+  const usableComponent = (c: { availability: Availability; validity?: Validity | null }) =>
+    usable && c.availability === 'available' && usableValidity(c.validity);
   const assumed = opts.faceBearingDeg == null;
   const face = opts.faceBearingDeg ?? DEFAULT_FACE_BEARING;
   const motion = frame.motion ?? null;
@@ -363,12 +368,12 @@ export function adaptFrame(frame: SimFrame, opts: AdaptOptions = {}): ViewFrame 
         velocity: velocity(t.velocity),
         acceleration: acceleration(t.acceleration),
         commandedForce: force(t.commanded_force),
-        actualForce: force(t.actual_force),
-        legacyForceLbf: frame.tugs.find((l) => l.tug_id === t.tug_id)?.force_lbf ?? null,
+        actualForce: usableComponent(t) ? force(t.actual_force) : null,
+        legacyForceLbf: usableComponent(t) ? frame.tugs.find((l) => l.tug_id === t.tug_id)?.force_lbf ?? null : null,
         legacyDirectionRelDeg: frame.tugs.find((l) => l.tug_id === t.tug_id)?.direction_rel_deg ?? null,
         mode: t.mode,
         contactState: t.contact_state,
-        utilizationPct: t.capacity_utilization_pct ?? null,
+        utilizationPct: usableComponent(t) ? t.capacity_utilization_pct ?? null : null,
         pushPointId: t.push_point_id ?? null,
         availability: t.availability,
         badge: badgeOf(t.validity, t.provenance),
@@ -395,8 +400,8 @@ export function adaptFrame(frame: SimFrame, opts: AdaptOptions = {}): ViewFrame 
   const lines: ViewLine[] = richLines
     ? richLines.map((l) => ({
         lineNumber: l.line_number,
-        tensionLbf: l.availability === 'available' ? (l.tension_lbf ?? null) : null,
-        status: l.status,
+        tensionLbf: usableComponent(l) ? (l.tension_lbf ?? null) : null,
+        status: usableComponent(l) ? l.status : 'unknown',
         shipEnd: vec(l.ship_end),
         pierEnd: vec(l.pier_end),
         polyline: l.polyline ? (l.polyline.map(vec).filter((p): p is Vec2 => p !== null) as Vec2[]) : null,
@@ -406,7 +411,7 @@ export function adaptFrame(frame: SimFrame, opts: AdaptOptions = {}): ViewFrame 
       }))
     : frame.lines.map((l) => ({
         lineNumber: l.line_number,
-        tensionLbf: l.tension_lbf,
+        tensionLbf: usable ? l.tension_lbf : null,
         status: 'unknown' as LineStatus,
         shipEnd: null,
         pierEnd: null,
@@ -419,16 +424,16 @@ export function adaptFrame(frame: SimFrame, opts: AdaptOptions = {}): ViewFrame 
   const fenders: ViewFender[] = frame.fender_states
     ? frame.fender_states.map((f) => ({
         id: f.fender_id,
-        compressionFt: f.availability === 'available' ? (f.compression_ft ?? null) : null,
-        reactionLbf: f.availability === 'available' ? (f.reaction_lbf ?? null) : null,
-        status: f.status ?? null,
+        compressionFt: usableComponent(f) ? (f.compression_ft ?? null) : null,
+        reactionLbf: usableComponent(f) ? (f.reaction_lbf ?? null) : null,
+        status: usableComponent(f) ? f.status ?? null : null,
         availability: f.availability,
       }))
     : frame.fenders.map((f) => ({
         id: f.fender_id,
-        compressionFt: f.compression_ft,
-        reactionLbf: f.reaction_lbf,
-        status: f.status,
+        compressionFt: usable ? f.compression_ft : null,
+        reactionLbf: usable ? f.reaction_lbf : null,
+        status: usable ? f.status : null,
         availability: 'unknown' as Availability,
       }));
 
@@ -452,19 +457,19 @@ export function adaptFrame(frame: SimFrame, opts: AdaptOptions = {}): ViewFrame 
     sceneRevision: frame.scene_revision ?? null,
     badge: rm0 ? badgeOf(frame.validity, frame.provenance) : { ...LEGACY_BADGE, ...(frame.validity ? badgeOf(frame.validity, frame.provenance) : {}) },
     ship,
-    tugs,
+    tugs: usable ? tugs : tugs.map((t) => ({ ...t, actualForce: null, legacyForceLbf: null, utilizationPct: null })),
     lines,
     fittings: (frame.fitting_loads ?? []).map((f) => ({
       id: f.fitting_id,
       owner: f.owner,
-      loadLbf: f.availability === 'available' ? (f.load_lbf ?? null) : null,
+      loadLbf: usableComponent(f) ? (f.load_lbf ?? null) : null,
       capacityLbf: f.capacity_lbf ?? null,
-      utilizationPct: f.availability === 'available' ? (f.utilization_pct ?? null) : null,
-      status: f.status ?? null,
+      utilizationPct: usableComponent(f) ? (f.utilization_pct ?? null) : null,
+      status: usableComponent(f) ? f.status ?? null : null,
     })),
     fenders,
     environment: adaptEnvironment(frame.environment),
-    forces: adaptForces(frame.forces),
+    forces: adaptForces(usable ? frame.forces : null),
     alerts,
     assumedFaceBearing: assumed && !rm0,
   };

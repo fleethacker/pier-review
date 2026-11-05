@@ -453,7 +453,7 @@ def main() -> int:
     print(f"\ndemo-check: {len(RESULTS) - len(failed) - len(skipped)} passed, {len(failed)} failed, {len(skipped)} skipped")
     for _, name, detail in skipped:
         print(f"  not covered: {name} ({detail})")
-    print("Coverage limit: explicit Intake/review UI selection and the complete four-case browser gate remain unimplemented; this is a scoped integration check.")
+    print("Coverage limit: browser Intake is bound to Planner; four-case checks cover initial analysis, not every subsequent planning path. Independent review is checked through the API; separate review-selection UI remains unimplemented.")
     return 1 if failed else 0
 
 

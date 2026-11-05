@@ -103,7 +103,7 @@ describe('legacy frames', () => {
     expect(v.environment).toBeNull();
     expect(v.forces).toEqual([]);
     expect(v.tugs[0].position).toBeNull();
-    expect(v.tugs[0].legacyForceLbf).toBe(4000);
+    expect(v.tugs[0].legacyForceLbf).toBeNull(); // no validity accompanies this legacy load
     expect(v.lines[0].shipEnd).toBeNull();
     expect(v.lines[0].status).toBe('unknown');
   });
@@ -116,6 +116,47 @@ describe('legacy frames', () => {
     const w = adaptFrame(legacy, { faceBearingDeg: 120 });
     expect(w.assumedFaceBearing).toBe(false);
     expect(w.ship.yawDeg).toBe(20);
+  });
+});
+
+describe('motion load validity', () => {
+  it.each(['invalid', 'unknown', undefined] as const)('withholds %s component loads even in a usable frame', (state) => {
+    const validity = state ? { state, reasons: [] } : undefined;
+    const v = adaptFrame({ ...frame,
+      line_states: frame.line_states!.map((l) => ({ ...l, validity })),
+      fitting_loads: frame.fitting_loads!.map((f) => ({ ...f, validity })),
+      fender_states: frame.fender_states!.map((f) => ({ ...f, validity })),
+      tug_states: frame.tug_states!.map((t) => ({ ...t, validity })),
+      forces: { ...frame.forces!, wind: { ...frame.forces!.wind!, validity } },
+    });
+    expect(v.badge.validity).toBe('limited');
+    expect(v.lines.every((l) => l.tensionLbf === null && l.status === 'unknown')).toBe(true);
+    expect(v.fittings.every((f) => f.loadLbf === null && f.status === null)).toBe(true);
+    expect(v.fenders.every((f) => f.reactionLbf === null && f.status === null)).toBe(true);
+    expect(v.tugs.every((t) => t.actualForce === null && t.legacyForceLbf === null)).toBe(true);
+    expect(v.forces.find((f) => f.key === 'wind')!.force).toBeNull();
+  });
+
+  it.each(['invalid', 'unknown', undefined] as const)('withholds %s loads without dropping geometry or alerts', (state) => {
+    const v = adaptFrame({ ...frame, validity: state ? { state, reasons: [] } : undefined });
+    expect(v.lines.every((l) => l.tensionLbf === null && l.status === 'unknown')).toBe(true);
+    expect(v.lines[0].shipEnd).not.toBeNull();
+    expect(v.fittings.every((f) => f.loadLbf === null && f.utilizationPct === null && f.status === null)).toBe(true);
+    expect(v.fenders.every((f) => f.reactionLbf === null && f.status === null)).toBe(true);
+    expect(v.tugs.every((t) => t.actualForce === null && t.legacyForceLbf === null)).toBe(true);
+    expect(v.forces).toEqual([]);
+    expect(v.alerts.length).toBeGreaterThan(0);
+  });
+
+  it('does not display an unavailable component as a green result', () => {
+    const v = adaptFrame({ ...frame,
+      line_states: frame.line_states!.map((l) => ({ ...l, availability: 'unavailable' })),
+      fitting_loads: frame.fitting_loads!.map((f) => ({ ...f, availability: 'unavailable', status: 'GREEN' })),
+      fender_states: frame.fender_states!.map((f) => ({ ...f, availability: 'unavailable', status: 'GREEN' })),
+    });
+    expect(v.lines.every((l) => l.status === 'unknown')).toBe(true);
+    expect(v.fittings.every((f) => f.status === null)).toBe(true);
+    expect(v.fenders.every((f) => f.status === null)).toBe(true);
   });
 });
 

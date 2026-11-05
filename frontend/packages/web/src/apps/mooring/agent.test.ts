@@ -45,6 +45,18 @@ afterEach(() => {
   c.dispose();
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+it('does not apply a plan computed before an environment edit', async () => {
+  vi.stubGlobal('EventSource', class { addEventListener() {} close() {} });
+  vi.spyOn(c, 'ensureScenario').mockResolvedValue('s1');
+  vi.mocked(agents.POST).mockResolvedValue({ data: { plan_id: 'p1', events_url: '/api/v1/agent/plans/p1/events' } } as never);
+  await c.agent.run();
+  c.state.set({ env: { wind_gust_kt: 64 } as never });
+  c.agent.applyPlan(plan);
+  expect(c.state.get().lines.map((l) => l.line_number)).toEqual([1]);
+  expect(c.agent.state.get().error).toMatch(/environment changed/);
 });
 
 describe('applying and undoing an agent plan', () => {

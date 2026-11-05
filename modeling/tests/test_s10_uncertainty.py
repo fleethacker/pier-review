@@ -33,6 +33,11 @@ def test_lognormal_fit_recovers_parameters_and_rejects_bad_input():
         u.fit_lognormal([1.0])
 
 
+def test_direction_sector_fit_keeps_359_and_1_in_distinct_declared_bins():
+    sectors = u.fit_gust_sectors([(1, 1.1), (2, 1.2), (359, 1.3), (358, 1.4)], width_deg=45)
+    assert [(s.from_deg, s.to_deg, s.n_fit) for s in sectors] == [(0, 45, 2), (315, 360, 2)]
+
+
 def test_ar1_fit_recovers_correlation_time():
     rng = random.Random(11)
     phi_true, x, series = 0.9, 0.0, []
@@ -121,6 +126,16 @@ def test_committed_fitted_artifact_is_valid_calibrated_and_honestly_unqualified(
     for bad in ("../etc/passwd", "nope", "a/b"):
         with pytest.raises(KeyError):
             u.load_model(bad)
+
+
+def test_gust_endpoint_serves_fitted_artifact_with_honest_limitations():
+    served = u.served_gust_model("8638614")
+    assert served.provenance.confidence == "estimated" and "coops-8638614-2025" in served.provenance.source
+    assert "qualification=unqualified" in served.provenance.notes
+    assert len(served.sectors) == 1  # legacy artifact has no sector fits; do not manufacture eight
+    assert served.sectors[0].gust_factor.params["mu"] == pytest.approx(u.load_model("coops-8638614-2025").gust_factor_mu)
+    with pytest.raises(ValueError, match="was not fitted"):
+        u.served_gust_model("not-this-station")
     assert u.available_models()[:2] == ["synthetic-demo", "coops-8638614-2025"]
 
 

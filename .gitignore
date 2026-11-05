@@ -10,6 +10,7 @@ build/
 .env.*
 .DS_Store
 data/raw/
+.exercise-data/
 
 # make demo-check
 docs/overnight/demo-check-logs/

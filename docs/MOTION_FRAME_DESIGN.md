@@ -1,34 +1,29 @@
 # RM0 motion frame contract
 
-RM0 defines an additive display contract and deterministic UI fixtures. It implements no dynamics,
-environment provider, session clock, live scene endpoint or trajectory qualification. The current simulator
-continues to emit its legacy frames. Producers opt into new fields after their consumers support them.
-
-Dependencies: S00a ([PR #11](https://github.com/DDL-Mike-Snyder/pier-review-ship-parking/pull/11),
-`89bdecc`) and S00b ([PR #13](https://github.com/DDL-Mike-Snyder/pier-review-ship-parking/pull/13),
-`51267d0`) are merged. This change includes `dev` through `6b35c92` (the DC4 review corrections in PR #21).
+RM0 defines the additive display contract and fixtures. **Current integration:** S1 in
+[fleethacker/pier-review PR #6](https://github.com/fleethacker/pier-review/pull/6) now emits rich rm0-v1 frames and
+serves scene, lifecycle, speed, reconnect and recording routes. Kori's consumer integration is merged in #18.
+Legacy fields remain compatible; absent physics is still unavailable. This contract does not qualify the vessel.
 
 ## Coordination and ownership
 
-The watched branches are `ws-b/modeling-build-out` (PR #15) and
-`ws-e/berthing-sim-and-readiness` (PR #18, stacked on PR #15). Both merged during RM0 development:
-PR #18 at `630da7f`, then PR #15 into `dev` at `661da3f`. RM0 incorporates that merged base.
+Use [master-plan execution ownership](MASTER_PLAN.md#execution-ownership) for the active queue. **Snyder M-SIM** owns
+runtime/frame production, **Snyder M-PLAN** independent physics checks, **Kori** consumers and controls, **Cruz** source
+metadata, and **Bixler** integrated acceptance. Publish additive schema/fixture changes before dependent consumers.
 
-PR #18 adds optional `SimFrame.validity` and diagnostics, command timestamps, sampling controls, and
-session limits. RM0 retains those fields and their absent-field behavior, using the same `Validity` type
-and combining `wire_omitted_defaults`. PR #15's shared fender and provenance additions are preserved
-by keeping motion-specific objects separate. The merged simulator continues emitting S17 frames;
-it does not yet populate RM0 fields or serve scenes/lifecycle messages.
+| Current task | Lead | Dependency / remaining scope |
+| --- | --- | --- |
+| S1 rich runtime | Snyder M-SIM | Merged #6; extend existing producer/routes instead of implementing another RM0 adapter |
+| S2 stage-time forcing | Snyder M-SIM; Cruz supplies public series | Immutable forcing and relative flow; P1 resolver exists, public D2 in open #13 |
+| S3 geometry/vertical motion | Snyder M-SIM | Supported push-point/stability inputs; Kori draws only supplied DOFs |
+| S4/D4 waves | Snyder M-PLAN / Cruz | D4 acquisition in open #13; forcing remains separate, synthetic/unqualified until supported |
+| U2/U5/U7 consumers | Kori | Merged #18; combined acceptance and later producer capabilities remain |
+| S7/U8 prediction | Snyder / Kori | Initial limited camera merged #14; [prediction scope](PREDICTION.md) and full gates remain |
 
-| Owner | Responsibility |
-| --- | --- |
-| RM0 | Field meanings, compatibility, scene/frame/lifecycle/recording schemas and fixtures |
-| S15–S17 / PR #18 | Integration, contact, authoritative clock, timed commands and session controls |
-| RM1 | Environment evaluated each step and relative-flow coupling |
-| RM2 / DC4 | Approved wave sources, ingestion and forcing, with separate wave components |
-| RM3 / RM4 | Tug kinematics and the chosen vertical-motion capability |
-| RM5 | Scene retrieval, lifecycle transport, recording persistence and reconnect history |
-| RM6 / RM7 | Drawing supplied state, controls, and visible validity/provenance badges |
+Historical RM0 baseline: S00a (`89bdecc`) and S00b (`51267d0`) defined the foundations in the legacy repository;
+legacy PRs #15/#18 integrated shared mechanics and S17 controls at `661da3f`. This document originally described a
+contract-only producer gap, subsequently closed by current S1. Those historical PR numbers are not new work items
+or the current repository's UI PR #18. Existing validity/default-omission conventions remain in force.
 
 ## Compatibility and identity
 
@@ -160,8 +155,9 @@ Published UI fixtures: [scene](../contract/examples/modeling/sim_scene.json),
 
 ## Evidence and performance boundary
 
-Tests cover unchanged legacy serialization, current legacy WS output, finite/null values, qualification and
-availability rules, fixture/schema agreement, monotonic sequence/time, scene references and deterministic export.
+Contract tests cover legacy serialization compatibility, finite/null values, qualification/availability rules,
+fixture/schema agreement and deterministic export. S1 runtime tests cover rich WS output, lifecycle, reconnect,
+speed, recordings, scene identity and sequence/time. Cite the implementation PR for test-run evidence.
 Run `make contract` then `make test`; regenerated OpenAPI and examples are committed together.
 
 RM0 adds no integration step and qualifies no session count. Its benchmark measures only frame validation and

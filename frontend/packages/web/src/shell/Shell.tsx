@@ -134,8 +134,10 @@ export function Shell({ store }: { store?: SceneStore }) {
 
   const def = getApp(route.appId)!;
   const tabs = tabsOf(def);
-  const { Sidebar, Side, Bottom, Banner, Overlay } = instance ?? {};
+  const { Sidebar, Side, Bottom, Banner, Overlay, Canvas } = instance ?? {};
   const appStore = current.store;
+  // An app with its own canvas (a map, say) never loads the Cesium renderer, not even while it is starting.
+  const customCanvas = def.canvas === 'custom';
 
   return (
     <div className="flex h-full w-full flex-col bg-mil-bg font-mono text-mil-text">
@@ -158,18 +160,24 @@ export function Shell({ store }: { store?: SceneStore }) {
           </aside>
         )}
         <main className="relative min-w-0 flex-1">
-          <CesiumCanvas store={appStore} onEdit={onEdit} onScreenUpBearing={setUpBearing} />
-          <div className="pointer-events-none absolute inset-0">
-            <ViewControls store={appStore} upBearingDeg={upBearing} />
-            <div className="pointer-events-auto absolute right-3 top-20">
-              <Inspector store={appStore} />
-            </div>
-            {current.error && (
-              <div className="pointer-events-auto absolute left-1/2 top-16 -translate-x-1/2 rounded-sm border border-mil-red/60 bg-mil-panel px-4 py-2 text-xs text-mil-red">
-                Could not start application: {current.error}
+          {Canvas ? (
+            <Canvas />
+          ) : customCanvas ? null : (
+            <>
+              <CesiumCanvas store={appStore} onEdit={onEdit} onScreenUpBearing={setUpBearing} />
+              <div className="pointer-events-none absolute inset-0">
+                <ViewControls store={appStore} upBearingDeg={upBearing} />
+                <div className="pointer-events-auto absolute right-3 top-20">
+                  <Inspector store={appStore} />
+                </div>
               </div>
-            )}
-          </div>
+            </>
+          )}
+          {current.error && (
+            <div className="pointer-events-auto absolute left-1/2 top-16 z-30 -translate-x-1/2 rounded-sm border border-mil-red/60 bg-mil-panel px-4 py-2 text-xs text-mil-red">
+              Could not start application: {current.error}
+            </div>
+          )}
           {Overlay && (
             <div className="pointer-events-none absolute inset-0 z-20">
               <Overlay />

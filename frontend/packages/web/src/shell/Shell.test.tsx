@@ -4,8 +4,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearApps, registerApp } from '../scene/app';
 import { SceneStore } from '../scene/store';
 
+const renderers = vi.hoisted(() => ({ constructed: 0 }));
+
 vi.mock('./cesium/SceneRenderer', () => ({
   SceneRenderer: class {
+    constructor() {
+      renderers.constructed++;
+    }
+    setStore() {}
     view = { screenUpBearingDeg: 0 };
     dispose() {}
     screenPositionOf() {
@@ -23,6 +29,7 @@ import { Shell } from './Shell';
 afterEach(() => {
   cleanup();
   clearApps();
+  renderers.constructed = 0;
 });
 
 function registerTestApp() {
@@ -164,5 +171,59 @@ describe('landing page and tabs', () => {
     act(() => notify!('b'));
     expect(screen.getByRole('tab', { name: 'Gamma B' }).getAttribute('aria-selected')).toBe('true');
     expect(window.location.search).toBe('?app=gamma&tab=b');
+  });
+});
+
+describe('custom canvases', () => {
+  const plain = (id: string, title: string) => ({
+    id,
+    title,
+    description: `${title} description`,
+    start: () => ({ Sidebar: () => <div>{id} sidebar</div>, dispose() {} }),
+  });
+
+  it('renders an app\'s own canvas in place of the scene canvas and its controls', async () => {
+    registerApp({
+      ...plain('map', 'Map app'),
+      canvas: 'custom',
+      start: () => ({ Canvas: () => <div>custom canvas</div>, dispose() {} }),
+    });
+    render(<Shell store={new SceneStore()} />);
+    await waitFor(() => expect(screen.getByText('custom canvas')).toBeTruthy());
+    expect(screen.queryByRole('button', { name: /^3d$/i })).toBeNull();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(renderers.constructed).toBe(0);
+  });
+
+  it('does not start the scene renderer for a custom-canvas app while it is still starting', async () => {
+    let finish: (() => void) | undefined;
+    registerApp({
+      ...plain('slow', 'Slow app'),
+      canvas: 'custom',
+      start: () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ Canvas: () => <div>late canvas</div>, dispose() {} });
+        }),
+    });
+    render(<Shell store={new SceneStore()} />);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(renderers.constructed).toBe(0);
+    expect(screen.queryByRole('button', { name: /^3d$/i })).toBeNull();
+    finish!();
+    await waitFor(() => expect(screen.getByText('late canvas')).toBeTruthy());
+    expect(renderers.constructed).toBe(0);
+  });
+
+  it('still shows the scene canvas and its controls for apps without their own', async () => {
+    registerApp(plain('scene', 'Scene app'));
+    render(<Shell store={new SceneStore()} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /^3d$/i })).toBeTruthy());
+    await waitFor(() => expect(renderers.constructed).toBe(1));
+  });
+
+  it('reports an app that fails to start, even with a custom canvas', async () => {
+    registerApp({ ...plain('bad', 'Bad app'), canvas: 'custom', start: () => Promise.reject(new Error('no map today')) });
+    render(<Shell store={new SceneStore()} />);
+    await waitFor(() => expect(screen.getByText(/no map today/)).toBeTruthy());
   });
 });

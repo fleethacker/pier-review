@@ -5,7 +5,10 @@ overnight logs' "next steps" and "tomorrow" sections, the expanded modeling plan
 (all now in [docs/archive/2026-11-05-overnight/](archive/2026-11-05-overnight/)). If a priority or assignment here
 conflicts with another document, this one wins. Detailed packet specifications stay where they are (see [Document map](#document-map)).
 
-Written 5 November 2026 against `dev` at `e0e0fcf` (PR #106). The repo now lives at
+Originally written 5 November 2026 against `dev` at `e0e0fcf` (legacy PR #106).
+**Status reconciled 5 November 2026, 13:06 EST**, against `dev` at `3ababad` (PR #18); PR #13 remains open.
+This is a documentation reconciliation, not a new test run or release approval. Use the `dev` version; `main` is
+the release branch and does not yet contain this plan. The repo now lives at
 [fleethacker/pier-review](https://github.com/fleethacker/pier-review); its default branch is `main`, so **always open PRs
 with `--base dev`**.
 
@@ -44,17 +47,17 @@ navigational guidance, and must not look more certain than it is.
 
 | Name | Workstream | Item prefixes | Section |
 | --- | --- | --- | --- |
-| **Snyder** | Modeling: simulation runtime and physics (Claude session + GPT session) | S, P | [§4](#4-snyder-modeling-claude-session--gpt-session) |
-| **Kori** | UI | U | [§5](#5-kori-ui) |
-| **Cruz** | Data connections | D | [§6](#6-cruz-data-connections) |
-| **Bixler** | Agents, integration, release, and any odd jobs not owned by someone else | A | [§7](#7-bixler-agents-integration-release-and-odd-jobs) |
+| **Snyder — Mike Snyder** (`DDL-Mike-Snyder`) | Modeling: simulation runtime and physics (Claude session + GPT session) | S, P | [§4](#4-snyder-modeling-claude-session--gpt-session) |
+| **Kori — Michael Kori** (`DDL-Michael-Kori`) | UI | U | [§5](#5-kori-ui) |
+| **Cruz — Jimmy Cruz** (`MineSweeperKing-IT`) | Data connections | D | [§6](#6-cruz-data-connections) |
+| **Bixler** (`michaelabix`) | Agents, integration, release, and any odd jobs not owned by someone else | A | [§7](#7-bixler-agents-integration-release-and-odd-jobs) |
 
 If you are an AI agent working for one of these people: read this whole file, then work **only** on your person's
 items and files, in priority order, following [§8](#8-coordination-rules) and [§10](#10-parallelizing-with-sub-agents-sonnet-55-and-gpt).
 
 | | |
 | --- | --- |
-| **Build ends** | _fill in: date, time, timezone_ |
+| **Build ends** | Not scheduled; Bixler records the agreed date/time/timezone before setting freeze or rehearsal |
 | **Feature freeze** | build end minus 3 hours |
 | **Demo rehearsal** | build end minus 2 hours, on the hosting target, from a clean checkout of `main` |
 | **Plan owner** | Bixler (integration lead) keeps the [status board](#status-board) current |
@@ -75,30 +78,30 @@ scoped `make demo-check` 24/24; use the current PR/CI evidence for newer counts)
   capability panel, seed-data banner, units toggle, berth-image review.
 - LLM providers: none (default), OpenAI, Anthropic. Everything runs offline with no key.
 
-**Modeling integration update, 5 November:** P1 immutable forecast resolution (#4), P2 explicit forecast reassessment
-(#8), and the initial P3 independent dynamics benchmarks (#5) are merged into `dev`. S1 (#6) rich frames, saved recordings and reviewed scheduler fixes are merged; final-head CI passed. S5/S6 (#10) merged at `355bec8` into `dev` at `ed12e31`, but all 16 independent review findings
-remain open; this is not review approval. See the [PR #10 review](https://github.com/fleethacker/pier-review/pull/10#issuecomment-6663809986).
-S7/U8/D8/A7 below are planned work, not implemented prediction capability. Composed public forecasts and vessel
-qualification remain open.
+**Current integration:** P1 forecast resolution (#4), P2 rechecks (#8), initial P3 benchmarks (#5), S1 rich runtime
+frames/recordings (#6), and the agents/demo baseline (#7) are merged. S5/S6 landed in #10; #14 added S6 fixes plus the
+initial transit-based S7 prediction endpoint and U8 camera overlay. The original S5/S6 review is not closed as a whole;
+see the [finding disposition](MODELING_BUILDOUT_STATUS.md#pr-10-review-disposition). Kori's U1–U7 UI landed in #18.
+#12 added R1–R9 specifications; #16 added the camera demo script. Merged implementation is not physical qualification.
 
-**Original build gaps** (recheck current `dev` before starting an existing packet):
+**Implemented on a branch, not integrated:** Cruz's D1–D4 providers, composition, replay and waves are in open
+[PR #13](https://github.com/fleethacker/pier-review/pull/13), with a separate reviewer completing it. Do not duplicate
+that implementation or claim its endpoints are on `dev` before merge. Its existing reviewer owns that review/merge;
+Cruz publishes the final contract and limitations afterward.
 
-| Gap | Why it matters for the demo |
+| Remaining work | Lead and dependency |
 | --- | --- |
-| Live simulator still emits **legacy frames**; no runtime scene or recording routes; no speed control | Live motion view shows tugs, lines and environment as "unavailable"; only the authored fixture looks rich |
-| Simulation environment frozen at session start; surrogate vessel; no tug kinematics; no tide heave | Motion is not driven by changing wind/current/tide |
-| Unknown `MOORING_ENV_SOURCE` values (including `auto`) silently fall through to **mock** | Honesty bug: synthetic data can masquerade as configured live data |
-| One missing component (often stale cb0402 current) fails the whole live snapshot | Live mode is often 503 |
-| NWS, CO-OPS predictions and CBOFS are separate readers; **no composed public forecast** | Advance planning only works with supplied/synthetic series |
-| Explicit Intake and independent Safety-review **selection in the UI**; full four-case browser chain | Release review's top open UI items |
-| Waves: source approved (NDBC 44099 / GFS-Wave), no adapter | No real sea state anywhere |
-| Uncertainty artifact still 364 days, unqualified; telemetry arbitration unwired; approach/UKC still mock | Lower priority; label honestly |
-| 13 dev-dependency audit findings (Vitest, Tinypool, Vite, minimatch) | Test-tool upgrade, not a production exposure |
-| Hosting/auth: local-demo auth, single process | Fine for a demo; document the boundary |
+| Close remaining S5/S6 findings with independent evidence | Snyder backend/physics; Kori UI; [finding ledger](MODELING_BUILDOUT_STATUS.md#pr-10-review-disposition) |
+| S2 forcing; S3 tug/vertical motion; S7 state fidelity, berthing engine, hazard coverage and uncertainty gates | Snyder; S1/P1 exist, D2/D8 as they land; retain current camera limits |
+| D1–D4 review/merge and U3/U4 integration with final provider contracts | Cruz and existing #13 reviewer; Kori/Bixler integration |
+| A3 common forecast revision through Intake, Planner, Safety and watch | Bixler; P1/P2 exist, public revision discovery needs D2 |
+| D8 own-ship state; D5 refit/telemetry; D6 charts/UKC | Cruz; source/age/quality contracts and physical evidence required |
+| R1–R9 requirements remediation | Named leads and reviewers in [execution ownership](#execution-ownership) and [§11](#11-requirements-audit-remediation-prompts) |
+| Combined UI/API/camera acceptance, actual hosting rehearsal and deliberate release | Bixler; Kori browser, Snyder modeling and Cruz source evidence |
 
-Overnight data/simulation agent produced no commits, so **every data and simulation packet below starts from the state
-described in [the data/simulation review](archive/2026-11-05-overnight/instructions/04-data-simulation-next-steps.md)**,
-which remains the detailed spec for packets D1–D6 and S1–S3.
+The [archived data/simulation review](archive/2026-11-05-overnight/instructions/04-data-simulation-next-steps.md)
+remains the detailed packet specification. Its baseline and old next steps are historical. Legacy S00–S21 in the
+modeling execution plan are different IDs from this plan's S1–S8: legacy S17 is the runtime extended by current S1.
 
 ## 2. Definition of done for the build
 
@@ -141,13 +144,63 @@ announced to the owner in the PR description.
 
 | Person | Workstream | Owns (write access by default) |
 | --- | --- | --- |
-| **Snyder** (modeling lead; Claude session + GPT session) | **M**: simulation runtime and modeling physics | `modeling/mooring/berthing/`, `mechanics/`, `loads/`, `moored/`, `tugs/`, `rules/`, `data_simulation/`, `modeling/modeling_api/{sim_sessions.py,ws.py}`, routers `berthing.py`, `moored.py`, `loads.py`, schemas `motion.py`, `dynamics.py`, `forecast_planning.py`, `planning.py`, `mooring.py`, `risk.py` |
+| **Snyder** (modeling lead; Claude session + GPT session) | **M**: simulation runtime and modeling physics | `modeling/mooring/berthing/`, `mechanics/`, `loads/`, `moored/`, `tugs/`, `rules/`, `data_simulation/`, `missions/`, `transit/`, `prediction/`, `modeling/modeling_api/{sim_sessions.py,ws.py}`, routers `berthing.py`, `moored.py`, `loads.py`, `missions.py`, `transit.py`, `prediction.py`, schemas `missions.py`, `transit.py`, `prediction.py`, `motion.py`, `dynamics.py`, `forecast_planning.py`, `planning.py`, `mooring.py`, `risk.py` |
 | **Kori** | **U**: UI | `frontend/`, `frontend/DEMO.md` |
 | **Cruz** | **D**: data connections | `modeling/mooring/environment/`, `telemetry/`, `approach/`, `core/forecast_provenance.py`, routers `env.py`, `telemetry.py`, `approach.py`, schemas `environment.py`, `telemetry.py`, data `scripts/` (`fit_uncertainty.py`, `record_provider_fixture.py`, `smoke_coops.py`), `docs/DATA_SOURCES.md`, `docs/DC*.md` |
 | **Bixler** | **A**: agents, integration, release, odd jobs | `agents/`, `scripts/demo_check*.py`, `Makefile`, `app.sh`, `.github/`, `contract/README.md`, `README.md`, this plan, `docs/DEPLOYMENT_READINESS.md`, refdata/qualification (`refdata/`, `qualification.py`, `templates.py`, `routers/{refdata,qualification,system}.py`) |
 
 Shared, single-writer-at-a-time: `modeling/modeling_api/main.py`, `core/schemas/__init__.py`, `common.py`,
 `scenarios.py`, `contract/` (generated; see [§8](#8-coordination-rules)).
+
+### Execution ownership
+
+This is the handoff for remaining work. **Lead** owns delivery and status; collaborators own their existing files;
+**reviewer** is the next independent review assignment, not evidence of an approval already given. Snyder's M-SIM
+and M-PLAN sessions cross-review; an author must not approve their own change. If the named reviewer contributes
+implementation, choose another non-author reviewer under §8. Source/engineering qualification still requires the
+specific evidence and competent review named by the packet.
+
+Before starting, claim the item in its PR and link it from the status board. Reuse existing open PRs; coordinate
+shared files before editing. Supporting plans inherit these assignments rather than establishing another queue.
+
+| Work to execute | Lead | Collaborators | Independent reviewer | Dependency / next deliverable |
+| --- | --- | --- | --- | --- |
+| S5/S6 backend findings | Snyder M-SIM | Cruz for coastline/source evidence; Kori for UI behavior | Snyder M-PLAN | [Finding ledger](MODELING_BUILDOUT_STATUS.md#pr-10-review-disposition); fixes and per-finding closure |
+| S5 UI findings 12–16 | Kori | Snyder for authoritative track/location API | Bixler; Snyder for geometry semantics | Existing mission API; race, playback/geometry and authenticated-media regressions |
+| S2; S7 forcing/state/engine extensions | Snyder M-SIM | Snyder M-PLAN, Cruz, Kori | Snyder M-PLAN | Merged S1/P1; D2/D8 when available; state fidelity and immutable forcing before broader camera claims |
+| S3 tug geometry/vertical motion | Snyder M-SIM | Cruz for inputs; Kori for supplied DOFs | Snyder M-PLAN | S2/geometry and supported physical data; explicit unavailable DOFs |
+| S4 wave surrogate | Snyder M-PLAN | Cruz, Snyder M-SIM | Snyder M-SIM | D4 schema after #13; seeded synthetic response with no total/partition double counting |
+| P3 independent benchmarks | Snyder M-PLAN | Snyder M-SIM; Cruz for source fixtures | Snyder M-SIM | Extend with each S2/S3/S7 or R-packet change; independent analytical evidence |
+| P4 / R4 NSTM/directional limits | Snyder M-PLAN | Bixler evidence intake | Snyder M-SIM | Authorized edition and applicable ratings; rule/evidence inventory first |
+| P5 / R5 tug optimization | Snyder M-PLAN | Bixler, Kori | Snyder M-SIM | Objective/placement contract and sourced fleet inputs; publish consumer fixtures |
+| P6 / R6 ultimate gusts | Snyder M-PLAN | Bixler, Kori | Snyder M-SIM | Supported material/capacity law and wind basis; no invented breaking threshold |
+| P7 / R8 bollard strain | Snyder M-PLAN | Bixler data intake; Kori display | Snyder M-SIM plus required structural reviewer | P4 loads, approved geometry/material/foundation data and structural specification |
+| S8 / R7 sequence search | Snyder M-SIM | Snyder M-PLAN, Kori, Bixler | Snyder M-PLAN | Handling constraints and intermediate states; P5 contract for new tug fields |
+| U1–U7 assembled acceptance | Kori | Bixler, Snyder, Cruz | Bixler | #18 merged; verify combined browser/API behavior and final #13 contract; conditional displays do not implement S2/S3 |
+| U8 camera extensions | Kori | Snyder, Cruz, Bixler | Bixler; Snyder for prediction semantics | Initial overlay merged; follow supported S7/D8 state, warnings and uncertainty |
+| U9 / R2 canvas editing | Kori | Snyder for pose/line semantics | Bixler | Existing contracts; two-axis placement and fitting-to-fitting drag proof |
+| U9 / R3 class capability display | Kori | Bixler, Snyder | Bixler | A8 capability contract; missing fittings remain unsupported |
+| U10 / R6 gust display | Kori | Snyder, Bixler | Bixler | P6/A9 results; distinct working-load and ultimate-load warnings |
+| U11 / R7 sequence display | Kori | Snyder, Bixler | Bixler | Existing step fields first, then S8 results; preserve draft/review state |
+| U12 / R8 strain display | Kori | Snyder, Bixler | Bixler | P7 reviewed result contract; show unavailable reasons until supported |
+| U13 / R1 sheet layout UI | Kori | Bixler, Snyder | Snyder M-PLAN | A11 immutable layout/version fixture; never capture a subsequently edited canvas |
+| D1–D4 integration | Cruz | Kori, Snyder, Bixler | Snyder's separately assigned #13 reviewer | Finish #13; publish final source/forecast/wave contracts and remaining limitations |
+| D8 own-ship state / promoted D5b subset | Cruz | Snyder, Kori | Snyder M-PLAN | State/age/quality interface and recorded/live distinction; no silent stale extrapolation |
+| D5a uncertainty refit | Cruz | Snyder M-PLAN | Snyder M-SIM | At least 365 usable days and event holdout; fitted does not mean qualified |
+| D5b remaining telemetry arbitration | Cruz | Snyder, Kori | Snyder M-PLAN | Opt-in source policy and provenance; share D8 interface rather than duplicate it |
+| D6 ENC/approach/UKC | Cruz | Snyder, Kori | Snyder M-PLAN | Source/edition/datum/coverage and supported squat; mock remains until replaced |
+| A0 repository controls | Bixler | Repository administrator; all teammates | Snyder | Confirm protection and documented `dev` integration workflow |
+| A1 combined acceptance | Bixler | Kori browser; Snyder modeling; Cruz sources | Snyder; Kori for browser evidence | Reconcile #18 and final #13, include S7 camera; retain uncovered gates |
+| A2 target hosting | Bixler | Kori, Snyder | Kori | Actual target and clean checkout; HTTP/SSE/WS and HTML/PDF evidence |
+| A3 forecast agent binding | Bixler | Snyder, Cruz, Kori | Snyder M-PLAN | P1/P2 available; supplied/scenario manifest now, D2 for public revision lookup |
+| A4 release | Bixler | All workstream owners | Snyder; Kori for browser gate | Combined acceptance/target evidence; deliberate `dev` → `main` PR and tag |
+| A5 real-provider vision rehearsal | Bixler | Kori | Snyder | Guarded paths already merged; provider/fixture/target evidence without weakening fallback |
+| A6 plan/status maintenance | Bixler | All workstream owners | Snyder | Update at each merge; retain historical test counts with their revisions |
+| A7 camera narration | Bixler | Snyder, Kori | Snyder M-PLAN | Existing S7 result contract; cite immutable IDs and code-owned warnings |
+| A8 / R3 class inputs | Bixler | Snyder, Kori | Snyder M-PLAN | Approved class fitting data and capability gates; importer is not qualification |
+| A9 / R6 Safety integration | Bixler | Snyder, Kori | Snyder M-PLAN | P6 threshold contract; preserve assessed forecast/configuration and existing WLL checks |
+| A10 / R9 acceptance evidence | Bixler | Kori, Snyder, Cruz | Snyder; Kori for browser checks | Integrate R1–R8 incrementally; do not count unavailable capability as complete |
+| A11 / R1 sheet layout backend | Bixler | Kori, Snyder | Snyder M-PLAN | Frozen plan/review/geometry contract and reproducible renderer before U13 |
 
 ## 4. Snyder: modeling (Claude session + GPT session)
 
@@ -156,8 +209,8 @@ file, and use each as the other's independent reviewer.
 
 | Session | Lane | Files (exclusive) |
 | --- | --- | --- |
-| **Claude (M-SIM)** | S1 → S7 interface/minimum deterministic camera → S2 → S7 changing-forcing extension → S3; S5/S6 review fixes remain open and gate their use in the camera | `berthing/`, `sim_sessions.py`, `ws.py`, `routers/berthing.py`, `schemas/motion.py`, `schemas/dynamics.py`; `missions/`, `transit/`, `routers/{missions,transit}.py`, `schemas/{missions,transit}.py`; coordinate additive prediction route/schema with shared-file owners |
-| **GPT (M-PLAN)** | Static modeling and the forecast consumer side: P1 → P2 → S4 → P3, then benchmarks for S1–S3 | `moored/`, `loads/`, `mechanics/`, `tugs/`, `rules/`, `data_simulation/`, `routers/{moored,loads}.py`, `schemas/{forecast_planning,planning,mooring,risk}.py` |
+| **Claude (M-SIM)** | Close S5/S6 findings; extend merged S1/S7 with S2 → S7 state/forcing/engine gates → S3; S8 follows its handling-constraint contract | `berthing/`, `sim_sessions.py`, `ws.py`, `routers/berthing.py`, `schemas/motion.py`, `schemas/dynamics.py`; `missions/`, `transit/`, `routers/{missions,transit}.py`, `schemas/{missions,transit}.py`; `prediction/`, `routers/prediction.py`, `schemas/prediction.py`; coordinate shared schema exports/contract generation |
+| **GPT (M-PLAN)** | P1/P2 merged; P3 continuous benchmarks; P4/P6 evidence and contracts, then P5; S4 after D4, P7 after structural evidence | `moored/`, `loads/`, `mechanics/`, `tugs/`, `rules/`, `data_simulation/`, `routers/{moored,loads}.py`, `schemas/{forecast_planning,planning,mooring,risk}.py` |
 
 Rules for the two sessions:
 
@@ -171,14 +224,16 @@ Rules for the two sessions:
 
 ### M-SIM (Claude session)
 
+The text below defines acceptance scope. S1 is merged; S5/S6 and initial S7/U8 are implemented with remaining
+review/capability limits. Start from [execution ownership](#execution-ownership), not a duplicate implementation.
+
 **S1 (P0). Publish live rm0-v1 frames, scene and recordings.** Spec: data/simulation review packet 3,
 [MOTION_FRAME_DESIGN.md](MOTION_FRAME_DESIGN.md). Populate identity (session, run, sequence, scene id/revision), six-component
 pose with unsimulated DOFs flagged, tug state, line endpoints/polylines with fitting IDs, fitting loads, fender compression,
 force breakdown and environment-at-t from actual simulator state; absent means unavailable, never zero. Add
 `GET` scene route, bounded persisted recordings (list/fetch/replay), lifecycle messages, reconnect-from-sequence, and a
 speed control that scales scheduler wall time, not the physics step. Mind the frame conventions (berth +y off-pier, ship
-sway +port, legacy `v_kt` toward-pier). **Publish the interface early**: a draft PR with the route list and one real
-captured frame within the first 2 hours so Kori can wire it. Acceptance: real HTTP/WS output validates against the
+sway +port, legacy `v_kt` toward-pier). The interface and captured examples are now published by #6; retain contract-first coordination for extensions. Acceptance: real HTTP/WS output validates against the
 motion schemas; reset/reconnect/slow-client/flood tests; batch/WS equivalence and energy/convergence checks still pass.
 
 **S2 (P1). Simulation-time forcing.** Packet 4. Forcing resolved at integration-stage time from an immutable series
@@ -225,7 +280,7 @@ preserve required hidden state (actuator lag/slew, pending commands, active line
 displayed pose/velocity. Clone it per alternative; prediction never advances or mutates the live session.
 
 Deliver in gates: **S7a** is the deterministic single-engine camera using reviewed S1 or, after the open PR #10 findings
-are fixed and independently re-reviewed, S6, with an explicit fixed-environment basis. Recorded/synthetic initial states are acceptable, labeled, until
+are fixed and independently re-reviewed, S6, with an explicit fixed-environment basis. The initial #14 service uses S6 with documented state approximations; it does not close all S7 acceptance gates. Recorded/synthetic initial states are acceptable, labeled, until
 D8 supplies live state. **S7b** adds S2's changing forcing and a documented engine handoff with tested frames, units,
 state/parameter mapping and supported operating domain; never switch engines silently by proximity to a pier.
 **S7c** adds trajectory uncertainty when its input-error and temporal sampling model are specified. Seeded ensemble
@@ -251,6 +306,8 @@ ordering with a bounded search over supported handling constraints and intermedi
 `berthing/sequence.py` writer with S1–S3 and P2; Kori owns the sequence display (U11).
 
 ### M-PLAN (GPT session)
+
+P1/P2 and initial P3 tests are merged. Extend those implementations; P4–P7 and S4 retain their dependencies.
 
 **P1 (P0). Forecast-plan consumer of the composed forecast.** Packet 2, modeling side. One canonical resolver binding
 source/scenario, as-of and horizon used by forecast-plan, Intake, Planner and Safety; reject uncovered arrivals (≥24 h plus
@@ -287,12 +344,12 @@ Read [MODELING_UI_RECOMMENDATIONS.md](MODELING_UI_RECOMMENDATIONS.md) (backend c
 | ID | Pri | Work | Depends on |
 | --- | --- | --- | --- |
 | U1 | P0 | **Explicit Intake and independent Safety-review selection** in the planning flow; show the review identity on the sheet; four-case choice with initial vs final outcome shown separately | none (backend done) |
-| U2 | P0 | **Live motion on rm0-v1**: consume S1's scene route, rich frames, lifecycle, recordings list/playback, speed control (enable the disabled control), reconnect-from-sequence; draw tugs/lines/fittings/forces/env from live frames | S1 interface (draft PR) |
-| U3 | P1 | **Per-component environment availability** (wind/current/tide/forecast/waves): source, state, age, basis; misconfiguration error state | D1 interface |
-| U4 | P1 | **Advance-planning panel**: as-of, arrival ≥24 h, holding duration, coverage and provenance preview, alternatives table, apply `selected_config` (keep paid-out lengths and installation tide), "recheck required" on changed inputs | P1/D2 for public data; works now with supplied series |
+| U2 | P0 | **Live motion on rm0-v1**: consume S1's scene route, rich frames, lifecycle, recordings list/playback, speed control (enable the disabled control), reconnect-from-sequence; draw tugs/lines/fittings/forces/env from live frames | S1 merged (#6); combined UI/API acceptance |
+| U3 | P1 | **Per-component environment availability** (wind/current/tide/forecast/waves): source, state, age, basis; misconfiguration error state | D1 in open #13; preserve unavailable/error states |
+| U4 | P1 | **Advance-planning panel**: as-of, arrival ≥24 h, holding duration, coverage and provenance preview, alternatives table, apply `selected_config` (keep paid-out lengths and installation tide), "recheck required" on changed inputs | P1/P2 merged; D2 in open #13; supplied series available |
 | U5 | P1 | Simulation-time display (sim time vs wall time, forcing revision) and training-scenario controls (seed, source, persistent "training" label) | S2 |
 | U6 | P2 | Upgrade test toolchain to clear the 13 dev-dependency findings (Vitest/Tinypool/Vite); compatibility-tested, no `npm audit fix --force` | none |
-| U8 | P0 | **Backup-camera overlay** (north star): predicted path, hull footprints at time ticks, uncertainty corridor, contact/clearance warnings and what-if controls (rudder, engine, tug push) drawn over the live ship in the motion view and the transit view; refresh ≥1 Hz from S7 (`POST /predict/trajectory` or the session frame `prediction` field); validity and input age on the overlay. Build against S7 fixtures first | S7 interface |
+| U8 | P0 | **Backup-camera overlay** (north star): predicted path, hull footprints at time ticks, uncertainty corridor, contact/clearance warnings and what-if controls (rudder, engine, tug push) drawn over the live ship in the motion view and the transit view; refresh ≥1 Hz from S7 (`POST /predict/trajectory` or the session frame `prediction` field); validity and input age on the overlay. Build against S7 fixtures first | Initial S7 merged (#14); extensions follow S7/D8 |
 | U7 | P2 | Cesium-scene motion view with roll/pitch and water surface when frames supply them; accessibility pass (contrast, screen reader); profile React path at 10 Hz | S3 |
 | U13 | P0 | [R1: display and print the layout frozen with the reviewed sheet](#r1-reviewed-sheet-layout-a11u13) | A11 layout contract and immutable fixture |
 | U9 | P1 | [R2: two-axis ship placement and fitting-to-fitting line drag](#r2-two-dimensional-canvas-editing-u9); [R3: class capability display](#r3-additional-ship-class-support-a8u9) | Existing pose fields; A8 class capability contract |
@@ -360,21 +417,18 @@ Bixler also picks up any task that has no owner in this plan (tooling, CI breaka
 
 ## 9. Sequence
 
-Times are relative to the start of work after the remote move (**T0**). Adjust to the build end.
+The original T0 schedule is superseded by this dependency order. Bixler records agreed freeze/rehearsal dates;
+elapsed time or a merged demonstration is not a release gate.
 
-| When | Milestone | Who |
+| Order / gate | Next deliverable | Lead; collaborators |
 | --- | --- | --- |
-| T0 + 1 h | Default branch/CI confirmed on the new remote, everyone re-cloned (A0). Contract-only PRs opened for S1 (frames/scene/recording routes) and D1 (availability shape) | Bixler, Snyder (Claude), Cruz |
-| T0 + 3 h | U1 merged; S1 live frames merged; D1 merged; demo-check extended to the planning chain | Kori, Snyder, Cruz, Bixler |
-| T0 + 5 h | U2 live rm0 motion in the UI; D2 series contract + fixtures published; P1 resolver against fixtures. **Release to `main` #1** | Kori, Cruz, Snyder (GPT), Bixler |
-| T0 + 6 h (integration recorded) | S5 storyboarding and S6 port transit merged in #10; 16 independent findings remain open. Fix and re-review before treating either feature as accepted. | Snyder (Claude; independent review) |
-| After reviewed S1, before declaring the build complete | S7a contract/fixtures → U8 deterministic camera and A7 cited warnings → integration gate for definition-of-done item 7. Use labeled replay/synthetic state until D8 lands; S6 remains gated on closure and independent re-review of the PR #10 findings. A milestone release before this gate is not completion of the build. | Snyder (M-SIM service; M-PLAN benchmarks), Kori, Bixler; Cruz supplies D8 |
-| T0 + 8 h | S2 sim-time forcing; D2 composed forecast; U3/U4; A3 agents on forecast revision. **Release to `main` #2** | all |
-| After S2/D8 interfaces | S7b changing forcing/live state and explicit engine handoff; S7c uncertainty only with its declared sampling model and evidence. Retain unavailable labels for unimplemented parts. | Snyder, Cruz, Kori, Bixler |
-| Then | P2 items: S3, S4/D4, U5–U7, D5, A5. Release after each green milestone | all |
-| Freeze (end − 3 h) | Features stop. Only fixes, docs, demo-check | all |
-| End − 2 h | Rehearsal on the hosting target from clean `main`; fix only what breaks the demo | Bixler leads |
-| End | Final release to `main`, tag, notes | Bixler |
+| Now: integration and correctness | Finish existing #13 review; close S5/S6 findings; rehearse #18 against S1/P1/P2/S7, then D1/D2 contracts | Cruz + existing #13 reviewer; Snyder/Kori for findings; Bixler for assembled acceptance |
+| Now, independent packets | A11/U13 sheet-layout contract; U9 canvas editing; A8 class-data intake; P4 rule/rating evidence; P6 ultimate-load specification; A10 incremental acceptance | Bixler, Kori and Snyder per [execution ownership](#execution-ownership) |
+| On existing S1/P1 interfaces | S2 forcing/state and P3 benchmarks; A3 agent revision binding against supplied/scenario fixtures | Snyder M-SIM/M-PLAN; Bixler; Cruz supplies public series |
+| On existing S7 interface | A7 cited narration, remaining U8 integration and D8 own-ship state | Bixler, Kori, Cruz; Snyder owns prediction semantics |
+| After required source/contracts | S7 extensions, S3/S4, P5/P6 consumers and S8; P7 after structural specification/data | Named packet leads; unavailable/unqualified output remains where evidence is missing |
+| Milestone release | Combined modeling/UI/source/agent evidence, demo checks, actual target rehearsal, reviewed `dev` → `main` PR, notes and tag | Bixler; all owners supply evidence |
+| Freeze/rehearsal | Features stop before agreed rehearsal; fixes/docs only thereafter; clean `main` on actual target | Bixler coordinates; owners resolve their failures |
 
 ## 10. Parallelizing with sub-agents (Sonnet 5.5 and GPT)
 
@@ -418,7 +472,7 @@ run them in sequence or give one of them a fixture.
 
 ```text
 Goal: <one sentence, the outcome, not the steps>.
-Repo: pier-review-ship-parking, base branch <item branch>, your worktree/branch <name>.
+Repo: fleethacker/pier-review, base branch <item branch>, your worktree/branch <name>.
 Read first: docs/MASTER_PLAN.md §8 (rules), <the 2–4 files or docs that matter>.
 Scope: you may edit ONLY <files/dirs>. Do not touch contract/, main.py or other owners' files.
 Interface you must honor: <schema/endpoint/fixture path>.
@@ -432,11 +486,11 @@ Report back: files changed, test commands and counts, anything you could not do 
 
 | Lane | Parallel sub-agents (disjoint) |
 | --- | --- |
-| M-SIM S1 (Snyder, Claude) | (1) frame population in `berthing/` from simulator state; (2) scene + recording routes and storage; (3) lifecycle/reconnect/speed in `sim_sessions.py`/`ws.py`; (4) contract-consumer and flood/slow-client tests. Coordinator owns `schemas/motion.py`. |
-| M-PLAN (Snyder, GPT) | (1) canonical forecast resolver; (2) reassessment on revision change; (3) analytical benchmarks for S1–S3; (4) wave surrogate statistics tests |
-| U (Kori) | One sub-agent per panel (U1 Intake/review selection, U2 motion live adapter, U3 availability panel, U4 advance-planning panel), each against fixtures; one for demo-check browser steps |
-| D (Cruz) | (1) source-mode validation + `auto` policy; (2) availability response; (3) NWS + CO-OPS composition; (4) CBOFS acquisition process; (5) recorded-real replay package; (6) NDBC 44099 parser |
-| A (Bixler) | (1) demo-check planning chain; (2) demo-check motion/data checks; (3) hosting/app.sh rehearsal; (4) agents forecast-revision binding; (5) docs truthfulness pass |
+| M-SIM S2/S7 (Snyder, Claude) | Stage-time forcing adapter; immutable state/engine snapshot; hazard/state regressions; coordinator owns shared schemas and integration. Do not rebuild merged S1. |
+| M-PLAN (Snyder, GPT) | P4 source/evidence inventory; P6 specification; P3 independent benchmarks; S4 statistics after D4. Reserve shared solver files before implementation. |
+| U (Kori) | U9 canvas; U13 against frozen A11 fixtures; U10 against P6 fixtures; U11 sequence display; separate combined U1–U7 browser acceptance. |
+| D (Cruz) | Finish the existing #13 review first; D8 state adapter and provenance checks; D5 refit data/holdout audit; D6 only after higher-priority sources. No duplicate provider implementation. |
+| A (Bixler) | A3 manifest propagation; A7 cited camera narration; A11 immutable sheet layout; A8 input intake; A1/A10 acceptance and A6 status updates. |
 
 ## 11. Requirements audit remediation prompts
 
@@ -736,8 +790,9 @@ Bixler updates this table; everyone else posts in the team channel.
 
 ### Requirements audit follow-up
 
-Planning branch: `docs/a11-requirements-remediation-prompts`, based on `dev` at `91ac18a`. Only this plan is changed;
-the prompts have not been executed. States below describe the new implementation work, not the completed audit.
+Requirements prompts merged in [PR #12](https://github.com/fleethacker/pier-review/pull/12); their audit baseline
+was `91ac18a`. Implementation acceptance remains open. Use the primary leads and review assignments in
+[execution ownership](#execution-ownership); the planning merge did not complete these requirements.
 
 | Item | Owner | State | Blocker / next evidence |
 | --- | --- | --- | --- |
@@ -758,27 +813,29 @@ resuming a packet; a merged feature with unresolved review findings is not accep
 
 | Item | Owner | State | PR | Notes |
 | --- | --- | --- | --- | --- |
-| A0 remote cut-over | Bixler | local cut-over docs complete; protection pending admin | | GitHub checked 5 Nov: default `main`, `dev`/`main` unprotected; explicit `--base dev`; CI triggers both branches |
-| S1 rm0 live frames | Snyder (Claude; GPT review/fixes) | merged; final-head CI passed | #6 | Rich frames, scene, lifecycle/speed/reconnect, bounded workers and saved recordings/index; synthetic vessel dynamics |
-| S5 mission storyboarding | Snyder (Claude) | merged; review findings open | #10 | Part of the 16 unresolved [independent findings](https://github.com/fleethacker/pier-review/pull/10#issuecomment-6663809986); not approved clean. Demo: [DEMO_MISSIONS_TRANSIT.md](DEMO_MISSIONS_TRANSIT.md) |
-| S6 port transit simulation | Snyder (Claude) | merged; review findings open | #10 | Same unresolved review as S5; surrogate/limited; camera use awaits fixes and independent re-review |
-| S7 trajectory prediction | Snyder (Claude service; GPT independent benchmarks) | planned; contract first after S1 | #11 plan only | S7a is deterministic and single-engine; S7b/S7c depend on S2, data/uncertainty support; no prediction endpoint exists yet |
-| P1 forecast resolver | Snyder (GPT) | merged | #4 | Immutable supplied/scenario resolution, hashes and coverage gates; public composition still depends on D2 |
-| P2 forecast recheck | Snyder (GPT) | merged | #8 | Explicit reassessment on revision change; historical results remain immutable |
-| P3 independent dynamics benchmarks | Snyder (GPT) | initial benchmarks merged; continuous | #5 | Analytic tug/damping/convergence/acceleration/energy checks; extend for S2/S3/S7 |
-| U1 Intake/review selection | Kori | not started | | |
-| U2 live rm0 motion | Kori | blocked on S1 interface | | build on fixtures meanwhile |
-| U8 backup-camera overlay | Kori | planned; build against S7 fixtures | | Follow S7a interface; never imply clearance for missing geometry/uncertainty |
-| D1 source selection | Cruz | not started | | |
-| D2 composed forecast | Cruz | not started | | |
-| D8 own-ship state | Cruz | planned | | Publish state/age/quality contract for S7; recorded/synthetic demo fallback must be labeled; AIS ingest remains unsupported until implemented |
-| A1 demo-check | Bixler | merged (baseline); full gate pending | #7 | Four API chains, synthetic advance planning, legacy WS; CI job added; readiness profile fails uncovered S1/D1/A3/browser gates |
-| A2 hosting | Bixler | local launcher/browser rehearsal passed; target deferred | | Node >=22.17, startup health, installer/service cleanup, HTML fallback; Bixler requested local tests instead of Domino |
-| A3 forecast binding | Bixler | consumer integration pending; P1 available | | Carry the merged resolver manifest through Intake/Planner/Safety; automatic public revision lookup still depends on D2 |
-| A7 prediction narration | Bixler | planned; depends on S7 result contract | | Cite code-owned warnings and immutable prediction IDs; add the item 7 demo gate |
-| A4 release | Bixler | draft notes/procedure prepared; unreleased | | [Release draft](RELEASE_NOTES.md); milestone dependencies, review, CI and clean-main target gate remain |
-| A5 vision | Bixler | implemented locally | | Fixture-image/fake-LLM HTTP flow; empty/duplicate/oversized proposal fallback; no-LLM catalog labels preserved |
-| A6 docs | Bixler | integration truthfulness pass | | README, contribution/release/hosting docs and UI/modeling status distinguish baseline evidence from full acceptance |
+| A0 remote cut-over | Bixler | cut-over done; admin protection confirmation remains | #1–#3, #7 | Default `main`; feature PRs target `dev`. UI-to-main #15 was reverted by #17; #18 is the correct integration. |
+| S1 rm0 live frames | Snyder M-SIM; M-PLAN review | merged | #6 | Rich frames, scene, lifecycle/speed/reconnect, bounded workers and recordings; synthetic dynamics |
+| S2 simulation-time forcing | Snyder M-SIM | remaining | | Immutable stage-time forcing and batch/interactive equivalence; P1/D2 and P3 interfaces |
+| S3 tug/vertical motion | Snyder M-SIM | remaining | | Supported geometry/data first; no inferred GM or unavailable DOFs |
+| S4 wave surrogate | Snyder M-PLAN | remaining; D4 dependency | | Labeled synthetic response; offshore availability is not berth forcing |
+| S5 storyboarding | Snyder backend; Kori UI | implemented; findings remain | #10 | [Finding disposition](MODELING_BUILDOUT_STATUS.md#pr-10-review-disposition); #14 did not fix S5 paths |
+| S6 transit | Snyder M-SIM | implemented; fixes merged, closure incomplete | #10, #14 | Future tug takeover and chart/route evidence remain; some findings have regressions; always limited |
+| S7 prediction | Snyder M-SIM; M-PLAN benchmarks | initial transit service merged; full gates open | #14 | Endpoint/presets exist; state approximation, missing berthing/coastline and illustrative uncertainty; [details](PREDICTION.md) |
+| P1 resolver | Snyder M-PLAN | merged | #4 | Immutable supplied/scenario resolution, hashes and coverage; public composer in #13 |
+| P2 recheck | Snyder M-PLAN | merged | #8 | Explicit revision reassessment; historical results immutable |
+| P3 benchmarks | Snyder M-PLAN | initial suite merged; continuous | #5 | Extend for S2/S3/S7 and R packets; not physical qualification |
+| U1–U7 planning/motion/forecast UI | Kori | implementation merged; combined acceptance remains | #18 | Review selection, runtime motion, source/forecast panels, clocks, tooling and conditional scene enhancements; public path awaits #13 |
+| U8 camera overlay | Kori | initial missions/Transit overlay merged | #14 | Limited S7 results; further live-state/engine/uncertainty behavior follows S7/D8 |
+| D1–D4 provider/forecast/replay/waves | Cruz; existing separate PR reviewer | branch implemented; review/merge pending | #13 open | Do not duplicate work or claim merged availability; waves offshore-only, not load-ready |
+| D5 refit/telemetry; D6 charts/UKC | Cruz | remaining | | Qualification policy, arbitration and source/datum/coverage evidence |
+| D8 own-ship state | Cruz | remaining | | State/age/quality contract; recorded fixtures are not a live vessel-state feed |
+| A1 integrated demo | Bixler | baseline merged; combined gate remains | #7, #18 | Reconcile browser/runtime/provider/camera coverage after #13; previous counts historical |
+| A2 hosting | Bixler | local preparation exists; actual target pending | #7, #18 | Target HTTP/SSE/WS and HTML/PDF evidence required |
+| A3 forecast binding | Bixler | remaining; P1/P2 available | | One manifest through Intake/Planner/Safety/watch; D2 for public revision discovery |
+| A7 prediction narration | Bixler | remaining; S7 interface available | | Immutable IDs and code-owned warnings; LLM computes no physics |
+| A4 release | Bixler | procedure/draft exist; milestone pending | | No release implied by #15/#17; deliberate `dev` → `main` gate |
+| A5 vision | Bixler | guarded implementation merged | #7 | Fixture/fake-LLM and no-LLM paths; real-provider/target rehearsal separate |
+| A6 docs | Bixler | fielding brief merged; status reconciled here; ongoing | #9, #12, #16 | Synchronize this board, capability ledger and UI/release notes at merges |
 
 The following is historical rehearsal evidence from `agents/a0-bixler-integration`, originally based on `282c046`
 and since merged by #7. It does not establish completion of the new camera or remaining browser/data gates.
@@ -804,10 +861,12 @@ look up a newer source revision; a caller-declared `source_id` for supplied samp
 | What is implemented per packet, evidence and blockers | [MODELING_BUILDOUT_STATUS.md](MODELING_BUILDOUT_STATUS.md) |
 | Detailed specs for the data and simulation packets | [archived data/simulation review](archive/2026-11-05-overnight/instructions/04-data-simulation-next-steps.md) |
 | Backend capabilities for the UI, with wire details | [MODELING_UI_RECOMMENDATIONS.md](MODELING_UI_RECOMMENDATIONS.md) |
+| Prediction behavior, limits and demo | [PREDICTION.md](PREDICTION.md), [PORT_TRANSIT.md](PORT_TRANSIT.md), [DEMO_MISSIONS_TRANSIT.md](DEMO_MISSIONS_TRANSIT.md) |
 | Motion frames, scene, recordings | [MOTION_FRAME_DESIGN.md](MOTION_FRAME_DESIGN.md), [BERTHING_SIMULATION.md](BERTHING_SIMULATION.md) |
 | Forecast planning ≥24 h | [FORECAST_DOCKING.md](FORECAST_DOCKING.md) |
 | Data sources and source notes | [DATA_SOURCES.md](DATA_SOURCES.md), `DC2`–`DC7` notes, [DC4 waves](DC4_WAVE_SOURCE_INVESTIGATION.md), [wind basis](WIND_BASIS_REVIEW.md), [current direction](NOAA_CURRENT_DIRECTION_REVIEW.md) |
 | Inputs only humans can supply | [DATA_REQUESTS.md](DATA_REQUESTS.md) |
+| Release evidence and procedure | [RELEASE_NOTES.md](RELEASE_NOTES.md), [CONTRIBUTING.md](../CONTRIBUTING.md#releasing-dev-into-main) |
 | Deployment and security boundary | [DEPLOYMENT_READINESS.md](DEPLOYMENT_READINESS.md) |
 | Contract semantics | [CONTRACT_SEMANTICS.md](CONTRACT_SEMANTICS.md), [contract/README.md](../contract/README.md) |
 | UI plan and demo script | [frontend/PLAN.md](../frontend/PLAN.md), [frontend/DEMO.md](../frontend/DEMO.md) |

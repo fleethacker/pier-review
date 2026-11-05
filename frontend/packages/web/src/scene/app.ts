@@ -9,6 +9,11 @@ export interface AppHost {
 
 /** A running application. The shell renders its components in fixed slots and forwards canvas edits to it. */
 export interface AppInstance {
+  /**
+   * Replaces the shell's Cesium canvas, view controls and inspector with the app's own renderer (a map, say).
+   * It fills the centre column. Apps that leave it out get the scene-model canvas and `onEdit`.
+   */
+  Canvas?: ComponentType;
   /** Left column: pickers, forms, results. */
   Sidebar?: ComponentType;
   /** Right column: a key or description box for what the canvas shows. */
@@ -42,6 +47,11 @@ export interface AppDefinition {
   tabs?: AppTab[];
   /** The physics and modeling capabilities this application uses, shown on the landing page. */
   physics?: string[];
+  /**
+   * 'custom' means the app supplies its own `Canvas`, so the shell never loads the Cesium renderer for it, not even
+   * while the app is starting. Defaults to 'scene'.
+   */
+  canvas?: 'scene' | 'custom';
   start(host: AppHost): Promise<AppInstance> | AppInstance;
 }
 

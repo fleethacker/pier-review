@@ -1,5 +1,7 @@
 # S7 trajectory prediction (the "backup camera")
 
+Ownership: **Snyder M-SIM** owns service/state/engine semantics; **Snyder M-PLAN** independent benchmarks; **Kori** U8; **Cruz** D8 sources; **Bixler** A7 narration and integrated acceptance. Initial implementation merged in #14; remaining gates are in [execution ownership](MASTER_PLAN.md#execution-ownership).
+
 `POST /api/v1/predict/trajectory` predicts a vessel's path over the next minutes from its observed state. It runs the
 existing S6 transit simulator (`mooring.transit.simulator.run`) forward; there is no separate dynamics model.
 `GET /api/v1/predict/presets` returns two demonstration requests built from the recorded NOAA CO-OPS window

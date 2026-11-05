@@ -67,3 +67,5 @@ The offline `/env/forecast` compatibility adapter is also explicitly synthetic (
 ## Static and agent-plan installation reuse
 
 Real static analysis now returns optional `result.resolved_config`, with the modeled unstretched spans and wet/dry condition for each line. The Planner preserves that configuration in its final `AgentPlan.config`, sequence and risk requests. Existing consumers that retain all line fields can save/reload/recheck this plan under later water levels without recomputing installation lengths. Legacy responses may omit this field; preserve their explicit installation tide when rechecking. The resolved spans are input-reproduction values, not deck cutting lengths, a tending procedure or approval.
+
+Scheduling uses elapsed UTC time. Aware local-zone inputs are normalized to UTC before lead-time, interval and sample-order checks, including daylight-saving transitions. The synthetic forecast generator likewise uses elapsed durations; a named local-zone day can contain 23 or 25 elapsed hours and is not substituted for the requested duration.

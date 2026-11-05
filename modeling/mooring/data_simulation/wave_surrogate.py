@@ -24,6 +24,9 @@ def jonswap_shape(f: np.ndarray, fp: float, gamma: float) -> np.ndarray:
     return f**-5 * np.exp(-1.25 * (fp / f) ** 4) * gamma**r
 
 
+MAX_SAMPLES = 6000  # bounds the dense frequency x time matrix (memory)
+
+
 def component_spectrum(c: WaveSpectrumComponent, duration_s: float, dt_s: float):
     """(frequencies, one-sided density) on the k/duration grid with m0 = (Hs/4)^2, or None if the band holds no grid points."""
     fp = 1.0 / c.peak_period_s
@@ -64,6 +67,8 @@ def generate(req: WaveSurrogateRequest) -> WaveSurrogateResult:
     if spec is None:
         return _unavailable(req, "No wave spectrum supplied; waves are unavailable, not zero. Baseline motion must not be presented as a wave-free prediction.")
     n = int(math.floor(req.duration_s / req.dt_s + 1e-9))
+    if n > MAX_SAMPLES:
+        return _unavailable(req, f"{n} samples exceed the {MAX_SAMPLES} sample bound; raise dt_s or shorten duration_s.")
     t = np.arange(n) * req.dt_s
     notes, comps = [], {}
     for i, c in enumerate(spec.components):

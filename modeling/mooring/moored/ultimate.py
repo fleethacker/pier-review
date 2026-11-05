@@ -82,8 +82,8 @@ def search_direction(base: eq.System, caps, df, ratio, from_true, rel, max_kt, s
                        governing_utilization_of_ultimate=p0.ultimate[g], bracket_kt=[0.0, 0.0], reason="Modeled ultimate capacity reached with no wind.")
         return limited(p0, 0.0, 0.0, None, False)
     lo, warm, wll_br = 0.0, p0.pose, None
-    v = step
-    while v <= max_kt + 1e-9:
+    v = min(step, max_kt)
+    while True:
         p = at(v, warm)
         if not p.converged:
             return res("indeterminate_nonconvergence", stop_kt=v, wll_crossing_bracket_kt=wll_br,
@@ -119,7 +119,9 @@ def search_direction(base: eq.System, caps, df, ratio, from_true, rel, max_kt, s
                        governing_line=g, governing_utilization_of_ultimate=hp.ultimate[g], wll_crossing_bracket_kt=wll_br,
                        nonmonotone_in_bracket=nonmono or None)
         lo, warm = v, p.pose
-        v += step
+        if v >= max_kt - 1e-9:
+            break
+        v = min(v + step, max_kt)
     return res("indeterminate_search_ceiling", stop_kt=max_kt, wll_crossing_bracket_kt=wll_br,
                reason=f"No stop up to the {max_kt:g} kt search ceiling; the threshold is above it or unsearched, not unlimited.")
 

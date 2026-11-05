@@ -68,6 +68,7 @@ export class AgentSession {
   private source: EventSource | null = null;
   private disposed = false;
   private context: string | null = null;
+  private sheetRequest = 0;
 
   constructor(private readonly parent: MooringController) {}
 
@@ -77,6 +78,7 @@ export class AgentSession {
 
   dispose(): void {
     this.disposed = true;
+    this.sheetRequest++;
     this.source?.close();
   }
 
@@ -90,6 +92,7 @@ export class AgentSession {
 
   async run(): Promise<void> {
     if (this.s.phase === 'running' || this.s.phase === 'saving') return;
+    this.sheetRequest++;
     this.source?.close();
     this.context = this.parent.contextKey();
     this.state.set({
@@ -221,31 +224,42 @@ export class AgentSession {
   async createSheet(): Promise<void> {
     const planId = this.s.planId;
     if (!planId) return;
+    const request = ++this.sheetRequest;
     this.setSheet({ state: 'creating', error: null });
     try {
       const created = unwrap(await agents.POST('/api/v1/safety-sheets', { body: { plan_id: planId } }));
-      await this.loadSheet(created.sheet_id);
+      if (!this.currentSheetRequest(request)) return;
+      await this.loadSheet(created.sheet_id, request);
+      if (!this.currentSheetRequest(request)) return;
       this.parent.openOverlay({ kind: 'sheet', id: created.sheet_id });
     } catch (e) {
-      this.setSheet({ state: 'error', error: message(e) });
+      if (this.currentSheetRequest(request)) this.setSheet({ state: 'error', error: message(e) });
     }
   }
 
-  private async loadSheet(sheetId: string): Promise<void> {
+  private currentSheetRequest(request: number): boolean {
+    return !this.disposed && request === this.sheetRequest;
+  }
+
+  private async loadSheet(sheetId: string, request: number): Promise<void> {
     const sheet = unwrap(await agents.GET('/api/v1/safety-sheets/{sheet_id}', { params: { path: { sheet_id: sheetId } } }));
+    if (!this.currentSheetRequest(request)) return;
     const html = unwrap(
       await agents.GET('/api/v1/safety-sheets/{sheet_id}/render', {
         params: { path: { sheet_id: sheetId }, query: { format: 'html' } },
         parseAs: 'text',
       }),
     ) as unknown as string;
-    const image = this.s.sheet.image ?? this.parent.host.store.capture();
-    this.setSheet({ state: 'ready', error: null, sheet, html, image });
+    if (!this.currentSheetRequest(request)) return;
+    // A live canvas capture is not bound to this immutable plan/review. It may
+    // already contain edited geometry or lines; do not attach it as sheet evidence.
+    this.setSheet({ state: 'ready', error: null, sheet, html, image: null });
   }
 
   async approve(role: Role, name: string, decision: Approval['decision'], comment: string): Promise<void> {
     const sheet = this.s.sheet.sheet;
     if (!sheet) return;
+    const request = ++this.sheetRequest;
     try {
       unwrap(
         await agents.POST('/api/v1/safety-sheets/{sheet_id}/approvals', {
@@ -253,9 +267,10 @@ export class AgentSession {
           body: { role, name, decision, comment: comment || null },
         }),
       );
-      await this.loadSheet(sheet.sheet_id);
+      if (!this.currentSheetRequest(request)) return;
+      await this.loadSheet(sheet.sheet_id, request);
     } catch (e) {
-      this.setSheet({ error: message(e) });
+      if (this.currentSheetRequest(request)) this.setSheet({ error: message(e) });
     }
   }
 

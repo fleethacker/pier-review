@@ -146,7 +146,7 @@ function SheetViewer() {
         </div>
 
         <div className="space-y-3 text-[11px]">
-          {sheet.image && (
+          {sheet.image ? (
             <div>
               <div className="mil-label mb-1">Layout</div>
               <img src={sheet.image} alt="Mooring layout at the time the sheet was built" className="w-full rounded-sm border border-mil-border" />
@@ -154,6 +154,8 @@ function SheetViewer() {
                 Download layout image
               </a>
             </div>
+          ) : (
+            <p className="text-mil-dim">No plan-bound layout image is attached. The current map may differ from this sheet; use its recorded line plan and result references.</p>
           )}
 
           {s.warnings.length > 0 && (

@@ -146,6 +146,8 @@ export interface MooringState {
   notice: string | null;
   backend: string | null;
   envMode: { kind: EnvMode; status: StreamStatus | 'idle'; detail: string | null };
+  /** Last environment fetch failure (unsupported or misconfigured source, provider down). Cleared by the next good snapshot. */
+  envError: string | null;
   /** What the service says each capability is qualified for, and its module status; null until loaded or if unreachable. */
   capabilities: Capability[] | null;
   modules: Record<string, string> | null;
@@ -192,6 +194,7 @@ const INITIAL: MooringState = {
   notice: null,
   backend: null,
   envMode: { kind: 'manual', status: 'idle', detail: null },
+  envError: null,
   capabilities: null,
   modules: null,
   apiVersion: null,
@@ -384,7 +387,11 @@ export class MooringController {
       shipClassId
         ? modeling.GET('/api/v1/ships/{class_id}', { params: { path: { class_id: shipClassId } } }).then(unwrap)
         : Promise.resolve(null),
-      this.s.env ?? this.fetchEnv(berthId),
+      // A failing environment source must not block the berth and ship, nor leave old values looking current.
+      this.s.env ?? this.fetchEnv(berthId).then(
+        (e) => { if (seq === this.selectionSeq) this.state.set({ envError: null }); return e; },
+        (e) => { if (seq === this.selectionSeq) this.state.set({ envError: message(e) }); return null; },
+      ),
     ]);
     if (this.disposed || seq !== this.selectionSeq) return;
     const loading = ship?.loading_conditions.find((c) => c.name === this.s.loading)?.name ?? ship?.loading_conditions[0]?.name ?? '';
@@ -402,11 +409,11 @@ export class MooringController {
   async refreshEnv(): Promise<void> {
     try {
       const env = await this.fetchEnv(this.s.berthId);
-      this.state.set({ env });
+      this.state.set({ env, envError: null });
       this.pushScene('update');
       this.scheduleAnalyze();
     } catch (e) {
-      this.state.set({ notice: `Could not refresh environment: ${message(e)}` });
+      this.state.set({ envError: message(e), notice: `Could not refresh environment: ${message(e)}` });
     }
   }
 
@@ -830,6 +837,7 @@ export class MooringController {
   private onEnvMessage(m: Partial<Environment>): void {
     if (this.disposed || !this.s.env) return;
     const env = { ...this.s.env, ...m } as Environment;
+    if (this.s.envError) this.state.set({ envError: null });
     const sample: WindSample = { t: Date.now(), wind: env.wind_speed_kt, gust: env.wind_gust_kt };
     this.state.set({ env, windHistory: [...this.s.windHistory, sample].slice(-120) });
     this.pushScene('update');

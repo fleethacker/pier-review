@@ -8,9 +8,12 @@ with zeroes.
 
 from __future__ import annotations
 
+import math
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import urlparse
 
 from .errors import ProviderError
 from .providers import ProviderHttpClient, provider_config
@@ -28,25 +31,47 @@ class WindForecast:
     from_true_deg: float
     source: str
     original: dict[str, float | str]
+    stale: bool = False
+    cache_age_s: float = 0.0
 
 
 def _time(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        raise ProviderError("malformed", f"NWS timestamp has no offset: {value}")
-    return parsed.astimezone(UTC)
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            raise ValueError
+        return parsed.astimezone(UTC)
+    except (ValueError, TypeError, AttributeError):
+        raise ProviderError("malformed", f"Invalid timezone-aware NWS timestamp: {value}") from None
 
 
 def _interval(value: str) -> tuple[datetime, datetime]:
     try:
         start_raw, duration = value.split("/", 1)
-        if not duration.startswith("PT") or not duration.endswith("H"):
+        # NWS validTime is ISO-8601; day/hour/minute/second durations are fixed-length here.
+        match = re.fullmatch(r"P(?:(\d+(?:\.\d+)?)D)?(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?", duration)
+        if match is None or not any(match.groups()):
             raise ValueError
-        hours = float(duration[2:-1])
-    except (ValueError, TypeError):
+        days, hours, minutes, seconds = (float(part or 0) for part in match.groups())
+        delta = timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+        if delta.total_seconds() <= 0:
+            raise ValueError
+        start = _time(start_raw)
+        return start, start + delta
+    except (ValueError, TypeError, AttributeError, OverflowError):
         raise ProviderError("malformed", f"unsupported NWS validTime interval: {value}") from None
-    start = _time(start_raw)
-    return start, start + timedelta(hours=hours)
+
+
+def _number(value, name):
+    try:
+        if isinstance(value, bool):
+            raise ValueError
+        result = float(value)
+        if not math.isfinite(result) or result < 0 or (name == "windDirection" and result > 360):
+            raise ValueError
+        return result
+    except (ValueError, TypeError):
+        raise ProviderError("malformed", f"Invalid NWS {name} value") from None
 
 
 def _values(properties: dict[str, Any], name: str) -> list[dict[str, Any]]:
@@ -75,12 +100,21 @@ class NWSGridpoint:
     def forecast(self, latitude: float, longitude: float, *, as_of: datetime, hours: int = 48) -> list[WindForecast]:
         if as_of.tzinfo is None:
             raise ValueError("as_of must be timezone-aware")
-        point = self.client.get(f"{self.base_url}/points/{latitude:.4f},{longitude:.4f}").json()
+        if not (math.isfinite(latitude) and -90 <= latitude <= 90 and math.isfinite(longitude) and -180 <= longitude <= 180):
+            raise ValueError("latitude/longitude must be finite and in range")
+        if type(hours) is not int or not 1 <= hours <= 168:
+            raise ValueError("hours must be an integer from 1 to 168")
+        point_payload = self.client.get(f"{self.base_url}/points/{latitude:.4f},{longitude:.4f}")
+        point = point_payload.json()
         try:
             grid_url = point["properties"]["forecastGridData"]
         except (KeyError, TypeError):
             raise ProviderError("malformed", "NWS point response lacks forecastGridData") from None
-        props = self.client.get(grid_url).json().get("properties")
+        if not isinstance(grid_url, str) or urlparse(grid_url).netloc != urlparse(self.base_url).netloc or urlparse(grid_url).scheme != urlparse(self.base_url).scheme:
+            raise ProviderError("malformed", "NWS grid URL does not belong to the configured provider")
+        grid_payload = self.client.get(grid_url)
+        grid = grid_payload.json()
+        props = grid.get("properties") if isinstance(grid, dict) else None
         if not isinstance(props, dict):
             raise ProviderError("malformed", "NWS grid response lacks properties")
         issued = _time(props.get("updateTime", ""))
@@ -90,38 +124,59 @@ class NWSGridpoint:
 
         speed = _values(props, "windSpeed")
         direction = _values(props, "windDirection")
-        gust = _values(props, "windGust")
+        gust = _values(props, "windGust") if props.get("windGust") is not None else []
         unit = props["windSpeed"].get("uom")
-        gust_unit = props["windGust"].get("uom")
-        if unit != "wmoUnit:km_h-1" or gust_unit != "wmoUnit:km_h-1":
+        gust_unit = (props.get("windGust") or {}).get("uom")
+        if unit != "wmoUnit:km_h-1" or (gust and gust_unit != "wmoUnit:km_h-1"):
             raise ProviderError("malformed", f"unsupported NWS wind units: {unit}, {gust_unit}")
 
+        if props["windDirection"].get("uom") != "wmoUnit:degree_(angle)":
+            raise ProviderError("malformed", "unsupported NWS wind direction units")
         result: list[WindForecast] = []
         horizon = cutoff + timedelta(hours=hours)
-        for item in speed:
-            start, end = _interval(item.get("validTime", ""))
-            if start < cutoff or start >= horizon or item.get("value") is None:
+        boundaries = {cutoff, horizon}
+        for items in (speed, direction, gust):
+            intervals = []
+            for item in items:
+                if not isinstance(item, dict):
+                    raise ProviderError("malformed", "NWS forecast period is not an object")
+                start, end = _interval(item.get("validTime", ""))
+                intervals.append((start, end))
+                if end > cutoff and start < horizon:
+                    boundaries.update((max(start, cutoff), min(end, horizon)))
+            intervals.sort()
+            if any(left[1] > right[0] for left, right in zip(intervals, intervals[1:])):
+                raise ProviderError("malformed", "Overlapping NWS forecast periods are ambiguous")
+        times = sorted(boundaries)
+        for start, end in zip(times, times[1:]):
+            speed_item = _at(speed, start)
+            if speed_item is None or speed_item[0] is None:
                 continue
             direction_item = _at(direction, start)
             if direction_item is None or direction_item[0] is None:
                 continue
             gust_item = _at(gust, start)
-            speed_kmh = float(item["value"])
-            gust_kmh = None if gust_item is None or gust_item[0] is None else float(gust_item[0])
+            speed_kmh = _number(speed_item[0], "windSpeed")
+            gust_kmh = None if gust_item is None or gust_item[0] is None else _number(gust_item[0], "windGust")
+            direction_deg = _number(direction_item[0], "windDirection")
             result.append(WindForecast(
                 valid_from_utc=start,
                 valid_to_utc=end,
                 issued_at_utc=issued,
                 speed_kt=speed_kmh / 1.852,
                 gust_kt=None if gust_kmh is None else gust_kmh / 1.852,
-                from_true_deg=float(direction_item[0]) % 360,
+                from_true_deg=direction_deg % 360,
                 source=f"NWS {props.get('gridId', 'gridpoint')}",
                 original={
                     "wind_speed_km_h": speed_kmh,
-                    "wind_direction_deg": float(direction_item[0]),
+                    "wind_direction_deg": direction_deg,
                     "wind_gust_km_h": "missing" if gust_kmh is None else gust_kmh,
-                    "wind_speed_valid_time": item["validTime"],
+                    "wind_speed_valid_time": speed_item[1],
+                    "wind_direction_valid_time": direction_item[1],
+                    "wind_gust_valid_time": gust_item[1] if gust_item else "missing",
                 },
+                stale=point_payload.stale or grid_payload.stale,
+                cache_age_s=max(point_payload.age_s, grid_payload.age_s),
             ))
         if not result:
             raise ProviderError("no_data", "NWS returned no complete wind speed/direction periods in the requested horizon")

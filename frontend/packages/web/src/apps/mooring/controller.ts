@@ -186,6 +186,9 @@ export class MooringController {
   readonly agent: AgentSession = new AgentSession(this);
   readonly motion: MotionController = new MotionController({
     faceBearingDeg: () => this.s.berth?.face_bearing_true_deg ?? null,
+    tugIds: () => this.s.tugAssignments.map((t) => t.tug_id),
+    lineNumbers: () => this.s.lines.map((l) => l.line_number),
+    layoutKey: () => JSON.stringify([this.contextKey(), this.s.lines, this.s.tugAssignments]),
     ensureScenario: async () => this.s.scenarioId ?? this.saveScenario(`Motion session ${new Date().toISOString().slice(11, 16)}Z`),
     initialState: (offsetFt) => {
       const { berth, ship, side, shipXFt, standoffOverrideFt } = this.s;

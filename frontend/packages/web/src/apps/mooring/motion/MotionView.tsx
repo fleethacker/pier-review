@@ -201,14 +201,16 @@ function ChipText({ children, tone }: { children: React.ReactNode; tone?: 'warn'
   return <span className={cn('font-mono text-[10px] uppercase tracking-wider', tone === 'bad' ? 'text-mil-red' : tone === 'warn' ? 'text-mil-amber' : 'text-mil-dim')}>{children}</span>;
 }
 
-function LiveControls({ c, s }: { c: MotionController; s: MotionState }) {
+function LiveControls({ c, s, tugIds, lineNumbers }: { c: MotionController; s: MotionState; tugIds: string[]; lineNumbers: number[] }) {
   const frame = s.frame;
   const [tug, setTug] = useState('');
   const [force, setForce] = useState(5000);
   const [side, setSide] = useState<90 | 270>(90);
   const [line, setLine] = useState<number | ''>('');
-  const tugId = tug || frame?.tugs[0]?.id || '';
-  const lineNo = line === '' ? (frame?.lines[0]?.lineNumber ?? '') : line;
+  const tugChoices = frame?.tugs.length ? frame.tugs.map((t) => t.id) : tugIds;
+  const lineChoices = frame?.lines.length ? frame.lines.map((l) => l.lineNumber) : lineNumbers;
+  const tugId = tugChoices.includes(tug) ? tug : (tugChoices[0] ?? '');
+  const lineNo: number | null = line !== '' && lineChoices.includes(line) ? line : (lineChoices[0] ?? null);
   const connected = s.link === 'open';
   return (
     <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
@@ -218,18 +220,18 @@ function LiveControls({ c, s }: { c: MotionController; s: MotionState }) {
         <Button size="sm" variant="secondary" onClick={() => c.reset()} disabled={!connected}>Reset</Button>
         <label className="flex items-center gap-1 text-[10px] text-mil-dim" title="The session protocol has pause, resume and reset only; speed cannot be changed on a live session.">
           Speed
-          <select className={cn(inputClass, 'h-8 w-24')} disabled aria-label="Speed (fixed for live sessions)">
+          <select className={cn(inputClass, 'h-8 w-28')} disabled aria-label="Speed (fixed for live sessions)">
             <option>1× fixed</option>
           </select>
         </label>
-        <ChipText tone={s.link === 'open' ? undefined : 'warn'}>{s.link}</ChipText>
-        <ChipText>{s.lifecycle ?? 'state not reported'}</ChipText>
+        <ChipText tone={s.link === 'open' ? undefined : 'warn'}>link: {s.link}</ChipText>
+        <ChipText>session: {s.lifecycle ?? 'state not reported'}</ChipText>
       </div>
       <div className="flex items-end gap-2">
         <label className="text-[10px] text-mil-dim">
           Tug
-          <select className={cn(inputClass, 'h-8 w-24')} value={tugId} onChange={(e) => setTug(e.target.value)} disabled={!frame?.tugs.length}>
-            {frame?.tugs.map((t) => <option key={t.id}>{t.id}</option>)}
+          <select className={cn(inputClass, 'h-8 w-24')} value={tugId} onChange={(e) => setTug(e.target.value)} disabled={!tugChoices.length} aria-label="Tug">
+            {tugChoices.length === 0 ? <option value="">none assigned</option> : tugChoices.map((id) => <option key={id}>{id}</option>)}
           </select>
         </label>
         <label className="text-[10px] text-mil-dim">
@@ -243,17 +245,17 @@ function LiveControls({ c, s }: { c: MotionController; s: MotionState }) {
             <option value={270}>Port (270°)</option>
           </select>
         </label>
-        <Button size="sm" onClick={() => tugId && c.tugCommand(tugId, force, side)} disabled={!connected || !tugId}>Command tug</Button>
+        <Button size="sm" onClick={() => tugId && c.tugCommand(tugId, force, side)} disabled={!connected || !tugId} title={tugId ? undefined : 'No tugs are assigned in this layout. Run the planner or assign tugs, then start a new session.'}>Command tug</Button>
       </div>
       <div className="flex items-end gap-2">
         <label className="text-[10px] text-mil-dim">
           Line
-          <select className={cn(inputClass, 'h-8 w-20')} value={lineNo} onChange={(e) => setLine(Number(e.target.value))} disabled={!frame?.lines.length}>
-            {frame?.lines.map((l) => <option key={l.lineNumber}>{l.lineNumber}</option>)}
+          <select className={cn(inputClass, 'h-8 w-20')} value={lineNo ?? ''} onChange={(e) => setLine(Number(e.target.value))} disabled={!lineChoices.length} aria-label="Line">
+            {lineChoices.length === 0 ? <option value="">none</option> : lineChoices.map((n) => <option key={n}>{n}</option>)}
           </select>
         </label>
         {(['secured', 'tensioned', 'released'] as const).map((ev) => (
-          <Button key={ev} size="sm" variant="secondary" onClick={() => lineNo !== '' && c.lineEvent(Number(lineNo), ev)} disabled={!connected || lineNo === ''}>{ev}</Button>
+          <Button key={ev} size="sm" variant="secondary" onClick={() => lineNo !== null && c.lineEvent(lineNo, ev)} disabled={!connected || lineNo === null}>{ev}</Button>
         ))}
       </div>
     </div>
@@ -362,7 +364,7 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
             <>
               <MotionCanvas frame={s.frame} scene={s.scene} trail={s.trail} faceBearingDeg={face} />
               {s.source === 'live' && s.droppedForDisplay > 0 && (
-                <p className="pointer-events-none absolute bottom-2 left-3 text-[10px] text-mil-dim">Drawing the latest frame; {s.droppedForDisplay} older frames skipped to keep up.</p>
+                <p className="pointer-events-none absolute bottom-2 left-3 text-[10px] text-mil-dim">Showing the newest frame; {s.droppedForDisplay} older frames arrived faster than they could be drawn and were skipped.</p>
               )}
             </>
           )}
@@ -374,7 +376,7 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
       </div>
 
       <div className="border-t border-mil-border bg-mil-panel px-3 py-2">
-        {s.source === 'live' ? <LiveControls c={c} s={s} /> : s.source === 'recording' ? <ReplayControls c={c} s={s} /> : <p className="text-[11px] text-mil-dim">Controls appear once a session or recording is loaded. Space plays or pauses, R resets a live session, Esc closes.</p>}
+        {s.source === 'live' ? <LiveControls c={c} s={s} tugIds={c.tugIds()} lineNumbers={c.lineNumbers()} /> : s.source === 'recording' ? <ReplayControls c={c} s={s} /> : <p className="text-[11px] text-mil-dim">Controls appear once a session or recording is loaded. Space plays or pauses, R resets a live session, Esc closes.</p>}
       </div>
     </div>
   );

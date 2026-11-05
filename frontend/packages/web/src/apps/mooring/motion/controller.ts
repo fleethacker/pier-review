@@ -63,6 +63,11 @@ const INITIAL: MotionState = {
 /** What the motion view needs from the mooring setup. */
 export interface MotionHost {
   faceBearingDeg(): number | null;
+  /** Tugs assigned in the current layout and the line numbers it defines: choices for commands before a frame names them. */
+  tugIds(): string[];
+  lineNumbers(): number[];
+  /** Changes whenever the berth, ship, lines or tugs change, i.e. whenever a running session no longer matches the layout. */
+  layoutKey(): string;
   /** Saves the current layout as a scenario (sessions are created from one) and returns its id. */
   ensureScenario(): Promise<string | null>;
   /** Where to start the ship, berth axes; null when no berth or ship is selected. */
@@ -94,11 +99,20 @@ export class MotionController {
   private replayClock = 0;
   private disposed = false;
   private rawFrames: SimFrame[] = [];
+  private sessionLayoutKey: string | null = null;
 
   constructor(
     private readonly host: MotionHost,
     private readonly schedule: Scheduler = rafOrTimeout,
   ) {}
+
+  tugIds(): string[] {
+    return this.host.tugIds();
+  }
+
+  lineNumbers(): number[] {
+    return this.host.lineNumbers();
+  }
 
   get s(): MotionState {
     return this.state.get();
@@ -108,7 +122,16 @@ export class MotionController {
     this.state.set({ open: true });
   }
 
+  /**
+   * Hides the view. A live session is paused and kept, so reopening shows the same session instead of using up one of
+   * the few the simulator allows; a recording is simply dropped.
+   */
   close(): void {
+    if (this.s.source === 'live' && this.stream) {
+      this.pause();
+      this.state.set({ open: false });
+      return;
+    }
     this.stopEverything();
     this.state.set({ ...INITIAL });
   }
@@ -262,18 +285,34 @@ export class MotionController {
       this.state.set({ error: 'Choose a berth and a ship first.' });
       return;
     }
+    // The simulator allows only a few sessions at once, shared by every client, so reuse the running one when it
+    // still matches the layout: a reset returns it to time zero, paused.
+    if (this.s.source === 'live' && this.stream && this.s.link === 'open' && this.sessionLayoutKey === this.host.layoutKey()) {
+      this.state.set({ error: null });
+      this.reset();
+      return;
+    }
     this.stopEverything();
     this.state.set({ busy: true, error: null, source: 'live', link: 'connecting', frame: null, trail: [], lifecycle: null, lifecycleMessage: null, lastSequence: null, droppedForDisplay: 0, recording: null, playing: false });
     try {
       const scenarioId = await this.host.ensureScenario();
       if (!scenarioId) throw new Error('A scenario is needed to start a session; set up the berth, ship and lines first.');
       const created = unwrap(await modeling.POST('/api/v1/berthing/sessions', { body: { scenario_id: scenarioId, initial_state: initial } }));
+      this.sessionLayoutKey = this.host.layoutKey();
       this.state.set({ sessionId: created.session_id });
       await this.loadScene(created.scene_url ? serviceUrl(MODELING_BASE, created.scene_url) : null);
       this.connect(created.session_id);
       this.state.set({ busy: false });
     } catch (e) {
-      this.state.set({ busy: false, source: 'none', link: 'idle', error: `Could not start a session: ${e instanceof Error ? e.message : String(e)}` });
+      const detail = e instanceof Error ? e.message : String(e);
+      this.state.set({
+        busy: false,
+        source: 'none',
+        link: 'idle',
+        error: /^429\b/.test(detail)
+          ? 'The simulator is at its session limit. A few sessions are shared by every client, and idle ones are freed after about 30 minutes. Try again shortly, or restart the modeling service.'
+          : `Could not start a session: ${detail}`,
+      });
     }
   }
 

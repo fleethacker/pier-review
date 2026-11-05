@@ -99,7 +99,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
   const spanX = Math.max(b.maxX - b.minX, 120);
   const spanY = Math.max(b.maxY - b.minY, 80);
   const span = Math.max(spanX, spanY * 1.5);
-  const pad = span * 0.12;
+  const pad = span * 0.22;
   const vb = { x: b.minX - pad, y: b.minY - pad, w: b.maxX - b.minX + 2 * pad, h: b.maxY - b.minY + 2 * pad };
   const font = span / 52;
   const lw = span / 600;

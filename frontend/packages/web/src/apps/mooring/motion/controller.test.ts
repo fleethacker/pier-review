@@ -33,6 +33,9 @@ const scene = load<SimScene>('sim_scene.json');
 
 const host: MotionHost = {
   faceBearingDeg: () => 90,
+  tugIds: () => ['T1'],
+  lineNumbers: () => [1, 2],
+  layoutKey: () => 'k1',
   ensureScenario: async () => 'sc1',
   initialState: (offset) => ({ x_ft: 100, y_ft: 50 + offset, heading_true_deg: 90, u_kt: 0, v_kt: 0, r_degps: 0 }),
 };
@@ -160,6 +163,31 @@ describe('live session', () => {
     expect(m.s.error).toMatch(/503 busy/);
   });
 
+  it('explains a 429 session limit in plain words', async () => {
+    vi.mocked(modeling.POST).mockRejectedValue(new Error('429 /api/v1/berthing/sessions: {"detail":"too many"}'));
+    const m = make();
+    await m.startSession();
+    expect(m.s.error).toMatch(/session limit/);
+    expect(m.s.source).toBe('none');
+  });
+
+  it('reuses the running session with a reset while the layout is unchanged, and makes a new one when it changes', async () => {
+    let key = 'k1';
+    vi.mocked(modeling.POST).mockClear();
+    vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's1', ws_url: '/ws/sim/s1', scene_url: null } } as never);
+    const m = new MotionController({ ...host, layoutKey: () => key }, (cb) => raf.push(cb));
+    await m.startSession();
+    stream.handlers!.onStatus('open');
+    stream.send.mockClear();
+    await m.startSession();
+    expect(modeling.POST).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(stream.send.mock.calls[0][0])).toEqual({ type: 'reset' });
+    key = 'k2';
+    await m.startSession();
+    expect(modeling.POST).toHaveBeenCalledTimes(2);
+    m.dispose();
+  });
+
   it('asks for a berth and ship when there is no start state', async () => {
     const m = new MotionController({ ...host, initialState: () => null }, (cb) => raf.push(cb));
     await m.startSession();
@@ -221,6 +249,17 @@ describe('live session', () => {
       { type: 'tug_command', tug_id: 'T1', force_lbf: 5000, direction_rel_deg: 90 },
       { type: 'line_event', line_number: 3, event: 'secured' },
     ]);
+    m.dispose();
+  });
+
+  it('keeps a live session, paused, when the view is closed', async () => {
+    const m = await started();
+    stream.send.mockClear();
+    m.close();
+    expect(m.s.open).toBe(false);
+    expect(m.s.source).toBe('live');
+    expect(JSON.parse(stream.send.mock.calls[0][0])).toEqual({ type: 'pause' });
+    expect(stream.close).not.toHaveBeenCalled();
     m.dispose();
   });
 

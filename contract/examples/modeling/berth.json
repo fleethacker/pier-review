@@ -457,6 +457,11 @@
     "source": "OpenStreetMap contributors (ODbL), way 623235098; checked on Mapbox/Maxar satellite imagery",
     "url": "https://www.openstreetmap.org/way/623235098",
     "confidence": "mock",
-    "notes": "Position, direction and length of the face are surveyed (Polygon long edge facing north.). Fittings, fenders and depths are the notional Pier 12 layout stretched to the face length; weather is synthetic. Not for operational use."
+    "notes": "Position, direction and length of the face are surveyed (Polygon long edge facing north.). Fittings, fenders and depths are the notional Pier 12 layout stretched to the face length; weather is synthetic. Occupancy in the imagery: A ship is moored about 165-370 m along the face; the west 160 m is clear, just enough for a 155 m destroyer. Not for operational use."
+  },
+  "clear_stretch": {
+    "start_ft": 0.0,
+    "end_ft": 525.0,
+    "note": "A ship is moored about 165-370 m along the face; the west 160 m is clear, just enough for a 155 m destroyer."
   }
 }

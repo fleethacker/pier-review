@@ -562,6 +562,8 @@ export interface components {
             structure: "open_pile" | "solid";
             env_station_ids: components["schemas"]["EnvStations"];
             provenance: components["schemas"]["Provenance"];
+            /** @description Where the face was free of moored ships in the satellite imagery used to place it; the UI starts the ship there. A display default only: not a booking, and not evidence the berth is free now. */
+            clear_stretch?: components["schemas"]["ClearStretch"] | null;
         };
         /** BerthCreated */
         BerthCreated: {
@@ -623,6 +625,27 @@ export interface components {
             detail: string;
             /** Cites */
             cites?: string[];
+        };
+        /**
+         * ClearStretch
+         * @description Part of a berth face that was free of moored ships in the satellite imagery used to place the berth.
+         */
+        ClearStretch: {
+            /**
+             * Start Ft
+             * @description Distance along the face from the origin, feet.
+             */
+            start_ft: number;
+            /**
+             * End Ft
+             * @description Distance along the face from the origin, feet.
+             */
+            end_ft: number;
+            /**
+             * Note
+             * @description What was seen, e.g. the length available against the ship.
+             */
+            note?: string | null;
         };
         /**
          * ConcernWindow
@@ -1033,7 +1056,7 @@ export interface components {
              * Summary Source
              * @description Source of narration after the code-owned risk headline; null for legacy reports.
              */
-            summary_source?: ("llm" | "deterministic" | "detector") | null;
+            summary_source?: ("llm" | "deterministic") | null;
             /**
              * Narration Note
              * @description Sanitized fallback reason; null when narration succeeds.
@@ -1371,7 +1394,7 @@ export interface components {
             /** Brief */
             brief?: string | null;
             /** Summary Source */
-            summary_source?: ("llm" | "deterministic" | "detector") | null;
+            summary_source?: ("llm" | "deterministic") | null;
             /** Narration Note */
             narration_note?: string | null;
             /** Intake Report Id */
@@ -2334,7 +2357,7 @@ export interface components {
              * Extraction Source
              * @default null
              */
-            extraction_source: ("llm" | "deterministic" | "detector") | null;
+            extraction_source: ("deterministic" | "llm" | "detector") | null;
             /**
              * Extraction Note
              * @default null

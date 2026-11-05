@@ -11,9 +11,9 @@ info:
 
     (`/tools`, `/physics/*`), which logs every call; every number in a plan cites a logged `result_id`.
 
-    **Mixed implementation:** Intake and Planner have guarded optional LLM layers; other agent and modeling
+    **Deterministic agents with optional guarded LLM layers.** Real implementation does not establish
 
-    capabilities still include mocks. See `/version` for module status.
+    engineering qualification; inspect result validity and `/version` for module status.
 
     '
   version: 1.1.0
@@ -3295,17 +3295,30 @@ components:
           description: Pier fitting kind, 'fender', 'camel', 'pier_face' or 'obstruction'.
           title: Kind
           type: string
+        center_px:
+          anyOf:
+          - maxItems: 2
+            minItems: 2
+            prefixItems:
+            - type: number
+            - type: number
+            type: array
+          - type: 'null'
+          default: null
+          title: Center Px
         bbox_px:
-          description: '[x, y, width, height] in image pixels.'
-          maxItems: 4
-          minItems: 4
-          prefixItems:
-          - type: number
-          - type: number
-          - type: number
-          - type: number
+          anyOf:
+          - maxItems: 4
+            minItems: 4
+            prefixItems:
+            - type: number
+            - type: number
+            - type: number
+            - type: number
+            type: array
+          - type: 'null'
+          description: '[x, y, width, height] in image pixels; null when not measured from the image.'
           title: Bbox Px
-          type: array
         confidence:
           maximum: 1
           minimum: 0
@@ -3510,6 +3523,36 @@ components:
       additionalProperties: false
       description: Sent as the `metadata` form field (a JSON string) next to the `image` file.
       properties:
+        berth_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          description: Catalog berth supplying surveyed face location and notional fittings; absent uses an explicitly labeled
+            demo template.
+          title: Berth Id
+        pier_face_start_px:
+          anyOf:
+          - maxItems: 2
+            minItems: 2
+            prefixItems:
+            - type: number
+            - type: number
+            type: array
+          - type: 'null'
+          default: null
+          title: Pier Face Start Px
+        pier_face_end_px:
+          anyOf:
+          - maxItems: 2
+            minItems: 2
+            prefixItems:
+            - type: number
+            - type: number
+            type: array
+          - type: 'null'
+          default: null
+          title: Pier Face End Px
         image_kind:
           enum:
           - satellite
@@ -3623,6 +3666,39 @@ components:
     VisionResult:
       additionalProperties: false
       properties:
+        recommendation_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Recommendation Result Id
+        extraction_source:
+          anyOf:
+          - enum:
+            - llm
+            - deterministic
+            type: string
+          - type: 'null'
+          default: null
+          title: Extraction Source
+        extraction_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Extraction Note
+        geometry_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Geometry Result Id
+        image_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Image Sha256
         draft_berth:
           $ref: '#/components/schemas/Berth'
         detections:
@@ -3661,4 +3737,4 @@ tags:
   description: Jobs, health.
 servers:
 - url: http://localhost:8001
-  description: Local mock server
+  description: Local agents service

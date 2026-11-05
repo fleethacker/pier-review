@@ -1956,15 +1956,23 @@ export interface components {
              */
             kind: string;
             /**
+             * Center Px
+             * @default null
+             */
+            center_px: [
+                number,
+                number
+            ] | null;
+            /**
              * Bbox Px
-             * @description [x, y, width, height] in image pixels.
+             * @description [x, y, width, height] in image pixels; null when not measured from the image.
              */
             bbox_px: [
                 number,
                 number,
                 number,
                 number
-            ];
+            ] | null;
             /** Confidence */
             confidence: number;
             /** Needs Confirmation */
@@ -2099,6 +2107,28 @@ export interface components {
          */
         VisionMetadata: {
             /**
+             * Berth Id
+             * @description Catalog berth supplying surveyed face location and notional fittings; absent uses an explicitly labeled demo template.
+             * @default null
+             */
+            berth_id: string | null;
+            /**
+             * Pier Face Start Px
+             * @default null
+             */
+            pier_face_start_px: [
+                number,
+                number
+            ] | null;
+            /**
+             * Pier Face End Px
+             * @default null
+             */
+            pier_face_end_px: [
+                number,
+                number
+            ] | null;
+            /**
              * Image Kind
              * @enum {string}
              */
@@ -2174,6 +2204,31 @@ export interface components {
         };
         /** VisionResult */
         VisionResult: {
+            /**
+             * Recommendation Result Id
+             * @default null
+             */
+            recommendation_result_id: string | null;
+            /**
+             * Extraction Source
+             * @default null
+             */
+            extraction_source: ("llm" | "deterministic") | null;
+            /**
+             * Extraction Note
+             * @default null
+             */
+            extraction_note: string | null;
+            /**
+             * Geometry Result Id
+             * @default null
+             */
+            geometry_result_id: string | null;
+            /**
+             * Image Sha256
+             * @default null
+             */
+            image_sha256: string | null;
             draft_berth: components["schemas"]["Berth"];
             /** Detections */
             detections: components["schemas"]["Detection"][];

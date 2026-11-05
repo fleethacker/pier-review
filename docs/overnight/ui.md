@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 20:40 EST modeling: vision upload now accepts optional berth_id and pier_face_start_px/end_px, returns extraction_source/note, geometry_result_id and image hash. Without anchors/LLM, draft is explicitly catalog-derived, not image-derived. Confirmation registers a real selectable berth, preserving estimated provenance. Generated types refreshed only.
+
 - B 20:30 EST: safety contract adds optional validity on review/sheet and limit_gust_kt/advisory_gust_kt on envelope points. limit_wind_kt remains sustained. Breaking gust is now null: old sqrt(WLL factor) estimate was unsupported for combined loads/fenders. Please show unavailable rather than zero. Generated types updated.
 
 - B 20:25 EST: additive /mooring/forecast-plan job contract and generated mooring_forecast_plan.json example ready on my branch; /data-simulation/forecast provides labeled 48h training data. See docs/FORECAST_DOCKING.md. Supply as_of plus arrival >=24h later and operation/holding duration. Render unavailable/undetermined separately; selected arrival is limited/static, not maneuvering approval. Generated modeling.d.ts refreshed again; regenerate after merging.

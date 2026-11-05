@@ -15,6 +15,7 @@ from mooring.core.envelopes import inputs_hash, new_id, utcnow, validity_state
 from mooring.core.schemas import (
     AnalyzeResponse,
     Berth,
+    BerthCreated,
     BerthingWindowsResponse,
     EnvironmentSnapshot,
     ExceedanceResponse,
@@ -26,6 +27,8 @@ from mooring.core.schemas import (
     ShipClass,
     TugPlanResponse,
 )
+
+from mooring.core.schemas.berth_drafts import BerthDraftResponse
 
 from .client import ModelingClient, ModelingError
 from .ledger import LEDGER, calls_for, reserve_call, update_call  # noqa: F401 (public compatibility)
@@ -178,6 +181,12 @@ class PhysicsToolkit:
 
     async def envelope(self, body: dict) -> LimitEnvelopeResponse:
         return await self._typed("limit_envelope", body, LimitEnvelopeResponse)
+
+    async def save_berth(self, berth: Berth) -> BerthCreated:
+        return await self._typed("save_berth", berth.model_dump(mode="json"), BerthCreated)
+
+    async def draft_berth(self, body: dict) -> BerthDraftResponse:
+        return await self._typed("draft_berth", body, BerthDraftResponse)
 
     async def recommend(self, body: dict) -> RecommendResponse:
         return await self._typed("recommend_config", body, RecommendResponse)

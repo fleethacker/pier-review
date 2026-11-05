@@ -565,6 +565,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/berth-drafts:
+    post:
+      tags:
+      - M2 Reference data
+      summary: Build an unsaved berth draft from catalog geometry and optional image anchors
+      operationId: berth_draft_api_v1_berth_drafts_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BerthDraftRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BerthDraftResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/qualification:
     get:
       tags:
@@ -2332,6 +2357,157 @@ components:
       required:
       - berth_id
       title: BerthCreated
+    BerthDraftRequest:
+      properties:
+        source_berth_id:
+          type: string
+          title: Source Berth Id
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        image_fittings:
+          items:
+            $ref: '#/components/schemas/ImageFitting'
+          type: array
+          maxItems: 100
+          title: Image Fittings
+        scale_ft_per_px:
+          anyOf:
+          - type: number
+            maximum: 10000.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Scale Ft Per Px
+        pier_face_start_px:
+          anyOf:
+          - prefixItems:
+            - type: number
+              maximum: 1000000.0
+              minimum: 0.0
+            - type: number
+              maximum: 1000000.0
+              minimum: 0.0
+            type: array
+            maxItems: 2
+            minItems: 2
+          - type: 'null'
+          title: Pier Face Start Px
+        pier_face_end_px:
+          anyOf:
+          - prefixItems:
+            - type: number
+              maximum: 1000000.0
+              minimum: 0.0
+            - type: number
+              maximum: 1000000.0
+              minimum: 0.0
+            type: array
+            maxItems: 2
+            minItems: 2
+          - type: 'null'
+          title: Pier Face End Px
+      additionalProperties: false
+      type: object
+      required:
+      - source_berth_id
+      title: BerthDraftRequest
+    BerthDraftResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/BerthDraftResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: BerthDraftResponse
+    BerthDraftResult:
+      properties:
+        draft_berth:
+          $ref: '#/components/schemas/Berth'
+        geometry_source:
+          type: string
+          title: Geometry Source
+        needs_confirmation:
+          items:
+            type: string
+          type: array
+          title: Needs Confirmation
+        notes:
+          items:
+            type: string
+          type: array
+          title: Notes
+      additionalProperties: false
+      type: object
+      required:
+      - draft_berth
+      - geometry_source
+      - needs_confirmation
+      - notes
+      title: BerthDraftResult
     BerthForce:
       properties:
         x_lbf:
@@ -3919,6 +4095,41 @@ components:
       - config
       - environment
       title: HoldTugRequest
+    ImageFitting:
+      properties:
+        item_id:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Item Id
+        kind:
+          type: string
+          title: Kind
+        center_px:
+          prefixItems:
+          - type: number
+            maximum: 1000000.0
+            minimum: 0.0
+          - type: number
+            maximum: 1000000.0
+            minimum: 0.0
+          type: array
+          maxItems: 2
+          minItems: 2
+          title: Center Px
+        confidence:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Confidence
+      additionalProperties: false
+      type: object
+      required:
+      - item_id
+      - kind
+      - center_px
+      - confidence
+      title: ImageFitting
     JobAccepted:
       properties:
         job_id:

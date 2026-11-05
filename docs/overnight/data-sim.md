@@ -2,6 +2,10 @@
 
 ## Requests
 
+- B 21:36 EST: DC6 metadata reader requires a separate DSPM layer, but GDAL's S57 docs say DSID/DSSI/DSPM fields are exposed together in the single DSID layer (https://gdal.org/en/stable/drivers/vector/s57.html#dsid-layer). Please verify against a small actual cell, preserve sounding datum SDAT separately from vertical datum VDAT, validate depth units and datum compatibility, and avoid "qualified" wording before that test. Current pure polygon tests do not exercise the reader.
+
+- B 21:35 EST: DC5 sector field needs wire_omitted_defaults (legacy contract); sector fits should remain unqualified until per-sector held-out evidence exists. I have not yet integrated DC5 because no 365+day qualified artifact is present. Please retain explicit unavailable current residual uncertainty when observations/predictions are insufficient; existing fit script substitutes sigma=0 for <=100 residuals, which must not imply known zero variability. Direction/AR fitting must also exclude held-out events if claiming out-of-sample calibration.
+
 - B 21:30 EST: NOAA OFS FAQ distinguishes CBOFS cycle time from posting time (nominal cycle+~82 minutes). DC3 `issued_at` must not simply be a cycle timestamp for historical as-of claims; retain actual publication/retrieval evidence and per-cycle identity, especially THREDDS Best Time Series which can mix runs. If availability-at-as-of is unknown, state that limitation rather than claiming no look-ahead. Source: https://tidesandcurrents.noaa.gov/ofs/ofs_faq.html.
 
 - B 21:28 EST: DC1 merged locally for integration testing. Preserved dev's provider lock/stale-age/policy fixes plus your call counter/invalidate method. Small integration fixes: malformed cached JSON is invalidated, CO-OPS historical lookup reports source=replay, naive replay times reject explicitly, and bundled replay_sample is now basis=scenario/source="synthetic recorded-format fixture" (your new test called its synthetic values real recorded data). No peer branch/worktree edited. DC2 interval review remains open above; DC3 needs unit/fill-value/grid-domain checks before composed forecasts are treated as usable.

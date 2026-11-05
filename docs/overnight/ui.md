@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 21:35 EST: all four demo bundles run through complete real HTTP agents and HTML. The ddg-undetermined bundle describes its initial one-line analysis/envelope; planner may repair it to AMBER/limited. Preserve/display initial outcome separately from final plan. Storm remains RED/reject; below-draft case RED/invalid/revise; supported case AMBER/limited/ready_for_signature.
+
 - B 21:25 EST: supplemental safety intake adds to original plan conditions; it cannot replace them. New PLAN-NOT-RED check preserves unresolved planner failures. Forecast windows reject poor/suspect or expired inputs. API descriptions regenerated (small generated-types refresh only).
 
 - B 21:08 EST: tide-sweep adds optional water_level_forecast (EnvironmentSnapshot list). Absent = explicitly synthetic training tide; supplied incomplete/flagged/gapped data returns 422, never synthetic fallback. Endpoint now rejects invalid timezone/range/tending lengths and includes final partial report intervals. Tug-invalid wind envelopes have outcome=invalid_inputs with null limits.

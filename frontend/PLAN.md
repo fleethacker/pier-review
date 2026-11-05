@@ -3,25 +3,25 @@
 > Priorities, owners, dependencies and reviewers: [master plan execution ownership](../docs/MASTER_PLAN.md#execution-ownership).
 > **Kori owns UI execution**; Snyder supplies modeling interfaces, Cruz supplies source contracts, and Bixler owns integrated demo/release evidence.
 
-Integration status checked 5 November 2026 against `dev` at `3ababad` (PR #18). U1–U7 UI implementation is merged;
-S1's rich-frame protocol merged in #6 and the limited S7/U8 camera in #14. PR #13 contains D1–D4 but remains under
-separate review: the availability and public-forecast UI must retain explicit unavailable/error states until that backend
-is integrated. A merged panel does not close the full browser, hosting or engineering acceptance gates.
+Integration status checked 5 November 2026 against `dev` through `962d6b6`: U1–U7 (#18), D1/D2/D4 (#13),
+the exercise application (#21), and S2/S3/P5/P6/S4/S8 (#22) are merged. The current UI packet integrates their
+available contracts; [delivery evidence](KORI_UI_DELIVERY.md) records its local checks and remaining work.
+PR #23 remains open. A merged panel does not close browser, hosting, live-provider or engineering acceptance gates.
 
 | Master-plan item | Merged implementation | Remaining integration / acceptance |
 | --- | --- | --- |
 | U1 | Explicit Intake → Planner → independent Safety review → sheet; initial/final demo outcomes (#18) | Bixler/Kori record the complete browser chain on the release candidate. |
 | U2 | Live rm0 frames, speed control, reconnect sequence and recordings (#6/#18) | Preserve limited vessel labels; rehearse reconnect and playback through the target proxy. |
-| U3/U4 | Component status/errors and supplied-series arrival planning, selected configuration and explicit recheck (#18; P1/P2 in #4/#8) | Cruz's D1/D2 merge (#13), then public-source integration; agent-wide revision binding remains A3. |
-| U5/U7 | Simulation/source clock labels; conditional Cesium roll/pitch/water display, accessibility and 10 Hz render checks (#18) | Snyder's S2/S3 determine which changing-forcing and motion fields actually exist. |
+| U3/U4 | Public availability separate from selected forcing; exact depth/bin public acquisition, canonical resolution and hash-pinned arrival planning, selected configuration and recheck | Live-provider rehearsal and agent-wide immutable revision binding remain A3. Partial forecasts block planning; training remains an explicit separate choice. |
+| U5/U7 | Simulation/source clocks and forcing revisions; persistent synthetic metadata and coverage-stop reasons; DOF-gated Cesium motion/water display | Forcing authoring and target-host rehearsal remain; absent/limited states stay visible. |
 | U6 | Test-toolchain upgrade (#18) | PR reports 365 UI tests, typecheck/lint/build and zero audit findings; these are branch evidence, not a new release rehearsal. |
 | U8 | Missions/transit backup-camera overlay (#14) | S7 limits remain visible; berthing prediction, live own-ship state and calibrated uncertainty are separate work. |
 | U9 / R2 | Two-axis placement and fitting drag/reconnect, cancellation, numeric/keyboard alternatives and stale-result guards | See [delivery evidence](KORI_UI_DELIVERY.md); seed layouts remain unqualified. |
 | U9 / R3 | Catalog coverage and selected-side bitt gates; class changes clear old lines and agent results | A8 still owes the backend class capability contract and approved additional-class data. |
-| U10 / R6 | Existing sustained/gust/advisory limits and search outcomes; explicit unavailable ultimate capacity | P6/A9 must publish the supported ultimate-capacity assessment. |
-| U11 / R7 | Review state, intermediate checks/issues/limitations, citations and stale-layout indicators | S8 search, transient handling and forecast revision binding remain open. |
+| U10 / R6 | Existing sustained/gust/advisory limits and search outcomes; P6 backend merged in #22 | Approved capacity basis, UI basis-selection workflow and A9 Safety integration remain; no invented breaking threshold. |
+| U11 / R7 | Review state, intermediate checks/issues/limitations, citations and stale-layout indicators; S8 bounded static search backend merged in #22 | Connect the proposal UI; transient handling qualification and forecast revision binding remain open. |
 | U12 / R8 | Structural strain explicitly unavailable; fitting utilization is not strain | P7's reviewed structural model, contract and asset data. |
-| U13 / R1 | Existing immutable-sheet identity and unavailable graphic retained | A11 must publish frozen assessed geometry; the current canvas cannot supply it. |
+| U13 / R1 | Existing immutable-sheet identity and unavailable graphic retained | A11/PR #23 remains unmerged; consume frozen assessed geometry when available, never the current canvas. |
 | S5 UI findings 12–16 | Mission selection guards, complete-track playback, dateline/antipodal handling and authenticated media/downloads | Shared track/storyboard revision token remains a backend dependency; see [delivery evidence](KORI_UI_DELIVERY.md). |
 
 The following numbered phases retain their historical overnight IDs and implementation history. They are not the
@@ -67,8 +67,8 @@ unused lucide-react dependency have been deleted; they are in git history.
 
 Still not done: rotating entities, real 3D ship models, testing on a real GPU, and any browser other than Chromium.
 The backend uses implemented modeling/agent workflows with seed data and unqualified dynamics. Live rm0 UI integration
-is merged. Public forecast integration awaits #13; full release-candidate browser/hosting acceptance and the remaining
-requirements packets stay open in the master plan.
+is merged. Public forecast acquisition is integrated with D2 and canonical planning resolution; actual provider,
+release-candidate browser/hosting acceptance and the remaining requirements stay open in the master plan.
 
 ## What the simulator gave us, and what it did not (at the start)
 

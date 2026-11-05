@@ -89,7 +89,10 @@ def main() -> int:
             expect(page.get_by_label("Data sources")).to_be_visible()
             text = page.get_by_label("Data sources").inner_text().lower()
             assert "unavailable" in text and "mock" in text, "source states should include mock and unavailable"
-            assert "waves" in text and "never shown as zero" in text
+            for label in ("Waves", "Wake", "Telemetry"):
+                row = page.get_by_label("Data sources").get_by_role("listitem").filter(has=page.get_by_text(label, exact=True))
+                assert "unavailable" in row.inner_text().lower(), f"{label} must stay unavailable in the offline demo"
+            assert "berth applicability" in text and "unavailable, not zero" in text
             return "waves, wake and telemetry say unavailable; environment says mock"
 
         def lines():
@@ -347,7 +350,8 @@ def main() -> int:
             page.locator("select").filter(has=page.locator("option", has_text="demo-check supported-limited")).select_option(label="demo-check supported-limited")
             expect(page.get_by_text("Overall AMBER", exact=True).first).to_be_visible()
             panel_source = page.get_by_label("Forecast source")
-            assert "unavailable" in panel_source.inner_text(), "public forecast must read unavailable until D2 lands"
+            assert "no synthetic fallback" in panel_source.inner_text(), "public acquisition must never silently use training data"
+            assert panel_source.get_by_role("button", name="Fetch public forecast").is_disabled(), "public acquisition requires an explicit current depth and bin"
             page.get_by_role("button", name="Use training scenario").click()
             cov = page.get_by_label("Series coverage")
             expect(cov.get_by_text(re.compile(r": covered\."))).to_be_visible(timeout=60_000)

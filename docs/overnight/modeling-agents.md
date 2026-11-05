@@ -70,3 +70,7 @@ NSTM references, line/pier capacities, wind averaging conversions, tug estimates
 - 21:25 EST: PR #36 pushed (1237 Python/81 UI tests, no skips/xfails). Safety hardening preserves original plus supplemental conditions and every check failure, refuses unresolved RED plans, and takes the lowest/unknown solver limit across conditions. Forecast planning now rejects poor/suspect or expired-interval inputs. Focused 31 tests pass; full suite underway.
 
 - 21:30 EST: DC1 CO-OPS integration plus provenance/cache fixes: 1253 Python tests pass, no skips/xfails; focused provider/replay 67 pass. Bundled synthetic replay is now explicitly scenario-basis; historical CO-OPS snapshots say replay. No forecast fallback introduced.
+
+- 21:35 EST: all four named cases traversed real local HTTP intake→planner→review→HTML. Supported: AMBER/limited, ready_for_signature (3.34 s). Overload: RED/limited, reject (4.17 s). Invalid depth: RED/invalid, revise (4.35 s). Initially underconstrained: planner repairs arrangement to AMBER/limited, ready_for_signature (3.10 s); initial result remains RED/undetermined. Search hardening now rejects locked-line bypasses of inventory/fitting constraints and reports actual assessed case counts; focused search/equilibrium 55 tests pass.
+
+- 21:36 EST: search fixes full suite 1265 passed, no skips/xfails; UI typecheck/lint/81 tests/build passed, contract regenerated unchanged. API nonpositive-depth requests now return 422. Corrected cases_evaluated expectation: candidates that stop early no longer claim every case was solved.

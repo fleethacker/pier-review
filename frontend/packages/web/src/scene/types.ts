@@ -104,6 +104,8 @@ export interface SceneVector {
 export type Selection = { type: 'entity' | 'link'; id: string } | null;
 export type ViewMode = '2d' | '3d';
 export type Lighting = 'day' | 'night';
+/** Named camera positions. They assume the ship lies along the berth face (+x), pier on the -y side. */
+export type CameraPreset = 'top' | 'bow' | 'portQuarter' | 'pierSide';
 
 export interface SceneContent {
   frame: LocalFrame;
@@ -124,6 +126,8 @@ export interface SceneState {
   contentRevision: number;
   /** Incremented to ask the shell to refit the camera to the current content. */
   fitRevision: number;
+  /** Set to move the camera to a named position; `revision` changes on every request so repeats still apply. */
+  cameraPreset: { name: CameraPreset; revision: number; /** Frame meters to look at; the current target when absent. */ target?: { x: number; y: number } } | null;
 }
 
 /** Edits the user makes on the canvas. The active app decides what they mean. */

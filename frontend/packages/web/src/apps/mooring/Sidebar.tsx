@@ -1,4 +1,4 @@
-import { Button } from '../../shell/ui';
+import { Button, ErrorBoundary } from '../../shell/ui';
 import { useController, useMooring } from './panels/context';
 import { useUnitSystem } from './units';
 import { AgentPanel } from './panels/AgentPanel';
@@ -10,6 +10,7 @@ import { ResultPanel } from './panels/ResultPanel';
 import { ScenarioPanel } from './panels/ScenarioPanel';
 import { SequencePanel } from './panels/SequencePanel';
 import { SetupPanel } from './panels/SetupPanel';
+import { IntakePanel } from './intake/IntakePanel';
 import { StatusPanel } from './status/StatusPanel';
 import { BerthVisionPanel } from './vision/BerthVisionPanel';
 
@@ -45,17 +46,42 @@ export function Sidebar() {
           </button>
         </div>
       )}
-      <SetupPanel />
-      <BerthVisionPanel />
-      <EnvPanel />
-      <StatusPanel />
-      <AgentPanel />
-      <LinesPanel />
-      <ResultPanel />
-      <SequencePanel />
-      <MotionLauncher />
-      <RecommendPanel />
-      <ScenarioPanel />
+      <ErrorBoundary name="Berth, ship and layout">
+        <SetupPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Berth from an image">
+        <BerthVisionPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Environment">
+        <EnvPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Data sources">
+        <StatusPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Environment intake">
+        <IntakePanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Planning agent">
+        <AgentPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Mooring lines">
+        <LinesPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Analysis">
+        <ResultPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Line sequence">
+        <SequencePanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Motion">
+        <MotionLauncher />
+      </ErrorBoundary>
+      <ErrorBoundary name="Recommendations">
+        <RecommendPanel />
+      </ErrorBoundary>
+      <ErrorBoundary name="Saved scenarios">
+        <ScenarioPanel />
+      </ErrorBoundary>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import type {
   SceneLink,
   SceneState,
   SceneVector,
+  CameraPreset,
   Lighting,
   Selection,
   ViewMode,
@@ -38,6 +39,7 @@ export class SceneStore {
     lighting: loadLighting(),
     contentRevision: 0,
     fitRevision: 0,
+    cameraPreset: null,
   };
   private listeners = new Set<Listener>();
 
@@ -114,6 +116,10 @@ export class SceneStore {
     const cur = this.state.selection;
     if (cur?.id === selection?.id && cur?.type === selection?.type) return;
     this.set({ selection });
+  }
+
+  setCameraPreset(name: CameraPreset, target?: { x: number; y: number }): void {
+    this.set({ cameraPreset: { name, target, revision: (this.state.cameraPreset?.revision ?? 0) + 1 } });
   }
 
   requestFit(): void {

@@ -4,6 +4,8 @@ import type { SceneEdit, SceneState } from '../../scene/types';
 import { awaitJob, describeError, modeling, MODELING_BASE, unwrap, wsUrl } from './api';
 import { AgentSession } from './agent';
 import { MotionController } from './motion/controller';
+import { MOTION_KINDS } from './motion/sceneMapper';
+import type { ShipDims } from './motion/sceneMapper';
 import type { Capability } from './status/sources';
 import { openJsonStream } from './streams';
 import type { StreamHandle, StreamStatus } from './streams';
@@ -17,6 +19,8 @@ import {
   pierEntities,
   shipEntities,
   standoffFt as resolveStandoff,
+  hullPoints,
+  superstructure,
 } from './mapping';
 import type {
   AnalyzeRequest,
@@ -205,8 +209,35 @@ const ANALYZE_DEBOUNCE_MS = 250;
 export class MooringController {
   readonly state = new Store<MooringState>(INITIAL);
   readonly agent: AgentSession = new AgentSession(this);
+  /** While true the Cesium scene belongs to the motion view, and layout redraws are held back. */
+  private motionHoldsScene = false;
   private savedScenarioKey: string | null = null;
   readonly motion: MotionController = new MotionController({
+    map: {
+      enter: () => {
+        this.motionHoldsScene = true;
+        const store = this.host.store;
+        // Take the planning layout's ship, tugs and lines off the scene; the pier and environment stay.
+        store.replaceEntitiesOfKind(['ship', 'ship-part', 'ship-fitting', 'ship-halo', 'ship-shadow', 'tug', 'wake', 'tug-force'], []);
+        store.setLinks([]);
+        const frame = store.getState().frame;
+        if (frame && this.s.env) store.setVectors(envVectors(frame, this.s.env, { x: 0, y: 0 }));
+      },
+      draw: (parts) => {
+        const store = this.host.store;
+        store.replaceEntitiesOfKind(MOTION_KINDS, parts.entities);
+        store.setLinks(parts.links);
+      },
+      leave: () => {
+        this.motionHoldsScene = false;
+        this.pushScene('full');
+      },
+      shipDims: () => this.motionShipDims(),
+      setCamera: (preset, target) => {
+        this.host.store.setViewMode(preset === 'top' ? '2d' : '3d');
+        this.host.store.setCameraPreset(preset, target);
+      },
+    },
     faceBearingDeg: () => this.s.berth?.face_bearing_true_deg ?? null,
     // A tug can hold several push points and a layout can repeat a line number while it is being edited: list each once.
     tugIds: () => [...new Set(this.s.tugAssignments.map((t) => t.tug_id))],
@@ -913,7 +944,24 @@ export class MooringController {
    * full: replace the whole scene (new berth, ship or side). update: redraw entities, links and arrows without
    * resetting the camera or selection. ship: cheap redraw while dragging.
    */
+  /** The ship's footprint and cosmetic deckhouse blocks for the motion map, from the selected ship class. */
+  private motionShipDims(): ShipDims | null {
+    const { ship, loading } = this.s;
+    if (!ship) return null;
+    const cond = ship.loading_conditions.find((c) => c.name === loading) ?? ship.loading_conditions[0];
+    const freeboardM = ft(cond?.freeboard_ft ?? 20);
+    const parts = superstructure(ship, { x: 0, y: 0, z: 0, headingDeg: 0 }, freeboardM).map((e) => ({
+      id: e.id.split(':').pop() ?? e.id,
+      points: e.geometry.type === 'polygon' ? e.geometry.points : [],
+      heightM: e.geometry.type === 'polygon' ? e.geometry.heightM : 0,
+      liftM: e.pose.z - freeboardM,
+      color: e.color,
+    }));
+    return { hull: hullPoints(ship.loa_ft, ship.beam_ft, ship.hull_type), freeboardM, parts };
+  }
+
   pushScene(mode: 'full' | 'update' | 'ship'): void {
+    if (this.motionHoldsScene) return;
     const s = this.s;
     if (!s.berth) return;
     const store = this.host.store;

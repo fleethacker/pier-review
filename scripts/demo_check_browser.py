@@ -54,7 +54,9 @@ def main() -> int:
     errors: list[str] = []
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=os.environ.get("DEMO_CHECK_BROWSER_EXECUTABLE"), args=["--enable-unsafe-swiftshader"])
-        page = browser.new_page(viewport={"width": 1600, "height": 1000})
+        # Reduced motion also stops the streaming particles that keep Cesium rendering, which frees the CPU the physics
+        # tools need (a saturated CPU makes the planner roughly 7x slower and can pass their 30 s limit).
+        page = browser.new_page(viewport={"width": 1600, "height": 1000}, reduced_motion="reduce")
         page.set_default_timeout(45_000)
         PAGE.append(page)
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
@@ -91,11 +93,30 @@ def main() -> int:
             assert re.search(r"\bL?1\b", text), "no lines listed"
             return "lines listed with their analysis"
 
+        def intake():
+            page.get_by_role("button", name="Assess conditions").click()
+            expect(page.get_by_text("Mooring condition")).to_be_visible(timeout=90_000)
+            text = page.locator("aside").first.inner_text()
+            assert "MST" in text and "Deterministic summary" in text, "intake result should state MST and where the summary came from"
+            shot(page, "02a-intake")
+            return "intake assessment shown with MST, windows and a labeled deterministic summary"
+
         def plan():
-            page.get_by_role("button", name="Ask the agent to plan").click()
-            expect(page.get_by_role("button", name=re.compile("Create safety sheet|Rebuild safety sheet"))).to_be_visible(timeout=120_000)
+            attempts = 0
+            for attempts in range(1, 4):
+                page.get_by_role("button", name="Ask the agent to plan").click()
+                expect(page.get_by_role("button", name=re.compile("Create safety sheet|Rebuild safety sheet"))).to_be_visible(timeout=150_000)
+                text = page.locator("aside").first.inner_text().lower()
+                # Under software-rendered WebGL the CPU is scarce and a physics tool can pass its 30 s limit; the UI says
+                # so plainly and the user just asks again. Unloaded, the same plan finishes in a few seconds.
+                if "exceeded its" not in text and "took too long" not in text:
+                    break
+                if attempts == 3:
+                    raise AssertionError("the planner timed out three times in a row")
+                page.wait_for_timeout(3000)
             shot(page, "02-plan")
-            return "planner ran (SSE steps), plan applied to the canvas"
+            note = f" (took {attempts} attempts: transient timeout under CPU load)" if attempts > 1 else ""
+            return f"planner ran (SSE steps), plan applied to the canvas{note}"
 
         def sheet():
             dialog = page.get_by_role("dialog").first
@@ -135,6 +156,19 @@ def main() -> int:
             assert "not simulated" in text.lower(), "heave must read not simulated"
             shot(page, "05-motion-replay")
             return "replay shows validity, provenance, schema badges; waves unavailable; heave not simulated"
+
+        def motion_map():
+            view = page.get_by_role("dialog", name="Motion view")
+            view.get_by_role("button", name="Map 2D/3D").click()
+            expect(view.get_by_text(re.compile("Not drawn:.*roll and pitch"))).to_be_visible()
+            view.get_by_role("button", name="Port quarter").click()
+            page.wait_for_timeout(2500)
+            shot(page, "05a-motion-map-3d")
+            view.get_by_role("button", name="Top", exact=True).click()
+            page.wait_for_timeout(1500)
+            view.get_by_role("button", name="Plan", exact=True).click()
+            expect(view.get_by_text("Forces on the ship")).to_be_visible()
+            return "map mode draws the frame in Cesium (3D port-quarter and top), lists what it did not draw, and returns to plan"
 
         def motion_live():
             view = page.get_by_role("dialog", name="Motion view")
@@ -177,9 +211,8 @@ def main() -> int:
             expect(page.get_by_text("draft: needs your confirmation")).to_be_visible()
             confirm = page.get_by_role("button", name="Confirm and use this berth")
             assert confirm.is_disabled(), "confirm must stay disabled until flagged items are ticked"
-            boxes = page.get_by_role("checkbox")
-            for i in range(boxes.count()):
-                boxes.nth(i).check()
+            # One pass in the page: there can be dozens of flagged items and each Playwright click is slow here.
+            page.evaluate("() => document.querySelectorAll('input[type=checkbox]').forEach((el) => { if (!el.checked) el.click(); })")
             shot(page, "08-vision-review")
             assert confirm.is_enabled(), "confirm should open once every flagged item is ticked"
             confirm.click()
@@ -192,9 +225,11 @@ def main() -> int:
         step("Load the app and see the standing seed-data banner", load)
         step("Data-source panel is honest", sources)
         step("Analyzed lines are listed", lines)
+        step("Intake agent assessment", intake)
         if step("Phase 1: agent plans (SSE steps)", plan):
             step("Phase 1: safety sheet, approval and print", sheet)
         if step("Motion: open the view and replay the recording", motion_replay):
+            step("Motion: Cesium map mode with 3D camera presets", motion_map)
             step("Motion: live session through the proxy", motion_live)
             step("Motion: units toggle", units)
 

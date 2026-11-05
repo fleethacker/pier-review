@@ -22,7 +22,9 @@ from mocks"), and the frontend demo contribution is part of **G2** (approved saf
 | 10 Data-source honesty (U3) | Done | Status panel, capability list, standing seed-data banner. |
 | 11 Berth from an image (U5) | Done | Upload, detections, confirmation gate, save and select. Against the mock vision backend. |
 | 12 `make demo-check` (U6) | Done | API, proxy and headless-browser checks; see [README](README.md). |
-| 13 3D motion view (U4) | Not started | Needs the 2D view fed by live `rm0-v1` frames first. |
+| 13 3D motion view (U4) | Done (best effort) | Map mode in the Cesium scene with camera presets; position, heading and simulated heave only. Verified with the recorded fixture; live frames still lack positions for tugs and lines. |
+| 14 Intake agent in the UI | Done | Environment intake panel, deterministic summary labeled. |
+| 15 Hardening (U7, partial) | Done | Error boundaries per panel, reduced-motion support, narrow-width layout, per-frame cost test (30 lines, 3 tugs), optional bearer token for REST. |
 
 Verified in headless Chromium (software WebGL) against the running mock servers, plus 41 unit tests, type checking and
 lint. Since the first pass: Cesium is lazy-loaded and split from the app (app code 251 kB, Cesium its own chunk), a

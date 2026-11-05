@@ -1033,7 +1033,7 @@ export interface components {
              * Summary Source
              * @description Source of narration after the code-owned risk headline; null for legacy reports.
              */
-            summary_source?: ("llm" | "deterministic") | null;
+            summary_source?: ("llm" | "deterministic" | "detector") | null;
             /**
              * Narration Note
              * @description Sanitized fallback reason; null when narration succeeds.
@@ -1371,7 +1371,7 @@ export interface components {
             /** Brief */
             brief?: string | null;
             /** Summary Source */
-            summary_source?: ("llm" | "deterministic") | null;
+            summary_source?: ("llm" | "deterministic" | "detector") | null;
             /** Narration Note */
             narration_note?: string | null;
             /** Intake Report Id */
@@ -2334,7 +2334,7 @@ export interface components {
              * Extraction Source
              * @default null
              */
-            extraction_source: ("llm" | "deterministic") | null;
+            extraction_source: ("llm" | "deterministic" | "detector") | null;
             /**
              * Extraction Note
              * @default null

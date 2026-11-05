@@ -74,3 +74,33 @@ def test_responses_image_transport_is_structured_not_base64_in_plain_text():
     provider=llm.OpenAIResponsesLLM('configured','fake',transport=httpx.MockTransport(handler))
     reply=asyncio.run(provider.chat([llm.Message(role='user',content='Inspect',images=[llm.ImageInput(media_type='image/png',data_base64=base64.b64encode(PNG).decode())])]))
     assert reply.text=='{}'
+
+
+def test_trained_detector_proposals_are_projected_boxed_and_unconfirmed(monkeypatch):
+    from mooring.core.schemas.berth_drafts import ImageFitting
+    from mooring_agents.vision import detector
+    kind=refdata.berth(BERTH).fittings[0].kind
+    class FakeDet:
+        version='fake.pt'
+        async def detect_async(self,image):
+            return [(ImageFitting(item_id='DET1',kind=kind,center_px=(50,25),confidence=.8),(40,15,20,20)),
+                    (ImageFitting(item_id='DET2',kind='not-in-catalog',center_px=(10,10),confidence=.9),(0,0,5,5))]
+    monkeypatch.setattr(detector,'get_detector',lambda:FakeDet())
+    response,_=run(VisionMetadata(image_kind='satellite',berth_id=BERTH,georef={'scale_ft_per_px':2},
+        pier_face_start_px=(0,0),pier_face_end_px=(100,0)))
+    assert response.result.extraction_source=='detector'
+    assert [d.bbox_px for d in response.result.detections]==[(40,15,20,20)]
+    assert all(d.needs_confirmation for d in response.result.detections)
+    assert response.result.draft_berth.fittings[0].x_ft==100
+
+
+def test_detector_failure_falls_back_to_catalog(monkeypatch):
+    from mooring_agents.vision import detector
+    monkeypatch.setenv('AGENTS_LLM_PROVIDER','none')
+    class Boom:
+        version='x'
+        async def detect_async(self,image): raise RuntimeError('boom')
+    monkeypatch.setattr(detector,'get_detector',lambda:Boom())
+    response,_=run(VisionMetadata(image_kind='satellite',berth_id=BERTH,georef={'scale_ft_per_px':2},
+        pier_face_start_px=(0,0),pier_face_end_px=(100,0)))
+    assert response.result.extraction_source=='deterministic'

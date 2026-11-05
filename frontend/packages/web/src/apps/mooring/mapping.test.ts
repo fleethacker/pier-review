@@ -80,6 +80,18 @@ describe('ship placement', () => {
     expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(ft(500));
     expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(ft(60));
   });
+
+  it('gives each class its own hull that still spans LOA and beam', () => {
+    const outlines = ['DDG', 'CG', 'LHD', 'CVN'].map((t) => {
+      const pts = hullPoints(800, 100, t);
+      const xs = pts.map((p) => p[0]);
+      const ys = pts.map((p) => p[1]);
+      expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(ft(800));
+      expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(ft(100));
+      return JSON.stringify(pts);
+    });
+    expect(new Set(outlines).size).toBe(4);
+  });
 });
 
 describe('buildScene', () => {
@@ -178,8 +190,9 @@ describe('superstructure', () => {
   it('differs by hull type and stands in for the ship when clicked', () => {
     const ddg = mapping.superstructure({ ...ship, hull_type: 'DDG' } as ShipClass, pose, 6);
     const cvn = mapping.superstructure({ ...ship, hull_type: 'CVN', loa_ft: 1092, beam_ft: 134 } as ShipClass, pose, 6);
-    expect(ddg.length).toBe(3);
-    expect(cvn.length).toBe(2);
+    expect(ddg.length).toBeGreaterThan(8);
+    expect(cvn.length).toBeGreaterThan(8);
+    expect(ddg.length).not.toBe(cvn.length);
     for (const part of [...ddg, ...cvn]) {
       expect(part.selectsId).toBe('ship');
       expect(part.pose.z).toBeGreaterThanOrEqual(6);
@@ -200,9 +213,12 @@ describe('superstructure', () => {
 
   it('puts the carrier island on the starboard side of the ship frame', () => {
     const cvn = mapping.superstructure({ ...ship, hull_type: 'CVN' } as ShipClass, pose, 6);
-    const island = cvn[1];
-    if (island.geometry.type !== 'polygon') throw new Error('expected polygon');
-    expect(island.geometry.points.every((p) => p[1] < 0)).toBe(true);
+    const tall = cvn.filter((e) => e.geometry.type === 'polygon' && e.geometry.heightM >= 5);
+    expect(tall.length).toBeGreaterThan(0);
+    for (const island of tall) {
+      if (island.geometry.type !== 'polygon') throw new Error('expected polygon');
+      expect(island.geometry.points.every((p) => p[1] < 0)).toBe(true);
+    }
   });
 
   it('labels each arrow with the variable name and speed only, in its own color', () => {

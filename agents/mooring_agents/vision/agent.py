@@ -15,6 +15,7 @@ from mooring.core.schemas.berth_drafts import ImageFitting, BerthDraftRequest
 from ..physics.client import ModelingError
 from ..physics.toolkit import PhysicsToolkit
 from ..shared import llm
+from . import detector as bollard_detector
 from .schemas import Detection, VisionMetadata, VisionResponse, VisionResult
 
 DEMO_TEMPLATE = 'NAVSTA-NORFOLK-P12-N'
@@ -46,8 +47,24 @@ async def analyze(image: bytes, filename: str, meta: VisionMetadata, tk: Physics
         if any(not 0 <= point[0] <= dimensions[0] or not 0 <= point[1] <= dimensions[1]
                for point in (meta.pier_face_start_px, meta.pier_face_end_px)):
             raise ModelingError(422, 'Pier-face anchors fall outside the image')
+    boxes = {}
     try:
-        provider = llm.get_llm()
+        det = bollard_detector.get_detector() if anchors and media_type else None
+    except bollard_detector.DetectorUnavailable as exc:
+        det, note = None, f'Trained bollard detector unavailable ({exc}); retained catalog draft.'
+    if det is not None:
+        try:
+            found = [(f, b) for f, b in await det.detect_async(image) if f.kind in {s.kind for s in source.fittings}]
+            if dimensions and any(not 0 <= f.center_px[0] <= dimensions[0] or not 0 <= f.center_px[1] <= dimensions[1] for f, _ in found):
+                raise ValueError('Detected pixel center is outside the image')
+            detections, boxes = [f for f, _ in found], {f.item_id: b for f, b in found}
+            mode = 'detector'
+            note = (f'Trained detector {det.version} proposed {len(detections)} bollards; projected with supplied anchors, '
+                    'all require confirmation. Detector accuracy on berth imagery is not established.')
+        except Exception:
+            detections, boxes, mode, note = [], {}, 'deterministic', 'Bollard detector failed; retained catalog draft.'
+    try:
+        provider = llm.get_llm() if mode == 'deterministic' else None
     except llm.LLMNotConfigured:
         provider = None
     if provider is not None and anchors and media_type:
@@ -81,10 +98,10 @@ async def analyze(image: bytes, filename: str, meta: VisionMetadata, tk: Physics
         if not detections or exc.status != 422:
             raise
         request['image_fittings'] = []
-        detections, mode, note = [], 'deterministic', 'Image geometry rejected by modeling; retained catalog draft.'
+        detections, boxes, mode, note = [], {}, 'deterministic', 'Image geometry rejected by modeling; retained catalog draft.'
         geometry = await tk.draft_berth(request)
     draft = geometry.result.draft_berth
-    annotations = [Detection(item_id=d.item_id, kind=d.kind, bbox_px=None, center_px=d.center_px,
+    annotations = [Detection(item_id=d.item_id, kind=d.kind, bbox_px=boxes.get(d.item_id), center_px=d.center_px,
                              confidence=d.confidence, needs_confirmation=True) for d in detections]
     if not annotations:
         annotations = [Detection(item_id=f.fitting_id, kind=f.kind, bbox_px=None,

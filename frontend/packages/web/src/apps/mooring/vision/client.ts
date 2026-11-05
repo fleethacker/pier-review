@@ -1,4 +1,4 @@
-import { agents, AGENTS_BASE, awaitJob, unwrap } from '../api';
+import { agents, AGENTS_BASE, authHeaders, awaitJob, unwrap } from '../api';
 import type { JobAccepted } from '../types';
 import { friendlyVisionError } from './logic';
 import type { DraftBerth, ImageKind, VisionResponse } from './logic';
@@ -31,7 +31,7 @@ export async function analyzeBerthImage(
   form.set('image', input.image);
   form.set('metadata', JSON.stringify(metadata));
   try {
-    const res = await fetch(`${AGENTS_BASE}/api/v1/berth-vision/analyze`, { method: 'POST', body: form, signal });
+    const res = await fetch(`${AGENTS_BASE}/api/v1/berth-vision/analyze`, { method: 'POST', body: form, signal, headers: authHeaders() });
     if (!res.ok) {
       const detail = (await res.text()).slice(0, 200) || res.statusText;
       throw new VisionHttpError(res.status, friendlyVisionError(res.status, detail));

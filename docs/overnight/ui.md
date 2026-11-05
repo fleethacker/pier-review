@@ -208,9 +208,18 @@ recordings, the data-source and capability panel, berth from an image, Navy/Metr
 backend (mock: it copies the seed Pier 12 berth and says so); environment (mock, "live" mode still serves the mock);
 waves, wake and telemetry (unavailable, never zero).
 
-**Not done:** U4 (3D motion view), live speed control (protocol has none), motion drawn inside the Cesium scene,
-intake agent in the UI, bearer-token support, the accessibility and performance pass in U7 beyond keyboard shortcuts
-and unique keys, 429/503 states for every panel (only the shared error text and the session, vision and sheet paths).
-The live view shows lines, tugs and environment as unavailable until the simulator publishes `rm0-v1` frames and a scene.
+**Done since the first report:** Cesium map mode and 3D camera presets (U4), the intake agent in the UI, per-panel error
+boundaries, reduced-motion support, narrow-width layout, a per-frame cost test, optional bearer token for REST.
+
+**Still not done:**
+- Live speed control: the session protocol has pause, resume and reset only. Needs a new client message from the simulation
+  agent (logged under Requests); the UI shows the control disabled and says why.
+- The map mode cannot draw roll, pitch or a water surface (the scene Pose has neither); it says so on screen.
+- Bearer tokens cover REST and job polling only; WebSocket and EventSource cannot carry headers, so an authenticated
+  deployment needs a trusted gateway.
+- Live frames are still legacy, so live tugs, lines and environment stay "unavailable" until the simulator publishes
+  `rm0-v1` frames and a scene.
+- Full accessibility audit (contrast, screen-reader pass) and a profile of the React render path with real 10 Hz frames in
+  a browser; only the adapter and mapper cost is measured.
 
 **Left unmerged on purpose:** the branch `ui/frontend-updates` has not been merged into `dev`, as asked.

@@ -10,6 +10,7 @@ const stream = vi.hoisted(() => ({
 
 vi.mock('../api', () => ({
   MODELING_BASE: 'http://localhost/api/modeling',
+  authHeaders: () => ({}),
   modeling: { POST: vi.fn() },
   unwrap: <T,>(r: { data: T }) => r.data,
   wsUrl: (_base: string, p: string) => `ws://localhost${p}`,
@@ -271,6 +272,45 @@ describe('live session', () => {
     m.dispose();
     const idle = make();
     expect(idle.pause()).toBe(false);
+  });
+});
+
+describe('map mode', () => {
+  const makeMap = () => ({ enter: vi.fn(), draw: vi.fn(), leave: vi.fn(), shipDims: vi.fn(() => null), setCamera: vi.fn() });
+
+  it('takes over the scene, draws every shown frame, and gives the scene back on close', async () => {
+    const map = makeMap();
+    const m = new MotionController({ ...host, map }, (cb) => raf.push(cb));
+    await m.loadRecording();
+    m.setView('map');
+    expect(map.enter).toHaveBeenCalledTimes(1);
+    expect(map.draw).toHaveBeenCalled(); // the frame already on screen is drawn at once
+    const drawn = map.draw.mock.calls.length;
+    m.seek(20);
+    expect(map.draw.mock.calls.length).toBeGreaterThan(drawn);
+    expect(m.s.notDrawn).toContain('roll and pitch');
+    m.close();
+    expect(map.leave).toHaveBeenCalledTimes(1);
+    expect(m.s.view).toBe('plan');
+  });
+
+  it('does nothing without a map host and returns to the plan view', async () => {
+    const m = make();
+    await m.loadRecording();
+    m.setView('map');
+    expect(m.s.view).toBe('plan');
+    m.dispose();
+  });
+
+  it('gives the scene back if disposed while the map is showing, and forwards camera presets', async () => {
+    const map = makeMap();
+    const m = new MotionController({ ...host, map }, (cb) => raf.push(cb));
+    await m.loadRecording();
+    m.setView('map');
+    m.setCamera('bow');
+    expect(map.setCamera).toHaveBeenCalledWith('bow', { x: expect.any(Number), y: expect.any(Number) });
+    m.dispose();
+    expect(map.leave).toHaveBeenCalledTimes(1);
   });
 });
 

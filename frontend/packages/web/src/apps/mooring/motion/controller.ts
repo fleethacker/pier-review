@@ -1,12 +1,16 @@
 import { Store } from '../../../lib/store';
-import { modeling, MODELING_BASE, unwrap, wsUrl } from '../api';
+import { authHeaders, modeling, MODELING_BASE, unwrap, wsUrl } from '../api';
 import { openJsonStream } from '../streams';
 import type { StreamHandle, StreamStatus } from '../streams';
 import { adaptFrame, frameIndexAt, parseSimMessage } from './frames';
 import type { SimFrame, SimLifecycle, SimRecording, SimScene, Vec2, ViewFrame } from './frames';
+import { motionSceneParts } from './sceneMapper';
+import type { MotionSceneParts, ShipDims } from './sceneMapper';
+import type { CameraPreset } from '../../../scene/types';
 
 export type MotionSource = 'none' | 'live' | 'recording';
 export type LinkState = StreamStatus | 'idle';
+export type ViewKind = 'plan' | 'map';
 
 export const REPLAY_SPEEDS = [0.5, 1, 2, 4, 8] as const;
 const TRAIL_MAX = 600;
@@ -14,6 +18,10 @@ const REPLAY_TICK_MS = 50;
 
 export interface MotionState {
   open: boolean;
+  /** `plan` is the SVG panel; `map` drives the Cesium scene (2D or 3D) and leaves it visible. */
+  view: ViewKind;
+  /** What the map could not draw from the supplied frame. */
+  notDrawn: string[];
   source: MotionSource;
   link: LinkState;
   sessionId: string | null;
@@ -40,6 +48,8 @@ export interface MotionState {
 
 const INITIAL: MotionState = {
   open: false,
+  view: 'plan',
+  notDrawn: [],
   source: 'none',
   link: 'idle',
   sessionId: null,
@@ -63,6 +73,16 @@ const INITIAL: MotionState = {
 /** What the motion view needs from the mooring setup. */
 export interface MotionHost {
   faceBearingDeg(): number | null;
+  /** Drives the shared Cesium scene. Absent in tests and in hosts without a map. */
+  map?: {
+    /** Hide the planning layout and hold the scene for motion. */
+    enter(): void;
+    draw(parts: MotionSceneParts): void;
+    /** Give the scene back to the planning layout. */
+    leave(): void;
+    shipDims(): ShipDims | null;
+    setCamera(preset: CameraPreset, target?: { x: number; y: number }): void;
+  };
   /** Tugs assigned in the current layout and the line numbers it defines: choices for commands before a frame names them. */
   tugIds(): string[];
   lineNumbers(): number[];
@@ -127,6 +147,7 @@ export class MotionController {
    * the few the simulator allows; a recording is simply dropped.
    */
   close(): void {
+    if (this.s.view === 'map') this.setView('plan');
     if (this.s.source === 'live' && this.stream) {
       this.pause();
       this.state.set({ open: false });
@@ -137,6 +158,7 @@ export class MotionController {
   }
 
   dispose(): void {
+    if (this.s.view === 'map') this.host.map?.leave();
     this.disposed = true;
     this.stopEverything();
   }
@@ -164,6 +186,35 @@ export class MotionController {
       const trail = newRun ? [p] : [...s.trail, p].slice(-TRAIL_MAX);
       return { frame, trail, cursorS: frame.tS, lastSequence: frame.sequence ?? s.lastSequence };
     });
+    if (this.s.view === 'map') this.drawMap(frame);
+  }
+
+  private drawMap(frame: ViewFrame): void {
+    const map = this.host.map;
+    if (!map) return;
+    const parts = motionSceneParts(frame, this.s.scene, map.shipDims());
+    map.draw(parts);
+    const key = parts.notDrawn.join('|');
+    if (key !== this.s.notDrawn.join('|')) this.state.set({ notDrawn: parts.notDrawn });
+  }
+
+  /** Switch between the SVG plan panel and the Cesium map (2D or 3D). */
+  setView(view: ViewKind): void {
+    if (view === this.s.view) return;
+    if (view === 'map' && this.host.map) {
+      this.host.map.enter();
+      this.state.set({ view: 'map' });
+      if (this.s.frame) this.drawMap(this.s.frame);
+    } else {
+      this.host.map?.leave();
+      this.state.set({ view: 'plan', notDrawn: [] });
+    }
+  }
+
+  setCamera(preset: CameraPreset): void {
+    const ship = this.s.frame?.ship;
+    // Aim at the ship (feet to meters) when there is one; otherwise keep the current target.
+    this.host.map?.setCamera(preset, ship ? { x: ship.x_ft * 0.3048, y: ship.y_ft * 0.3048 } : undefined);
   }
 
   /** Live path: keep only the newest frame and draw it on the next animation frame. Never queues. */
@@ -192,7 +243,7 @@ export class MotionController {
       return;
     }
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: authHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       this.state.set({ scene: (await res.json()) as SimScene, sceneError: null });
     } catch (e) {

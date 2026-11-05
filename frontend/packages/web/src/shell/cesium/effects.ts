@@ -210,7 +210,9 @@ export class SceneEffects {
   // ---- flow particles ------------------------------------------------------------------------------------
 
   setVectors(vectors: SceneVector[]): void {
-    const flowing = vectors.filter((v) => v.flow);
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    // Streaming particles are decoration; the arrows themselves still show direction and speed.
+    const flowing = reduce ? [] : vectors.filter((v) => v.flow);
     for (const [id, sys] of [...this.flows]) {
       if (!flowing.some((v) => v.id === id)) {
         sys.lines.forEach((l) => this.lines.remove(l));

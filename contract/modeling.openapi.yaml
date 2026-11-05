@@ -4688,10 +4688,11 @@ components:
         horiz_angle_deg:
           type: number
           title: Horiz Angle Deg
-          description: Angle from perpendicular to the ship; breast lines are under 45.
+          description: Angle from perpendicular to the ship at the solved pose, including yaw; breast lines are under 45.
         vert_angle_deg:
           type: number
           title: Vert Angle Deg
+          description: Solved line angle above horizontal at the assessed water level.
         breast_efficiency:
           type: number
           title: Breast Efficiency
@@ -4699,6 +4700,7 @@ components:
         length_ft:
           type: number
           title: Length Ft
+          description: Straight span between lead point and pier fitting at the solved pose; not unstretched paid-out length.
         status:
           type: string
           enum:

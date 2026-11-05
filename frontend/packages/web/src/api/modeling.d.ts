@@ -2558,17 +2558,23 @@ export interface components {
             pct_wll: number;
             /**
              * Horiz Angle Deg
-             * @description Angle from perpendicular to the ship; breast lines are under 45.
+             * @description Angle from perpendicular to the ship at the solved pose, including yaw; breast lines are under 45.
              */
             horiz_angle_deg: number;
-            /** Vert Angle Deg */
+            /**
+             * Vert Angle Deg
+             * @description Solved line angle above horizontal at the assessed water level.
+             */
             vert_angle_deg: number;
             /**
              * Breast Efficiency
              * @description cos(horizontal angle): share of tension that holds the ship in.
              */
             breast_efficiency: number;
-            /** Length Ft */
+            /**
+             * Length Ft
+             * @description Straight span between lead point and pier fitting at the solved pose; not unstretched paid-out length.
+             */
             length_ft: number;
             /**
              * Status

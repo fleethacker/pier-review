@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from mooring.core import access
 from mooring.core.envelopes import new_id
 from mooring.core.schemas import AnalyzeResponse, EnvironmentSnapshot, MooringConfig, MooringLine, Scenario
 
@@ -41,7 +42,31 @@ class PlanRecord:
     holding_tugs: list = field(default_factory=list)
 
 
-PLANS: dict[str, PlanRecord] = {}
+from pydantic import BaseModel, Field
+from ..shared.storage import AgentStore
+
+
+class SavedPlan(BaseModel):
+    """Explicit persistence schema: never serialize the live toolkit/HTTP credentials."""
+    plan: AgentPlan
+    scenario: Scenario
+    env: EnvironmentSnapshot
+    analysis: AnalyzeResponse | None
+    mst: str = "II"
+    events: list[tuple[str, dict]] = Field(default_factory=list)
+    messages: list[tuple[str, dict]] = Field(default_factory=list)
+    holding_tugs: list = Field(default_factory=list)
+
+
+def _save_record(rec):
+    return SavedPlan(**{name: getattr(rec, name) for name in SavedPlan.model_fields})
+
+
+def _load_record(saved):
+    return PlanRecord(**{name: getattr(saved, name) for name in SavedPlan.model_fields})
+
+
+PLANS = AgentStore("agent_plan", SavedPlan, encode=_save_record, decode=_load_record)
 
 
 def _analyze_body(sc: Scenario, cfg: MooringConfig, env: EnvironmentSnapshot, mst: str, tugs: list | None = None) -> dict:
@@ -193,15 +218,29 @@ async def _conditions(tk, sc, cfg, environments, mst, tugs):
     return checks, max(range(len(checks)), key=lambda i: _score(checks[i]))
 
 
-async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
+class EventLog(list):
+    """Keep the replay record and publish each event when it is computed."""
+    def __init__(self, callback=None):
+        super().__init__()
+        self.callback = callback
+
+    def append(self, event):
+        if self.callback:
+            self.callback(*event)
+        super().append(event)
+
+
+async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None = None,
+              scenario: Scenario | None = None, on_event=None) -> PlanRecord:
     if req.constraints:
         raise ModelingError(422, "Planner constraints are not implemented; refusing to ignore them")
     if req.objective != "moor_for_forecast":
         raise ModelingError(422, "Only moor_for_forecast is currently supported")
-    plan_id = new_id("plan")
+    plan_id = plan_id or new_id("plan")
+    access.claim("agent_plan", plan_id)
     tk.plan_id = plan_id
     llm, model_id = _safe()
-    events: list[tuple[str, dict]] = []
+    events: list[tuple[str, dict]] = EventLog(on_event)
     rationale: list[RationaleItem] = []
     open_questions: list[str] = []
     event_no = 0
@@ -212,14 +251,14 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
         events.append(("step", AgentStepEvent(iteration=event_no, thought_summary=summary, tool=tool,
                                                result_id=result_id).model_dump(mode="json")))
 
-    sc = await tk.scenario(req.scenario_id)
+    sc = scenario or await tk.scenario(req.scenario_id)
     ship = await tk.ship(sc.ship_class_id)
     berth = await tk.berth(sc.berth_id)
     other_conditions: list[Any] = []
     if req.intake_report_id:
         try:
             from ..intake.agent import REPORTS
-            report = REPORTS.get(req.intake_report_id)
+            report = REPORTS.get(req.intake_report_id) if access.allowed("agent_report", req.intake_report_id) else None
         except ImportError:
             report = None
         if report is None:
@@ -465,5 +504,8 @@ async def answer(rec: PlanRecord, text: str, tk: PhysicsToolkit) -> AgentMessage
             text=f"At {speed:.0f} kt, gusting {gust:.0f} kt ({'assumed 1.3 times sustained' if speed_match else 'unchanged gust'}), "
                  f"from {changed.wind_from_true_deg:03.0f}, the plan is {_analysis_status(result)}; "
                  f"the governing utilization is {top.pct_wll:.0f}% on {top.element_id}.")
-    rec.messages.append(("message", msg.model_dump(mode="json")))
+    with PLANS.atomic():
+        current = PLANS.get(rec.plan.plan_id, rec)
+        current.messages.append(("message", msg.model_dump(mode="json")))
+        PLANS[rec.plan.plan_id] = current
     return msg

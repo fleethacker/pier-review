@@ -2,6 +2,7 @@
 talk to it over (in-memory) HTTP exactly as they will in deployment."""
 
 import json
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -20,12 +21,40 @@ app.dependency_overrides[get_client] = lambda: ModelingClient(
 client = TestClient(app)
 
 
+def completed_status(url):
+    # Wait for actual worker completion; MOCK_JOB_DELAY_S no longer controls agent work.
+    from mooring_agents.api.state import JOBS
+    job = JOBS.get(url.rsplit('/', 1)[-1])
+    if job.future is not None:
+        job.future.result(timeout=30)
+    status = client.get(url).json()
+    assert status['state'] == 'succeeded', status
+    return status
+
+
+def completed_plan(accepted):
+    completed_status(f"{P}/jobs/{accepted['job_id']}")
+    return accepted['plan_id']
+
+
+@pytest.fixture(scope="module", autouse=True)
+def fixed_environment_clock():
+    # Mock forecast rounds to the hour: freeze the clock so coverage assertions never depend on wall time.
+    from mooring.environment import mock as environment_mock
+    from mooring_agents.intake import core
+    with pytest.MonkeyPatch.context() as patch:
+        now = datetime(2026, 11, 4, 12, tzinfo=UTC)
+        patch.setattr(environment_mock, "utcnow", lambda: now)
+        patch.setattr(core, "utcnow", lambda: now)
+        yield
+
+
 @pytest.fixture(scope="module")
 def plan_id() -> str:
     sid = modeling.post(f"{P}/scenarios", json=EXAMPLES["scenario"]).json()["scenario_id"]
     r = client.post(f"{P}/agent/plans", json={"scenario_id": sid})
     assert r.status_code == 202, r.text
-    return r.json()["plan_id"]
+    return completed_plan(r.json())
 
 
 def test_plan_runs_and_cites_results(plan_id):
@@ -76,7 +105,7 @@ def test_berth_vision_round_trip():
     r = client.post(f"{P}/berth-vision/analyze", files={"image": ("pier.png", b"\x89PNG fake", "image/png")},
                     data={"metadata": json.dumps(meta)})
     assert r.status_code == 202, r.text
-    st = client.get(r.json()["status_url"]).json()
+    st = completed_status(r.json()["status_url"])
     assert st["state"] == "succeeded"
     result = st["result"]["result"]
     assert result["detections"] and result["recommended_config"] and result["questions"]
@@ -114,7 +143,7 @@ def scenario_id() -> str:
 def intake_report(scenario_id) -> IntakeReport:
     r = client.post(f"{P}/intake/reports", json={"scenario_id": scenario_id, "horizon_hours": 12})
     assert r.status_code == 202, r.text
-    report = IntakeReport.model_validate(client.get(r.json()["status_url"]).json()["result"])
+    report = IntakeReport.model_validate(completed_status(r.json()["status_url"])["result"])
     assert client.get(f"{P}/intake/reports/{report.report_id}").status_code == 200
     return report
 
@@ -130,7 +159,7 @@ def test_intake_with_storm_scenario_flags_red_windows():
     envsc = modeling.post(f"{P}/env/scenarios", json=EXAMPLES["env_scenario"]).json()["env_scenario_id"]
     r = client.post(f"{P}/intake/reports", json={"berth_id": "NAVSTA-NORFOLK-P12-N", "ship_class_id": "DDG-51-FIIA",
                                                   "side_to": "starboard", "horizon_hours": 2, "env_scenario_id": envsc})
-    report = IntakeReport.model_validate(client.get(r.json()["status_url"]).json()["result"])
+    report = IntakeReport.model_validate(completed_status(r.json()["status_url"])["result"])
     assert any(w.kind == "gust" and w.severity == "RED" for w in report.windows)
     assert report.mst.mst_required == "II" and not report.mst.exceeds_ship_mst
 
@@ -139,7 +168,7 @@ def test_intake_with_storm_scenario_flags_red_windows():
 def planned(scenario_id, intake_report) -> str:
     r = client.post(f"{P}/agent/plans", json={"scenario_id": scenario_id, "intake_report_id": intake_report.report_id})
     assert r.status_code == 202, r.text
-    return r.json()["plan_id"]
+    return completed_plan(r.json())
 
 
 def test_plan_uses_intake_and_logs_every_tool_call(planned, intake_report):
@@ -170,7 +199,7 @@ def test_physics_gateway_path_params_and_jobs():
 def test_safety_review_and_sheet(planned, intake_report):
     r = client.post(f"{P}/safety/reviews", json={"plan_id": planned, "intake_report_id": intake_report.report_id})
     assert r.status_code == 202, r.text
-    rv = SafetyReview.model_validate(client.get(r.json()["status_url"]).json()["result"])
+    rv = SafetyReview.model_validate(completed_status(r.json()["status_url"])["result"])
     by_id = {c.check_id: c for c in rv.checks}
     assert by_id["CITES-RESOLVE"].passed and by_id["CITES-IN-LEDGER"].passed
     # A WLL envelope with current, pretension and fenders cannot establish a line-breaking speed by square-root scaling.
@@ -199,15 +228,16 @@ def test_supported_demo_chain_preserves_limited_validity_and_forecast_review():
     sid = modeling.post(f'{P}/scenarios', json=body).json()['scenario_id']
     intake = client.post(f'{P}/intake/reports', json={'scenario_id':sid,'horizon_hours':48})
     assert intake.status_code == 202
-    report = client.get(intake.json()['status_url']).json()['result']
+    report = completed_status(intake.json()['status_url'])['result']
     assert not report['windows']
     accepted = client.post(f'{P}/agent/plans', json={'scenario_id':sid,'intake_report_id':report['report_id']})
     assert accepted.status_code == 202, accepted.text
+    completed_plan(accepted.json())
     plan = client.get(f"{P}/agent/plans/{accepted.json()['plan_id']}").json()
     assert plan['status'] == 'AMBER'
     review_job = client.post(f'{P}/safety/reviews', json={'plan_id':plan['plan_id']})
     assert review_job.status_code == 202
-    review = client.get(review_job.json()['status_url']).json()['result']
+    review = completed_status(review_job.json()['status_url'])['result']
     assert review['intake_report_id'] == report['report_id']
     assert review['status'] == 'AMBER' and review['validity']['state'] == 'limited'
     assert review['verdict'] == 'ready_for_signature'
@@ -229,7 +259,7 @@ def test_vision_confirmation_cannot_overwrite_catalog_or_claim_certification(mon
                     data={'metadata': json.dumps({'image_kind': 'satellite', 'berth_id': 'NAVSTA-NORFOLK-P12-N'})})
     assert r.status_code == 202, r.text
     job = r.json()
-    draft = client.get(job['status_url']).json()['result']['result']['draft_berth']
+    draft = completed_status(job['status_url'])['result']['result']['draft_berth']
     original_id = draft['berth_id']
     draft['berth_id'] = 'NAVSTA-NORFOLK-P12-N'
     rejected = client.post(f"{P}/berth-vision/{job['job_id']}/confirm", json={'berth': draft})

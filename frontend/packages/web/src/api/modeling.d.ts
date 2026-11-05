@@ -4533,6 +4533,11 @@ export interface components {
              * @description Explicit tending applied in time order. Nothing is retensioned silently.
              */
             tending?: components["schemas"]["TendingInput"][];
+            /**
+             * Water Level Forecast
+             * @description Optional supplied snapshots covering the whole sweep; only MLLW water levels vary. Linear interpolation is explicitly limited. Absent uses a labeled synthetic training tide.
+             */
+            water_level_forecast?: components["schemas"]["EnvironmentSnapshot"][] | null;
         };
         /** TideSweepResponse */
         TideSweepResponse: {

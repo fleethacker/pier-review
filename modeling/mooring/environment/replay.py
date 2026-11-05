@@ -45,6 +45,7 @@ class Record:
     source: str | None = None
     current_depth_ft: float | None = None
     current_bin: str | None = None
+    original: dict[str, float | str] | None = None
 
 
 @dataclass
@@ -100,8 +101,9 @@ class ReplaySource:
                 if datum not in offsets:
                     raise ReplayError(f"record at {t.isoformat()} is in datum {datum!r}; supply datum_offset_ft[{datum!r}] to convert to MLLW")
                 vals["water_level_ft"] = float(vals["water_level_ft"]) + offsets[datum]
+            original = r.get("original") or {k: v for k, v in r.items() if isinstance(v, (float, int, str))}
             rec = Record(t, {k: float(v) for k, v in vals.items()}, quality, "MLLW", r.get("wind_averaging_s"), r.get("gust_duration_s"),
-                         r.get("wind_reference_height_m"), r.get("source"), r.get("current_depth_ft"), r.get("current_bin"))
+                         r.get("wind_reference_height_m"), r.get("source"), r.get("current_depth_ft"), r.get("current_bin"), original)
             if t in out:
                 old = out[t]
                 if old.values == rec.values:
@@ -150,7 +152,8 @@ class ReplaySource:
             metadata=EnvironmentMetadata(basis=self.basis, source=rec_meta.source or self.station, issued_at_utc=lo.t, valid_from_utc=lo.t, valid_to_utc=hi.t,
                                          wind_averaging_s=rec_meta.wind_averaging_s, gust_duration_s=rec_meta.gust_duration_s,
                                          wind_reference_height_m=rec_meta.wind_reference_height_m, vertical_datum="MLLW", quality=worst, age_s=max(age, 0.0),
-                                         current_depth_ft=rec_meta.current_depth_ft, current_bin=rec_meta.current_bin))
+                                         current_depth_ft=rec_meta.current_depth_ft, current_bin=rec_meta.current_bin,
+                                         original=rec_meta.original))
 
     def series(self, start: datetime, end: datetime, step: timedelta, *, now: datetime | None = None):
         """(time, snapshot | Unavailable) on a regular grid. Unavailable entries stay in place: gaps are never filled."""
@@ -172,5 +175,5 @@ def recorded_fixture_source() -> "ReplaySource":
         import json
         from pathlib import Path
         raw = json.loads((Path(__file__).parent / "fixtures" / "replay_sample.json").read_text())
-        _FIXTURE_SOURCE = ReplaySource(raw, max_gap_s=900, stale_after_s=10**9, station="recorded_fixture", source_kind="replay")
+        _FIXTURE_SOURCE = ReplaySource(raw, max_gap_s=900, stale_after_s=10**9, station="synthetic recorded-format fixture", source_kind="replay", basis="scenario")
     return _FIXTURE_SOURCE

@@ -279,6 +279,7 @@ export class MooringController {
   private analyzeSeq = 0;
   private selectionSeq = 0;
   private scenarioLoadSeq = 0;
+  private envRefreshSeq = 0;
   private analyzeAbort: AbortController | null = null;
   private recommendAbort: AbortController | null = null;
   private readonly candidateContexts = new WeakMap<Candidate, string>();
@@ -426,16 +427,24 @@ export class MooringController {
   }
 
   async refreshEnv(): Promise<void> {
-    try {
-      const [env, envAvailability] = await Promise.all([
-        this.fetchEnv(this.s.berthId),
-        this.fetchEnvAvailability(this.s.berthId).catch(() => null),
-      ]);
-      this.state.set({ env, envAvailability, envError: null });
+    const request = ++this.envRefreshSeq;
+    const { berthId } = this.s;
+    const selection = this.selectionSeq;
+    const intent = this.scenarioLoadSeq;
+    const [snapshot, availability] = await Promise.allSettled([
+      this.fetchEnv(berthId), this.fetchEnvAvailability(berthId),
+    ]);
+    if (this.disposed || request !== this.envRefreshSeq || selection !== this.selectionSeq
+      || intent !== this.scenarioLoadSeq || berthId !== this.s.berthId) return;
+    this.state.set({ envAvailability: availability.status === 'fulfilled' ? availability.value : null });
+    if (snapshot.status === 'fulfilled') {
+      this.state.set({ env: snapshot.value, envError: null });
       this.pushScene('update');
       this.scheduleAnalyze();
-    } catch (e) {
-      this.state.set({ envError: message(e), notice: `Could not refresh environment: ${message(e)}` });
+    } else {
+      const error = message(snapshot.reason);
+      this.state.set({ envError: error, notice: `Could not refresh environment: ${error}` });
+      this.resetAnalysis();
     }
   }
 
@@ -510,7 +519,11 @@ export class MooringController {
     if (!this.s.env) return;
     ++this.scenarioLoadSeq;
     if (this.s.envMode.kind !== 'manual') void this.setEnvMode('manual');
-    this.state.set({ env: { ...this.s.env, ...patch } });
+    this.state.set({ envError: null, env: { ...this.s.env, ...patch,
+      source: 'scenario', valid_at_utc: new Date().toISOString(), quality: [],
+      metadata: { basis: 'scenario', source: 'Manual UI snapshot', quality: 'unknown', components: [] },
+      tide_stage: null, wind_rel_ship_deg: null, current_rel_ship_deg: null,
+    } });
     this.pushScene('update');
     this.scheduleAnalyze();
   }

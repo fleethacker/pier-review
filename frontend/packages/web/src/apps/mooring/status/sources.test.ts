@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Environment } from '../types';
+import type { Environment, EnvironmentAvailability } from '../types';
 import { deriveSources, formatAge, limitedCount } from './sources';
 import type { Capability } from './sources';
 
@@ -56,6 +56,7 @@ describe('deriveSources', () => {
   it('drives forecast status from component availability and never calls a forecast live', () => {
     const base = { berth_id: 'b', checked_at_utc: '2026-11-05T18:00:00Z', complete_snapshot_available: true };
     const prediction = deriveSources({
+      nowMs: Date.parse(base.checked_at_utc),
       env: env({ source: 'live', quality: [] }), envMode: { kind: 'live', status: 'open', detail: null }, capabilities: caps,
       availability: { ...base, components: [{ component: 'forecast', state: 'prediction', source: 'NWS + CO-OPS', basis: 'prediction', age_s: 900, quality: 'good', limitations: [] }] },
     });
@@ -85,6 +86,54 @@ describe('deriveSources', () => {
     const rows = deriveSources({ env: null, envMode: manual, capabilities: null });
     expect(byId(rows, 'wind').state).toBe('unavailable');
     expect(byId(rows, 'forecast').state).toBe('unavailable');
+  });
+});
+
+describe('independent provider availability and selected forcing', () => {
+  const checked = '2026-11-05T18:00:00Z';
+  const availability: EnvironmentAvailability = { berth_id: 'b', checked_at_utc: checked,
+    complete_snapshot_available: false, components: [
+      { component: 'wind', state: 'live', source: 'NOAA wind', basis: 'observation', age_s: 60, age_basis: 'valid_time', quality: 'good' },
+      { component: 'current', state: 'unavailable', source: 'NOAA current bin 4', basis: 'observation', age_s: 2400, reason: 'Current is stale.', quality: 'suspect' },
+      { component: 'water_level', state: 'live', source: 'NOAA tide', basis: 'observation', age_s: null, quality: 'good' },
+      { component: 'forecast', state: 'prediction', source: 'NWS', basis: 'prediction', age_s: 600, quality: 'good' },
+      { component: 'waves', state: 'prediction', source: 'GFS-Wave', basis: 'prediction', age_s: null, quality: 'unknown', limitations: ['Offshore grid; no berth transfer.'] },
+    ] };
+
+  it('reports partial live components even when no complete snapshot can be loaded', () => {
+    const rows = deriveSources({ env: null, availability, envMode: manual, capabilities: null,
+      envError: 'No aligned current', nowMs: Date.parse(checked) + 30000 });
+    expect(byId(rows, 'wind')).toMatchObject({ state: 'live', provider: 'NOAA wind', ageS: 90 });
+    expect(byId(rows, 'gust').provider).toBe('NOAA wind');
+    expect(byId(rows, 'current')).toMatchObject({ state: 'unavailable', ageS: 2430, quality: 'suspect' });
+    expect(byId(rows, 'water').ageS).toBeNull();
+    expect(byId(rows, 'wind').reason).toContain('complete current snapshot is unavailable');
+    expect(byId(rows, 'waves')).toMatchObject({ state: 'prediction', provider: 'GFS-Wave', ageS: null });
+    expect(byId(rows, 'waves').reason).toContain('no berth transfer');
+    expect(byId(rows, 'waves').reason).toContain('does not establish berth applicability');
+  });
+
+  it('does not label an old live current as available after its provider reports stale data', () => {
+    const rows = deriveSources({ env: env({ source: 'live', quality: [] }), availability,
+      envMode: manual, capabilities: null, nowMs: Date.parse(checked) });
+    expect(byId(rows, 'current')).toMatchObject({ state: 'unavailable', provider: 'NOAA current bin 4' });
+    expect(byId(rows, 'current').reason).toContain('Current is stale');
+  });
+
+  it.each([['scenario', 'manual'], ['replay', 'replay'], ['mock', 'mock'], ['forecast', 'prediction'], ['ship_sensor', 'live']] as const)(
+    'retains selected %s forcing while showing public availability separately', (source, expected) => {
+      const rows = deriveSources({ env: env({ source, quality: [] }), availability,
+        envMode: manual, capabilities: null, nowMs: Date.parse(checked) });
+      expect(byId(rows, 'wind').state).toBe(expected);
+      expect(byId(rows, 'wind').provider).not.toBe('NOAA wind');
+      expect(byId(rows, 'wind').availabilityNote).toContain('live · NOAA wind');
+    });
+
+  it('keeps a closed selected feed in error while exposing independent provider availability', () => {
+    const rows = deriveSources({ env: env({ source: 'live', quality: [] }), availability,
+      envMode: { kind: 'live', status: 'closed', detail: null }, capabilities: null, nowMs: Date.parse(checked) });
+    expect(byId(rows, 'wind').state).toBe('error');
+    expect(byId(rows, 'wind').availabilityNote).toContain('NOAA wind');
   });
 });
 

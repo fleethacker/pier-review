@@ -14,7 +14,7 @@ import { MooringController, type Candidate } from './controller';
 import { modeling } from './api';
 import { beginConnection } from '../../scene/linkEditing';
 import { ft } from './units';
-import type { Berth, Environment, ShipClass, TugAssignment } from './types';
+import type { Berth, Environment, EnvironmentAvailability, ShipClass, TugAssignment } from './types';
 
 const berth = {
   berth_id: 'B1',
@@ -68,6 +68,59 @@ function setup() {
   c.pushScene('full');
   return { store, c };
 }
+
+describe('public source and manual forcing separation', () => {
+  const availability = { berth_id: 'B1', checked_at_utc: '2026-11-05T18:00:00Z', complete_snapshot_available: false,
+    components: [{ component: 'wind', state: 'live', source: 'NOAA', basis: 'observation' }] } as EnvironmentAvailability;
+
+  it.each(['live', 'replay', 'forecast'] as const)('manual edits remove %s provider provenance and mark the complete snapshot synthetic', (source) => {
+    const { c } = setup();
+    c.state.set({ envAvailability: availability, envError: 'old provider failure', env: { ...env, source,
+      quality: [{ station_id: 'NOAA', age_s: 42, flags: [] }],
+      metadata: { basis: 'observation', source: 'NOAA', quality: 'good',
+        components: [{ component: 'wind', source: 'NOAA', basis: 'observation', quality: 'good', issued_at_utc: '2026-11-05T18:00:00Z' }] } } });
+    c.setEnv({ wind_gust_kt: 44 });
+    expect(c.state.get().env).toMatchObject({ source: 'scenario', wind_gust_kt: 44, quality: [],
+      metadata: { basis: 'scenario', source: 'Manual UI snapshot', quality: 'unknown', components: [] } });
+    expect(c.state.get().env?.metadata).not.toHaveProperty('issued_at_utc');
+    expect(c.state.get().envAvailability).toBe(availability);
+    expect(c.state.get().envError).toBeNull();
+    c.dispose();
+  });
+
+  it('keeps partial availability when the complete environment request fails', async () => {
+    const { c } = setup();
+    const get = vi.mocked(modeling.GET);
+    get.mockImplementation(async (path) => {
+      if (path === '/api/v1/env/availability') return { data: availability } as never;
+      throw new Error('Current observation missing');
+    });
+    try {
+      await c.refreshEnv();
+      expect(c.state.get().envAvailability).toEqual(availability);
+      expect(c.state.get().env).toEqual(env);
+      expect(c.state.get().envError).toContain('Current observation missing');
+      expect(c.state.get().analysis.response).toBeNull();
+    } finally { get.mockReset(); c.dispose(); }
+  });
+
+  it.each(['manual edit', 'berth selection'])('ignores a late refresh after a newer %s', async (change) => {
+    const { c } = setup();
+    let finish!: (value: unknown) => void;
+    const pending = new Promise((resolve) => { finish = resolve; });
+    const get = vi.mocked(modeling.GET);
+    get.mockImplementation(async (path) => path === '/api/v1/env/now' ? pending as never : { data: availability } as never);
+    try {
+      const refresh = c.refreshEnv();
+      if (change === 'manual edit') c.setEnv({ wind_speed_kt: 4 });
+      else c.state.set({ berthId: 'B2', env: { ...env, wind_speed_kt: 4 } });
+      finish({ data: { ...env, source: 'live', wind_speed_kt: 88 } });
+      await refresh;
+      expect(c.state.get().env?.wind_speed_kt).toBe(4);
+      expect(c.state.get().envAvailability).toBeNull();
+    } finally { get.mockReset(); c.dispose(); }
+  });
+});
 
 beforeEach(() => {
   vi.useFakeTimers();

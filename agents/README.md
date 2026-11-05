@@ -117,7 +117,9 @@ not verified command authority. Concurrent approvals are appended under the stor
 If WeasyPrint reports missing GObject/Pango libraries although Homebrew has installed them, start the stack with the library directory in the child process environment:
 
 ```sh
-DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib make mock
+make mock PDF_LIBRARY_PATH=/opt/homebrew/lib
+# Or for the combined API/UI launcher:
+PDF_LIBRARY_PATH=/opt/homebrew/lib ./app.sh
 ```
 
-Use `/usr/local/lib` instead for an Intel Homebrew installation, and install `pango` first if absent. This does not change the renderer or bypass its checks; it makes the installed libraries discoverable. See [WeasyPrint missing-library troubleshooting](https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#missing-library). A local supported-case intake→plan→review→sheet chain returned HTTP 200 with a 26,175-byte PDF on 4 November 2026. Without the libraries, the API returns explicit 501 and HTML remains available for browser printing.
+Use `/usr/local/lib` instead for an Intel Homebrew installation, and install `pango` first if absent. The Makefile assigns `DYLD_FALLBACK_LIBRARY_PATH` inside the agents recipe: macOS system launchers can strip a `DYLD_` variable set outside `make`. Passing the plain `PDF_LIBRARY_PATH` make variable preserves the requested path until that assignment. This does not change the renderer or bypass its checks; it makes the installed libraries discoverable. See [WeasyPrint missing-library troubleshooting](https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#missing-library). The documented make command was exercised through real TCP services on 5 November 2026: the supported intake→plan→review→approved-sheet flow returned PDF HTTP 200. An outer DYLD assignment instead returned 501 on this macOS host. Without the libraries, the API returns explicit 501 and HTML remains available for browser printing.

@@ -1,5 +1,7 @@
 # Mooring Assistant: Modeling Plan & API Spec
 
+> **Product north star (5 Nov 2026):** a backup camera for ships — predicted trajectory from current state and conditions. See [MASTER_PLAN.md](MASTER_PLAN.md#north-star-a-backup-camera-for-ships); priorities there override this roadmap.
+
 Nov 4, 2026 · Mike Snyder · FLEETHACKER Norfolk 2026
 
 > **Execution authority:** [Remaining modeling development](MODELING_EXECUTION_PLAN.md) contains the reviewed dependency order, work packets and acceptance gates. Use it for implementation. This document retains the product roadmap and historical API sketches; the generated contract defines current payloads. The original external planning artifact is historical and must not overwrite reviewed repository changes.

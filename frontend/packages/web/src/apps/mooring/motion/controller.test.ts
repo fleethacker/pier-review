@@ -336,7 +336,9 @@ it('starts a new session when only the initial offset changes', async () => {
   stream.handlers!.onStatus('open');
   await m.startSession(240);
   expect(modeling.POST).toHaveBeenCalledTimes(2);
-  expect(vi.mocked(modeling.POST).mock.calls.at(-1)?.[1]?.body).toMatchObject({ initial_state: { y_ft: 290 } });
+  // New multipart endpoints widen POST's overloads; read the init argument structurally.
+  const init = vi.mocked(modeling.POST).mock.calls.at(-1)?.[1] as { body?: unknown } | undefined;
+  expect(init?.body).toMatchObject({ initial_state: { y_ft: 290 } });
   m.dispose();
 });
 

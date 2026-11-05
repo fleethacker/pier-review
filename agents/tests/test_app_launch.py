@@ -166,7 +166,9 @@ def test_launcher_service_exit_stops_siblings(launcher, service):
 
 def test_launcher_unhealthy_api_never_starts_ui(launcher):
     path, launch = launcher
-    proc = launch(APP_TEST_UNHEALTHY="agents", APP_STARTUP_TIMEOUT_S="0.5")
+    # Use the fixture's normal startup allowance so a busy host can schedule both
+    # services before testing the unhealthy response, rather than process startup.
+    proc = launch(APP_TEST_UNHEALTHY="agents")
     output, _ = proc.communicate(timeout=10)
     assert proc.returncode == 1, output
     assert "did not become ready" in output

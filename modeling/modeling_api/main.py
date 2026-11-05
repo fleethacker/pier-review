@@ -26,15 +26,18 @@ from mooring.core.schemas import (
     SimLifecycle,
     SimRecording,
     SimScene,
+    SimSpeedMessage,
     SimTugCommandMessage,
     TelemetryAccepted,
+    TransitResponse,
     TelemetryRecord,
 )
 
 from mooring.core.schemas.forecast_planning import ForecastDockingResponse
 from mooring.core.schemas.risk import ExceedanceResponse, TimelineResponse
 
-from .routers import approach, berthing, env, loads, moored, qualification, refdata as refdata_router, system, telemetry
+from .routers import (approach, berthing, env, loads, missions, moored, qualification, refdata as refdata_router, system,
+                      telemetry, transit)
 from .backend import overall_backend
 from .security import Controls
 from .state import API_PREFIX
@@ -51,6 +54,8 @@ TAGS = [
     {"name": "M11 Berthing simulator", "description": "Phase 2: time-domain berthing, batch and interactive."},
     {"name": "M12 Approach", "description": "Phase 3: route, under-keel clearance, approach simulation."},
     {"name": "M13 Telemetry", "description": "Ship sensor ingest for deployment."},
+    {"name": "S5 Missions", "description": "Mission storyboarding: recorded tracks with images and reports located by time."},
+    {"name": "S6 Port transit", "description": "Ships entering or leaving port on own thrust or with tugs (surrogate maneuvering)."},
     {"name": "System", "description": "Jobs, stored results, health."},
 ]
 
@@ -72,15 +77,19 @@ WEBSOCKETS = {
                    "terminal_close_codes": {"1013": "Environment source unavailable; no replacement snapshot is emitted",
                                             "4404": "Scenario/source/reference not found or not owned",
                                             "4400": "Invalid interval, limit or reference"}},
-    "/ws/sim/{session_id}": {"query": "limit",
-                             "client_messages": "SimTugCommandMessage | SimLineEventMessage | SimControlMessage",
-                             "server_messages": "SimFrame (latest state; nominal 10 Hz at default dt)"},
+    "/ws/sim/{session_id}": {"query": "limit (counts all server messages), after_sequence (resend only newer retained lifecycle; the current frame is always sent on connect; a restating lifecycle is sent if history was evicted)",
+                             "client_messages": "SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage",
+                             "server_messages": "SimLifecycle (type=session_lifecycle; reliable, retained) and SimFrame "
+                                                "(rm0-v1, latest state only; sequence gaps are dropped display frames), "
+                                                "interleaved in session-wide sequence order",
+                             "scene": "GET /api/v1/berthing/sessions/{session_id}/scene",
+                             "recording": "GET /api/v1/berthing/sessions/{session_id}/recording"},
     "/ws/telemetry": {"client_messages": "TelemetryRecord", "server_messages": "TelemetryAccepted"},
 }
 JOB_RESULT_MODELS = [ForecastDockingResponse, ExceedanceResponse, TimelineResponse, RecommendResponse,
-                     BerthingSimResponse, ApproachSimResponse]
+                     BerthingSimResponse, ApproachSimResponse, TransitResponse]
 STREAM_MODELS = [*JOB_RESULT_MODELS, EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, SimLineEventMessage, SimControlMessage,
-                 TelemetryRecord, TelemetryAccepted, JobProgressEvent, JobDoneEvent, SimScene, SimLifecycle,
+                 SimSpeedMessage, TelemetryRecord, TelemetryAccepted, JobProgressEvent, JobDoneEvent, SimScene, SimLifecycle,
                  SimRecording]
 
 app = FastAPI(title="Mooring Assistant: Modeling API", version="1.0.0", description=DESCRIPTION,
@@ -134,7 +143,7 @@ async def invalid_reference(_: Request, exc: refdata.InvalidReference):
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
-for r in (env, refdata_router, qualification, loads, moored, berthing, approach, telemetry, system):
+for r in (env, refdata_router, qualification, loads, moored, berthing, approach, telemetry, missions, transit, system):
     app.include_router(r.router, prefix=API_PREFIX)
 app.include_router(ws_router)
 
@@ -151,7 +160,7 @@ def openapi_schema() -> dict:
     schema["x-websockets"] = WEBSOCKETS
     schema["x-motion-contract"] = {
         "schema_version": "rm0-v1",
-        "status": "Schemas and mock fixtures only; live producers retain legacy frames until explicitly upgraded.",
+        "status": "Interactive sessions (POST /berthing/sessions, WS /ws/sim) emit rm0-v1 frames, lifecycle, scene and recording from the live simulator (S1). Batch /berthing/simulate series remain legacy frames.",
         "models": ["SimFrame", "SimScene", "SimLifecycle", "SimRecording"],
         "examples": "contract/examples/modeling/sim_*.json",
         "design": "docs/MOTION_FRAME_DESIGN.md",

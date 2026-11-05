@@ -1,0 +1,370 @@
+{
+ "mission": {
+  "name": "MOCK sample sortie",
+  "vessel_id": "MOCK-001",
+  "ship_class_id": null,
+  "description": "MOCK sample data, not a real mission.",
+  "mission_id": "sample-mission",
+  "created_at_utc": "2026-11-05T13:00:00Z",
+  "fix_count": 16,
+  "media_count": 3,
+  "report_count": 4,
+  "start_utc": "2026-11-05T12:00:00Z",
+  "end_utc": "2026-11-05T12:35:00Z"
+ },
+ "max_interp_gap_s": 300,
+ "stats": {
+  "fix_count": 16,
+  "start_utc": "2026-11-05T12:00:00Z",
+  "end_utc": "2026-11-05T12:35:00Z",
+  "duration_s": 2100,
+  "distance_nm": 1.361,
+  "max_gap_s": 1260,
+  "gaps_over_limit": 1
+ },
+ "track": [
+  {
+   "t_utc": "2026-11-05T12:00:00Z",
+   "lat": 36.95,
+   "lon": -76.33,
+   "heading_true_deg": 60,
+   "cog_true_deg": 60,
+   "sog_kt": 8.5,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:01:00Z",
+   "lat": 36.9509,
+   "lon": -76.3284,
+   "heading_true_deg": 60,
+   "cog_true_deg": 60,
+   "sog_kt": 8.5,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:02:00Z",
+   "lat": 36.9518,
+   "lon": -76.3268,
+   "heading_true_deg": 60,
+   "cog_true_deg": 60,
+   "sog_kt": 8.5,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:03:00Z",
+   "lat": 36.9527,
+   "lon": -76.3252,
+   "heading_true_deg": 60,
+   "cog_true_deg": 60,
+   "sog_kt": 8.5,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:04:00Z",
+   "lat": 36.9536,
+   "lon": -76.3236,
+   "heading_true_deg": 60,
+   "cog_true_deg": 60,
+   "sog_kt": 8.5,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:05:00Z",
+   "lat": 36.9545,
+   "lon": -76.322,
+   "heading_true_deg": 60,
+   "cog_true_deg": 60,
+   "sog_kt": 8.5,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:06:00Z",
+   "lat": 36.9554,
+   "lon": -76.3204,
+   "heading_true_deg": 60,
+   "cog_true_deg": 60,
+   "sog_kt": 8.5,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:07:00Z",
+   "lat": 36.9563,
+   "lon": -76.3188,
+   "heading_true_deg": 60,
+   "cog_true_deg": 60,
+   "sog_kt": 8.5,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:08:00Z",
+   "lat": 36.9572,
+   "lon": -76.3172,
+   "heading_true_deg": 60,
+   "cog_true_deg": 60,
+   "sog_kt": 8.5,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:09:00Z",
+   "lat": 36.9581,
+   "lon": -76.3156,
+   "heading_true_deg": 60,
+   "cog_true_deg": 60,
+   "sog_kt": 8.5,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:30:00Z",
+   "lat": 36.9587,
+   "lon": -76.3144,
+   "heading_true_deg": 45,
+   "cog_true_deg": 45,
+   "sog_kt": 7,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:31:00Z",
+   "lat": 36.9597,
+   "lon": -76.313,
+   "heading_true_deg": 45,
+   "cog_true_deg": 45,
+   "sog_kt": 7,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:32:00Z",
+   "lat": 36.9607,
+   "lon": -76.3116,
+   "heading_true_deg": 45,
+   "cog_true_deg": 45,
+   "sog_kt": 7,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:33:00Z",
+   "lat": 36.9617,
+   "lon": -76.3102,
+   "heading_true_deg": 45,
+   "cog_true_deg": 45,
+   "sog_kt": 7,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:34:00Z",
+   "lat": 36.9627,
+   "lon": -76.3088,
+   "heading_true_deg": 45,
+   "cog_true_deg": 45,
+   "sog_kt": 7,
+   "quality": "good",
+   "source": "MOCK"
+  },
+  {
+   "t_utc": "2026-11-05T12:35:00Z",
+   "lat": 36.9637,
+   "lon": -76.3074,
+   "heading_true_deg": 45,
+   "cog_true_deg": 45,
+   "sog_kt": 7,
+   "quality": "good",
+   "source": "MOCK"
+  }
+ ],
+ "events": [
+  {
+   "kind": "report",
+   "event_id": "rep-0",
+   "t_utc": "2026-11-05T11:50:00Z",
+   "title": "MOCK: pre-sail briefing complete",
+   "body": "Report time is before the first recorded fix, so no position is established.",
+   "tags": [],
+   "located": {
+    "method": "before_track",
+    "validity": {
+     "state": "limited",
+     "reasons": [
+      {
+       "code": "BEFORE_TRACK",
+       "message": "Event precedes the first recorded fix; position not extrapolated.",
+       "affected_components": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "kind": "image",
+   "event_id": "img-1",
+   "t_utc": "2026-11-05T12:03:00Z",
+   "title": "MOCK: pier approach photo",
+   "body": "Camera exact-fix sample.",
+   "media_url": "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"320\" height=\"200\"><rect width=\"320\" height=\"200\" fill=\"%231a3a5c\"/><text x=\"160\" y=\"100\" fill=\"white\" font-size=\"18\" text-anchor=\"middle\">MOCK IMAGE</text></svg>",
+   "tags": [
+    "mock"
+   ],
+   "located": {
+    "method": "exact_fix",
+    "lat": 36.9527,
+    "lon": -76.3252,
+    "fix_before_utc": "2026-11-05T12:03:00Z",
+    "fix_after_utc": "2026-11-05T12:03:00Z",
+    "gap_s": 0,
+    "distance_along_track_nm": 0.281,
+    "sog_kt": 8.5,
+    "heading_true_deg": 60,
+    "stated_lat": 36.9527,
+    "stated_lon": -76.3252,
+    "stated_source": "exif",
+    "discrepancy_m": 0,
+    "validity": {
+     "state": "valid",
+     "reasons": []
+    }
+   }
+  },
+  {
+   "kind": "report",
+   "event_id": "rep-2",
+   "t_utc": "2026-11-05T12:05:30Z",
+   "title": "MOCK: buoy abeam to port",
+   "body": "Stated position is about 180 m from the interpolated track position, so a discrepancy is shown.",
+   "tags": [],
+   "located": {
+    "method": "interpolated",
+    "lat": 36.95495,
+    "lon": -76.3212,
+    "fix_before_utc": "2026-11-05T12:05:00Z",
+    "fix_after_utc": "2026-11-05T12:06:00Z",
+    "gap_s": 60,
+    "distance_along_track_nm": 0.489,
+    "sog_kt": 8.5,
+    "heading_true_deg": 60,
+    "stated_lat": 36.9564,
+    "stated_lon": -76.3254,
+    "stated_source": "report",
+    "discrepancy_m": 180,
+    "validity": {
+     "state": "limited",
+     "reasons": [
+      {
+       "code": "POSITION_DISCREPANCY",
+       "message": "Stated position differs from the track by 180 m.",
+       "affected_components": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "kind": "image",
+   "event_id": "img-3",
+   "t_utc": "2026-11-05T12:20:00Z",
+   "title": "MOCK: photo during recording gap",
+   "tags": [],
+   "media_url": null,
+   "located": {
+    "method": "gap",
+    "fix_before_utc": "2026-11-05T12:09:00Z",
+    "fix_after_utc": "2026-11-05T12:30:00Z",
+    "gap_s": 1260,
+    "validity": {
+     "state": "limited",
+     "reasons": [
+      {
+       "code": "GAP_TOO_LONG",
+       "message": "Bracketing fixes are 21 min apart, longer than the interpolation limit; position not established.",
+       "affected_components": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "kind": "image",
+   "event_id": "img-4",
+   "t_utc": null,
+   "title": "MOCK: photo with no usable time",
+   "tags": [],
+   "located": {
+    "method": "no_time",
+    "validity": {
+     "state": "limited",
+     "reasons": [
+      {
+       "code": "NO_TIME",
+       "message": "No EXIF time and no override supplied.",
+       "affected_components": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "kind": "report",
+   "event_id": "rep-5",
+   "t_utc": "2026-11-05T12:33:00Z",
+   "title": "MOCK: alongside sequence started",
+   "body": "Located exactly on a fix.",
+   "tags": [],
+   "located": {
+    "method": "exact_fix",
+    "lat": 36.9617,
+    "lon": -76.3102,
+    "fix_before_utc": "2026-11-05T12:33:00Z",
+    "fix_after_utc": "2026-11-05T12:33:00Z",
+    "gap_s": 0,
+    "sog_kt": 7,
+    "heading_true_deg": 45,
+    "validity": {
+     "state": "valid",
+     "reasons": []
+    }
+   }
+  },
+  {
+   "kind": "report",
+   "event_id": "rep-6",
+   "t_utc": "2026-11-05T12:50:00Z",
+   "title": "MOCK: lines ashore",
+   "body": "After the last fix.",
+   "tags": [],
+   "located": {
+    "method": "after_track",
+    "validity": {
+     "state": "limited",
+     "reasons": [
+      {
+       "code": "AFTER_TRACK",
+       "message": "Event follows the last recorded fix; position not extrapolated.",
+       "affected_components": []
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "validity": {
+  "state": "limited",
+  "reasons": [
+   {
+    "code": "SAMPLE_DATA",
+    "message": "MOCK fixture, not a recorded mission.",
+    "affected_components": []
+   }
+  ]
+ }
+}

@@ -257,22 +257,46 @@ class SimRecording(Model):
         return self
 
 
+class SimRecordingSummary(Model):
+    """Small saved-recording index entry; frames are fetched separately."""
+
+    recording_id: str
+    session_id: str
+    scene_id: str
+    scene_revision: str
+    duration_s: float = Field(ge=0)
+    frame_count: int = Field(ge=1, le=10000)
+    validity: Validity
+    scene_url: str
+    recording_url: str
+
+
+class SimRecordingList(Model):
+    """Owner-scoped keyset page, ordered by session ID, not creation time."""
+
+    wire_omitted_defaults = {"next_cursor": None}
+    recordings: list[SimRecordingSummary] = Field(max_length=100)
+    next_cursor: str | None = Field(default=None, description="Pass as after_session_id for the next page.")
+
+
 class SimSessionCreate(Model):
-    wire_omitted_defaults = {"dt_s": None, "duration_s": None}
+    wire_omitted_defaults = {"dt_s": None, "duration_s": None, "record_interval_s": None}
     dt_s: float | None = Field(default=None, ge=0.0001, le=1)
     duration_s: float | None = Field(default=None, gt=0, le=7200)
+    record_interval_s: float | None = Field(default=None, ge=0.1, description="Simulation-time interval between recorded frames; absent means 1 s.")
     scenario_id: str
     initial_state: ShipState
 
 
 class SimSessionCreated(Model):
-    wire_omitted_defaults = {"validity": None, "scene_url": None, "protocol": None}
+    wire_omitted_defaults = {"validity": None, "scene_url": None, "protocol": None, "recording_url": None}
 
     session_id: str
     ws_url: str
     validity: Validity | None = None
     scene_url: str | None = Field(default=None, description="Optional immutable SimScene resource; legacy sessions do not expose it.")
     protocol: Literal["rm0-v1"] | None = Field(default=None, description="Present only when the session implements the RM0 stream protocol.")
+    recording_url: str | None = Field(default=None, description="Bounded SimRecording resource for this session (live copy, else persisted).")
 
 
 class SimTugCommandMessage(Model):
@@ -298,6 +322,13 @@ class SimLineEventMessage(Model):
 
 class SimControlMessage(Model):
     type: Literal["pause", "resume", "reset"]
+
+
+class SimSpeedMessage(Model):
+    """Client message: simulated seconds per wall second. The physics step never changes."""
+
+    type: Literal["set_speed"]
+    speed: float = Field(gt=0, le=16)
 
 
 # ---------- M12 Approach ----------

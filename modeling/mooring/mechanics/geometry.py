@@ -34,7 +34,11 @@ def line_wrench(frame: ShipFrame, pose: Pose, lead_ship_xy: tuple[float, float],
 
 
 def pier_reaction(states_and_tensions: list[tuple[LineState, float]]) -> tuple[float, float, float]:
-    """Vector load on a pier fitting from the lines made fast to it (pulled toward the ship)."""
+    """Sum of line pulls on the ship leads, in berth axes (toward the pier).
+
+    The historical function name is retained; negate this vector for the physical
+    load on the pier fitting. Magnitude-only callers are unaffected by that sign.
+    """
     fx = sum(t * s.ux for s, t in states_and_tensions)
     fy = sum(t * s.uy for s, t in states_and_tensions)
     fz = sum(t * s.uz for s, t in states_and_tensions)

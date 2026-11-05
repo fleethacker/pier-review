@@ -81,6 +81,28 @@ export interface Environment {
 
 export type LightPreset = 'dawn' | 'day' | 'dusk' | 'night';
 
+// ---- storyboard: pictures that come up beside a unit as the run plays ----
+
+/**
+ * One beat of the storyboard: a picture and a line or two that appear in a bubble beside a unit at `atS` and stay for
+ * `holdS`, then go. Several can be up at once, one per unit, and a unit's later beats replace its earlier ones.
+ */
+export interface StoryMoment {
+  id: string;
+  /** The unit the bubble hangs beside. Left out: it sits at `at`, or at the scenario's center. */
+  unitId?: string;
+  /** Where it sits when there is no unit. */
+  at?: LonLat;
+  /** When it comes up, seconds into the run. */
+  atS: number;
+  /** How long it stays up, seconds. */
+  holdS: number;
+  title: string;
+  caption?: string;
+  /** The picture: a data URI captured from the map or loaded from a file, or the address of an image. */
+  image?: string;
+}
+
 // ---- red team: random variation and the questions to ask of it ----
 
 export type Dist =
@@ -190,6 +212,8 @@ export interface ScenarioConfig {
   detection?: boolean;
   /** The sea gets rough with the wind: small ships slow down and radar loses low targets in the clutter. */
   seaState?: boolean;
+  /** Pictures and captions that come up beside units as the run plays. Saved with the scenario. */
+  storyboard?: StoryMoment[];
   /** Settings for the Monte Carlo runner. Does not affect the run you watch. */
   redTeam?: RedTeamSpec;
 }

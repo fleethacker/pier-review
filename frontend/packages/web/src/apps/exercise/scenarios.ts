@@ -1,4 +1,5 @@
 import { LARGE_SCENARIOS } from './scenariosLarge';
+import { stock } from './stockImages';
 import { at, minefield, OCEAN_CENTER, station, wp } from './scenarioKit';
 import { offsetM } from './geo';
 import type { LonLat, RedTeamSpec, ScenarioConfig, UnitConfig, Waypoint } from './types';
@@ -339,6 +340,17 @@ const salvoDefense: ScenarioConfig = {
       launch: { byId: from, atS: 330 + i * 6 },
       behavior: { type: 'strike', targetId: 'cg1' },
     })),
+  ],
+  storyboard: [
+    { id: 'sb1', atS: 0, holdS: 120, at: OCEAN_CENTER, title: 'Carrier group on station', caption: 'The task group steams east at 18 knots. A hostile destroyer is over the horizon to the north.', image: stock.formation },
+    { id: 'sb2', unitId: 'cvn1', atS: 90, holdS: 120, title: 'Carrier 1 — flight quarters', caption: 'The plane guard helicopter takes station on the quarter.', image: stock.carrier },
+    { id: 'sb3', unitId: 'rdd1', atS: 210, holdS: 110, title: 'Hostile destroyer — closing', caption: 'Steady on 180, inside missile range of the group.', image: stock.bridge },
+    { id: 'sb4', unitId: 'rdd1', atS: 300, holdS: 130, title: 'Salvo away', caption: 'T+00:05:00  Eight anti-ship missiles leave the hostile destroyer, four seconds apart.', image: stock.launch },
+    { id: 'sb5', unitId: 'rf1', atS: 330, holdS: 110, title: 'Raiders join', caption: 'Two aircraft add their own missiles, aimed at the cruiser.', image: stock.jet },
+    { id: 'sb6', unitId: 'ddg1', atS: 470, holdS: 110, title: 'Destroyer 1 — engaging', caption: 'T+00:08:01  The screen takes the leaders of the salvo one by one.', image: stock.destroyer },
+    { id: 'sb7', unitId: 'cg1', atS: 520, holdS: 100, title: 'Cruiser 1 — engaging', caption: 'Every shot that misses leaves one more missile running at the carrier.', image: stock.launch },
+    { id: 'sb8', unitId: 'cvn1', atS: 546, holdS: 200, title: 'Carrier 1 — hit', caption: 'T+00:09:06  One of the eight gets through. 340 of 400 hit points left.', image: stock.burning },
+    { id: 'sb9', atS: 820, holdS: 240, at: OCEAN_CENTER, title: 'What it cost', caption: 'Seven of ten missiles shot down, one hit, two spent. Open Red team to ask how often it goes this way.', image: stock.satellite },
   ],
   redTeam: {
     runs: 60,

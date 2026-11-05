@@ -41,6 +41,17 @@ class FakeMap {
   on(event: string, fn: Handler) {
     this.handlers.set(event, [...(this.handlers.get(event) ?? []), fn]);
   }
+  once(event: string, fn: Handler) {
+    const wrapped: Handler = (e) => {
+      this.handlers.set(event, (this.handlers.get(event) ?? []).filter((h) => h !== wrapped));
+      fn(e);
+    };
+    this.on(event, wrapped);
+  }
+  triggerRepaint() {
+    this.repaints++;
+  }
+  repaints = 0;
   fire(event: string, payload?: unknown) {
     this.handlers.get(event)?.forEach((h) => h(payload));
   }
@@ -103,15 +114,39 @@ class FakeMap {
   }
 }
 
+class FakeMarker {
+  static instances: FakeMarker[] = [];
+  lngLat: [number, number] | null = null;
+  removed = false;
+  element: HTMLElement;
+  constructor(options: { element: HTMLElement }) {
+    this.element = options.element;
+    FakeMarker.instances.push(this);
+  }
+  setLngLat(at: [number, number]) {
+    this.lngLat = at;
+    return this;
+  }
+  addTo() {
+    return this;
+  }
+  remove() {
+    this.removed = true;
+    return this;
+  }
+}
+
 const fakeMapbox = {
   accessToken: '',
   Map: FakeMap,
+  Marker: FakeMarker,
   NavigationControl: class {},
   ScaleControl: class {},
 } as unknown as ConstructorParameters<typeof ExerciseMapView>[1];
 
 function setup(initial = PRESET_SCENARIOS[0]) {
   FakeMap.instances.length = 0;
+  FakeMarker.instances.length = 0;
   const controller = new ExerciseController(undefined, initial);
   const problems: MapProblem[] = [];
   const view = new ExerciseMapView(document.createElement('div'), fakeMapbox, 'pk.test.token', controller, (p) => problems.push(p));
@@ -534,6 +569,105 @@ describe('ExerciseMapView', () => {
     expect(features.every((f) => typeof f.properties.hit === 'boolean')).toBe(true);
     controller.clearRunOverlay();
     expect(data('ex-runs')).toEqual([]);
+  });
+
+  describe('storyboard bubbles', () => {
+    const salvo = () => PRESET_SCENARIOS.find((p) => p.id === 'salvo-defense')!;
+    const live = () => FakeMarker.instances.filter((m) => !m.removed);
+
+    it('puts a bubble up at its moment and takes it down when its time is past', () => {
+      const { map, controller } = setup(salvo());
+      map.fire('style.load');
+      const first = controller.storyboard()[0];
+      expect(live()).toHaveLength(1);
+      expect(live()[0].element.textContent).toContain(first.title);
+      controller.seek(first.atS + first.holdS + 60);
+      expect(live().some((m) => m.element.textContent?.includes(first.title))).toBe(false);
+    });
+
+    it('moves the bubble with the unit it hangs on, without building it again', () => {
+      const { map, controller } = setup(salvo());
+      map.fire('style.load');
+      const onCarrier = controller.storyboard().find((m) => m.unitId === 'cvn1')!;
+      controller.seek(onCarrier.atS + 5);
+      const marker = live().find((m) => m.element.textContent?.includes(onCarrier.title))!;
+      const was = marker.lngLat!;
+      const count = FakeMarker.instances.length;
+      controller.seek(onCarrier.atS + 40);
+      expect(marker.lngLat![0]).not.toBe(was[0]);
+      expect(FakeMarker.instances).toHaveLength(count);
+    });
+
+    it('fades the bubble in and out rather than snapping it on', () => {
+      const { map, controller } = setup(salvo());
+      map.fire('style.load');
+      const m = controller.storyboard()[0];
+      controller.seek(m.atS + 1);
+      const faint = Number(live()[0].element.style.opacity);
+      controller.seek(m.atS + m.holdS / 2);
+      expect(Number(live()[0].element.style.opacity)).toBeGreaterThan(faint);
+      expect(Number(live()[0].element.style.opacity)).toBe(1);
+    });
+
+    it('shows nothing when the bubbles are switched off, and brings them back when they are on again', () => {
+      const { map, controller } = setup(salvo());
+      map.fire('style.load');
+      expect(live().length).toBeGreaterThan(0);
+      controller.setView({ showStory: false });
+      expect(live()).toHaveLength(0);
+      controller.setView({ showStory: true });
+      expect(live().length).toBeGreaterThan(0);
+    });
+
+    it('builds the bubble again when its words or picture change', () => {
+      const { map, controller } = setup(salvo());
+      map.fire('style.load');
+      const id = controller.storyboard()[0].id;
+      controller.patchMoment(id, { title: 'Changed title' });
+      expect(live()[0].element.textContent).toContain('Changed title');
+    });
+
+    it('opens the moment in the panel when its bubble is clicked', () => {
+      const { map, controller } = setup(salvo());
+      map.fire('style.load');
+      const first = controller.storyboard()[0];
+      live()[0].element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(controller.state.get().storyOpen).toBe(true);
+      expect(controller.state.get().focusedMomentId).toBe(first.id);
+    });
+
+    it('takes every bubble away when the view is disposed', () => {
+      const { map, view } = setup(salvo());
+      map.fire('style.load');
+      expect(live().length).toBeGreaterThan(0);
+      view.dispose();
+      expect(live()).toHaveLength(0);
+    });
+  });
+
+  describe('capturing the map', () => {
+    it('hands the controller a way to photograph the map, and takes it back on dispose', async () => {
+      const { map, controller, view } = setup();
+      map.fire('style.load');
+      expect(controller.state.get().canCapture).toBe(true);
+      view.dispose();
+      expect(controller.state.get().canCapture).toBe(false);
+    });
+
+    it('reads the pixels inside a render, because the buffer is cleared after one', async () => {
+      const { map, controller } = setup();
+      map.fire('style.load');
+      const drawn: unknown[] = [];
+      const out = { width: 0, height: 0, getContext: () => ({ drawImage: (...a: unknown[]) => drawn.push(a) }), toDataURL: () => 'data:image/jpeg;base64,MAP' };
+      vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => (tag === 'canvas' ? out : document.createElementNS('http://www.w3.org/1999/xhtml', tag)) ) as never);
+      const id = controller.addMoment({ atS: 0 });
+      const done = controller.captureInto(id);
+      map.fire('render');
+      expect(await done).toBe(true);
+      expect(controller.storyboard().find((m) => m.id === id)!.image).toBe('data:image/jpeg;base64,MAP');
+      expect(drawn).toHaveLength(1);
+      vi.restoreAllMocks();
+    });
   });
 
   it('hides ship names on request', () => {

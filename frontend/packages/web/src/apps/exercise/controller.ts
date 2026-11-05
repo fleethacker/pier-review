@@ -11,8 +11,11 @@ import { defaultRedTeam, prepareRun, runMonteCarlo, validateRedTeam } from './mo
 import type { McResult } from './montecarlo';
 import { runTracks } from './scene';
 import { runScenario, statesAt, validateScenario } from './sim';
+import { autoStoryboard, defaultHoldS, inOrder, nextMomentId, validateStoryboard } from './storyboard';
+import type { AutoOptions } from './storyboard';
+import { pickStock, stock } from './stockImages';
 import type { Trajectory } from './sim';
-import type { Behavior, ClassId, Environment, LonLat, RedTeamSpec, ScenarioConfig, UnitConfig, UnitState, Waypoint } from './types';
+import type { Behavior, ClassId, Environment, LonLat, RedTeamSpec, ScenarioConfig, StoryMoment, UnitConfig, UnitState, Waypoint } from './types';
 
 export type FollowMode = 'off' | 'follow' | 'chase' | 'orbit';
 export const PLAYBACK_RATES = [1, 5, 10, 30, 60, 120, 300, 600];
@@ -111,6 +114,12 @@ export interface ExerciseState {
   presenting: boolean;
   /** The red-team panel is open. */
   redTeamOpen: boolean;
+  /** The storyboard panel is open. */
+  storyOpen: boolean;
+  /** The beat being edited, which the panel scrolls to. */
+  focusedMomentId: string | null;
+  /** The map is up and can be photographed for a storyboard moment. */
+  canCapture: boolean;
   mc: McUi;
   /** A finished batch kept to compare the next one against. */
   baseline: Baseline | null;
@@ -151,6 +160,9 @@ export class ExerciseController {
       rate: 30,
       presenting: false,
       redTeamOpen: false,
+      storyOpen: false,
+      focusedMomentId: null,
+      canCapture: false,
       mc: MC_IDLE,
       baseline: null,
       runOverlay: null,
@@ -418,6 +430,10 @@ export class ExerciseController {
           u.disabled = true;
         }
       }
+      // Storyboard beats that hung on it stay, pinned to where it was, rather than vanishing with it.
+      if (d.storyboard?.length) {
+        d.storyboard = d.storyboard.map((m) => (m.unitId === id ? { ...m, unitId: undefined, at: m.at ?? d.center } : m));
+      }
     });
   }
 
@@ -508,6 +524,130 @@ export class ExerciseController {
       const u = d.units.find((x) => x.id === id);
       if (u?.behavior.type === 'route') u.behavior.waypoints.splice(index, 1);
     });
+  }
+
+  // ---- storyboard ----
+
+  /** Takes a picture of the map as it looks now. Set by the map view when it starts; absent until then. */
+  private capture: ((maxWidth?: number, quality?: number) => Promise<string>) | null = null;
+
+  setCapture(fn: ((maxWidth?: number, quality?: number) => Promise<string>) | null): void {
+    this.capture = fn;
+    if (!this.disposed) this.state.set({ canCapture: fn !== null });
+  }
+
+  toggleStoryboard(open?: boolean): void {
+    this.state.set((s) => ({ storyOpen: open ?? !s.storyOpen }));
+  }
+
+  storyboard(): StoryMoment[] {
+    return this.state.get().scenario.storyboard ?? [];
+  }
+
+  storyboardProblems(): string[] {
+    const s = this.state.get().scenario;
+    return validateStoryboard(s, s.storyboard ?? []);
+  }
+
+  /**
+   * Change the storyboard. Pictures and captions do not change how the run goes, so this never re-runs the simulation; it
+   * puts the new beats on both the scenario being edited and the run on screen.
+   */
+  private editStory(change: (moments: StoryMoment[]) => StoryMoment[]): void {
+    this.state.set((s) => {
+      const moments = inOrder(change(s.scenario.storyboard ?? []));
+      return {
+        scenario: { ...s.scenario, storyboard: moments },
+        active: { ...s.active, scenario: { ...s.active.scenario, storyboard: moments } },
+      };
+    });
+  }
+
+  setStoryboard(moments: StoryMoment[]): void {
+    this.editStory(() => moments);
+  }
+
+  /** Build a storyboard from what happens in the run on screen, with a stock picture on each beat. */
+  generateStoryboard(options: AutoOptions = {}): void {
+    const { active } = this.state.get();
+    const moments = autoStoryboard(active.scenario, active.trajectory, {
+      picture: (event, unitId) => {
+        const unit = unitId ? active.scenario.units.find((u) => u.id === unitId) : undefined;
+        // The opening beat matches no event and no unit, so it gets the general one.
+        return pickStock(event, unit?.classId)?.url ?? stock.formation;
+      },
+      ...options,
+    });
+    this.editStory(() => moments);
+    this.state.set({ focusedMomentId: moments[0]?.id ?? null });
+  }
+
+  /** Add a beat at the moment on the clock, on the selected unit. */
+  addMoment(patch: Partial<StoryMoment> = {}): string {
+    const s = this.state.get();
+    const id = patch.id ?? nextMomentId(s.scenario.storyboard ?? []);
+    const unitId = patch.unitId ?? s.selectedId ?? undefined;
+    const unit = unitId ? s.scenario.units.find((u) => u.id === unitId) : undefined;
+    const moment: StoryMoment = {
+      id,
+      unitId: unit?.id,
+      at: unit ? undefined : s.scenario.center,
+      atS: Math.round(this.clock.timeS),
+      holdS: defaultHoldS(s.scenario.durationS),
+      title: unit ? unit.name : 'New moment',
+      ...patch,
+    };
+    this.editStory((moments) => [...moments, moment]);
+    this.state.set({ focusedMomentId: id });
+    return id;
+  }
+
+  patchMoment(id: string, patch: Partial<StoryMoment>): void {
+    this.editStory((moments) =>
+      moments.map((m) => {
+        if (m.id !== id) return m;
+        const next = { ...m, ...patch };
+        // A beat hangs on a unit or on a spot, not both.
+        if (next.unitId) delete next.at;
+        else if (!next.at) next.at = this.state.get().scenario.center;
+        if (!next.caption) delete next.caption;
+        if (!next.image) delete next.image;
+        return next;
+      }),
+    );
+  }
+
+  removeMoment(id: string): void {
+    this.editStory((moments) => moments.filter((m) => m.id !== id));
+    this.state.set((s) => ({ focusedMomentId: s.focusedMomentId === id ? null : s.focusedMomentId }));
+  }
+
+  /** Open a beat in the panel and wind the clock to it, so clicking a bubble shows what it is about. */
+  focusMoment(id: string): void {
+    const m = this.storyboard().find((x) => x.id === id);
+    if (!m) return;
+    this.state.set({ storyOpen: true, focusedMomentId: id, selectedId: m.unitId ?? null });
+    this.clock.seek(m.atS);
+  }
+
+  /** Take a picture of the map as it looks now and put it on a beat. Returns false if the map cannot be captured. */
+  async captureInto(id: string): Promise<boolean> {
+    if (!this.capture) return false;
+    const image = await this.capture();
+    if (this.disposed) return false;
+    this.patchMoment(id, { image });
+    return true;
+  }
+
+  clearStoryboardImages(): void {
+    this.editStory((moments) =>
+      moments.map((m) => {
+        if (!m.image) return m;
+        const next = { ...m };
+        delete next.image;
+        return next;
+      }),
+    );
   }
 
   // ---- red team ----

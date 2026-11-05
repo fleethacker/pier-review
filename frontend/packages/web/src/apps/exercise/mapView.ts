@@ -5,8 +5,11 @@ import { styleById } from './mapStyles';
 import { boundsOf, buildFrameData, buildStaticData, groupStates } from './scene';
 import type { FollowMode } from './controller';
 import { statesAt } from './sim';
+import { SIDE_COLORS } from './ships';
+import { createBubble, momentAnchor, momentsAt } from './storyboard';
 
 type MapboxModule = typeof import('mapbox-gl').default;
+type Marker = import('mapbox-gl').Marker;
 
 export interface MapProblem {
   /** 'token' means nothing will load until the token changes; 'quota' means Mapbox is refusing some requests; 'webgl' means the browser took the graphics context away. */
@@ -43,6 +46,10 @@ export class ExerciseMapView {
   private offClock: () => void;
   private resizer: ResizeObserver | null = null;
 
+  private readonly mapbox: MapboxModule;
+  /** The bubble on the map for each storyboard beat that is up, by beat id. */
+  private bubbles = new Map<string, { marker: Marker; el: HTMLElement }>();
+
   constructor(
     container: HTMLElement,
     mapbox: MapboxModule,
@@ -52,6 +59,7 @@ export class ExerciseMapView {
   ) {
     const state = controller.state.get();
     this.prev = state;
+    this.mapbox = mapbox;
     mapbox.accessToken = token;
     this.map = new mapbox.Map({
       container,
@@ -85,9 +93,12 @@ export class ExerciseMapView {
     }
     this.offStore = controller.state.subscribe(this.onStore);
     this.offClock = controller.clock.subscribe(this.draw);
+    controller.setCapture(this.capture);
   }
 
   dispose(): void {
+    this.controller.setCapture(null);
+    this.clearBubbles();
     this.offStore();
     this.offClock();
     cancelAnimationFrame(this.orbiting);
@@ -168,6 +179,8 @@ export class ExerciseMapView {
       this.refreshStatic();
     }
     if (now.runOverlay !== was.runOverlay) setRunTracks(this.map, now.runOverlay?.tracks ?? []);
+    // A beat whose picture or words changed has to be built again, so drop its bubble and let the next frame remake it.
+    if (now.active.scenario.storyboard !== was.active.scenario.storyboard || now.view.showStory !== was.view.showStory) this.clearBubbles();
     if (now.scenarioRevision !== was.scenarioRevision) this.fitAll(true, { group: true });
     else if (now.fitRevision !== was.fitRevision) this.fitAll(true);
     if (now.follow !== was.follow) this.setOrbiting(now.follow);
@@ -178,6 +191,7 @@ export class ExerciseMapView {
       now.selectedId !== was.selectedId ||
       now.view !== was.view ||
       now.follow !== was.follow ||
+      now.active.scenario.storyboard !== was.active.scenario.storyboard ||
       now.scenarioRevision !== was.scenarioRevision ||
       now.fitRevision !== was.fitRevision;
     if (changed) this.draw();
@@ -193,8 +207,75 @@ export class ExerciseMapView {
     const s = this.controller.state.get();
     const t = this.controller.clock.timeS;
     setFrameData(this.map, buildFrameData(s.active.scenario, s.active.trajectory, t, s.view, s.selectedId));
+    this.syncBubbles(t);
     this.keepCentered(s.follow, s.selectedId, t);
   };
+
+  /**
+   * A picture of the map as it looks now, as a JPEG data URI. The drawing buffer is cleared after every frame, so the pixels
+   * are read inside a render rather than after one, and scaled down on the way out to keep the scenario file small.
+   */
+  capture = (maxWidth = 520, quality = 0.72): Promise<string> =>
+    new Promise<string>((resolve, reject) => {
+      const source = this.map.getCanvas();
+      this.map.once('render', () => {
+        try {
+          const scale = Math.min(1, maxWidth / source.width);
+          const out = document.createElement('canvas');
+          out.width = Math.max(1, Math.round(source.width * scale));
+          out.height = Math.max(1, Math.round(source.height * scale));
+          const ctx = out.getContext('2d');
+          if (!ctx) throw new Error('This browser would not give a drawing context to copy the map into.');
+          ctx.drawImage(source, 0, 0, out.width, out.height);
+          resolve(out.toDataURL('image/jpeg', quality));
+        } catch (e) {
+          reject(e instanceof Error ? e : new Error(String(e)));
+        }
+      });
+      this.map.triggerRepaint();
+    });
+
+  private clearBubbles(): void {
+    for (const b of this.bubbles.values()) b.marker.remove();
+    this.bubbles.clear();
+  }
+
+  /**
+   * Put a bubble beside each unit that has a storyboard beat up at `timeS`, move the ones already there, and take away the
+   * ones whose time is past. Markers are kept between frames so scrubbing does not rebuild the DOM on every tick.
+   */
+  private syncBubbles(timeS: number): void {
+    const s = this.controller.state.get();
+    const { scenario, trajectory } = s.active;
+    const moments = s.view.showStory ? (scenario.storyboard ?? []) : [];
+    const live = moments.length ? momentsAt(moments, timeS) : [];
+    const wanted = new Set<string>();
+
+    for (const { moment, opacity } of live) {
+      const at = momentAnchor(scenario, trajectory, moment, timeS);
+      if (!at) continue;
+      wanted.add(moment.id);
+      let held = this.bubbles.get(moment.id);
+      if (!held) {
+        const unit = moment.unitId ? scenario.units.find((u) => u.id === moment.unitId) : undefined;
+        const el = createBubble(moment, {
+          color: unit ? SIDE_COLORS[unit.side] : '#7ad7ff',
+          onClick: () => this.controller.focusMoment(moment.id),
+        });
+        const marker = new this.mapbox.Marker({ element: el, anchor: 'bottom', offset: [0, -14] }).setLngLat([at.lon, at.lat]).addTo(this.map);
+        held = { marker, el };
+        this.bubbles.set(moment.id, held);
+      }
+      held.marker.setLngLat([at.lon, at.lat]);
+      held.el.style.opacity = String(opacity);
+    }
+
+    for (const [id, b] of this.bubbles) {
+      if (wanted.has(id)) continue;
+      b.marker.remove();
+      this.bubbles.delete(id);
+    }
+  }
 
   private orbiting = 0;
   private lastOrbitMs = 0;

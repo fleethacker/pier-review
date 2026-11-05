@@ -148,10 +148,11 @@ the tab says so if Mapbox refuses.
 - Decoys: a ship can carry decoys and jammers. Each missile or torpedo that gets close uses one up and may be led away.
 - Submarines and torpedoes: a submarine is drawn as a dark hull and sail, heard rather than seen, and fires torpedoes that run
   under the water. Ship missile defences cannot shoot torpedoes; decoys are the defence.
+- Storyboard: pictures and captions that come up beside units as the run plays. See below.
 - Playback: play, pause, restart, scrub, 1x to 600x. Camera: fit all, follow, chase, orbit (circles the selected ship, or
   the whole group), and **Present**, which hides the panels and fills the screen with the map plus a minimal HUD (Esc
   exits). The view opens with a fly-in to the main group. View: ship size exaggeration (so ships read when zoomed
-  out), wake length, names, routes, sensor ring.
+  out), wake length, names, routes, sensor ring, storyboard bubbles.
 - Look: the light preset (dawn, day, dusk, night) lights the sea, and at dusk and night the ships' navigation and deck
   lights glow. Dusk and night are the most dramatic; the presets use them.
 
@@ -179,6 +180,36 @@ while placing waypoints, in a replay, and for units that are launched rather tha
 saves the map as a WebM video (the map itself; panels and labels are not in the picture, and it needs a recent Chrome, Edge
 or Firefox). The **Events** tab at the
 bottom lists launches, hits, interceptions and losses in words (click one to jump to it) and the timeline marks them.
+
+### Storyboard: pictures that come up as it plays
+
+Exercises are usually storyboarded by hand, as images on slides. This does the same job against the running simulation.
+A **storyboard** is a list of moments, each a picture and a line or two pinned to a time and to a unit. As the run plays,
+each moment comes up in a bubble beside its unit, stays for as long as it is given, then fades; a later moment on the same
+unit replaces an earlier one, and different units can have bubbles up at the same time.
+
+- **Build from the run.** The **Storyboard** button in the map toolbar opens the panel. *Build from the run* picks the
+  moments worth telling — losses, hits, mine strikes, first contacts, launches — ranks them, spreads them across the units
+  so no one ship takes them all, writes a caption for each from what happened, and puts a fitting stock picture on it. Say
+  how many moments you want. It is a starting point to edit, not a finished product.
+- **Pictures.** Three ways: **capture the map** as it looks at that instant (the picture is taken inside a render, scaled
+  down and kept in the scenario); **load a picture** from a file, which is scaled the same way; or pick one of the
+  **stock pictures**. The stock set is thirteen public-domain photographs — carriers, destroyers, a frigate, a submarine,
+  a missile launch at night, aircraft, a drone, damage control, a bridge watch, replenishment, and the sea from orbit —
+  taken from Wikimedia Commons, nearly all United States Navy work, which is public domain as work of the federal
+  government. Each one's source, author and licence are recorded in `stockImages.ts` and shown in the picker.
+- **Editing.** Every moment has a title, a caption, a time, how long it stays up, and the unit it hangs on (or a spot on
+  the map, for scene-setting). Click a bubble on the map to open that moment; click a moment to wind the clock to it.
+- **On the page.** The **Storyboard** tab at the bottom shows the whole thing as a strip that runs with the clock: the
+  moment that is up is lit and scrolled to, past ones are solid, ones still to come are dimmed. Click a card to jump to it.
+  The moments also appear as marks above the timeline.
+- **Out of the app.** *Storyboard to print* opens the whole thing as a page laid out two cards to a row, which prints or
+  saves to PDF from the browser — the direct replacement for the slide deck. *Download the page* saves the same file.
+
+Pictures you capture or load are kept inside the scenario, so a scenario travels as one file with its storyboard in it;
+the panel shows how much they weigh, since the shared library refuses a scenario over about a megabyte. Stock pictures
+are references, so they cost nothing to save. **Missile salvo on a carrier group** ships with a nine-moment storyboard,
+so the feature can be seen without building one.
 
 ### Red team: how likely is it?
 
@@ -231,8 +262,8 @@ purpose: speed and turn rate are limited per class, and escorts hold station wit
 turns need a slow guide turn rate (see `maxTurnRateDegPerS` in the presets), because an escort 1.5 km abeam cannot keep
 up with a guide that turns on a 300 m radius.
 
-Tests cover the simulation (including the engagements, sensors and the Monte Carlo statistics), the scenario JSON, the map
-view (against a fake Mapbox), the panels, and the server's library, token and error endpoints. `npm run test:e2e` drives a
+Tests cover the simulation (including the engagements, sensors and the Monte Carlo statistics), the storyboard, the
+scenario JSON, the map view (against a fake Mapbox), the panels, and the server's library, token and error endpoints. `npm run test:e2e` drives a
 production build and the real modeling service in headless Chromium (software WebGL, so it checks that things load and work,
 not how the map looks); it needs Playwright, which is not a dependency: `npm i --no-save playwright && npx playwright install chromium`.
 Browser problems (uncaught errors, a lost WebGL context, a refused token) are sent to the modeling service's log under the

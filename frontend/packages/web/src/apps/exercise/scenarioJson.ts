@@ -6,6 +6,7 @@ import type {
   Dist,
   LightPreset,
   OutcomeSpec,
+  StoryMoment,
   PerturbTarget,
   Perturbation,
   RedTeamSpec,
@@ -16,6 +17,7 @@ import type {
   Waypoint,
 } from './types';
 import { validateScenario } from './sim';
+import { validateStoryboard } from './storyboard';
 
 const SIDES: Side[] = ['BLUE', 'RED', 'NEUTRAL'];
 const LIGHTS: LightPreset[] = ['dawn', 'day', 'dusk', 'night'];
@@ -152,6 +154,22 @@ function perturbation(v: unknown, i: number): Perturbation {
   return p;
 }
 
+function moment(v: unknown, i: number): StoryMoment {
+  const what = `storyboard[${i}]`;
+  const o = obj(v, what);
+  const m: StoryMoment = {
+    id: str(o.id, `${what}.id`),
+    atS: num(o.atS, `${what}.atS`),
+    holdS: num(o.holdS, `${what}.holdS`),
+    title: typeof o.title === 'string' ? o.title : str(o.id, `${what}.id`),
+  };
+  if (typeof o.unitId === 'string' && o.unitId) m.unitId = o.unitId;
+  if (o.at !== undefined) m.at = lonLat(o.at, `${what}.at`);
+  if (typeof o.caption === 'string' && o.caption) m.caption = o.caption;
+  if (typeof o.image === 'string' && o.image) m.image = o.image;
+  return m;
+}
+
 function outcome(v: unknown, i: number): OutcomeSpec {
   const what = `redTeam.outcomes[${i}]`;
   const parsed = outcomeCore(v, i);
@@ -237,10 +255,11 @@ export function parseScenario(json: string): ScenarioConfig {
   };
   const seed = optNum(o, 'seed', 'The scenario');
   if (seed !== undefined) scenario.seed = seed;
+  if (o.storyboard !== undefined) scenario.storyboard = list(o.storyboard, 'storyboard').map(moment);
   if (o.detection === true) scenario.detection = true;
   if (o.seaState === true) scenario.seaState = true;
   if (o.redTeam !== undefined) scenario.redTeam = parseRedTeam(o.redTeam);
-  const problems = validateScenario(scenario);
+  const problems = [...validateScenario(scenario), ...validateStoryboard(scenario, scenario.storyboard ?? [])];
   if (problems.length) throw new Error(problems[0]);
   return scenario;
 }

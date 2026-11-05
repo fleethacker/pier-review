@@ -8,7 +8,18 @@ import { ControllerContext } from './context';
 import { MapCanvas } from './MapCanvas';
 import { RedTeamPanel } from './RedTeam';
 import { Side } from './Side';
+import { StoryboardPanel } from './Storyboard';
 import { Sidebar } from './Sidebar';
+
+/** The panels that float over the map. Both can be opened, but each sits in the same place, so only one shows at a time. */
+function Overlays() {
+  return (
+    <>
+      <RedTeamPanel />
+      <StoryboardPanel />
+    </>
+  );
+}
 
 function withController(controller: ExerciseController, Component: ComponentType): ComponentType {
   const Wrapped = () => (
@@ -31,7 +42,7 @@ export function startExercise(host: AppHost): AppInstance {
     Side: withController(controller, Side),
     Bottom: withController(controller, Bottom),
     Banner: withController(controller, Banner),
-    Overlay: withController(controller, RedTeamPanel),
+    Overlay: withController(controller, Overlays),
     dispose: () => {
       stopReporting();
       controller.dispose();

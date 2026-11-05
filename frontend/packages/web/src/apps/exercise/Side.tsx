@@ -44,6 +44,7 @@ function ViewPanel() {
         <Toggle label="Ship names" checked={view.showLabels} onChange={(showLabels) => c.setView({ showLabels })} />
         <Toggle label="Routes and waypoints" checked={view.showRoutes} onChange={(showRoutes) => c.setView({ showRoutes })} />
         <Toggle label="Sensor range of selected ship" checked={view.showRange} onChange={(showRange) => c.setView({ showRange })} />
+        <Toggle label="Storyboard bubbles" checked={view.showStory} onChange={(showStory) => c.setView({ showStory })} />
       </div>
     </Panel>
   );

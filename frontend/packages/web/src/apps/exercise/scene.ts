@@ -34,9 +34,11 @@ export interface ViewOptions {
   showRoutes: boolean;
   /** Sensor ring around the selected unit. */
   showRange: boolean;
+  /** Storyboard bubbles beside the units as the run plays. */
+  showStory: boolean;
 }
 
-export const DEFAULT_VIEW: ViewOptions = { shipScale: 3, trailS: 240, showLabels: true, showRoutes: true, showRange: false };
+export const DEFAULT_VIEW: ViewOptions = { shipScale: 3, trailS: 240, showLabels: true, showRoutes: true, showRange: false, showStory: true };
 
 /** Layers that change every frame. */
 export interface FrameData {

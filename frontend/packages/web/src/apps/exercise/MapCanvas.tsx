@@ -70,6 +70,7 @@ function Toolbar({ recording, onRecord }: { recording: boolean; onRecord: () => 
   const follow = useExercise((s) => s.follow);
   const placing = useExercise((s) => s.placing);
   const redTeamOpen = useExercise((s) => s.redTeamOpen);
+  const storyOpen = useExercise((s) => s.storyOpen);
   const replay = useExercise((s) => s.replay);
   const selectedId = useExercise((s) => s.selectedId);
   const runOverlay = useExercise((s) => s.runOverlay);
@@ -102,6 +103,9 @@ function Toolbar({ recording, onRecord }: { recording: boolean; onRecord: () => 
         </ToolButton>
         <ToolButton title="Run the scenario many times with random variation and measure how often things happen" pressed={redTeamOpen} onClick={() => c.toggleRedTeam()}>
           Red team
+        </ToolButton>
+        <ToolButton title="Pictures and captions that come up beside the units as the run plays" pressed={storyOpen} onClick={() => c.toggleStoryboard()}>
+          Storyboard
         </ToolButton>
         <ToolButton title="Click the map to add waypoints to the selected ship" pressed={placing} onClick={() => c.setPlacing(!placing)}>
           Add waypoints

@@ -8,6 +8,7 @@ import logging
 import math
 import time
 from collections.abc import AsyncIterator
+from datetime import UTC
 from importlib.resources import files
 
 import httpx
@@ -292,9 +293,11 @@ def _watch_recheck(env, assessed) -> tuple[list[str], bool]:
     if any(word in flags for word in ("missing", "unavailable", "stale", "suspect", "poor", "invalid", "gap")):
         reasons.append("A required environmental source is flagged; review source availability and freshness.")
         invalid = invalid or any(word in flags for word in ("missing", "unavailable", "poor", "invalid", "gap"))
-    if env.valid_at_utc.tzinfo is None or (meta and (
-            (meta.valid_from_utc and env.valid_at_utc < meta.valid_from_utc)
-            or (meta.valid_to_utc and env.valid_at_utc > meta.valid_to_utc))):
+    at = (env.valid_at_utc.astimezone(UTC)
+          if env.valid_at_utc.tzinfo is not None and env.valid_at_utc.utcoffset() is not None else None)
+    if at is None or (meta and (
+            (meta.valid_from_utc and at < meta.valid_from_utc)
+            or (meta.valid_to_utc and at > meta.valid_to_utc))):
         reasons.append("Environment time is unspecified or outside its declared validity interval.")
         invalid = True
     basis_fields = ("wind_averaging_s", "gust_duration_s", "wind_reference_height_m")

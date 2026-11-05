@@ -73,3 +73,5 @@ Scheduling uses elapsed UTC time. Aware local-zone inputs are normalized to UTC 
 Temporal availability is checked in `mooring/core/forecast_provenance.py` and reused by Intake. This shared policy distinguishes observations from future guidance and requires public forecast availability by the assessment cutoff. Quality and interval checks remain separate; no physical calculations moved into the agents service.
 
 The legacy observation/replay normalizer does not infer provider issuance from a record’s observation time. Its snapshot time, source validity interval and observation age remain available; `issued_at_utc` stays unknown when no independent issue time is supplied. Observation records are not advance forecast guidance.
+
+Intake also normalizes copied sample times to UTC before ordering, coverage and summary formatting. Source validity and issuance/retrieval checks compare absolute instants, including a named zone’s repeated hour. Metadata offsets remain intact; a local offset is never printed as a Z suffix without conversion.

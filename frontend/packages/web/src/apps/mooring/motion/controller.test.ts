@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const stream = vi.hoisted(() => ({
   handlers: null as null | { onMessage: (m: unknown) => void; onStatus: (s: string) => void },
+  url: null as null | string | (() => string),
   send: vi.fn<(data: string) => boolean>(() => true),
   close: vi.fn(),
 }));
@@ -13,11 +14,13 @@ vi.mock('../api', () => ({
   authHeaders: () => ({}),
   modeling: { POST: vi.fn() },
   unwrap: <T,>(r: { data: T }) => r.data,
-  wsUrl: (_base: string, p: string) => `ws://localhost${p}`,
+  wsUrl: (_base: string, p: string, q: Record<string, unknown> = {}) =>
+    `ws://localhost${p}${Object.entries(q).filter(([, v]) => v !== undefined).map(([k, v], i) => `${i ? '&' : '?'}${k}=${v}`).join('')}`,
 }));
 vi.mock('../streams', () => ({
-  openJsonStream: (_url: string, onMessage: (m: unknown) => void, onStatus: (s: string) => void) => {
+  openJsonStream: (url: string | (() => string), onMessage: (m: unknown) => void, onStatus: (s: string) => void) => {
     stream.handlers = { onMessage, onStatus };
+    stream.url = url;
     return { send: stream.send, close: stream.close };
   },
 }));
@@ -361,4 +364,92 @@ it('does not connect a stale session if inputs change while its scene loads', as
   expect(stream.handlers).toBeNull();
   expect(m.s.error).toMatch(/changed/i);
   m.dispose();
+});
+
+
+describe('rm0-v1 session protocol (S1)', () => {
+  const lifecycle = (sequence: number, state: string, speed?: number) => ({
+    type: 'session_lifecycle', schema_version: 'rm0-v1', session_id: 's1', run_id: 'r1', sequence, t_s: 0, state,
+    scene_id: 'sc', scene_revision: '1', ...(speed !== undefined ? { speed } : {}),
+  });
+  async function rich() {
+    vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's1', ws_url: '/ws/sim/s1', protocol: 'rm0-v1',
+      scene_url: '/api/v1/berthing/sessions/s1/scene', recording_url: '/api/v1/berthing/sessions/s1/recording' } } as never);
+    const m = make();
+    await m.startSession(120);
+    return m;
+  }
+  const url = () => (typeof stream.url === 'function' ? stream.url() : stream.url);
+
+  it('reconnects asking only for lifecycle messages after the last one seen', async () => {
+    const m = await rich();
+    expect(url()).toBe('ws://localhost/ws/sim/s1');
+    stream.handlers!.onMessage(lifecycle(4, 'running'));
+    expect(url()).toBe('ws://localhost/ws/sim/s1?after_sequence=4');
+    m.dispose();
+  });
+
+  it('ignores a resent older lifecycle message', async () => {
+    const m = await rich();
+    stream.handlers!.onMessage(lifecycle(5, 'paused'));
+    stream.handlers!.onMessage(lifecycle(3, 'running'));
+    expect(m.s.lifecycle).toBe('paused');
+    m.dispose();
+  });
+
+  it('sends set_speed on a live session and follows the speed the session reports', async () => {
+    const m = await rich();
+    m.setSpeed(4);
+    expect(JSON.parse(stream.send.mock.calls.at(-1)![0])).toEqual({ type: 'set_speed', speed: 4 });
+    expect(m.s.speed).toBe(4);
+    stream.handlers!.onMessage(lifecycle(6, 'running', 2));
+    expect(m.s.speed).toBe(2);
+    stream.send.mockClear();
+    m.setSpeed(32);
+    expect(stream.send).not.toHaveBeenCalled();
+    m.dispose();
+  });
+
+  it('does not claim a speed change that could not be sent', async () => {
+    const m = await rich();
+    stream.send.mockReturnValue(false);
+    m.setSpeed(8);
+    expect(m.s.speed).toBe(1);
+    m.dispose();
+  });
+
+  it('lists the session recording and replays it with the session scene', async () => {
+    const m = await rich();
+    expect(m.s.sessionRecordings).toEqual([expect.objectContaining({
+      sessionId: 's1',
+      recordingUrl: 'http://localhost/api/modeling/api/v1/berthing/sessions/s1/recording',
+      sceneUrl: 'http://localhost/api/modeling/api/v1/berthing/sessions/s1/scene',
+    })]);
+    await m.loadSessionRecording('s1');
+    expect(fetch).toHaveBeenCalledWith('http://localhost/api/modeling/api/v1/berthing/sessions/s1/recording', expect.anything());
+    expect(m.s.source).toBe('recording');
+    expect(m.s.recording?.label).toMatch(/Session s1 recording/);
+    m.close();
+    expect(m.s.sessionRecordings).toHaveLength(1);
+    m.dispose();
+  });
+
+  it('shows simulation time for live frames and none for recordings', async () => {
+    const m = await rich();
+    stream.handlers!.onMessage(lifecycle(1, 'running'));
+    stream.handlers!.onMessage({ ...legacy(2.5, 3), environment: { t_s: 2.5 } });
+    flush();
+    expect(m.s.clock).toMatchObject({ simS: 2.5, forcingTS: 2.5, forcingRevision: null });
+    await m.loadRecording();
+    expect(m.s.clock).toBeNull();
+    m.dispose();
+  });
+
+  it('does not list a recording for a legacy session', async () => {
+    vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's0', ws_url: '/ws/sim/s0' } } as never);
+    const m = make();
+    await m.startSession(120);
+    expect(m.s.sessionRecordings).toEqual([]);
+    m.dispose();
+  });
 });

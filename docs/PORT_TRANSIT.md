@@ -7,7 +7,20 @@ contract: `modeling/mooring/core/schemas/transit.py`; tests: `modeling/tests/tes
 **What this is not.** There are no qualified maneuvering, propulsion, rudder or tug data for any ship in the repository. Every
 coefficient below is either a published regression applied outside its calibration evidence for these hulls, or a labeled assumption.
 The model is for planning visualization and storyboard replay, not for navigation, pilotage or safety decisions. Presets are
-demonstration routes (approximate coordinates, not charted channels).
+demonstration routes (checked only against the OSM coastline, see section 7; not charted channels).
+
+**Prominent limitation: thrust is likely 2 to 4 times too low.** T_max is the friction-only resistance at the nominal top speed (no wave-making or residuary resistance), so the calibrated
+thrust, and with it acceleration, deceleration and astern stopping authority, are probably well below the real ships'. Cross-check against approximate public shaft power (DDG-51 ~100 000 shp, CG-47 ~80 000, LHD-1 ~70 000, CVN-68 ~260 000, labeled approximate):
+the model's effective power T_max x v_max is 12.5, 14.1, 12.1 and 52.9 MW, i.e. 17 to 27 % of shaft power, against a typical propulsive efficiency of 50 to 65 %, so thrust is about 2 to 4 times low.
+Consequence: runs accelerate, slow down and stop too sluggishly (the CVN needs about 1 km to stop from 12 kt on astern thrust alone, and the arrival planner has to start slowing earlier); steady speeds, turning
+circles at constant speed and the rudder are not affected by T_max, but speed loss in a turn and any "can it stop in time" conclusion are. No residuary resistance was invented to correct this (a Holtrop-Mennen
+estimate would need hull-form data not in the catalog); it stays a documented limitation.
+
+**Intended use (S7).** This model is intended to serve as the open-water predictor for the "backup camera" view (S7): from a vessel's current
+state and conditions, predict where it will be over the next minutes. The stepping core is therefore callable without a route:
+`simulator.predict_constant_commands(vt, env, horizon_s, rudder_deg, engine_order)` holds commands constant from an arbitrary initial state
+(it loops over `Vessel.advance`, the physics half of a step), keeps no global state (concurrent predictions are independent) and is deterministic;
+a 10-minute, one-vessel, dt 0.2 s prediction takes about 0.06 s of wall time.
 
 ## 1. Conventions (as in the schema)
 
@@ -37,7 +50,7 @@ Sway and yaw are solved together as a 2x2 system (Y_rdot, N_vdot kept). Only rig
 derivatives already contain the Munk moment (adding the separate (Y_vdot - X_udot) u v term would double count).
 
 ### 2.3 Hull forces (`hull.py`)
-Clarke, Gedling and Hine (1983), L = LWL, B, T = mean draft of the loading, Cb, with
+Clarke, Gedling and Hine (1983), L = LWL, B, T = mean draft of the loading, Cb (see below), with
 `Y'v = -pi (T/L)^2 [1 + 0.40 Cb B/T]`, `Y'r = -pi (T/L)^2 [-1/2 + 2.2 B/L - 0.080 B/T]`, `N'v = -pi (T/L)^2 [1/2 + 2.4 T/L]`,
 `N'r = -pi (T/L)^2 [1/4 + 0.039 B/T - 0.56 B/L]`, and added mass `Y'vdot = -pi (T/L)^2 [1 + 0.16 Cb B/T - 5.1 (B/L)^2]`,
 `Y'rdot = -pi (T/L)^2 [0.67 B/L - 0.0033 (B/T)^2]`, `N'vdot = -pi (T/L)^2 [1.1 B/L - 0.041 B/T]`,
@@ -46,6 +59,16 @@ Clarke, Gedling and Hine (1983), L = LWL, B, T = mean draft of the loading, Cb, 
 sense leaves every linear derivative and added-mass coefficient unchanged, so they are used as published (the rudder is not invariant
 and is derived separately, section 2.5). The regressions were fitted to merchant hulls; their applicability to slender warships is not
 established here.
+
+Block coefficient. The catalog Cb is kept unless it differs by more than 20 % from `m / (rho L B T)` (rho 1025, the catalog draft). Result: DDG-51 catalog 0.51 vs
+displacement-derived 0.355 (replaced), CG-47 0.47 vs 0.357 (replaced), LHD-1 0.58 vs 0.637 (kept), CVN-68 0.62 vs 0.679 (kept). The catalog draft may include the
+sonar dome, which would inflate T and lower the derived Cb; the catalog cannot distinguish a hull draft from the dome-inclusive one, so the catalog draft is used and
+this is stated, not resolved. Effect on the turning circles: see section 8.
+
+**Linear stability (reported, not hidden).** Clarke's linear stability index (det of the hull's linear sway-yaw matrix at speed U) is **negative for LHD-1 and CVN-68**
+(hull alone: course-unstable, c = -4.3e13 and -1.0e15 at 8 kt) and positive for DDG-51 and CG-47 (1.7e15, 3.9e15). With the rudder held amidships in the loop
+(the rudder's lateral-velocity term `v_R` adds sway and yaw damping) all four are stable in the linearised model (7.2e15 for LHD-1, 4.1e16 for CVN-68), but that stabilisation
+rests on the assumed `gamma_R`, race and area values. `nomoto.py` reports both indices (`Linear.c_hull`, `Linear.c_total`).
 
 Low-speed damping: cross-flow drag by strip integration over the length, `Y = -1/2 rho Cd T sum (v + x r)|v + x r| dx`, `N = sum x dY`,
 Cd = 0.8, 20 strips (labeled). It is always on, so it double counts a little damping with the linear terms at moderate drift.
@@ -71,6 +94,11 @@ MMG-style `X = -(1-t_R) F_N sin(delta)`, `Y = -(1+a_H) F_N cos(delta)`, `N = -(x
 For delta > 0 the force is toward starboard acting aft: bow to port, N > 0 (tested for sign and exact mirror symmetry). Rate limit and maximum angle
 come from `PropulsionAssumptions` (defaults 2.33 deg/s and 35 deg). The rudder angle is updated once per step by the rate limiter.
 
+Twin rudders. The four catalog classes are twin-screw ships with two rudders (public configuration; `RUDDER_COUNT` in `coefficients.py`, one rudder for any other class).
+`A_R` above is the area PER rudder (DNV guidance); the equivalent rudder is `count x A_R`, each rudder sitting in its own propeller race, so the thrust used for the race
+is `T / count` per rudder and the force is `count x` the single-rudder force. A twin arrangement therefore gives about 1.4 x (not 2 x) the side force of one rudder at the same
+total thrust and speed (each race is slower). This replaced the single equivalent rudder at the minimum DNV area that the review identified as the cause of the large turning circles.
+
 ### 2.6 Bow thruster
 If `bow_thruster_lbf` is set: lateral force at +0.4 L, linearly fading to zero at 3 m/s of surge speed, 5 s slew (labeled). Its command supplies the
 same yaw-moment deficit that tugs would (section 4), in any mode.
@@ -80,36 +108,96 @@ Wind: the apparent wind (true wind, after the loads module's basis conversion, m
 with a snapshot whose current is zero and depth 1000 ft (deep), `use_gust=False`; only the wind component is used, already in body axes. The apparent
 speed is divided by the basis factor so the loads module's sustained-to-30 s conversion lands on the intended speed. Held constant over a step.
 Current: the water moves at the environment current (TOWARD bearing); dynamics use water-relative velocities and kinematics add the current:
-east/north = R(heading)(u, v) + current. No environment means explicit calm (labeled `CALM_ASSUMED`): no wind (also none from own motion) and still water.
+east/north = R(heading)(u, v) + current. No environment means explicit calm (labeled `CALM_ASSUMED`): zero true wind and still water. It is handled as a zero-wind, zero-current snapshot, so the
+air drag of the ship's own motion (apparent wind) is still applied and `environment = null` gives exactly the same series as an explicit zero-wind environment of the
+same water density (tested). A calm run's steady speed is therefore a little below the calibration speed (CG-47 29.4 kt at a 30 kt calibration).
 
 ### 2.8 Integration and clock
 Fixed-step RK4 at dt_s for every vessel on one shared clock. Position, heading, u, v, r and delivered thrust are integrated states. Rudder angle, tug
 and thruster force vectors, the wind wrench and the autopilot commands are updated once per step and held across the RK4 stages (zero-order hold), so the scheme
-is first order in dt overall (measured below). A vessel never reads another vessel's state. Output frames every `sample_interval_s` (default 2 s, rounded to a
-multiple of dt); the run stops early when every vessel has arrived, stopped short or failed (duration_s is a maximum).
+is first order in dt overall (measured below). A vessel never reads another vessel's state. Output frames every `sample_interval_s` (default 2 s) at exactly the requested times: the step is
+`dt_eff = sample / ceil(sample / dt) <= dt` (a dt that does not divide the interval is shortened, never lengthened; the manifest reports `dt_s` = dt_eff and `dt_requested_s`).
+Frames are at k x sample for every k with k x sample <= duration_s (no off-grid last frame). The run stops early only when every vessel has arrived, stopped short or failed,
+and then at the next frame time. Forces are evaluated before frame 0 (and re-evaluated at each frame so the reported wind force belongs to the reported state).
+An **arrived vessel is no longer integrated**: its state is frozen at the arrival step (status `arrived`; the berthing simulation takes over from there) while the other vessels continue.
+Vessels that stop short keep being integrated.
 
-## 3. Autopilot (`autopilot.py`)
-Line-of-sight guidance on the current leg, `chi_d = chi_track + atan(e/Delta)`, Delta = lookahead_ship_lengths x L, e the cross-track (+ port). Leg switch inside the acceptance radius
-(default 2 L) or after passing the waypoint's perpendicular. Crab: `psi_cmd = chi_d - beta`, beta a 30 s low-pass of (COG - heading) when SOG > 0.5 m/s. Heading PD(+I):
-`delta = Kp (e - Td r) + Kp/Ti integral(e)`, Kp = 1.5, Td = clamp(L/U, 8, 60) s, Ti = 400 s, integral limited to 3 deg, active only when |e| < 0.2 rad and u > 2 m/s
-(heuristics scaled from L/U; not tuned to any real autopilot). Speed: order = v_target/v_max + (v_target - u)/(2 kt) clamped to +-1 (no speed integrator, so a
-fraction-of-a-knot bias remains because the feedforward is linear while drag is quadratic); the arrival ramp lowers v_target linearly with remaining distance over
-`arrival_slowdown_nm`; astern is allowed only inside the arrival zone (remaining distance < slowdown distance or < 2 L). `arrived`: inside the final waypoint's radius with
-speed through the water at most arrival_speed + 0.5 kt (0.5 kt for the default zero arrival speed). `stopped_short`: speed through the water below 0.3 kt for more than 120 s
-while the target speed is above 0.5 kt and the vessel is outside the final radius (not evaluated while a scripted engine order is active). `helm_commands`: per field, the latest
-non-null value with t_s <= t overrides the autopilot and persists (there is no release; a null field leaves that control as it was). Events: waypoint_reached, arrived,
-rudder_saturated, large_cross_track (> 0.5 L), stopped_short, tug_saturated, integration_failed.
+## 3. Autopilot (`autopilot.py`, `nomoto.py`)
 
-## 4. Tugs (`tugs.py`, `simulator.py`)
+**Guidance.** Line of sight on the current leg, `chi_d = chi_track + atan(e/Delta)`, Delta = lookahead_ship_lengths x L (default 2 L), e the cross-track (+ port). Leg switch inside the
+acceptance radius (default 2 L) or after passing the waypoint's perpendicular. The cross-track loop pole is U/Delta and the heading loop frequency below is wn = 2.5 U/L, so both scale
+with U/L: the ratio (wn Delta / U = 5 at the default) is the same at every speed, which is the speed/length scaling of the lookahead. (With wn = 1.5 U/L the ratio was 3 and the cross-track
+loop of the large ships oscillated for 40 minutes; 2.5 removes it. This is a design choice checked by the benchmark below, not ship data.)
+
+**Heading controller, from each vessel's own linearised dynamics.** `nomoto.linearise` linearises the sway-yaw equations about steady ahead motion at speed U with the thrust that balances resistance,
+using the hull derivatives (`U yv`, `U yr L`, `U nv`, `U nr L`, the Clarke added-mass matrix M) plus central finite differences of the actual rudder model (race, wake, MMG interaction, rudder count)
+for `dY/dv, dY/dr, dY/ddelta` and the same for N. With `M x' = A x + b delta`, x = (v, r), the transfer function from rudder to yaw rate is `(n1 s + n0)/(a s^2 + b1 s + c)`, c = det A, and
+the first-order Nomoto approximation (`T r' + r = K delta`) is `K = n0/c`, `T = b1/c - n1/n0`. K and T are tabulated per vessel on a 1 kt speed grid and interpolated (gain scheduling).
+At 8 kt: DDG-51 K 0.029 1/s, T 21 s; CG-47 0.019, 18 s; LHD-1 0.032, 93 s; CVN-68 0.025, 137 s (K' = K L/U 1.0, 0.77, 1.9, 1.9; T' = T U/L 0.60, 0.47, 1.6, 1.8). K is checked against the simulated
+steady yaw rate of a 1 degree rudder step (within 12 %: DDG 2 %, CG 1 %, LHD 11 %, CVN 12 %, the difference being the nonlinear cross-flow drag and the neglected sway coupling in the first-order reduction).
+With theta the CCW heading, `T theta'' + theta' = K delta`; the law `delta = Kp e - Kd r + Ki int e` gives the closed loop `T s^2 + (1 + K Kd) s + K Kp = 0`, and placing the poles at (wn, zeta = 0.9) gives
+
+    Kp = T wn^2 / K,   Kd = (2 zeta wn T - 1) / K,   wn = 2.5 U_s / L,   U_s = max(|u|, 2.5 kt).
+
+The expressions are valid for a course-unstable hull: T < 0 and K < 0 give Kp > 0 and Kd > 0 (unit-tested with a synthetic unstable model). For a stable hull wn is raised if needed so that Kd >= 0.5/K.
+A small integral term (Ki = Kp wn/10, clamped to 3 deg of rudder, active only for |e| < 0.2 rad at u > 2 m/s) removes steady bias. Astern (u < -0.3 m/s) the rudder command is inverted; the Nomoto
+model is not valid there and heading is held only roughly. The pole placement ignores the rudder rate limit and the second (sway) pole; the benchmark below is the check.
+
+**Crab compensation.** `psi_cmd = chi_d - beta`, beta a 30 s low-pass of the drift angle COG - heading, applied only when STW u > max(3 kt, 2 x current speed), clamped to +-20 deg, decaying to zero
+otherwise, and never computed from COG - heading when moving astern. The current is estimated as ground velocity minus water velocity (GPS minus log).
+
+**Speed and arrival, over ground.** On a normal leg: order = v_t/v_max + (v_t - u)/(2 kt) (v_t is the leg speed through the water; linear feedforward against quadratic drag leaves a fraction-of-a-knot bias).
+In the arrival zone (within `arrival_slowdown_nm` of the end, or 2 L) the target is the along-track speed over ground g_t: a linear ramp from max(v_fin + c_t, arrival speed) to the arrival speed (c_t the
+along-track current estimate, so the ramp is continuous at its start), additionally limited by the constant-deceleration profile `sqrt(v_arr^2 + 2 a_plan d)` with `a_plan = 0.7 x astern_fraction x T_max / m11`
+(a planning margin, labeled ASSUMED; when the ship cannot decelerate as fast as the linear ramp requires the ramp starts earlier than `arrival_slowdown_nm`). The engine order is
+`(g_t - c_t)/v_max + (g_t - g)/(2 kt)` with g the measured along-track ground speed, so the controller delivers the required ground progress: STW above g_t in a foul current, negative (astern) in a fair one.
+`arrived`: inside the final waypoint's radius with **SOG** <= arrival speed + 0.5 kt. If the vessel passes the final waypoint's perpendicular outside the radius it emits `missed_approach`
+(new event kind, additive to the schema) and re-approaches on a new leg from where it is to the waypoint with its speed capped at 6 kt; this can repeat. `stopped_short`: SOG below 0.3 kt for more than
+120 s outside the radius while the ground-speed target exceeds 0.5 kt (not evaluated while a scripted engine order is active) - evaluated on SOG and distance, not speed through the water.
+`helm_commands`: the latest command with t_s <= t defines both controls; a null field returns that control to the autopilot (a later command that omits `rudder_deg` releases a held rudder, and one that omits `engine_order`
+releases the engine). Events: waypoint_reached, arrived, missed_approach, rudder_saturated, large_cross_track (> 0.5 L), stopped_short, tug_saturated, integration_failed.
+`max_cross_track_ft` excludes the leg-switch corner: while inside the corner waypoint's acceptance radius or less than one lookahead distance along the new leg, the smaller of the distances to the previous and
+the current leg line is used (so the swing around a turn is not counted as cross-track error).
+
+**Arrival in current (DDG-51 unless noted; 12 kt approach, 0.5 nm slowdown, 300 ft radius, arrival speed 0):**
+
+| Case | Before | After |
+|---|---|---|
+| 2 kt foul along the final leg | never arrived: stalled 477 ft short at SOG 0, STW 2 kt, no event | arrives at 1310 s, SOG 0.50 kt, STW 2.50 kt |
+| 3 kt fair | "arrived" at SOG 3.5 kt (judged on STW 0.5 kt) | arrives at 878 s, SOG 0.50 kt, STW -2.50 kt (astern) |
+| CVN-68, 3 kt fair | drifted away silently at 3 kt, 13 000 ft past the point | arrives at 895 s, SOG 0.50 kt, STW -2.50 kt |
+| CVN-68, calm | stalled 689 ft short, no event | arrives at 1003 s (the planner starts slowing earlier than 0.5 nm) |
+| 2 kt cross current, default 2 L radius | rudder pinned, drifted 6900 ft away | arrives (one missed approach and turn-around, rudder at its limit for under 150 s in total) |
+
+Stopping over ground in a cross current without lateral thrust requires the ship to face the current, which the +-20 deg crab limit does not do; the autopilot only gets there through the missed-approach
+re-approach, and with a 300 ft radius it may loop several times (DDG-51, 1 kt cross current: arrives after nine passes, 2845 s). Tugs or the bow thruster are the real answer and are not wired into the autopilot's lateral control.
+
+**Heading/course benchmark** (`test_s6_fixes.py::test_sixty_degree_course_change_benchmark`, calm, 60 deg port course change onto a second leg, 2 L acceptance radius, 40 min, dt 0.2 s). Overshoot is measured against the
+autopilot's own heading command (guidance course after LOS and crab), because the LOS term deliberately steers past the new leg bearing while the ship is off the new line; the overshoot against the new
+leg bearing is also listed. "xt" is cross-track relative to the new leg: maximum |xt| in the first third and in the last third of the run (limits: last third < 20 % of the first and < 100 ft).
+
+| Class | Speed | Overshoot vs command | Overshoot vs leg bearing | xt first third | xt last third |
+|---|---|---|---|---|---|
+| DDG-51 | 4 / 8 / 15 kt | 2.1 / 3.9 / 4.9 deg | 1.6 / 6.1 / 11.0 deg | 806 / 786 / 800 ft | 0.1 / 0.0 / 0.0 ft |
+| CG-47 | 4 / 8 / 15 kt | 3.0 / 4.6 / 5.6 deg | 4.2 / 8.5 / 13.5 deg | 903 / 907 / 890 ft | 0.1 / 0.0 / 0.0 ft |
+| LHD-1 | 4 / 8 / 15 kt | 3.1 / 4.3 / 5.6 deg | 3.0 / 5.9 / 10.7 deg | 1346 / 1345 / 1307 ft | 8.0 / 1.8 / 0.1 ft |
+| CVN-68 | 4 / 8 / 15 kt | 2.7 / 3.8 / 5.1 deg | 2.4 / 4.7 / 8.5 deg | 1788 / 1776 / 1793 ft | 18.1 / 5.1 / 0.6 ft |
+
+The overshoot against the new leg bearing exceeds 10 deg for DDG-51 and CG-47 at 15 kt (11.0, 13.5): this is the LOS geometry at a 2 L-radius corner (the ship is still about 0.9 L off the new line when it
+switches, so atan(e/Delta) asks for more than the leg bearing), not a heading-loop overshoot. The pre-fix controller (fixed Kp 1.5, Td = L/U) was not benchmarked across classes.
+
+## 4. Tugs and bow thruster (`tugs.py`, `simulator.py`)
 Named hull points (LOA-based): bow (+0.45, 0), stern (-0.45, 0), port/starboard shoulder (+0.3, +-B/2), port/starboard quarter (-0.3, +-B/2). Direction is relative to the bow, clockwise
 (0 ahead, 90 starboard, 180 astern, 270 port): body force F (cos th, -sin th); moment about midships `N = x Fy - y Fx`. Capacity is the catalog `bollard_pull_ahead_lbf` for any direction (labeled).
 Delivered force vector slews toward the command at bollard/10 s (labeled). A tug that changes hull point restarts from zero force. Reported tug positions are the hull contact points;
 **tug hulls, lines and their motion are not modeled.** Commands above bollard pull are clamped and emit `tug_saturated`.
 
 Auto assist (mode `tug_assisted` with `tug_assist.policy = "auto"`; `tug_assist` null means manual commands only): below `assist_below_kt` of surge speed the first two tug ids act at the bow and
-stern. The heading loop's desired yaw moment is `M = m33 (wn^2 e - 2 zeta wn r)`, wn = 0.03 rad/s, zeta = 1; the tugs supply `M - N_rudder` (only if it has the same sign as `M`) as a couple
-(force = |M| / (0.9 LOA) each, opposite directions), plus a braking force `max(0, u - v_target) m11 / 20 s` split astern between them inside the arrival zone, vector-summed per tug and clamped to bollard pull.
-A tug that has received a manual command is no longer driven by the auto policy. In the presets the rudder usually suffices for heading, so the tugs mainly brake.
+stern. The heading loop's desired yaw moment is `M = m33 (wn^2 e - 2 zeta wn r)`, wn = 0.03 rad/s, zeta = 1. **Allocation:** the deficit `M - N_rudder` (only if it has the same sign as `M`) goes first to the bow
+thruster (if fitted; limited by its capacity and speed fade), and only the remainder is given to the tugs as a couple (force = |remainder| / (0.9 LOA) each, opposite directions), so the delivered moment is about the
+demanded one instead of twice it (tested). The tugs also get a braking force `max(0, g - g_t) m11 / 20 s` (ground speed above the ramp target) split astern between them inside the arrival zone, vector-summed per tug and clamped to bollard pull.
+When the speed is at or above `assist_below_kt` (or the policy is not auto) the auto-assist commands are set to zero (the forces slew down over 10 s) instead of keeping their last value. A tug that has received a
+manual command is never driven by the auto policy. In the presets the rudder usually suffices for heading, so the tugs mainly brake.
 
 ## 5. Validity and assumptions in every response
 `validity.state = "limited"` always (`invalid`/RED only on integration failure), with reasons `TRANSIT_SURROGATE_MANEUVERING`, `PROPULSION_ASSUMED`, `DEEP_WATER_NO_SQUAT_OR_BANK`,
@@ -141,7 +229,10 @@ actually used, the origin and the coefficient table; the same request gives an i
 | Wake fraction w | 0.2 | typical 0.1-0.3 | ASSUMED |
 | Propeller diameter D | 0.6 T | typical 0.5-0.7 T | ASSUMED |
 | Race fraction at rudder | 0.7 | between disk (0.5) and fully contracted slipstream (1.0) of momentum theory | ASSUMED |
-| Rudder area A_R | (T L/100)(1 + 25 (B/L)^2) | DNV rule guidance for rudder area | PUBLISHED guidance, used as a size estimate |
+| Rudder area A_R (per rudder) | (T L/100)(1 + 25 (B/L)^2) | DNV rule guidance for rudder area | PUBLISHED guidance, used as a size estimate |
+| Arrival planning deceleration | 0.7 x astern_fraction x T_max / m11 (the arrival ramp is lengthened when the linear ramp would need more) | autopilot design choice (planning margin), not ship data | ASSUMED |
+| Rudder count | 2 for DDG-51, CG-47, LHD-1, CVN-68; equivalent rudder = count x area, each in its own propeller race (thrust T/count per race) | public configuration, area per rudder from DNV guidance | ASSUMED (public configuration); one rudder for any other class |
+| Block coefficient for the Clarke terms | catalog Cb, or m/(rho L B T) when the two differ by more than 20 % | displacement consistency check with the catalog draft (which may include the sonar dome; the catalog cannot distinguish) | DERIVED; DDG-51 0.51 -> 0.35, CG-47 0.47 -> 0.36, LHD-1 and CVN-68 keep catalog values |
 | Rudder aspect ratio | 1.5 | typical | ASSUMED |
 | Rudder lift slope | f_a = 6.13 L/(2.25 + L) | Fujii (1960) as used in the MMG standard method (Yasukawa & Yoshimura 2015) | PUBLISHED |
 | Rudder stall angle | 30.0 deg clamp on effective angle | typical | ASSUMED |
@@ -153,15 +244,24 @@ actually used, the origin and the coefficient table; the same request gives an i
 | Wind | UFC 4-159-03 loads on the apparent wind; sustained-to-30 s conversion applied by the loads module | UFC 4-159-03 | PUBLISHED, with deep-water/zero-current snapshot |
 
 ## 7. Presets (`GET /transit/presets`)
-All four are demonstration routes: the approach-mock waypoints (copied, since the architecture check forbids importing mock code) and a point 250 ft off the NAVSTA Norfolk Pier 12 north face
-(from the berth catalog), final acceptance radius 300 ft. Not navigational advice; not charted channels.
+All four are demonstration routes: **demonstration route checked only against OSM coastline; not a navigational route.** Waypoints: Thimble Shoal Channel entrance (36.995, -76.045), Thimble Shoal Channel (36.995, -76.160),
+Hampton Roads (36.985, -76.270), Norfolk Harbor Entrance Reach (36.975, -76.315), off Sewells Point (36.969, -76.330), then a point 250 ft off the NAVSTA Norfolk Pier 12 north face (berth catalog),
+final acceptance radius 300 ft. The earlier routes (copied from the approach mock) were wrong: the first two legs crossed OSM coastline ways (an artificial island at -76.114 and the Norfolk/Ocean View shore) and the last waypoints were on or at the shore.
+
+Coastline check. `scripts/fetch_transit_coastline.py` queries the Overpass API for `natural=coastline` ways around Hampton Roads (36.88-37.05 N, 76.50-75.98 W) and for the Hampton Roads, Willoughby Bay and Elizabeth River water
+relations, polygonizes the coastline (land on the left of each way), subtracts the water bodies, applies a 55 m morphological opening (removes slivers along OSM's closing line across the mouth of Hampton Roads),
+simplifies to 8 m and writes `modeling/tests/fixtures/transit/hampton_roads_coastline.geojson` (49 kB; (c) OpenStreetMap contributors, ODbL 1.0, attribution and licence in the file's properties). OSM's `natural=coastline` ends at that closing line,
+so the harbour behind it is only known through the water relations. `test_s6_presets_coastline.py` (offline) checks that no preset leg (any vessel, including the +-0.0007 deg offset lanes of the two-vessel preset) intersects the land polygon,
+that every leg keeps at least 100 m clearance, and that the simulated tracks of the inbound and outbound presets never enter land. Clearances: 171 m minimum (leg ending off Sewells Point), 320 m to 2 km elsewhere.
+Limits: the OSM Hampton Roads outline is a crude polygon near Sewells Point, so the Pier 12 point itself lies about 640 m inside the polygon's land; legs are exempt within 1000 m of that point. This is not a depth,
+channel, bridge-tunnel or traffic check (the demonstration crosses the Hampton Roads Bridge-Tunnel alignment without any air or depth clearance consideration).
 
 | Preset | Vessel(s) | Result (dt 0.2 s) |
 |---|---|---|
-| ddg-inbound-own-thrust | DDG-51 from Thimble Shoal entrance, 10 to 12 kt legs, 0.5 nm slowdown | arrives 4656 s, 13.67 nm, max cross-track 91 ft, max rudder 3.6 deg |
-| ddg-inbound-tug-assisted | same, auto assist below 5 kt with T1 (bow) and T2 (stern) | arrives 4678 s, max tug force 11.9 klbf (braking) |
-| ddg-outbound-own-thrust | DDG-51 from the pier area to the entrance (10 kt), from rest | arrives 4769 s, 13.54 nm |
-| two-vessels | DDG-51 inbound + CG-47 outbound on offset lanes | DDG arrives 4662 s, CG arrives 4759 s |
+| ddg-inbound-own-thrust | DDG-51 from Thimble Shoal entrance, 10 to 12 kt legs, 0.5 nm slowdown | arrives 4861 s, 14.53 nm, max cross-track 307 ft (corners excluded), max rudder 35 deg in the final turns |
+| ddg-inbound-tug-assisted | same, auto assist below 5 kt with T1 (bow) and T2 (stern) | arrives 4884 s, max tug force 19.5 klbf (braking) |
+| ddg-outbound-own-thrust | DDG-51 from the pier area to the entrance (10 kt), from rest | arrives 5067 s, 14.38 nm |
+| two-vessels | DDG-51 inbound + CG-47 outbound on offset lanes | DDG arrives 4885 s, CG arrives 5044 s |
 
 ## 8. Benchmarks (all offline; `uv run --all-packages pytest -q modeling/tests/test_s6_*.py -s` prints the numbers)
 
@@ -173,27 +273,33 @@ All four are demonstration routes: the approach-mock waypoints (copied, since th
 | 63 % rise (DDG, step from 95 % to 100 % speed) | simulated 126.0 s vs 123.2 s from the independent two-lag linear model (hull tau = m11 / (dR/du) = 101.6 s, engine tau 20 s); limit +-6 % |
 | Zero rudder, calm | v = r = 0 and track exactly straight |
 | Rudder sign and mirror symmetry | +35 deg turns to port, -35 to starboard; tracks are exact mirror images (1e-6 ft); yaw rate sign matches rudder |
-| Turning circle, 35 deg from full speed, tactical diameter / LWL | DDG-51 7.21 (advance 2.00 L, speed falls to 16.4 kt, steady 1.10 deg/s); LHD-1 4.69; CVN-68 4.89; **CG-47 8.80, outside the 2-8 band** (recorded as a strict xfail) |
-| Small rudder step (2 deg at ~15 kt) | monotone first-order-like yaw rate; steady 0.085 deg/s, 63 % time 11.0 s; values at 2T and 3T within 0.08 of 0.865 and 0.95 |
+| Turning circle, 35 deg from full speed, tactical diameter / LWL (twin rudders, displacement-derived Cb) | before: DDG-51 7.21, CG-47 8.80 (strict xfail), LHD-1 4.69, CVN-68 4.89. **After:** DDG-51 **5.06** (advance 1.76 L, speed falls to 13.3 kt, steady 1.28 deg/s), CG-47 **5.87** (1.62 L, 14.7 kt), LHD-1 **3.93** (1.99 L, 5.6 kt), CVN-68 **4.09** (1.99 L, 8.0 kt); all inside the 2-8 band, so the CG-47 xfail is now an ordinary assertion |
+| Small rudder step (2 deg at ~15 kt) | monotone first-order-like yaw rate; steady 0.125 deg/s, 63 % time 9.0 s; values at 2T and 3T within 0.08 of 0.865 and 0.95 |
 | Engine stop | monotonically decelerating; matches a separately coded integration of u' = -R/m11 with thrust decay within 0.5 % |
 | Zero thrust in a 2 kt current (toward 090) | over-ground speed 2 kt within 2 % (the drifting hull feels the apparent wind: about 1 % retardation), course 090 +-1 deg, position change equals current x time within 2 % |
 | Balanced sway push (two tugs +-0.3 LOA) | zero tug moment, yaw rate 0 at t = 0; sway to starboard; yaw after 10 s is 0.10 of the rate from the same force at the bow, caused by Clarke cross-coupling (N_v, Y_rdot, N_vdot), not by a tug moment |
 | Bow tug push to port | moment = 0.45 LOA x force, yaw CCW; stern push to port yaws CW |
 | Tug bollard limit | delivered force never exceeds the catalog bollard pull; saturation event emitted; slew linear at bollard/10 s |
-| Auto assist, engine stopped, 90 deg turn to a waypoint | tugs only, source auto_assist, force <= bollard; heading 273.5 deg after 400 s (target ~270) |
+| Auto assist, engine stopped, 90 deg turn to a waypoint | tugs only, source auto_assist, force <= bollard; heading within 250-290 deg after 400 s (target ~270) |
 | Multi-vessel independence | vessel A frames identical alone, with B, and with B listed first |
 | Determinism | same request gives identical series and resolved hash |
-| Time step | position error vs dt 0.05 s after a 400 s turn: 13.0 ft at dt 0.5 s, 4.4 ft at dt 0.2 s (of ~3000 ft), first-order convergence |
+| Time step | position error vs dt 0.05 s after a 400 s turn: 16.3 ft at dt 0.5 s, 5.5 ft at dt 0.2 s (of ~3000 ft), first-order convergence |
 | Presets | all four arrive within their durations |
 | API | POST simulate -> job succeeded -> series -> summaries; 422 for own_thrust with tug commands, unknown tug/class, missing speed basis, duplicate vessel ids |
+
+Added with the review fixes (`test_s6_fixes.py`): arrival in current (table in section 3), crab, Nomoto K versus simulated step, stability indices, the 60 deg course-change table, tug stale commands, thruster/tug allocation,
+helm release, frozen arrived vessels, exact sampling, frame-0 wind force, calm air drag, corner cross-track, degenerate routes (422), twin rudders, Cb rule, route-free prediction, and the preset coastline check.
 
 Runtime (CPython 3.12, one thread, Apple silicon laptop, dt 0.2 s): 0.32 s wall per simulated vessel-hour with default 2 s frames (0.28 s with 60 s frames); 4 vessels 1.25 s for 3600 s
 (0.31 s per vessel-hour); with wind, current and auto assist 0.49 s per vessel-hour.
 
 ## 9. Known limits and findings
-* Turning circles are large: the Clarke/DNV/Fujii chain gives TD/L = 7.2 for the DDG-51 and 8.8 for the CG-47 at 35 deg rudder from full speed. Real warships of these classes are commonly
-  quoted well below that; no data in the repository can confirm or correct it. The test band (2-8) is kept for the DDG, LHD and CVN, and the CG-47 miss is an explicit strict xfail rather than a retuned coefficient.
-* No wave-making resistance: friction-dominated drag calibrated to a nominal top speed gives plausible steady speeds but unverified acceleration/deceleration times.
-* Single equivalent propeller and rudder for twin-screw ships; no propeller side force or rudder-induced loss of speed beyond the MMG drag term.
-* Autopilot gains are heuristics; speed tracking has a small bias; arrival uses speed through the water.
-* The autopilot hands off to tugs on surge speed through the water only.
+* **Thrust calibration (see the prominent note at the top):** T_max from friction-only resistance is likely 2 to 4 times low; acceleration, stopping and astern authority are too sluggish.
+* Turning circles after the twin-rudder and Cb changes are 3.9 to 5.9 L at 35 deg from full speed (table in section 8). They are still produced by the Clarke/DNV/Fujii chain with assumed race and interaction
+  coefficients, not identified from any ship; no data in the repository can confirm them. Nothing else was adjusted. The DDG-51 and CG-47 Cb values changed because the catalog Cb was inconsistent with displacement
+  (section 2.3); the catalog draft may include the sonar dome and the catalog cannot say.
+* The linear Clarke stability index of the bare LHD-1 and CVN-68 hulls is negative (course-unstable); the rudder stabilises them in the linear model only through assumed coefficients (section 2.3).
+* No wave-making resistance. Twin rudders are modeled as one equivalent rudder pair with a shared yaw arm; no differential thrust between shafts, no propeller side force.
+* Autopilot: gains come from the vessel's own linearised model but design parameters (wn = 2.5 U/L, zeta 0.9) are choices; the first-order reduction ignores the sway pole and the rudder rate limit; astern heading is rough.
+  Cross-current stops need the ship to face the current (section 3). Arrival tolerates repeated missed approaches rather than guaranteeing arrival.
+* The autopilot hands off to tugs on surge speed through the water only. Arrived vessels are frozen (no drift in current after arrival); berthing simulation is expected to take over.

@@ -757,6 +757,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/berthing/sessions/{session_id}/scene": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Static rm0-v1 scene (berth, hull, fittings, fenders) for an interactive session */
+        get: operations["session_scene_api_v1_berthing_sessions__session_id__scene_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/berthing/recordings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Owner-scoped saved recordings, including expired sessions; stable session-ID order */
+        get: operations["recordings_api_v1_berthing_recordings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/berthing/sessions/{session_id}/recording": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bounded recording of an interactive session: live copy, else the persisted one */
+        get: operations["session_recording_api_v1_berthing_sessions__session_id__recording_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/approach/route": {
         parameters: {
             query?: never;
@@ -1045,6 +1096,40 @@ export interface paths {
         };
         /** Ready-made inbound/outbound transit requests (labeled demonstration routes) */
         get: operations["presets_api_v1_transit_presets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/predict/trajectory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Predict a vessel's path, hull footprints, uncertainty corridor and hazard clearance from its current state */
+        post: operations["predict_trajectory_api_v1_predict_trajectory_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/predict/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ready-made prediction requests built from real recorded NOAA conditions */
+        get: operations["presets_api_v1_predict_presets_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1935,6 +2020,20 @@ export interface components {
             original?: {
                 [key: string]: number | string;
             } | null;
+        };
+        /** CurrentTugForce */
+        CurrentTugForce: {
+            /** Tug Id */
+            tug_id: string;
+            /**
+             * Point
+             * @enum {string}
+             */
+            point: "bow" | "stern" | "port_shoulder" | "starboard_shoulder" | "port_quarter" | "starboard_quarter";
+            /** Force Lbf */
+            force_lbf: number;
+            /** Direction Rel Deg */
+            direction_rel_deg: number;
         };
         /** DepthPoint */
         DepthPoint: {
@@ -3101,6 +3200,50 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HazardApproach */
+        HazardApproach: {
+            /** T S */
+            t_s: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "pier" | "fender" | "coastline" | "vessel";
+            /** Element Id */
+            element_id: string;
+            /**
+             * Clearance Ft
+             * @description Hull-to-hazard distance at that time; <= 0 means contact.
+             */
+            clearance_ft: number;
+            /** @description Closest point on the hull. */
+            position: components["schemas"]["GeoPoint"];
+            /**
+             * Probability
+             * @description Share of uncertainty samples that breach; null without samples. Not a calibrated probability.
+             */
+            probability?: number | null;
+        };
+        /** HazardSettings */
+        HazardSettings: {
+            /**
+             * Berth Id
+             * @description Check clearance to this berth's pier face and fenders.
+             */
+            berth_id?: string | null;
+            /**
+             * Coastline
+             * @description Check clearance to available coastline data, where covered.
+             * @default true
+             */
+            coastline: boolean;
+            /**
+             * Min Clearance Ft
+             * @description Clearance below this is reported as a breach.
+             * @default 50
+             */
+            min_clearance_ft: number;
+        };
         /** Health */
         Health: {
             /**
@@ -4143,6 +4286,11 @@ export interface components {
             status: "slack" | "taut" | "overloaded" | "unknown";
             /** Ship Fitting Id */
             ship_fitting_id?: string | null;
+            /**
+             * Chock Id
+             * @description Intermediate ship lead fitting, when the line routes through a chock.
+             */
+            chock_id?: string | null;
             /** Pier Fitting Id */
             pier_fitting_id?: string | null;
             ship_end?: components["schemas"]["BerthPosition"] | null;
@@ -4202,6 +4350,78 @@ export interface components {
             references?: string[];
             /** Notes */
             notes?: string[];
+        };
+        /** MotionSceneDepth */
+        MotionSceneDepth: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            position: components["schemas"]["BerthPosition"];
+            /** Depth Mllw Ft */
+            depth_mllw_ft?: number | null;
+        };
+        /** MotionSceneFender */
+        MotionSceneFender: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** Fender Id */
+            fender_id: string;
+            position: components["schemas"]["BerthPosition"];
+            /** Length Ft */
+            length_ft?: number | null;
+            /** Standoff Ft */
+            standoff_ft?: number | null;
+        };
+        /** MotionScenePierFitting */
+        MotionScenePierFitting: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** Fitting Id */
+            fitting_id: string;
+            position: components["schemas"]["BerthPosition"];
+            /** Kind */
+            kind?: string | null;
+            /** Capacity Lbf */
+            capacity_lbf?: number | null;
+        };
+        /** MotionSceneShipFitting */
+        MotionSceneShipFitting: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** Fitting Id */
+            fitting_id: string;
+            position: components["schemas"]["ShipPoint"];
+            /** Kind */
+            kind?: string | null;
+            /** Capacity Lbf */
+            capacity_lbf?: number | null;
         };
         /** MotionTugState */
         MotionTugState: {
@@ -4364,6 +4584,71 @@ export interface components {
              */
             yaw_moment_ftlbf?: number | null;
         };
+        /**
+         * ObservedShipState
+         * @description The starting state: where the ship is now and what it is doing.
+         */
+        ObservedShipState: {
+            /** Vessel Id */
+            vessel_id: string;
+            /** Ship Class Id */
+            ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /**
+             * Observed Utc
+             * Format: date-time
+             * @description Time the state was observed; input age = as_of_utc - observed_utc.
+             */
+            observed_utc: string;
+            position: components["schemas"]["GeoPoint"];
+            /** Heading True Deg */
+            heading_true_deg: number;
+            /**
+             * Surge Kt
+             * @description Speed through the water, + ahead.
+             */
+            surge_kt: number;
+            /**
+             * Sway Kt
+             * @description Through the water, + to port.
+             * @default 0
+             */
+            sway_kt: number;
+            /**
+             * Yaw Rate Degps
+             * @description + counterclockwise (turning to port).
+             * @default 0
+             */
+            yaw_rate_degps: number;
+            /**
+             * Rudder Deg
+             * @default 0
+             */
+            rudder_deg: number;
+            /**
+             * Engine Order
+             * @default 0
+             */
+            engine_order: number;
+            /**
+             * Delivered Thrust Lbf
+             * @description Null assumes thrust has settled at the order.
+             */
+            delivered_thrust_lbf?: number | null;
+            /** Tugs */
+            tugs?: components["schemas"]["CurrentTugForce"][];
+            /** @description Null: no initial-state spread is sampled. */
+            uncertainty?: components["schemas"]["StateUncertainty"] | null;
+            /**
+             * Source
+             * @description e.g. gps+gyro, ais, replay:<mission_id>, sim:<session>.
+             */
+            source?: string | null;
+        };
         /** Offset */
         Offset: {
             /** Surge Ft */
@@ -4460,6 +4745,20 @@ export interface components {
             content_sha256?: string | null;
             /** Points */
             points?: components["schemas"]["OffshoreWavePoint"][];
+        };
+        /**
+         * OtherVessel
+         * @description Another vessel whose path is checked for clearance: a supplied predicted/planned path, not simulated here.
+         */
+        OtherVessel: {
+            /** Vessel Id */
+            vessel_id: string;
+            /** Beam Ft */
+            beam_ft: number;
+            /** Length Ft */
+            length_ft: number;
+            /** Path */
+            path: components["schemas"]["TrackFix"][];
         };
         /**
          * PierFitting
@@ -4609,6 +4908,179 @@ export interface components {
         PolarResult: {
             /** Points */
             points: components["schemas"]["PolarPoint"][];
+        };
+        /** PredictedTick */
+        PredictedTick: {
+            /**
+             * T S
+             * @description Seconds after as_of_utc.
+             */
+            t_s: number;
+            /**
+             * T Utc
+             * Format: date-time
+             */
+            t_utc: string;
+            position: components["schemas"]["GeoPoint"];
+            /** Heading True Deg */
+            heading_true_deg: number;
+            /** Sog Kt */
+            sog_kt: number;
+            /** Cog True Deg */
+            cog_true_deg?: number | null;
+            /** Rudder Deg */
+            rudder_deg: number;
+            /** Engine Order */
+            engine_order: number;
+            /**
+             * Footprint
+             * @description Hull outline at this tick (parametric planform).
+             */
+            footprint: components["schemas"]["GeoPoint"][];
+            /**
+             * Position Sd Ft
+             * @description Spread of sampled positions; null without samples.
+             */
+            position_sd_ft?: number | null;
+        };
+        /** PredictionAlternative */
+        PredictionAlternative: {
+            /** Alt Id */
+            alt_id: string;
+            /** Label */
+            label: string;
+            /** Ticks */
+            ticks: components["schemas"]["PredictedTick"][];
+            /**
+             * Corridor
+             * @description Outline enclosing the chosen percentile of sampled hull footprints over the horizon; null without samples.
+             */
+            corridor?: components["schemas"]["GeoPoint"][] | null;
+            /** @description Smallest clearance to any checked hazard. */
+            closest_approach?: components["schemas"]["HazardApproach"] | null;
+            /** @description First time clearance falls below min_clearance_ft on the central prediction. */
+            first_breach?: components["schemas"]["HazardApproach"] | null;
+        };
+        /** PredictionPreset */
+        PredictionPreset: {
+            /** Preset Id */
+            preset_id: string;
+            /** Title */
+            title: string;
+            request: components["schemas"]["PredictionRequest"];
+            validity: components["schemas"]["Validity"];
+        };
+        /** PredictionRequest */
+        PredictionRequest: {
+            vessel: components["schemas"]["ObservedShipState"];
+            /** @description Conditions held over the horizon. Null means explicitly calm (labeled), not unknown. */
+            environment?: components["schemas"]["EnvironmentSnapshot"] | null;
+            /**
+             * As Of Utc
+             * @description Prediction time; default now.
+             */
+            as_of_utc?: string | null;
+            /**
+             * Horizon S
+             * @default 300
+             */
+            horizon_s: number;
+            /**
+             * Tick S
+             * @description Output spacing of predicted states and footprints.
+             * @default 10
+             */
+            tick_s: number;
+            /**
+             * Dt S
+             * @default 0.2
+             */
+            dt_s: number;
+            propulsion?: components["schemas"]["PropulsionAssumptions"];
+            /**
+             * Alternatives
+             * @description What-if command sets; the baseline (commands held) is always predicted as alt_id 'hold'.
+             */
+            alternatives?: components["schemas"]["WhatIf"][];
+            /** Others */
+            others?: components["schemas"]["OtherVessel"][];
+            uncertainty?: components["schemas"]["UncertaintySettings"];
+            hazards?: components["schemas"]["HazardSettings"];
+        };
+        /** PredictionResponse */
+        PredictionResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /** @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes. */
+            manifest?: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["PredictionResult"];
+        };
+        /** PredictionResult */
+        PredictionResult: {
+            /** Vessel Id */
+            vessel_id: string;
+            /**
+             * Engine
+             * @enum {string}
+             */
+            engine: "transit" | "berthing";
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /**
+             * Input Age S
+             * @description as_of_utc - observed_utc. Stale inputs reduce validity.
+             */
+            input_age_s: number;
+            /**
+             * Hazards Checked
+             * @description Hazard kinds actually checked; unchecked kinds are not clear, just unknown.
+             */
+            hazards_checked: ("pier" | "fender" | "coastline" | "vessel")[];
+            /**
+             * Alternatives
+             * @description 'hold' first, then what-ifs in request order.
+             */
+            alternatives: components["schemas"]["PredictionAlternative"][];
         };
         /**
          * PropulsionAssumptions
@@ -5427,6 +5899,24 @@ export interface components {
             dofs: components["schemas"]["MotionDofs"];
             acceleration?: components["schemas"]["MotionAcceleration"] | null;
         };
+        /** ShipPoint */
+        ShipPoint: {
+            /**
+             * X Ft
+             * @description Forward from the ship reference origin.
+             */
+            x_ft?: number | null;
+            /**
+             * Y Ft
+             * @description Port from the ship reference origin.
+             */
+            y_ft?: number | null;
+            /**
+             * Z Ft
+             * @description Up from the declared reference waterline/loading.
+             */
+            z_ft?: number | null;
+        };
         /**
          * ShipState
          * @description Ship pose and velocity in the berth frame. y_ft is the distance from the pier face to the centerline.
@@ -5510,6 +6000,200 @@ export interface components {
             /** Structured Alerts */
             structured_alerts?: components["schemas"]["MotionAlert"][] | null;
         } & unknown;
+        /**
+         * SimLifecycle
+         * @description Server lifecycle metadata for the rm0-v1 session stream.
+         */
+        SimLifecycle: {
+            /**
+             * Type
+             * @default session_lifecycle
+             * @constant
+             */
+            type: "session_lifecycle";
+            /**
+             * Schema Version
+             * @default rm0-v1
+             * @constant
+             */
+            schema_version: "rm0-v1";
+            /** Session Id */
+            session_id: string;
+            /**
+             * Run Id
+             * @description Changes on reset; sequence remains monotonic for the session.
+             */
+            run_id: string;
+            /** Sequence */
+            sequence: number;
+            /** T S */
+            t_s: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "created" | "running" | "paused" | "reset" | "ended" | "error";
+            /** Scene Id */
+            scene_id?: string | null;
+            /** Scene Revision */
+            scene_revision?: string | null;
+            /** Message */
+            message?: string | null;
+            validity?: components["schemas"]["Validity"] | null;
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /**
+             * Speed
+             * @description Current simulated seconds per wall second.
+             */
+            speed?: number | null;
+        };
+        /**
+         * SimRecording
+         * @description Bounded display recording. Sequence gaps mean decimation, never missing physics integration steps.
+         */
+        SimRecording: {
+            /**
+             * Schema Version
+             * @default rm0-v1
+             * @constant
+             */
+            schema_version: "rm0-v1";
+            /** Recording Id */
+            recording_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Scene Id */
+            scene_id: string;
+            /** Scene Revision */
+            scene_revision: string;
+            /**
+             * Duration S
+             * @description Recorded simulation duration, excluding paused wall time.
+             */
+            duration_s?: number | null;
+            sampling: components["schemas"]["SimSamplingPolicy"];
+            /** Frames */
+            frames: components["schemas"]["SimFrame"][];
+            /** Lifecycle */
+            lifecycle?: components["schemas"]["SimLifecycle"][];
+            validity?: components["schemas"]["Validity"] | null;
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+        };
+        /**
+         * SimRecordingList
+         * @description Owner-scoped keyset page, ordered by session ID, not creation time.
+         */
+        SimRecordingList: {
+            /** Recordings */
+            recordings: components["schemas"]["SimRecordingSummary"][];
+            /**
+             * Next Cursor
+             * @description Pass as after_session_id for the next page.
+             */
+            next_cursor?: string | null;
+        };
+        /**
+         * SimRecordingSummary
+         * @description Small saved-recording index entry; frames are fetched separately.
+         */
+        SimRecordingSummary: {
+            /** Recording Id */
+            recording_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Scene Id */
+            scene_id: string;
+            /** Scene Revision */
+            scene_revision: string;
+            /** Duration S */
+            duration_s: number;
+            /** Frame Count */
+            frame_count: number;
+            validity: components["schemas"]["Validity"];
+            /** Scene Url */
+            scene_url: string;
+            /** Recording Url */
+            recording_url: string;
+        };
+        /** SimSamplingPolicy */
+        SimSamplingPolicy: {
+            /**
+             * Physics Dt S
+             * @description Integrator step if fixed; rendering never controls it.
+             */
+            physics_dt_s?: number | null;
+            /** Display Interval S */
+            display_interval_s?: number | null;
+            /** Max Pending Frames */
+            max_pending_frames?: number | null;
+            /**
+             * Slow Client Policy
+             * @default drop_display_frames
+             * @constant
+             */
+            slow_client_policy: "drop_display_frames";
+            /**
+             * Description
+             * @default Keep the newest display frame; never skip or slow physics. Sequence gaps disclose dropped frames.
+             */
+            description: string;
+        };
+        /**
+         * SimScene
+         * @description Static scene fetched once. Producers publish a new revision whenever scene content changes.
+         */
+        SimScene: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            /**
+             * Schema Version
+             * @default rm0-v1
+             * @constant
+             */
+            schema_version: "rm0-v1";
+            /** Scene Id */
+            scene_id: string;
+            /** Revision */
+            revision: string;
+            /** Berth Id */
+            berth_id: string;
+            /** Ship Class Id */
+            ship_class_id: string;
+            /** Loading */
+            loading: string;
+            /** Face Bearing True Deg */
+            face_bearing_true_deg?: number | null;
+            /**
+             * Deck Height Mllw Ft
+             * @description Fixed pier-deck elevation above MLLW.
+             */
+            deck_height_mllw_ft?: number | null;
+            /**
+             * Ship Reference
+             * @description Origin used by ship geometry and frame motion.
+             * @default midships at the reference waterline
+             */
+            ship_reference: string;
+            /** Berth Outline */
+            berth_outline?: components["schemas"]["BerthPosition"][] | components["schemas"]["BerthPosition"][] | null;
+            /** Ship Hull Outline */
+            ship_hull_outline?: components["schemas"]["ShipPoint"][] | components["schemas"]["ShipPoint"][] | null;
+            /** Ship Fittings */
+            ship_fittings?: components["schemas"]["MotionSceneShipFitting"][] | null;
+            /** Pier Fittings */
+            pier_fittings?: components["schemas"]["MotionScenePierFitting"][] | null;
+            /** Fenders */
+            fenders?: components["schemas"]["MotionSceneFender"][] | null;
+            /** Depth Profile */
+            depth_profile?: components["schemas"]["MotionSceneDepth"][] | null;
+        };
         /** SimSeries */
         SimSeries: {
             /** Job Id */
@@ -5523,6 +6207,11 @@ export interface components {
             dt_s?: number | null;
             /** Duration S */
             duration_s?: number | null;
+            /**
+             * Record Interval S
+             * @description Simulation-time interval between recorded frames; absent means 1 s.
+             */
+            record_interval_s?: number | null;
             /** Scenario Id */
             scenario_id: string;
             initial_state: components["schemas"]["ShipState"];
@@ -5544,6 +6233,11 @@ export interface components {
              * @description Present only when the session implements the RM0 stream protocol.
              */
             protocol?: "rm0-v1" | null;
+            /**
+             * Recording Url
+             * @description Bounded SimRecording resource for this session (live copy, else persisted).
+             */
+            recording_url?: string | null;
         };
         /** SimulationDiagnostics */
         SimulationDiagnostics: {
@@ -5632,6 +6326,27 @@ export interface components {
              * @description Same unit as value.
              */
             tolerance: number;
+        };
+        /**
+         * StateUncertainty
+         * @description One-sigma uncertainty of the starting state (e.g. GPS and heading sensor error).
+         */
+        StateUncertainty: {
+            /**
+             * Position Sd Ft
+             * @default 15
+             */
+            position_sd_ft: number;
+            /**
+             * Heading Sd Deg
+             * @default 1
+             */
+            heading_sd_deg: number;
+            /**
+             * Speed Sd Kt
+             * @default 0.2
+             */
+            speed_sd_kt: number;
         };
         /** StationQuality */
         StationQuality: {
@@ -6725,6 +7440,33 @@ export interface components {
             legs: components["schemas"]["UkcLeg"][];
             window: components["schemas"]["TimeWindow"];
         };
+        /** UncertaintySettings */
+        UncertaintySettings: {
+            /**
+             * Samples
+             * @description Monte Carlo samples per alternative; 0 = no corridor.
+             * @default 0
+             */
+            samples: number;
+            /**
+             * Seed
+             * @default 0
+             */
+            seed: number;
+            /**
+             * Model
+             * @description Seeded gust and current perturbations from the S10 uncertainty model (unqualified), plus initial-state spread.
+             * @default s10_gust_current
+             * @constant
+             */
+            model: "s10_gust_current";
+            /**
+             * Percentile
+             * @description Corridor encloses this share of sampled footprints.
+             * @default 90
+             */
+            percentile: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -7040,6 +7782,20 @@ export interface components {
             channel_depth_mllw_ft: number;
             /** Width Ft */
             width_ft: number;
+        };
+        /**
+         * WhatIf
+         * @description An alternative set of commands from now on. Times are seconds from the prediction start.
+         */
+        WhatIf: {
+            /** Alt Id */
+            alt_id: string;
+            /** Label */
+            label: string;
+            /** Helm Commands */
+            helm_commands?: components["schemas"]["TransitHelmCommand"][];
+            /** Tug Commands */
+            tug_commands?: components["schemas"]["TransitTugCommand"][];
         };
         /** WindForecastPoint */
         WindForecastPoint: {
@@ -7719,115 +8475,6 @@ export interface components {
             /** Message */
             message: string;
         };
-        /** MotionSceneDepth */
-        MotionSceneDepth: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            position: components["schemas"]["BerthPosition"];
-            /**
-             * Depth Mllw Ft
-             * @default null
-             */
-            depth_mllw_ft: number | null;
-        };
-        /** MotionSceneFender */
-        MotionSceneFender: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            /** Fender Id */
-            fender_id: string;
-            position: components["schemas"]["BerthPosition"];
-            /**
-             * Length Ft
-             * @default null
-             */
-            length_ft: number | null;
-            /**
-             * Standoff Ft
-             * @default null
-             */
-            standoff_ft: number | null;
-        };
-        /** MotionScenePierFitting */
-        MotionScenePierFitting: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            /** Fitting Id */
-            fitting_id: string;
-            position: components["schemas"]["BerthPosition"];
-            /**
-             * Kind
-             * @default null
-             */
-            kind: string | null;
-            /**
-             * Capacity Lbf
-             * @default null
-             */
-            capacity_lbf: number | null;
-        };
-        /** MotionSceneShipFitting */
-        MotionSceneShipFitting: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            /** Fitting Id */
-            fitting_id: string;
-            position: components["schemas"]["ShipPoint"];
-            /**
-             * Kind
-             * @default null
-             */
-            kind: string | null;
-            /**
-             * Capacity Lbf
-             * @default null
-             */
-            capacity_lbf: number | null;
-        };
         /** RecommendResponse */
         RecommendResponse: {
             /**
@@ -7916,27 +8563,6 @@ export interface components {
             /** Notes */
             notes?: string[];
         };
-        /** ShipPoint */
-        ShipPoint: {
-            /**
-             * X Ft
-             * @description Forward from the ship reference origin.
-             * @default null
-             */
-            x_ft: number | null;
-            /**
-             * Y Ft
-             * @description Port from the ship reference origin.
-             * @default null
-             */
-            y_ft: number | null;
-            /**
-             * Z Ft
-             * @description Up from the declared reference waterline/loading.
-             * @default null
-             */
-            z_ft: number | null;
-        };
         /** SimControlMessage */
         SimControlMessage: {
             /**
@@ -7956,59 +8582,6 @@ export interface components {
             kind: "fender_contact" | "line_overload" | "speed_exceeded" | "all_fast";
             /** Detail */
             detail: string;
-        };
-        /**
-         * SimLifecycle
-         * @description Server lifecycle metadata; defining this schema does not enable a new runtime protocol.
-         */
-        SimLifecycle: {
-            /**
-             * Type
-             * @default session_lifecycle
-             * @constant
-             */
-            type: "session_lifecycle";
-            /**
-             * Schema Version
-             * @default rm0-v1
-             * @constant
-             */
-            schema_version: "rm0-v1";
-            /** Session Id */
-            session_id: string;
-            /**
-             * Run Id
-             * @description Changes on reset; sequence remains monotonic for the session.
-             */
-            run_id: string;
-            /** Sequence */
-            sequence: number;
-            /** T S */
-            t_s: number;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "created" | "running" | "paused" | "reset" | "ended" | "error";
-            /**
-             * Scene Id
-             * @default null
-             */
-            scene_id: string | null;
-            /**
-             * Scene Revision
-             * @default null
-             */
-            scene_revision: string | null;
-            /**
-             * Message
-             * @default null
-             */
-            message: string | null;
-            /** @default null */
-            validity: components["schemas"]["Validity"] | null;
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
         };
         /** SimLineEventMessage */
         SimLineEventMessage: {
@@ -8032,151 +8605,17 @@ export interface components {
             event: "secured" | "tensioned" | "released";
         };
         /**
-         * SimRecording
-         * @description Bounded display recording. Sequence gaps mean decimation, never missing physics integration steps.
+         * SimSpeedMessage
+         * @description Client message: simulated seconds per wall second. The physics step never changes.
          */
-        SimRecording: {
+        SimSpeedMessage: {
             /**
-             * Schema Version
-             * @default rm0-v1
+             * Type
              * @constant
              */
-            schema_version: "rm0-v1";
-            /** Recording Id */
-            recording_id: string;
-            /** Session Id */
-            session_id: string;
-            /** Scene Id */
-            scene_id: string;
-            /** Scene Revision */
-            scene_revision: string;
-            /**
-             * Duration S
-             * @description Recorded simulation duration, excluding paused wall time.
-             * @default null
-             */
-            duration_s: number | null;
-            sampling: components["schemas"]["SimSamplingPolicy"];
-            /** Frames */
-            frames: components["schemas"]["SimFrame"][];
-            /** Lifecycle */
-            lifecycle?: components["schemas"]["SimLifecycle"][];
-            /** @default null */
-            validity: components["schemas"]["Validity"] | null;
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-        };
-        /** SimSamplingPolicy */
-        SimSamplingPolicy: {
-            /**
-             * Physics Dt S
-             * @description Integrator step if fixed; rendering never controls it.
-             * @default null
-             */
-            physics_dt_s: number | null;
-            /**
-             * Display Interval S
-             * @default null
-             */
-            display_interval_s: number | null;
-            /**
-             * Max Pending Frames
-             * @default null
-             */
-            max_pending_frames: number | null;
-            /**
-             * Slow Client Policy
-             * @default drop_display_frames
-             * @constant
-             */
-            slow_client_policy: "drop_display_frames";
-            /**
-             * Description
-             * @default Keep the newest display frame; never skip or slow physics. Sequence gaps disclose dropped frames.
-             */
-            description: string;
-        };
-        /**
-         * SimScene
-         * @description Static scene fetched once. Producers publish a new revision whenever scene content changes.
-         */
-        SimScene: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            /**
-             * Schema Version
-             * @default rm0-v1
-             * @constant
-             */
-            schema_version: "rm0-v1";
-            /** Scene Id */
-            scene_id: string;
-            /** Revision */
-            revision: string;
-            /** Berth Id */
-            berth_id: string;
-            /** Ship Class Id */
-            ship_class_id: string;
-            /** Loading */
-            loading: string;
-            /**
-             * Face Bearing True Deg
-             * @default null
-             */
-            face_bearing_true_deg: number | null;
-            /**
-             * Deck Height Mllw Ft
-             * @description Fixed pier-deck elevation above MLLW.
-             * @default null
-             */
-            deck_height_mllw_ft: number | null;
-            /**
-             * Ship Reference
-             * @description Origin used by ship geometry and frame motion.
-             * @default midships at the reference waterline
-             */
-            ship_reference: string;
-            /**
-             * Berth Outline
-             * @default null
-             */
-            berth_outline: components["schemas"]["BerthPosition"][] | components["schemas"]["BerthPosition"][] | null;
-            /**
-             * Ship Hull Outline
-             * @default null
-             */
-            ship_hull_outline: components["schemas"]["ShipPoint"][] | components["schemas"]["ShipPoint"][] | null;
-            /**
-             * Ship Fittings
-             * @default null
-             */
-            ship_fittings: components["schemas"]["MotionSceneShipFitting"][] | null;
-            /**
-             * Pier Fittings
-             * @default null
-             */
-            pier_fittings: components["schemas"]["MotionScenePierFitting"][] | null;
-            /**
-             * Fenders
-             * @default null
-             */
-            fenders: components["schemas"]["MotionSceneFender"][] | null;
-            /**
-             * Depth Profile
-             * @default null
-             */
-            depth_profile: components["schemas"]["MotionSceneDepth"][] | null;
+            type: "set_speed";
+            /** Speed */
+            speed: number;
         };
         /**
          * SimTugCommandMessage
@@ -8344,7 +8783,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "waypoint_reached" | "arrived" | "rudder_saturated" | "tug_saturated" | "large_cross_track" | "stopped_short" | "integration_failed";
+            kind: "waypoint_reached" | "arrived" | "rudder_saturated" | "tug_saturated" | "large_cross_track" | "missed_approach" | "stopped_short" | "integration_failed";
             /** Detail */
             detail: string;
         };
@@ -9938,6 +10377,100 @@ export interface operations {
             };
         };
     };
+    session_scene_api_v1_berthing_sessions__session_id__scene_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimScene"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recordings_api_v1_berthing_recordings_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                after_session_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimRecordingList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    session_recording_api_v1_berthing_sessions__session_id__recording_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimRecording"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     route_api_v1_approach_route_post: {
         parameters: {
             query?: never;
@@ -10603,6 +11136,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TransitPreset"][];
+                };
+            };
+        };
+    };
+    predict_trajectory_api_v1_predict_trajectory_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PredictionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    presets_api_v1_predict_presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionPreset"][];
                 };
             };
         };

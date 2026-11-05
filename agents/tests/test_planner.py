@@ -508,3 +508,32 @@ def test_holding_search_adds_to_existing_assistance_instead_of_replacing_it(setu
     assert {a.tug_id for a in rec.plan.holding_tugs} == {"T1", "T4"}
     assert len(rec.holding_tugs) == 2
     assert all({a["tug_id"] for a in b["tugs"]} == {"T1", "T4"} for b in client.risks)
+
+
+def test_planner_preserves_model_resolved_spans_for_sequence_risk_and_saved_plan(setup, monkeypatch):
+    client, tk = setup
+    original = client.analyze
+    resolved = client.cfg.model_copy(deep=True)
+    for index, line in enumerate(resolved.lines):
+        line.paid_out_unstretched_length_ft = 100.125+index  # Fixture output, never computed by the agent.
+        line.pretension_lbf = line.slack_ft = None
+        line.condition = 'wet'
+    async def analyze_with_resolved(body):
+        response = await original(body)
+        response.result.resolved_config = resolved.model_copy(deep=True)
+        return response
+    monkeypatch.setattr(client, 'analyze', analyze_with_resolved)
+    sequences = []
+    original_sequence = client.sequence
+    async def sequence(body):
+        sequences.append(body)
+        return await original_sequence(body)
+    monkeypatch.setattr(client, 'sequence', sequence)
+    rec = run(tk)
+    assert rec.plan.config.model_dump() == resolved.model_dump()
+    for body in [*client.risks, *sequences]:
+        assert MooringConfig.model_validate(body['config']).model_dump() == resolved.model_dump()
+    restored = agent._load_record(agent.SavedPlan.model_validate_json(agent._save_record(rec).model_dump_json()))
+    assert restored.plan.config.model_dump() == resolved.model_dump()
+    assert any('modeling-resolved' in item.text and item.cites == [rec.plan.analysis_result_id]
+               for item in rec.plan.rationale)

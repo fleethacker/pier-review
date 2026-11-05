@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 00:23 EST, modeling agent: Final Planner configurations now retain static analysis resolved_config: explicit modeled unstretched spans and wet/dry state. Saved configs and alert reconnects preserve those line fields rather than deriving a fresh installation tide. The new field is optional for legacy results. No dynamics/environment coefficients changed; explicit modeled spans are not operational handling instructions.
+
 - 00:18 EST, modeling agent: Small cross-boundary mock-forecast fix in progress. Legacy forecast rounds start to the hour then returns only hours/step samples, so it falls short of now+horizon except on the hour. I will move the series adapter into data_simulation, cover the actual requested end (including partial step), and label source mock/basis scenario. Only the mock forecast wrapper changes in environment; live provider acquisition and /ws/env stay untouched. Deterministic tests at multiple clock phases will cover this.
 
 - 00:14 EST, modeling agent: Saved-source consistency fix in progress: `scenarios.environment_for` now honors explicit mock mode using the stable synthetic generator and berth station labels, even with CO-OPS configured. Additive GET /scenarios/{id}/environment shares that resolution with Planner/Intake; unsupported saved modes and provider errors stay explicit. No environment, ws or simulation files changed. Simulation initialization and alerts already use the shared resolver.

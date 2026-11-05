@@ -956,6 +956,8 @@ export interface components {
         };
         /** AnalyzeResult */
         AnalyzeResult: {
+            /** @description Configuration with modeled unstretched spans and wet/dry conditions explicit for reproducible rechecks. Not rope-cutting lengths, a handling instruction or approval. */
+            resolved_config?: components["schemas"]["MooringConfig"] | null;
             offset: components["schemas"]["Offset"];
             /** Lines */
             lines: components["schemas"]["LineResult"][];

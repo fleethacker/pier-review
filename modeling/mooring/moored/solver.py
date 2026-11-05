@@ -203,7 +203,12 @@ def build_result(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs
     range_f, _ = range_findings(depth, mean_draft_ft(ship, req.loading), env.current_speed_kt, reynolds)
     findings += range_f
     front = 1 if cfg.side_to == "starboard" else -1
+    resolved_config = cfg.model_copy(update={"lines": [line.ln.model_copy(update={
+        "paid_out_unstretched_length_ft": line.model.rest_length_ft,
+        "pretension_lbf": None, "slack_ft": None, "condition": "wet" if line.wet else "dry",
+    }) for line in system.lines]})
     result = AnalyzeResult(
+        resolved_config=resolved_config,
         offset=Offset(surge_ft=round(pose.dx_ft * front, 2), sway_ft=round(pose.dy_ft, 2), yaw_deg=round(math.degrees(pose.dyaw_rad), 3)),
         lines=line_results, pier_fittings=pier_results, ship_fittings=ship_results, fenders=fender_results,
         min_margin=MinMargin(element_id=top[0], pct_wll=round(top[1], 1)), findings=findings)

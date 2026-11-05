@@ -89,6 +89,19 @@ def _recorded_latest(berth_id, heading_true_deg=None):
     return _recorded_at(berth_id, package.source.coverage[1], heading_true_deg, checked_at=utcnow())
 
 
+def _not_current(snap, reason):
+    """Label a recorded snapshot served in place of current conditions: never `good`, with an explicit limitation."""
+    md = snap.metadata
+    if md is None:
+        return snap
+    note = (f"Recorded observation from {snap.valid_at_utc:%Y-%m-%d %H:%M} UTC served as a fallback; "
+            f"NOT current conditions ({reason}).")
+    downgrade = lambda q: "suspect" if q in ("good", "unknown") else q  # noqa: E731
+    comps = [c.model_copy(update={"quality": downgrade(c.quality), "limitations": [*c.limitations, note]})
+             for c in (md.components or [])]
+    return snap.model_copy(update={"metadata": md.model_copy(update={"quality": downgrade(md.quality), "components": comps})})
+
+
 def live_snapshot(berth_id, heading_true_deg=None):
     """Explicit operational source used by saved `live` selections; never consult global fallback mode."""
     from . import live
@@ -235,7 +248,7 @@ def now(berth_id, heading_true_deg=None, env_scenario_id=None):
     if mode == "mock":
         return _mock.now(berth_id, heading_true_deg, None)
     if mode == "replay":
-        return _recorded_latest(berth_id, heading_true_deg)
+        return _not_current(_recorded_latest(berth_id, heading_true_deg), "replay source selected")
     from .errors import ProviderError
     try:
         return live_snapshot(berth_id, heading_true_deg)
@@ -243,7 +256,7 @@ def now(berth_id, heading_true_deg=None, env_scenario_id=None):
         if mode == "coops":
             raise
         try:
-            return _recorded_latest(berth_id, heading_true_deg)
+            return _not_current(_recorded_latest(berth_id, heading_true_deg), f"live unavailable: {live_error}")
         except ProviderError as replay_error:
             raise ProviderError(
                 "unavailable",

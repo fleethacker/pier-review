@@ -7,6 +7,7 @@ vi.mock('./api', () => ({
   modeling: { GET: vi.fn(), POST: (...args: unknown[]) => post(...args) },
   unwrap: <T,>(r: { data: T }) => r.data,
   awaitJob: vi.fn(),
+  describeError: (e: unknown) => (e instanceof Error ? e.message : String(e)),
 }));
 
 import { MooringController, type Candidate } from './controller';

@@ -2,6 +2,8 @@ export type StreamStatus = 'connecting' | 'open' | 'closed' | 'error';
 
 export interface StreamHandle {
   close(): void;
+  /** Sends on the current socket. Returns false (and sends nothing) when the socket is not open. */
+  send(data: string): boolean;
 }
 
 /**
@@ -49,6 +51,11 @@ export function openJsonStream<T>(
   connect();
 
   return {
+    send(data: string) {
+      if (!socket || socket.readyState !== 1) return false;
+      socket.send(data);
+      return true;
+    },
     close() {
       closedByUs = true;
       clearTimeout(timer);

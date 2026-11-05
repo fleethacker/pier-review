@@ -1,8 +1,10 @@
 import { Store } from '../../lib/store';
 import type { AppHost } from '../../scene/app';
 import type { SceneEdit, SceneState } from '../../scene/types';
-import { awaitJob, modeling, MODELING_BASE, unwrap, wsUrl } from './api';
+import { awaitJob, describeError, modeling, MODELING_BASE, unwrap, wsUrl } from './api';
 import { AgentSession } from './agent';
+import { MotionController } from './motion/controller';
+import type { Capability } from './status/sources';
 import { openJsonStream } from './streams';
 import type { StreamHandle, StreamStatus } from './streams';
 import {
@@ -138,6 +140,12 @@ export interface MooringState {
   notice: string | null;
   backend: string | null;
   envMode: { kind: EnvMode; status: StreamStatus | 'idle'; detail: string | null };
+  /** What the service says each capability is qualified for, and its module status; null until loaded or if unreachable. */
+  capabilities: Capability[] | null;
+  modules: Record<string, string> | null;
+  apiVersion: string | null;
+  catalogOk: { ok: boolean; problems: string[] } | null;
+  statusError: string | null;
   windHistory: WindSample[];
   alerts: AlertItem[];
   alertsStatus: StreamStatus | 'idle';
@@ -178,6 +186,11 @@ const INITIAL: MooringState = {
   notice: null,
   backend: null,
   envMode: { kind: 'manual', status: 'idle', detail: null },
+  capabilities: null,
+  modules: null,
+  apiVersion: null,
+  catalogOk: null,
+  statusError: null,
   windHistory: [],
   alerts: [],
   alertsStatus: 'idle',
@@ -192,6 +205,29 @@ const ANALYZE_DEBOUNCE_MS = 250;
 export class MooringController {
   readonly state = new Store<MooringState>(INITIAL);
   readonly agent: AgentSession = new AgentSession(this);
+  readonly motion: MotionController = new MotionController({
+    faceBearingDeg: () => this.s.berth?.face_bearing_true_deg ?? null,
+    // A tug can hold several push points and a layout can repeat a line number while it is being edited: list each once.
+    tugIds: () => [...new Set(this.s.tugAssignments.map((t) => t.tug_id))],
+    lineNumbers: () => [...new Set(this.s.lines.map((l) => l.line_number))],
+    layoutKey: () => JSON.stringify([this.contextKey(), this.s.lines, this.s.tugAssignments]),
+    ensureScenario: async () => this.s.scenarioId ?? this.saveScenario(`Motion session ${new Date().toISOString().slice(11, 16)}Z`),
+    initialState: (offsetFt) => {
+      const { berth, ship, side, shipXFt, standoffOverrideFt } = this.s;
+      if (!berth || !ship) return null;
+      // Berth axes put the ship's pose at x along the pier and y off it; start it offsetFt further out, parallel to the face.
+      const yaw = side === 'starboard' ? 0 : 180;
+      const heading = (((berth.face_bearing_true_deg - yaw) % 360) + 360) % 360;
+      return {
+        x_ft: shipXFt,
+        y_ft: ship.beam_ft / 2 + resolveStandoff(berth, standoffOverrideFt) + offsetFt,
+        heading_true_deg: heading,
+        u_kt: 0,
+        v_kt: 0,
+        r_degps: 0,
+      };
+    },
+  });
   private analyzeTimer: ReturnType<typeof setTimeout> | undefined;
   private analyzeSeq = 0;
   private selectionSeq = 0;
@@ -220,6 +256,7 @@ export class MooringController {
     this.envStream?.close();
     this.alertStream?.close();
     this.agent.dispose();
+    this.motion.dispose();
     this.unsubscribeScene();
     this.unsubscribeUnits();
   }
@@ -229,6 +266,27 @@ export class MooringController {
   }
 
   // ---- startup -------------------------------------------------------------------------------------------
+
+  /** Capabilities, module status and catalog audit. Failures are shown in the status panel, never fatal. */
+  async loadStatus(): Promise<void> {
+    try {
+      const [caps, version, audit] = await Promise.all([
+        modeling.GET('/api/v1/capabilities').then(unwrap),
+        modeling.GET('/api/v1/version').then(unwrap),
+        modeling.GET('/api/v1/qualification').then(unwrap),
+      ]);
+      if (this.disposed) return;
+      this.state.set({
+        capabilities: caps as unknown as Capability[],
+        modules: (version as { modules?: Record<string, string> }).modules ?? null,
+        apiVersion: (version as { api_version?: string }).api_version ?? null,
+        catalogOk: { ok: audit.ok, problems: (audit.problems ?? []).map(String) },
+        statusError: null,
+      });
+    } catch (e) {
+      if (!this.disposed) this.state.set({ statusError: message(e) });
+    }
+  }
 
   async init(): Promise<void> {
     this.state.set({ phase: 'loading', error: null });
@@ -254,6 +312,7 @@ export class MooringController {
       await this.loadSelection({ recommend: true });
       void this.loadBerthSites(berths.map((b) => b.berth_id));
       this.refreshScenarioList().catch(() => undefined);
+      void this.loadStatus();
       this.startAlerts();
       this.state.set({ phase: 'ready' });
     } catch (e) {
@@ -314,6 +373,15 @@ export class MooringController {
   }
 
   // ---- setup actions ---------------------------------------------------------------------------------------
+
+  /** A berth was just saved elsewhere (e.g. confirmed from an image): refresh the lists and select it. */
+  async adoptBerth(berthId: string): Promise<void> {
+    const berths = unwrap(await modeling.GET('/api/v1/berths'));
+    if (this.disposed) return;
+    this.state.set({ berths });
+    void this.loadBerthSites(berths.map((b) => b.berth_id));
+    await this.setBerth(berthId);
+  }
 
   async setBerth(berthId: string): Promise<void> {
     await this.setEnvMode('manual');
@@ -873,7 +941,7 @@ export class MooringController {
 }
 
 function message(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
+  return describeError(e);
 }
 
 export type { SceneState };

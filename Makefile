@@ -1,4 +1,4 @@
-.PHONY: install mock modeling agents contract contract-check test check smoke-live
+.PHONY: install mock modeling agents contract contract-check test check smoke-live demo-check
 
 # Optional installed native-library path, assigned inside the recipe for macOS make.
 PDF_LIBRARY_PATH ?=
@@ -32,3 +32,6 @@ smoke-live:           ## Opt-in live provider checks (never part of CI)
 	else \
 		echo "skipped: set MOORING_LIVE_SMOKE=1"; \
 	fi
+
+demo-check:         ## Check the browser and API demonstration (see scripts/demo_check.py)
+	uv run --all-packages python scripts/demo_check.py

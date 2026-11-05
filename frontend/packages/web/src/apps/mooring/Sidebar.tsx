@@ -4,11 +4,14 @@ import { useUnitSystem } from './units';
 import { AgentPanel } from './panels/AgentPanel';
 import { EnvPanel } from './panels/EnvPanel';
 import { LinesPanel } from './panels/LinesPanel';
+import { MotionLauncher } from './panels/MotionLauncher';
 import { RecommendPanel } from './panels/RecommendPanel';
 import { ResultPanel } from './panels/ResultPanel';
 import { ScenarioPanel } from './panels/ScenarioPanel';
 import { SequencePanel } from './panels/SequencePanel';
 import { SetupPanel } from './panels/SetupPanel';
+import { StatusPanel } from './status/StatusPanel';
+import { BerthVisionPanel } from './vision/BerthVisionPanel';
 
 export function Sidebar() {
   useUnitSystem();
@@ -43,11 +46,14 @@ export function Sidebar() {
         </div>
       )}
       <SetupPanel />
+      <BerthVisionPanel />
       <EnvPanel />
+      <StatusPanel />
       <AgentPanel />
       <LinesPanel />
       <ResultPanel />
       <SequencePanel />
+      <MotionLauncher />
       <RecommendPanel />
       <ScenarioPanel />
     </div>

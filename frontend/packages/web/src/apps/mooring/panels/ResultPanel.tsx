@@ -45,8 +45,8 @@ export function ResultPanel() {
           <details className="text-[10px] text-mil-dim">
             <summary className="cursor-pointer">Assumptions and provenance</summary>
             <ul className="mt-1 list-disc space-y-0.5 pl-4">
-              {(res.assumptions ?? []).map((a) => (
-                <li key={a}>{a}</li>
+              {(res.assumptions ?? []).map((a, i) => (
+                <li key={`${i}-${a}`}>{a}</li>
               ))}
             </ul>
             <div className="mt-1">

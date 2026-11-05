@@ -56,6 +56,7 @@ export interface TimelineStep {
   governing_element: string | null;
 }
 export interface TimelineResult {
+  forcing_source?: 'supplied' | 'synthetic_training';
   steps: TimelineStep[];
   first_amber_utc: string | null;
   first_red_utc: string | null;
@@ -72,13 +73,18 @@ export interface EnvelopeResult {
   worst: EnvelopePoint | null;
 }
 export interface ExceedanceResult {
+  n_valid?: number | null;
+  n_failed?: number | null;
+  pointwise_only?: boolean | null;
+  uncertainty_model?: { qualification: string } | null;
   n_samples: number;
   p_any_exceeds_wll: number;
   p_any_exceeds_mbs: number;
   governing_element: string | null;
-  elements: { element_id: string; p_exceed_wll: number; p_exceed_mbs: number; tension_p50_lbf: number; tension_p95_lbf: number }[];
+  elements: { element_id: string; p_exceed_wll: number; p_exceed_mbs: number | null; tension_p50_lbf: number; tension_p95_lbf: number }[];
 }
 export interface Enveloped<R> {
+  validity?: AnalyzeResponse['validity'];
   result_id: string;
   backend: string;
   status: 'GREEN' | 'AMBER' | 'RED';

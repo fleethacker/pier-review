@@ -10,7 +10,7 @@ type Tab = 'live' | 'alerts' | 'forecast' | 'limits' | 'exceedance';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'live', label: 'Live' },
   { id: 'alerts', label: 'Alerts' },
-  { id: 'forecast', label: 'Forecast' },
+  { id: 'forecast', label: 'Timeline' },
   { id: 'limits', label: 'Wind limits' },
   { id: 'exceedance', label: 'Gust risk' },
 ];
@@ -201,13 +201,13 @@ function ForecastTab() {
   const ticks = steps.filter((_, i) => i % 6 === 0).map((s) => ({ x: hours(s.valid_at_utc), label: s.valid_at_utc.slice(11, 16) + 'Z' }));
   return (
     <div>
-      <RunBar kind="timeline" label="Run 24 h forecast" />
+      <RunBar kind="timeline" label="Run 24 h training timeline" />
       {tl && (
         <div className="grid grid-cols-[1fr_220px] gap-4">
           <div>
             <div className="h-28">
               <LineChart
-                label="Forecast wind and gust speed"
+                label="Wind and gust speed"
                 unit="kt"
                 height={110}
                 xTicks={ticks}
@@ -228,6 +228,10 @@ function ForecastTab() {
             </div>
             <div className="text-mil-text">First amber: {tl.result.first_amber_utc?.slice(11, 16) ?? 'none'}{tl.result.first_amber_utc ? 'Z' : ''}</div>
             <div className="text-mil-text">First red: {tl.result.first_red_utc?.slice(11, 16) ?? 'none'}{tl.result.first_red_utc ? 'Z' : ''}</div>
+            <div className="text-mil-text">{tl.result.forcing_source === 'synthetic_training'
+              ? 'Synthetic training timeline; not a weather forecast.'
+              : tl.result.forcing_source === 'supplied' ? 'Supplied snapshots; inspect their source and validity.' : 'Forcing source not recorded.'}</div>
+            <div className="text-mil-text">Validity: {tl.validity?.state ?? 'unknown'}</div>
             <div className="text-mil-dim">Result {tl.result_id}</div>
           </div>
         </div>
@@ -274,28 +278,33 @@ function LimitsTab() {
 
 function ExceedanceTab() {
   const ex = useMooring((s) => s.risk.exceedance);
+  const usable = ex && (ex.validity?.state === 'valid' || ex.validity?.state === 'limited') && (ex.result.n_valid ?? 0) > 0;
   return (
     <div>
-      <RunBar kind="exceedance" label="Run gust risk (6 h)" />
+      <RunBar kind="exceedance" label="Run pointwise gust scenario" />
       {ex && (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-4 text-[11px]">
             <StatusChip status={ex.status} />
-            <span className="text-white">
-              Chance any line exceeds working load: {(ex.result.p_any_exceeds_wll * 100).toFixed(1)}%
-            </span>
-            <span className="text-mil-text">breaking: {(ex.result.p_any_exceeds_mbs * 100).toFixed(1)}%</span>
+            {usable ? <>
+              <span className="text-white">Any modeled element exceeds its limit: {(ex.result.p_any_exceeds_wll * 100).toFixed(1)}%</span>
+              <span className="text-mil-text">Line MBS exceedance: {(ex.result.p_any_exceeds_mbs * 100).toFixed(1)}%</span>
+            </> : <span className="text-mil-red">Probability unavailable: input validity or successful samples are not established.</span>}
             <span className="text-mil-dim">{ex.result.n_samples} samples · governing {ex.result.governing_element ?? 'n/a'}</span>
             <BackendBadge backend={ex.backend} />
           </div>
-          <table className="w-full text-left text-[11px]">
+          <p className="text-[11px] text-mil-text">Validity: {ex.validity?.state ?? 'unknown'}. {ex.result.n_valid ?? 'Unknown'} successful / {ex.result.n_samples} requested samples.</p>
+          <p className="text-[11px] text-mil-dim">{ex.result.uncertainty_model?.qualification === 'qualified'
+            ? 'Sample estimates; apply the stated validity limits.' : 'Scenario sample statistics; not an operational risk estimate.'}
+            {' '}Instantaneous samples; these percentages are not a horizon event probability. Fender limits compare energy; force columns show reaction.</p>
+          {usable && <table className="w-full text-left text-[11px]">
             <thead className="text-mil-dim">
               <tr>
                 <th className="py-1">Element</th>
-                <th>P(&gt;WLL)</th>
+                <th>P(&gt;limit)</th>
                 <th>P(&gt;MBS)</th>
-                <th>Tension p50</th>
-                <th>Tension p95</th>
+                <th>Force p50</th>
+                <th>Force p95</th>
               </tr>
             </thead>
             <tbody>
@@ -303,13 +312,13 @@ function ExceedanceTab() {
                 <tr key={e.element_id} className="border-t border-mil-border text-white">
                   <td className="py-1">{e.element_id}</td>
                   <td>{(e.p_exceed_wll * 100).toFixed(1)}%</td>
-                  <td>{(e.p_exceed_mbs * 100).toFixed(1)}%</td>
+                  <td>{e.p_exceed_mbs == null ? 'n/a' : `${(e.p_exceed_mbs * 100).toFixed(1)}%`}</td>
                   <td>{fmt.lbf(e.tension_p50_lbf)}</td>
                   <td>{fmt.lbf(e.tension_p95_lbf)}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table>}
         </div>
       )}
     </div>

@@ -2,6 +2,8 @@
 
 ## Requests
 
+- Modeling B, 03:20 EST: Small shared dashboard correction in progress: withhold risk percentages for invalid/unknown validity or n_valid<=0/unknown; absent MBS shows n/a; pointwise statistics and synthetic timeline labels are explicit. Six UI counterexamples reproduced before/pass after. Backend fender risk percentiles now report reaction lbf, not energy mislabelled as lbf; energy exceedance comparison unchanged. Please retain these fixes when adapting your held branch. No feature branch/worktree edit. A separate wind-limit display concern remains: current dashboard compares a gust ring against sustained-wind limits; next narrow fix will match sustained to sustained.
+
 - Modeling B, 03:14 EST: Risk endpoints now reject aggregate work above25,000 solves with422 before queueing. Current UI requests remain supported. Preserve sample/horizon controls on rejection; never silently downsample. Contract/types regenerated (descriptions only).1707 Python/90 UI gates pass. A separate longer frozen-export TCP soak remains running; no completion claim.
 
 - Modeling B, 03:05 EST: Ship-specific Intake is required to establish MST suitability. Unknown ship_mst now leaves MST-WITHIN-SHIP failed/AMBER, so a berth-only report cannot yield ready_for_signature. Aggregate expired/out-of-range forecast intervals now produce RED quality findings even on nonpeak samples. No wire changes;1695 Python/90 UI gates pass. Continue to use scenario_id or explicit ship/berth/side for the normal Intake flow.

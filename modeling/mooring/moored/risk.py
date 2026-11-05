@@ -19,6 +19,7 @@ import math
 import statistics
 from collections.abc import Callable
 from datetime import timedelta
+from typing import NamedTuple
 
 from mooring import refdata
 from mooring.core.envelopes import envelope, new_id, status_with_validity, utcnow
@@ -64,8 +65,19 @@ class Tally:
     any_mbs: int = 0
 
 
+class _Demand(NamedTuple):
+    """Compared quantity may be energy; reported load percentiles are always force in lbf."""
+    value: float
+    capacity: float
+    mbs: float | None
+    force_lbf: float
+
+
 def monte_carlo(draw: Callable[[], object], evaluate: Callable[[object], dict | None], n: int, progress: Callable[[int], None] | None = None):
-    """Generic sampler: `evaluate` returns {element: (load, wll_limit, mbs_limit | None)} or None for a failed sample."""
+    """Sample compared demands; _Demand additionally supplies force statistics for an energy comparison.
+
+    Ordinary tuples use (load, wll_limit, mbs_limit | None); None means a failed sample.
+    """
     tally, per = Tally(n=n), {}
     for i in range(n):
         if progress and i % 50 == 0:
@@ -75,9 +87,11 @@ def monte_carlo(draw: Callable[[], object], evaluate: Callable[[object], dict | 
             tally.failed += 1
             continue
         hit_wll = hit_mbs = False
-        for el, (load, wll, mbs) in out.items():
+        for el, demand in out.items():
+            load, wll, mbs = demand[:3]
+            reported_force = demand.force_lbf if isinstance(demand, _Demand) else load
             rec = per.setdefault(el, {"loads": [], "wll": 0, "mbs": 0, "has_mbs": mbs is not None})
-            rec["loads"].append(load)
+            rec["loads"].append(reported_force)
             if load > wll:
                 rec["wll"] += 1
                 hit_wll = True
@@ -120,7 +134,7 @@ def _eval_env(system: eq.System, warm: Pose, df: float):
             out[fid] = (math.sqrt(sum(c * c for c in v)), ship_cap[fid], None)
     for fr, d, _ in system.fender_loads(sol.pose):
         if fr.model.rated_energy_ftlbf:
-            out[fr.model.fender_id] = (fr.model.energy(d), fr.model.rated_energy_ftlbf, None)
+            out[fr.model.fender_id] = _Demand(fr.model.energy(d), fr.model.rated_energy_ftlbf, None, fr.model.force(d))
     return out
 
 
@@ -199,7 +213,8 @@ def exceedance(req: ExceedanceRequest, ctx=None) -> ExceedanceResponse:
                                                                                          "dynamic_factor": req.gust_dynamic_factor}}).model_copy(
                         update={"rng_seed": req.seed, "rng_model_revision": f"{model.model_id}@{model.revision}"}),
                     assumptions=[f"{tally.n} instantaneous samples of gust factor, direction and current from model '{model.model_id}' r{model.revision}; each solved to equilibrium.",
-                                 "Failed samples are counted, reported and used to bound the probability.", "No dynamic or snatch amplification is modeled; the dynamic factor, if any, scales wind force once.",
+                                 "Failed samples are counted, reported and used to bound the probability.",
+                                 "Fender exceedance compares energy with rated energy; reported load percentiles are reaction force in lbf.", "No dynamic or snatch amplification is modeled; the dynamic factor, if any, scales wind force once.",
                                  *solver.ASSUMPTIONS])
 
 
@@ -227,7 +242,7 @@ def _horizon(req: ExceedanceRequest, system, specs, sol0, model, df, ctx=None) -
                 failed += 1
                 hit = None if not hit else hit
                 break
-            if any(load > wll for load, wll, _ in out.values()):
+            if any(demand[0] > demand[1] for demand in out.values()):
                 hit = True
                 break
         hits += bool(hit)

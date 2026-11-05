@@ -42,18 +42,18 @@ Unknown quantities are `null`. NaN and infinity are rejected on input (`422`) an
 - `ScenarioCreate`: `config.side_to` must equal `side_to`; `env_source.mode="scenario"` requires `env_scenario_id`, and the id is invalid with any other mode.
 - `EnvScenarioCreate`: ramp fields only with `kind="ramp"` (and both required), replay fields only with `kind="replay"` (start required, end after start), gust not below sustained wind (except ramps, where the gust is a ratio).
 
-## Line semantics (definitions now, mechanics later)
+## Line semantics
 
 - `pretension_lbf`: initial tension. Legacy default: 2% of effective MBS, or 0 if `slack_ft > 0`.
 - `slack_ft`: extra length beyond the straight-line distance. A positive `slack_ft` with positive `pretension_lbf` is rejected (a slack line carries no tension).
 - `paid_out_unstretched_length_ft`: new; defines length directly, so it cannot be combined with `slack_ft`.
 - `condition` (`wet`/`dry`): new; omitted means the request's `lines_wet` applies.
-- The mock solver does not model the two new fields. Analyze, limiting-envelope, tide-sweep, holding-tug, risk-exceedance and risk-timeline responses disclose ignored paid-out length and conflicting per-line condition in `assumptions`, including stored/job results.
-- Still to define in the packets that need them: parts and reeving, chock routing, loading-dependent fitting heights, tending actions.
+- The real mooring solver consumes explicit unstretched length and per-line wet/dry condition. Resolved configurations retain those inputs for rechecks at later tides; omitting installed lengths can create a new installation assumption.
+- Tide sweeps apply only explicitly supplied tending actions. Reeving/chock routes and handling procedures still need qualified geometry and operational review; a static configuration does not establish them.
 
 ## Environment metadata
 
-`EnvironmentSnapshot.metadata` (`EnvironmentMetadata`): `basis` (observation, prediction or scenario), `source`, `issued_at_utc`, `valid_from_utc`/`valid_to_utc`, `wind_averaging_s`, `gust_duration_s`, `wind_reference_height_m`, `current_depth_ft`/`current_bin`, `vertical_datum` (only MLLW accepted), `quality`, `age_s`, `original` (provider values as received). Absent means undocumented and the legacy meaning applies. Metadata never changes the computed numbers; no code reads it for physics yet. Metadata timestamps and environment-scenario replay start/end timestamps must include an explicit UTC offset (including `Z`). Missing offsets return 422; different explicit offsets are compared by instant.
+`EnvironmentSnapshot.metadata` (`EnvironmentMetadata`): `basis` (observation, prediction or scenario), `source`, `issued_at_utc`, `valid_from_utc`/`valid_to_utc`, `wind_averaging_s`, `gust_duration_s`, `wind_reference_height_m`, `current_depth_ft`/`current_bin`, `vertical_datum` (only MLLW accepted), `quality`, `age_s`, `original` (provider values as received). Absent means undocumented and remains a limitation. Current loads read wind basis metadata to select supported conversions and report unsupported or unknown bases. Quality and validity intervals can invalidate an assessment; component provenance also controls forecast availability. Metadata never supplies missing physical coefficients. Metadata timestamps and environment-scenario replay start/end timestamps must include an explicit UTC offset (including `Z`). Missing offsets return 422; different explicit offsets are compared by instant.
 
 ## Result manifest
 
@@ -70,3 +70,9 @@ Berths require at least one depth sample, unique depth-profile x stations, uniqu
 ## Recommendation assignments and installations
 
 A recommendation candidate’s config retains assignment-only search semantics. Its optional resolved_config is the installation used by analysis_result_id, with explicit unstretched line spans and wet/dry condition. Use resolved_config plus candidate.tugs when rechecking that fixed installation at another tide; absence means the resolved installation is unavailable, not zero-length rope. This separates an assessed installation from assignments that advance-arrival planning can install at each arrival’s own water level. These modeled spans are not cutting lengths or handling instructions.
+
+## Risk quantities and interpretation
+
+Risk element percentiles named `tension_p50_lbf` and `tension_p95_lbf` report forces: line tension, fitting resultant or fender reaction. Fender exceedance is separately compared against rated energy in ft·lbf; its energy is not a force percentile. `p_exceed_mbs=null` on fittings/fenders means no MBS comparison exists, never zero probability.
+
+Read validity and successful-sample counts before displaying probabilities. For compatibility, the legacy required aggregate scalar can be zero when no samples succeeded; with `n_valid=0`/invalid validity it is not an estimated zero risk. Bounds retain the unknown outcomes. Unqualified uncertainty models produce scenario statistics, not operational probabilities. `pointwise_only=true` is not an event probability over the requested horizon.

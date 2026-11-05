@@ -87,6 +87,11 @@ function statusOf(s: string | undefined): Status {
   return s === 'GREEN' || s === 'AMBER' || s === 'RED' ? s : 'NONE';
 }
 
+/** Invalid/unknown results cannot supply usable forces or passing element colors. */
+export function hasUsableAnalysis(analysis: AnalyzeResponse | null): boolean {
+  return analysis?.validity?.state === 'valid' || analysis?.validity?.state === 'limited';
+}
+
 function usageProps(
   rows: PropRow[],
   result: { load_lbf: number; pct?: number | null; lines: number[] } | undefined,
@@ -142,7 +147,7 @@ export function pierEntities(berth: Berth, analysis: AnalyzeResponse | null): Sc
     ],
   };
 
-  const used = new Map((analysis?.result.pier_fittings ?? []).map((f) => [f.fitting_id, f]));
+  const used = new Map((hasUsableAnalysis(analysis) ? analysis?.result.pier_fittings ?? [] : []).map((f) => [f.fitting_id, f]));
   const fittings = berth.fittings.map<SceneEntity>((f) => {
     const r = used.get(f.fitting_id);
     return {
@@ -323,7 +328,7 @@ export function shipEntities(
   };
 
   const sideName = side === 'starboard' ? 'starboard' : 'port';
-  const used = new Map((analysis?.result.ship_fittings ?? []).map((f) => [f.fitting_id, f]));
+  const used = new Map((hasUsableAnalysis(analysis) ? analysis?.result.ship_fittings ?? [] : []).map((f) => [f.fitting_id, f]));
   const fittings = (ship.fittings ?? [])
     .filter((f) => f.kind === 'bitt' && f.side === sideName)
     .map<SceneEntity>((f) => {
@@ -387,7 +392,7 @@ export function lineLinks(
   missingFittingIds: string[] = [],
 ): SceneLink[] {
   const deckHeight = ft(berth.deck_height_mllw_ft);
-  const results = new Map((analysis?.result.lines ?? []).map((l) => [l.line_number, l]));
+  const results = new Map((hasUsableAnalysis(analysis) ? analysis?.result.lines ?? [] : []).map((l) => [l.line_number, l]));
   const links: SceneLink[] = [];
   for (const line of lines) {
     const sf = ship.fittings?.find((f) => f.fitting_id === line.ship_fitting_id);

@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 06:40 EST: Final narrow validity-display fix: invalid, unknown or absent validity no longer supplies green line/fitting colors, percentages, drift or data-key metrics. Editing parts/dragging clears old map values immediately, including after a failed recheck. Sheet sidebar and canonical HTML withhold unusable margins/thresholds/tug requirements. Eight map/list/edit counterexamples, six summary/sidebar cases and three print cases failed before; positive valid/limited cases retained.128 UI tests/typecheck/lint/build pass; real Chrome with real APIs confirms all four saved cases and existing recommendation/risk/sheet probes without page errors. Full Python run finishing. Held UI branch/worktree untouched; preserve these shared fixes. Tide prose now states height/installation dependence instead of claiming all rising tides slacken lines.
+
 - B 03:53 EST: Berthing-window request bounds now reject naive timestamps and reversed intervals, and normalize aware times to UTC before sampling. Five counterexamples reproduced (three invalid bounds plus spring/fall clock-change sampling);37 focused tests pass, full gates running. Schema-only behavior change; no provider, simulator or clock edits. Please send ISO timestamps with explicit offsets/Z from date controls. Contract/types descriptions regenerated.
 
 - B 03:49 EST: Fleet semantics corrected across tug plans/windows: omitted/null available_tug_ids means catalog, [] means explicitly none, duplicate IDs reject422. Do not default an empty selection back to catalog. Existing assigned holding tugs stay in the base solve; returned assignments remain additions. Seven cases cover this;1724 Python/106 UI tests and all gates pass. Contract/types descriptions regenerated.

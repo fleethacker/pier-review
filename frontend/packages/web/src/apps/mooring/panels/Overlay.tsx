@@ -119,6 +119,7 @@ function SheetViewer() {
   const [comment, setComment] = useState('');
   const s = sheet.sheet;
   if (!s) return null;
+  const usable = s.validity?.state === 'valid' || s.validity?.state === 'limited';
   const approved = s.approvals.filter((a) => a.decision === 'approve');
   const rejected = s.approvals.some((a) => a.decision === 'reject');
 
@@ -180,7 +181,7 @@ function SheetViewer() {
                     Line {l.line_number} {l.role}
                   </span>
                   <span className="flex items-center gap-2">
-                    {fmt.pct(l.pct_wll)} of WLL <StatusChip status={l.status} label="" />
+                    {usable ? <>{fmt.pct(l.pct_wll)} of WLL <StatusChip status={l.status} label="" /></> : 'Unavailable'}
                   </span>
                 </li>
               ))}

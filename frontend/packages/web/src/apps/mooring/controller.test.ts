@@ -310,3 +310,25 @@ it('refuses a stored recommendation after its geometry changes', async () => {
   expect(c.state.get().recommend.error).toContain('changed');
   c.dispose();
 });
+
+it.each(['parts', 'drag'])('clears old map loads immediately after a %s edit', async (edit) => {
+  const { c, store } = setup();
+  c.state.set({ lines: [{ line_number: 1, spec_id: 'NYLON', parts: 1, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1' }],
+    analysis: { state: 'ok', error: null, response: { status: 'AMBER', validity: { state: 'limited' }, result: {
+      lines: [{ line_number: 1, status: 'GREEN', tension_lbf: 100, pct_wll: 12, pct_mbs: 4, length_ft: 30, horiz_angle_deg: 25, vert_angle_deg: 15 }],
+      pier_fittings: [], ship_fittings: [],
+    } } as never } });
+  c.pushScene('full');
+  expect(store.getState().links['line-1'].status).toBe('GREEN');
+  if (edit === 'parts') c.updateLine(1, { parts: 3 });
+  else c.onEdit({ type: 'move', entityId: 'ship', pose: { ...store.getState().entities.ship.pose, x: 200 }, final: false });
+  expect(c.state.get().analysis.response).toBeNull();
+  expect(store.getState().links['line-1'].status).toBeUndefined();
+  expect(store.getState().links['line-1'].label).not.toContain('%');
+  if (edit === 'parts') {
+    await vi.runAllTimersAsync();
+    expect(c.state.get().analysis.state).toBe('error'); // A failed recheck must not resurrect the old map values.
+    expect(store.getState().links['line-1'].status).toBeUndefined();
+  }
+  c.dispose();
+});

@@ -1,4 +1,5 @@
 import type { AppHost } from '../../scene/app';
+import type { SceneEntity, SceneLink } from '../../scene/types';
 import { authHeaders, describeError } from '../mooring/api';
 import {
   ApiError,
@@ -11,8 +12,22 @@ import {
   type MediaFormInput,
   type TrackFormInput,
 } from './api';
-import { prepareTrack, locateOnTrack, currentEventIndex, type TimedFix, type TrackPosition } from './geo';
-import { advanceClock, clampSpeed, endTime, stateAt, trailPoints, type Clock } from './playback';
+import {
+  prepareTrack,
+  locateOnTrack,
+  currentEventIndex,
+  type TimedFix,
+  type TrackPosition,
+} from './geo';
+import {
+  advanceClock,
+  bracket,
+  clampSpeed,
+  endTime,
+  stateAt,
+  trailPoints,
+  type Clock,
+} from './playback';
 import { sampleResponse, samplePreset, sampleSeries, sampleStoryboard } from './fixtures';
 import {
   VESSEL_COLORS,
@@ -44,9 +59,26 @@ import type {
   TransitSeries,
   TransitVesselState,
   VesselTransit,
+  PredictionRequest,
+  PredictionResponse,
 } from './types';
+import {
+  CAMERA_ALL_KINDS,
+  PredictionThrottle,
+  SAMPLE_PRESET,
+  buildPredictionRequest,
+  cameraContent,
+  cameraFitPoints,
+  corridorEntities,
+  fetchPredictPresets,
+  postPrediction,
+  samplePrediction,
+  selectedAltId,
+  toObservedState,
+  withWhatIf,
+} from './camera';
 
-export type Tab = 'storyboard' | 'transit';
+export type Tab = 'storyboard' | 'transit' | 'camera';
 
 export interface MissionsState {
   tab: Tab;
@@ -80,6 +112,16 @@ export interface MissionsState {
   selectedVesselId: string | null;
   /** Keep the map centered on the ship (storyboard) or the vessels (transit); the shell cannot show more than about 8 km at once. */
   follow: boolean;
+  // backup camera
+  cameraOn: boolean;
+  camSource: 'transit' | 'preset';
+  camPresets: { preset_id: string; title: string; request: PredictionRequest }[];
+  camPresetId: string | null;
+  camWhatIf: string | null;
+  camResult: PredictionResponse | null;
+  camSample: boolean;
+  camError: string | null;
+  camAtMs: number | null;
 }
 
 const initial: MissionsState = {
@@ -111,11 +153,23 @@ const initial: MissionsState = {
   vessels: [],
   selectedVesselId: null,
   follow: true,
+  cameraOn: false,
+  camSource: 'transit',
+  camPresets: [],
+  camPresetId: null,
+  camWhatIf: null,
+  camResult: null,
+  camSample: false,
+  camError: null,
+  camAtMs: null,
 };
 
 export function prefersReducedMotion(): boolean {
   try {
-    return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    return (
+      typeof window !== 'undefined' &&
+      !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    );
   } catch {
     return false;
   }
@@ -123,7 +177,10 @@ export function prefersReducedMotion(): boolean {
 
 /** Span of the scrubber: the track plus any timed events (so events outside the track can be visited and shown unlocated). */
 export function timeSpan(sb: Storyboard): { startMs: number; endMs: number } | null {
-  const times = [...sb.track.map((f) => Date.parse(f.t_utc)), ...sb.events.map((e) => (e.t_utc ? Date.parse(e.t_utc) : NaN))].filter(Number.isFinite);
+  const times = [
+    ...sb.track.map((f) => Date.parse(f.t_utc)),
+    ...sb.events.map((e) => (e.t_utc ? Date.parse(e.t_utc) : NaN)),
+  ].filter(Number.isFinite);
   if (!times.length) return null;
   return { startMs: Math.min(...times), endMs: Math.max(...times) };
 }
@@ -137,6 +194,7 @@ export class MissionsController {
   private abort: AbortController | null = null;
   private unsubScene: () => void;
   private disposed = false;
+  readonly camThrottle = new PredictionThrottle();
   private looks = new Map<string, VesselLook>();
   private lengths = new Map<string, number>();
 
@@ -154,7 +212,7 @@ export class MissionsController {
   }
 
   async init(): Promise<void> {
-    await Promise.all([this.refreshMissions(), this.loadPresets()]);
+    await Promise.all([this.refreshMissions(), this.loadPresets(), this.loadCamPresets()]);
     this.renderScene();
   }
 
@@ -162,6 +220,7 @@ export class MissionsController {
     this.disposed = true;
     this.pause();
     this.abort?.abort();
+    this.camThrottle.cancel();
     this.unsubScene();
     this.host.store.clear();
   }
@@ -172,6 +231,7 @@ export class MissionsController {
     if (tab === 'storyboard') this.pause();
     this.store.setState({ tab });
     this.renderScene();
+    if (this.camActive()) void this.requestCamera(true);
   }
 
   // ---- storyboard ----
@@ -188,7 +248,12 @@ export class MissionsController {
   }
 
   enterSampleStoryboard(): void {
-    this.store.setState({ sampleStoryboard: true, missions: [sampleStoryboard.mission], error: null, trackResult: null });
+    this.store.setState({
+      sampleStoryboard: true,
+      missions: [sampleStoryboard.mission],
+      error: null,
+      trackResult: null,
+    });
     this.applyStoryboard(sampleStoryboard);
   }
 
@@ -213,8 +278,15 @@ export class MissionsController {
     this.timed = prepareTrack(sb.track);
     const span = timeSpan(sb);
     const start = span?.startMs ?? null;
-    const keepSel = sb.events.some((e) => e.event_id === this.state.selectedEventId) ? this.state.selectedEventId : null;
-    this.store.setState({ storyboard: sb, missionId: sb.mission.mission_id, scrubMs: start, selectedEventId: keepSel });
+    const keepSel = sb.events.some((e) => e.event_id === this.state.selectedEventId)
+      ? this.state.selectedEventId
+      : null;
+    this.store.setState({
+      storyboard: sb,
+      missionId: sb.mission.mission_id,
+      scrubMs: start,
+      selectedEventId: keepSel,
+    });
     this.updateShip();
     if (this.state.tab === 'storyboard') this.renderScene();
   }
@@ -237,7 +309,9 @@ export class MissionsController {
     if (ev?.t_utc) this.setScrub(Date.parse(ev.t_utc));
     if (this.state.tab === 'storyboard') {
       this.renderEventMarkers();
-      this.host.store.select(ev && hasMarker(ev) ? { type: 'entity', id: `event:${ev.event_id}` } : null);
+      this.host.store.select(
+        ev && hasMarker(ev) ? { type: 'entity', id: `event:${ev.event_id}` } : null,
+      );
     }
   }
 
@@ -245,10 +319,18 @@ export class MissionsController {
     const sb = this.state.storyboard;
     if (!sb || sb.events.length === 0) return;
     const times = sb.events.map((e) => (e.t_utc ? Date.parse(e.t_utc) : null));
-    const cur = this.state.selectedEventId ? sb.events.findIndex((e) => e.event_id === this.state.selectedEventId) : currentEventIndex(times, this.state.scrubMs ?? -Infinity);
+    const cur = this.state.selectedEventId
+      ? sb.events.findIndex((e) => e.event_id === this.state.selectedEventId)
+      : currentEventIndex(times, this.state.scrubMs ?? -Infinity);
     const timedIdx = sb.events.map((_, i) => i).filter((i) => times[i] != null);
     const pos = timedIdx.indexOf(cur);
-    const next = timedIdx[Math.min(timedIdx.length - 1, Math.max(0, (pos < 0 ? (delta > 0 ? -1 : timedIdx.length) : pos) + delta))];
+    const next =
+      timedIdx[
+        Math.min(
+          timedIdx.length - 1,
+          Math.max(0, (pos < 0 ? (delta > 0 ? -1 : timedIdx.length) : pos) + delta),
+        )
+      ];
     if (next != null) this.selectEvent(sb.events[next].event_id);
   }
 
@@ -256,7 +338,10 @@ export class MissionsController {
   currentEventId(): string | null {
     const sb = this.state.storyboard;
     if (!sb || this.state.scrubMs == null) return null;
-    const i = currentEventIndex(sb.events.map((e) => (e.t_utc ? Date.parse(e.t_utc) : null)), this.state.scrubMs);
+    const i = currentEventIndex(
+      sb.events.map((e) => (e.t_utc ? Date.parse(e.t_utc) : null)),
+      this.state.scrubMs,
+    );
     return i < 0 ? null : sb.events[i].event_id;
   }
 
@@ -271,7 +356,18 @@ export class MissionsController {
     this.store.setState({ shipPosition: pos });
     if (this.state.tab !== 'storyboard' || !this.projector) return;
     if (pos.established && pos.lat != null && pos.lon != null) {
-      this.host.store.replaceEntitiesOfKind(['ship-marker'], [shipMarker(pos.lat, pos.lon, pos.headingDeg ?? null, this.projector, sb.mission.vessel_id)]);
+      this.host.store.replaceEntitiesOfKind(
+        ['ship-marker'],
+        [
+          shipMarker(
+            pos.lat,
+            pos.lon,
+            pos.headingDeg ?? null,
+            this.projector,
+            sb.mission.vessel_id,
+          ),
+        ],
+      );
       this.followCamera([pos]);
     } else {
       this.host.store.replaceEntitiesOfKind(['ship-marker'], []);
@@ -287,7 +383,9 @@ export class MissionsController {
 
   private guard<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
     if (this.state.sampleStoryboard) {
-      this.store.setState({ error: 'Sample data mode: the backend is unavailable, so nothing can be saved.' });
+      this.store.setState({
+        error: 'Sample data mode: the backend is unavailable, so nothing can be saved.',
+      });
       return Promise.resolve(undefined);
     }
     this.store.setState({ busy: label, error: null, notice: null });
@@ -299,9 +397,19 @@ export class MissionsController {
       .finally(() => this.store.setState({ busy: null }));
   }
 
-  async createMission(name: string, vesselId: string, shipClassId?: string, description?: string): Promise<Mission | undefined> {
+  async createMission(
+    name: string,
+    vesselId: string,
+    shipClassId?: string,
+    description?: string,
+  ): Promise<Mission | undefined> {
     const m = await this.guard('Creating mission', () =>
-      missionsApi.createMission({ name, vessel_id: vesselId, ...(shipClassId ? { ship_class_id: shipClassId } : {}), ...(description ? { description } : {}) }),
+      missionsApi.createMission({
+        name,
+        vessel_id: vesselId,
+        ...(shipClassId ? { ship_class_id: shipClassId } : {}),
+        ...(description ? { description } : {}),
+      }),
     );
     if (m) await this.refreshMissions(m.mission_id);
     return m;
@@ -310,7 +418,9 @@ export class MissionsController {
   async uploadTrack(input: TrackFormInput): Promise<void> {
     const id = this.state.missionId;
     if (!id) return;
-    const r = await this.guard('Uploading track', () => missionsApi.ingestTrackFile(id, buildTrackForm(input)));
+    const r = await this.guard('Uploading track', () =>
+      missionsApi.ingestTrackFile(id, buildTrackForm(input)),
+    );
     if (r) {
       this.store.setState({ trackResult: r });
       await this.reload();
@@ -320,9 +430,13 @@ export class MissionsController {
   async uploadImage(input: MediaFormInput): Promise<void> {
     const id = this.state.missionId;
     if (!id) return;
-    const r = await this.guard('Uploading image', () => missionsApi.uploadMedia(id, buildMediaForm(input)));
+    const r = await this.guard('Uploading image', () =>
+      missionsApi.uploadMedia(id, buildMediaForm(input)),
+    );
     if (r) {
-      this.store.setState({ notice: `Image added (${r.time_note ?? (r.captured_utc ? 'time ' + r.captured_utc : 'no usable time')}).` });
+      this.store.setState({
+        notice: `Image added (${r.time_note ?? (r.captured_utc ? 'time ' + r.captured_utc : 'no usable time')}).`,
+      });
       await this.reload();
     }
   }
@@ -359,10 +473,21 @@ export class MissionsController {
   }
 
   private setRequest(request: TransitRequest): void {
-    this.store.setState({ request, requestText: JSON.stringify(request, null, 2), requestError: null });
+    this.store.setState({
+      request,
+      requestText: JSON.stringify(request, null, 2),
+      requestError: null,
+    });
   }
 
-  editVessel(idx: number, change: { mode?: VesselTransit['mode']; maxSpeedKt?: number | null; routeSpeed?: { wp: number; kt: number } }): void {
+  editVessel(
+    idx: number,
+    change: {
+      mode?: VesselTransit['mode'];
+      maxSpeedKt?: number | null;
+      routeSpeed?: { wp: number; kt: number };
+    },
+  ): void {
     let r = this.state.request;
     if (!r) return;
     if (change.mode) r = setVesselMode(r, idx, change.mode);
@@ -383,7 +508,15 @@ export class MissionsController {
     this.pause();
     this.abort?.abort();
     this.abort = new AbortController();
-    this.store.setState({ running: true, progress: 0, transitError: null, transitNotice: null, response: null, series: null, vessels: [] });
+    this.store.setState({
+      running: true,
+      progress: 0,
+      transitError: null,
+      transitNotice: null,
+      response: null,
+      series: null,
+      vessels: [],
+    });
     try {
       let response: TransitResponse;
       let series: TransitSeries;
@@ -392,7 +525,11 @@ export class MissionsController {
         series = sampleSeries;
       } else {
         try {
-          response = await runTransit(req, (progress) => this.store.setState({ progress }), this.abort.signal);
+          response = await runTransit(
+            req,
+            (progress) => this.store.setState({ progress }),
+            this.abort.signal,
+          );
         } catch (e) {
           if (!(e instanceof ApiError && e.status === 501) && !isUnavailable(e)) throw e;
           this.store.setState({ sampleTransit: true });
@@ -411,8 +548,21 @@ export class MissionsController {
   }
 
   private finishRun(response: TransitResponse, series: TransitSeries): void {
-    this.store.setState({ response, series, clock: { t: 0, playing: false, speed: this.state.clock.speed }, selectedVesselId: series.frames[0]?.vessels[0]?.vessel_id ?? null });
-    this.looks = new Map(response.result.vessels.map((v, i) => [v.vessel_id, { lengthM: this.lengths.get(v.ship_class_id) ?? null, color: VESSEL_COLORS[i % VESSEL_COLORS.length] }]));
+    this.store.setState({
+      response,
+      series,
+      clock: { t: 0, playing: false, speed: this.state.clock.speed },
+      selectedVesselId: series.frames[0]?.vessels[0]?.vessel_id ?? null,
+    });
+    this.looks = new Map(
+      response.result.vessels.map((v, i) => [
+        v.vessel_id,
+        {
+          lengthM: this.lengths.get(v.ship_class_id) ?? null,
+          color: VESSEL_COLORS[i % VESSEL_COLORS.length],
+        },
+      ]),
+    );
     this.updateVessels();
     if (this.state.tab === 'transit') this.renderScene();
     void this.fetchLengths(response);
@@ -425,7 +575,9 @@ export class MissionsController {
     await Promise.all(
       ids.map(async (id) => {
         try {
-          const res = await fetch(serviceUrl(`/api/v1/ships/${encodeURIComponent(id)}`), { headers: authHeaders() });
+          const res = await fetch(serviceUrl(`/api/v1/ships/${encodeURIComponent(id)}`), {
+            headers: authHeaders(),
+          });
           if (!res.ok) return;
           const loa = ((await res.json()) as { loa_ft?: number }).loa_ft;
           if (typeof loa === 'number' && loa > 0) this.lengths.set(id, loa * 0.3048);
@@ -435,7 +587,15 @@ export class MissionsController {
       }),
     );
     if (this.disposed || this.state.response !== response) return;
-    this.looks = new Map(response.result.vessels.map((v, i) => [v.vessel_id, { lengthM: this.lengths.get(v.ship_class_id) ?? null, color: VESSEL_COLORS[i % VESSEL_COLORS.length] }]));
+    this.looks = new Map(
+      response.result.vessels.map((v, i) => [
+        v.vessel_id,
+        {
+          lengthM: this.lengths.get(v.ship_class_id) ?? null,
+          color: VESSEL_COLORS[i % VESSEL_COLORS.length],
+        },
+      ]),
+    );
     this.pushTransit();
   }
 
@@ -443,6 +603,7 @@ export class MissionsController {
     const series = this.state.series;
     this.store.setState({ vessels: series ? stateAt(series.frames, this.state.clock.t) : [] });
     this.pushTransit();
+    if (this.camActive() && this.state.camSource === 'transit') void this.requestCamera(false);
   }
 
   setPlayhead(t: number): void {
@@ -473,7 +634,8 @@ export class MissionsController {
   pause(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    if (this.state.clock.playing) this.store.setState({ clock: { ...this.state.clock, playing: false } });
+    if (this.state.clock.playing)
+      this.store.setState({ clock: { ...this.state.clock, playing: false } });
   }
 
   private tick(): void {
@@ -503,7 +665,10 @@ export class MissionsController {
     const res = this.state.response;
     if (!res) return;
     if (this.state.sampleTransit) {
-      this.store.setState({ transitError: 'Sample data mode: the backend is unavailable, so missions cannot be created.' });
+      this.store.setState({
+        transitError:
+          'Sample data mode: the backend is unavailable, so missions cannot be created.',
+      });
       return;
     }
     this.store.setState({ busy: 'Saving missions', transitError: null, transitNotice: null });
@@ -519,7 +684,9 @@ export class MissionsController {
         await missionsApi.ingestTrackJson(m.mission_id, v.track);
         made.push(m.mission_id);
       }
-      this.store.setState({ transitNotice: `Saved ${made.length} mission(s). Opened in Storyboard.` });
+      this.store.setState({
+        transitNotice: `Saved ${made.length} mission(s). Opened in Storyboard.`,
+      });
       this.store.setState({ tab: 'storyboard' });
       await this.refreshMissions(made[0]);
       this.renderScene();
@@ -544,8 +711,18 @@ export class MissionsController {
       const c = centroid(sb.track);
       this.projector = makeProjector(c.lat, c.lon);
       const { entities, links } = storyboardContent(sb, this.projector, this.state.selectedEventId);
-      s.setContent({ frame: this.projector.frame, entities: [...fitAnchors(sb.track, this.projector), ...entities], links, vectors: [] });
+      s.setContent({
+        frame: this.projector.frame,
+        entities: [...fitAnchors(sb.track, this.projector), ...entities],
+        links,
+        vectors: [],
+      });
       this.updateShip();
+    } else if (
+      this.state.tab === 'camera' &&
+      (this.state.camSource === 'preset' || !this.state.series)
+    ) {
+      this.renderCameraPreset();
     } else {
       const series = this.state.series;
       const first = series?.frames[0]?.vessels ?? [];
@@ -556,20 +733,168 @@ export class MissionsController {
       }
       const c = centroid(series.frames.flatMap((f) => f.vessels));
       this.projector = makeProjector(c.lat, c.lon);
-      s.setContent({ frame: this.projector.frame, entities: fitAnchors(first, this.projector, TRANSIT_FIT_PAD_M), links: [], vectors: [] });
+      s.setContent({
+        frame: this.projector.frame,
+        entities: fitAnchors(first, this.projector, TRANSIT_FIT_PAD_M),
+        links: [],
+        vectors: [],
+      });
       this.pushTransit();
     }
   }
 
   private pushTransit(): void {
-    if (this.state.tab !== 'transit' || !this.projector || !this.state.series) return;
+    const tabOk =
+      this.state.tab === 'transit' ||
+      (this.state.tab === 'camera' && this.state.camSource === 'transit');
+    if (!tabOk || !this.projector || !this.state.series) return;
     const { vessels, series, clock } = this.state;
     const p = this.projector;
     const s = this.host.store;
     s.replaceEntitiesOfKind(['vessel', 'vessel-marker'], vesselEntities(vessels, p, this.looks));
-    s.setLinks(vessels.flatMap((v) => trailLinks(v.vessel_id, trailPoints(series.frames, v.vessel_id, clock.t, { lat: v.lat, lon: v.lon }), p, this.looks.get(v.vessel_id)?.color ?? '#fff')));
+    const cam = this.camActive() ? this.cameraOverlay() : { entities: [], links: [] };
+    s.replaceEntitiesOfKind(CAMERA_ALL_KINDS, cam.entities);
+    s.setLinks([
+      ...vessels.flatMap((v) =>
+        trailLinks(
+          v.vessel_id,
+          trailPoints(series.frames, v.vessel_id, clock.t, { lat: v.lat, lon: v.lon }),
+          p,
+          this.looks.get(v.vessel_id)?.color ?? '#fff',
+        ),
+      ),
+      ...cam.links,
+    ]);
     s.setVectors(vessels.flatMap((v) => (v.tugs ?? []).map((t) => tugVector(t, v, p))));
     this.followCamera(this.followTargets(vessels));
+  }
+
+  // ---- backup camera ----
+  /** The camera is drawn on the Camera tab, or on the Transit tab when its toggle is on. */
+  camActive(): boolean {
+    return this.state.tab === 'camera' || (this.state.tab === 'transit' && this.state.cameraOn);
+  }
+
+  setCameraOn(on: boolean): void {
+    // The Transit tab toggle always means "predict the transit vessel", even if the Camera tab last used a preset.
+    this.store.setState(on && this.state.tab === 'transit' ? { cameraOn: on, camSource: 'transit', camResult: null } : { cameraOn: on });
+    if (!on) {
+      this.camThrottle.cancel();
+      this.host.store.replaceEntitiesOfKind(CAMERA_ALL_KINDS, []);
+      this.pushTransit();
+    } else void this.requestCamera(true);
+  }
+
+  async loadCamPresets(): Promise<void> {
+    try {
+      const presets = await fetchPredictPresets();
+      if (!presets.length) throw new Error('none');
+      this.store.setState({ camPresets: presets, camPresetId: presets[0].preset_id });
+    } catch {
+      this.store.setState({ camPresets: [SAMPLE_PRESET], camPresetId: SAMPLE_PRESET.preset_id });
+    }
+  }
+
+  setCamSource(src: 'transit' | 'preset'): void {
+    this.store.setState({ camSource: src, camResult: null, camSample: false, camError: null });
+    this.renderScene();
+    void this.requestCamera(true);
+  }
+
+  setCamPreset(id: string): void {
+    this.store.setState({ camPresetId: id });
+    if (this.state.camSource === 'preset') {
+      this.renderScene();
+      void this.requestCamera(true);
+    }
+  }
+
+  setWhatIf(id: string | null): void {
+    this.store.setState({ camWhatIf: id });
+    void this.requestCamera(true);
+  }
+
+  /** Build the request from the current source; null when there is no state to predict from. */
+  buildCameraRequest(): PredictionRequest | null {
+    const st = this.state;
+    if (st.camSource === 'preset') {
+      const pr = st.camPresets.find((x) => x.preset_id === st.camPresetId);
+      return pr ? withWhatIf(pr.request, st.camWhatIf) : null;
+    }
+    const v = st.vessels.find((x) => x.vessel_id === st.selectedVesselId) ?? st.vessels[0];
+    if (!v || !st.series) return null;
+    const cls =
+      st.response?.result.vessels.find((x) => x.vessel_id === v.vessel_id)?.ship_class_id ??
+      'DDG-51-FIIA';
+    const { i0 } = bracket(st.series.frames, st.clock.t);
+    const tUtc = st.series.frames[i0]?.t_utc;
+    const observed = tUtc ?? new Date().toISOString();
+    return buildPredictionRequest(
+      toObservedState(v, cls, observed, st.response?.result_id ?? 'transit'),
+      { whatIfId: st.camWhatIf },
+    );
+  }
+
+  /** At most one request per second, one in flight (older ones are dropped, never queued); `force` cancels and restarts. */
+  async requestCamera(force: boolean): Promise<void> {
+    const req = this.buildCameraRequest();
+    if (!req || this.disposed) return;
+    try {
+      const r = await this.camThrottle.run((signal) => postPrediction(req, signal), force);
+      if (!r.ran || r.aborted || !r.value || this.disposed) return;
+      this.store.setState({
+        camResult: r.value,
+        camSample: false,
+        camError: null,
+        camAtMs: Date.now(),
+      });
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return;
+      if (isUnavailable(e))
+        this.store.setState({
+          camResult: samplePrediction,
+          camSample: true,
+          camError: null,
+          camAtMs: Date.now(),
+        });
+      else this.store.setState({ camError: describeError(e) });
+    }
+    if (this.disposed) return;
+    if (this.state.tab === 'camera' && (this.state.camSource === 'preset' || !this.state.series))
+      this.renderCameraPreset(false);
+    else this.pushTransit();
+  }
+
+  private cameraOverlay(): { entities: SceneEntity[]; links: SceneLink[] } {
+    const res = this.state.camResult;
+    if (!res || !this.projector) return { entities: [], links: [] };
+    const sel = selectedAltId(res, this.state.camWhatIf);
+    const c = cameraContent(res, this.projector, sel);
+    return {
+      entities: [...corridorEntities(res, this.projector, sel), ...c.entities],
+      links: c.links,
+    };
+  }
+
+  /** Camera tab without playback: only the prediction is on the map. */
+  private renderCameraPreset(refit = true): void {
+    const res = this.state.camResult;
+    const s = this.host.store;
+    if (!res) {
+      this.projector = null;
+      s.clear();
+      return;
+    }
+    const pts = cameraFitPoints(res);
+    if (refit || !this.projector)
+      this.projector = makeProjector(centroid(pts).lat, centroid(pts).lon);
+    const { entities, links } = this.cameraOverlay();
+    s.setContent({
+      frame: this.projector.frame,
+      entities: [...fitAnchors(pts, this.projector, 300), ...entities],
+      links,
+      vectors: [],
+    });
   }
 
   /** The selected vessel if there is one (vessels can be miles apart, farther than the map can show), else all of them. */
@@ -582,7 +907,8 @@ export class MissionsController {
     this.store.setState({ follow });
     if (!follow) return;
     if (this.state.tab === 'transit') this.followCamera(this.followTargets(this.state.vessels));
-    else if (this.state.shipPosition?.established) this.followCamera([this.state.shipPosition as { lat: number; lon: number }]);
+    else if (this.state.shipPosition?.established)
+      this.followCamera([this.state.shipPosition as { lat: number; lon: number }]);
   }
 
   /** Re-center the top view on the given positions. Only in the 2D view: the preset call would switch a 3D view back to 2D. */
@@ -590,10 +916,15 @@ export class MissionsController {
     const p = this.projector;
     const s = this.host.store;
     if (!this.state.follow || !p || s.getState().viewMode !== '2d') return;
-    const pts = points.filter((q): q is { lat: number; lon: number } => q.lat != null && q.lon != null);
+    const pts = points.filter(
+      (q): q is { lat: number; lon: number } => q.lat != null && q.lon != null,
+    );
     if (pts.length === 0) return;
     const xy = pts.map((q) => p.toXY(q.lat, q.lon));
-    s.setCameraPreset('top', { x: xy.reduce((a, q) => a + q.x, 0) / xy.length, y: xy.reduce((a, q) => a + q.y, 0) / xy.length });
+    s.setCameraPreset('top', {
+      x: xy.reduce((a, q) => a + q.x, 0) / xy.length,
+      y: xy.reduce((a, q) => a + q.y, 0) / xy.length,
+    });
   }
 }
 

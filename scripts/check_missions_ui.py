@@ -13,6 +13,7 @@ import json
 import math
 import os
 import re
+import time
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -294,6 +295,44 @@ def main() -> int:
             step(page, "save two-vessel transit as missions", save2)
         else:
             report("FAIL", "two-vessels preset", f"not in {labels}")
+        # ---- backup camera (preset, real backend) ----
+        def camera_preset():
+            page.get_by_role("tab", name="Camera").click()
+            page.get_by_role("button", name="Preset", exact=True).click()
+            expect(page.get_by_role("region", name="Prediction limits")).to_contain_text("Limited", timeout=60_000)
+            expect(page.get_by_text(re.compile(r"Predicted pier contact in \d+ s")).first).to_be_visible()
+            expect(page.get_by_text("Hazards not checked: coastline")).to_be_visible()
+            expect(page.get_by_text("Sample prediction")).to_have_count(0)
+            page.screenshot(path=str(SHOTS / "10-camera-preset.png"))
+            for name, text in [("Rudder 15° port", "Closest approach"), ("Engine astern half", "Closest approach"), ("Tug push to starboard (port shoulder)", "Tug push|contact|Closest")]:
+                page.get_by_role("group", name="What if").get_by_role("button", name=name).click()
+                expect(page.get_by_text(re.compile(text)).first).to_be_visible(timeout=30_000)
+                expect(page.get_by_role("group", name="What if").get_by_role("button", name=name)).to_have_attribute("aria-pressed", "true")
+            page.screenshot(path=str(SHOTS / "11-camera-whatif.png"))
+
+        step(page, "camera preset overlay + what-ifs", camera_preset)
+
+        def camera_transit():
+            page.get_by_role("tab", name="Transit").click()
+            if tug:
+                page.get_by_label("Preset").select_option(label=tug)
+            page.get_by_role("button", name="Run", exact=True).click()
+            expect(page.get_by_role("button", name="Run", exact=True)).to_be_enabled(timeout=180_000)
+            page.get_by_role("table", name="Vessels").locator("tbody tr").first.click()
+            reqs: list[float] = []
+            page.on("request", lambda r: "predict/trajectory" in r.url and reqs.append(time.time()))
+            page.get_by_label(re.compile("Backup camera")).check()
+            page.get_by_role("button", name="Play").click()
+            page.wait_for_timeout(9000)
+            expect(page.get_by_text(re.compile(r"Closest approach|Predicted .* contact")).first).to_be_visible()
+            page.screenshot(path=str(SHOTS / "12-transit-camera.png"))
+            page.get_by_role("button", name="Pause").click()
+            gaps = [b - a for a, b in zip(reqs, reqs[1:])]
+            assert len(reqs) >= 3, f"only {len(reqs)} predictions"
+            assert min(gaps) >= 0.9, f"requests too frequent: {gaps}"
+            return f"{len(reqs)} predictions in 9 s"
+
+        step(page, "transit backup camera follows vessel, <=1/s", camera_transit)
         browser.close()
 
     uncaught = [e for e in errors]

@@ -189,7 +189,7 @@ class TransitEvent(Model):
     t_s: float = Field(ge=0)
     vessel_id: str
     kind: Literal["waypoint_reached", "arrived", "rudder_saturated", "tug_saturated", "large_cross_track",
-                  "stopped_short", "integration_failed"]
+                  "missed_approach", "stopped_short", "integration_failed"]
     detail: str
 
 

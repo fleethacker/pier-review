@@ -1,7 +1,9 @@
-"""Ready-made transit requests. DEMONSTRATION routes only: coordinates are the approximate approach-mock waypoints
-(copied from mooring/approach/mock/planner.py; the architecture check forbids importing mock modules) plus a point
-off the NAVSTA Norfolk Pier 12 north face from the berth catalog. They are not charted channels and not navigational
-advice. Speeds are illustrative. Propulsion uses the labeled class defaults."""
+"""Ready-made transit requests. DEMONSTRATION routes only: demonstration route checked only against the OSM coastline; not a
+navigational route. The waypoints follow the water of Thimble Shoal Channel -> Hampton Roads -> the Norfolk Harbor Entrance Reach
+toward Sewells Point, then a final point off the NAVSTA Norfolk Pier 12 north face from the berth catalog. They were laid out
+by hand against an OpenStreetMap-derived land polygon (modeling/tests/fixtures/transit/hampton_roads_coastline.geojson, built by
+scripts/fetch_transit_coastline.py, ODbL) and test_s6_presets_coastline.py checks that no leg crosses that land; they are not the charted
+channel centrelines, depths, bridges or traffic lanes. Speeds are illustrative. Propulsion uses the labeled class defaults."""
 
 from __future__ import annotations
 
@@ -23,14 +25,15 @@ from mooring.core.schemas import (
 from .geo import LocalPlane, bearing_deg
 
 BERTH_ID = "NAVSTA-NORFOLK-P12-N"
-APPROACH = [  # approximate, development only; copied from the approach mock route
-    ("Thimble Shoal Channel entrance", 36.9590, -76.0450),
-    ("Thimble Shoal Channel", 36.9660, -76.1600),
-    ("Hampton Roads", 36.9640, -76.2700),
-    ("NAVSTA approach", 36.9600, -76.3150),
+APPROACH = [  # approximate water points, development only (see the module docstring)
+    ("Thimble Shoal Channel entrance", 36.9950, -76.0450),
+    ("Thimble Shoal Channel", 36.9950, -76.1600),
+    ("Hampton Roads", 36.9850, -76.2700),
+    ("Norfolk Harbor Entrance Reach", 36.9750, -76.3150),
+    ("Off Sewells Point", 36.9690, -76.3300),
 ]
 OFF_PIER_FT = 250.0
-LABEL = "Demonstration route, not navigational advice."
+LABEL = "Demonstration route checked only against OSM coastline; not a navigational route; not navigational advice."
 
 
 def pier_point(off_pier_ft: float = OFF_PIER_FT) -> tuple[float, float]:
@@ -46,7 +49,7 @@ def _inbound(vessel_id, cls, dlat=0.0, mode="own_thrust", assist=None):
     pts = [(n, la + dlat, lo) for n, la, lo in APPROACH]
     plat, plon = pier_point()
     first, rest = pts[0], pts[1:]
-    speeds = [12.0, 12.0, 10.0]
+    speeds = [12.0, 12.0, 12.0, 10.0]
     route = [TransitWaypoint(lat=la, lon=lo, name=n, speed_kt=s) for (n, la, lo), s in zip(rest, speeds)]
     route.append(TransitWaypoint(lat=plat, lon=plon, name="Off NAVSTA Norfolk Pier 12 north face", speed_kt=6.0,
                                  acceptance_radius_ft=300.0))
@@ -63,7 +66,7 @@ def _outbound(vessel_id, cls, dlat=0.0):
     pts = [(n, la + dlat, lo) for n, la, lo in reversed(APPROACH)]
     plane = LocalPlane(plat, plon)
     e, n_ = plane.to_local(pts[0][1], pts[0][2])
-    speeds = [8.0, 10.0, 10.0, 10.0]
+    speeds = [8.0, 10.0, 10.0, 10.0, 10.0]
     route = [TransitWaypoint(lat=la, lon=lo, name=n, speed_kt=s) for (n, la, lo), s in zip(pts, speeds)]
     route[-1] = route[-1].model_copy(update={"name": "Thimble Shoal Channel entrance (to sea)", "acceptance_radius_ft": 1000.0})
     return VesselTransit(vessel_id=vessel_id, ship_class_id=cls, loading="full_load",

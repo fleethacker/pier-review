@@ -23,6 +23,36 @@ EXPECTED_CASES = {
 }
 
 
+def prediction_brief_check(ui: str, examples: Path, http) -> str:
+    """Exercise the real S7 tool and cited explanation with explicitly synthetic local forcing."""
+    modeling, agents = ui + "/api/modeling/api/v1", ui + "/api/agents/api/v1"
+    body = json.loads((examples / "predict_trajectory_request.json").read_text())
+    _, env = http("GET", modeling + "/env/now?berth_id=NAVSTA-NORFOLK-P12-N")
+    assert env["source"] == "mock", "camera demo check requires explicitly mock forcing"
+    body.update(environment=env, as_of_utc=env["valid_at_utc"], horizon_s=30, tick_s=5)
+    body["vessel"].update(observed_utc=env["valid_at_utc"], source="synthetic:demo-check")
+    body["uncertainty"]["samples"] = 0
+    _, tool = http("POST", agents + "/physics/tools/predict_trajectory", {"input": body, "caller": "demo-check"})
+    prediction = tool["output"]
+    assert "error" not in prediction, prediction
+    rid = prediction["result_id"]
+    assert tool["call"]["result_id"] == rid
+    assert prediction["validity"]["state"] == "limited"
+    _, brief = http("GET", agents + f"/predictions/{rid}/brief")
+    _, repeated = http("GET", agents + f"/predictions/{rid}/brief")
+    _, saved = http("GET", modeling + f"/results/{rid}")
+    assert saved == prediction and repeated == brief, "explaining a prediction changed its immutable evidence"
+    assert brief["cites"] == [rid] and brief["validity"] == prediction["validity"]
+    assert brief["warnings"] == prediction["warnings"] and brief["assumptions"] == prediction["assumptions"]
+    assert "shoal/under-keel clearance" in brief["hazards_unavailable"]
+    for actual, narrated in zip(prediction["result"]["alternatives"], brief["alternatives"], strict=True):
+        assert narrated["first_breach"] == actual.get("first_breach")
+        assert narrated["closest_approach"] == actual.get("closest_approach")
+        assert narrated["cites"] == [rid]
+        assert not narrated["corridor_available"] and "unavailable" in narrated["uncertainty_note"]
+    return f"S7 {rid}; immutable cited alternatives/warnings, synthetic forcing, uncertainty and uncovered hazards explicit"
+
+
 def finish(http, api: str, accepted: dict, timeout: float = 120.0):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:

@@ -99,6 +99,14 @@ def test_advance_story_preserves_installation_and_rejects_uncovered_arrival(demo
     assert "uncovered arrivals unavailable" in detail
 
 
+def test_prediction_narration_preserves_real_model_evidence(demo, transport):
+    import demo_check_planning as planning
+
+    detail = planning.prediction_brief_check("http://demo", ROOT / "contract/examples/modeling", transport[0])
+    assert "immutable cited alternatives/warnings" in detail
+    assert "uncovered hazards explicit" in detail
+
+
 @pytest.mark.parametrize("event", [
     b'event: step\ndata: {}\n\nevent: done\ndata: {"state":"failed","error":"solver timeout"}\n\n',
     b'event: step\ndata: {}\n\n',

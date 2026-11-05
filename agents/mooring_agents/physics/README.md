@@ -14,7 +14,8 @@ Modeling responses report their backend and qualification separately; real imple
 - `client.py`: typed async HTTP client for the modeling API (`MODELING_API_URL`).
 - `toolkit.py`: `PhysicsToolkit(client, caller, plan_id)`.
     - Typed helpers: `analyze`, `envelope`, `recommend`, `berthing_tugs`, `sequence`, `exceedance`, `windows`,
-      `hold_tugs`, `env_now`, `forecast`, `scenario`, `ship`, `berth`.
+      `hold_tugs`, `env_now`, `forecast`, `resolve_forecast`, `scenario`, `ship`, `berth`,
+      `predict_trajectory`, `prediction` (read an immutable result).
     - Generic `call(name, input)` validates input, enforces limits, fills path params and polls jobs.
     - Every attempt is recorded with caller, plan id, request hash, `result_id`, status, duration and any error.
 - `ledger.py`: in-memory or SQLite audit storage, accessed through `calls_for(plan_id=None)`.

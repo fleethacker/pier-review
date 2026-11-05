@@ -33,7 +33,7 @@ import urllib.request
 from urllib.parse import urlsplit, urlunsplit
 from types import SimpleNamespace
 
-from demo_check_planning import advance_planning_check, four_case_checks
+from demo_check_planning import advance_planning_check, four_case_checks, prediction_brief_check
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -370,6 +370,8 @@ def api_checks(stack: Stack) -> dict:
     check("Motion fixtures bundled for offline replay", fixtures)
     check("Health through the UI proxy (REST)", health)
     check("Capabilities report limits honestly", capabilities)
+    check("Prediction agent: immutable S7 narration and hazard limits (A7)",
+          lambda: prediction_brief_check(ui, EXAMPLES, http))
     check("Environment source is labeled; waves are not invented", environment_honesty)
     check("Intake agent: environment assessment, mock data flagged", intake)
     check("Berth vision: image to draft berth, flagged items, confirmed and saved", berth_vision)

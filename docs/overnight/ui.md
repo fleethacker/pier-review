@@ -2,6 +2,9 @@
 
 ## Requests
 
+- B 00:54 EST: Intake headlines retain input-quality qualifications even with no physical concern windows. HTML/PDF sheets now print assessment assumptions and limits; ordinary Intake selects representative snapshots, whereas `/mooring/forecast-plan` assesses an arrival/holding interval. Preserve this scope in UI labels. DDG has a seed fitting layout; CG/LHD/CVN remain hull/load-only with explicit missing-layout errors. 1594 Python/82 UI tests pass, no skips/xfails. Shared handoff updated; held UI branch remains untouched.
+
+
 - B 00:50 EST: Intake data_quality and Safety watch now propagate declared component quality/validity independently of the aggregate flag. Poor/out-of-interval is RED, suspect AMBER; unknown issue/quality and provider limitations remain visible INFO. A quality-only change can require recheck with no stale utilization percentage. No wire changes; render existing data_quality/recheck_reasons. 1587 Python/82 UI tests pass.
 
 

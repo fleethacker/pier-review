@@ -63,7 +63,12 @@ def _headline(report: IntakeReport) -> str:
     incomplete = any(q.issue == "missing" and q.severity == "RED" for q in report.data_quality)
     if incomplete:
         return f"Forecast assessment incomplete; {concern.lower()}; MST from available snapshots is {required}; future exceedance is unknown."
-    return f"{concern}; MST required is {required}; {comparison}."
+    quality = max((q.severity for q in report.data_quality
+                   if q.issue in ("missing", "stale", "flagged", "out_of_range")
+                   and q.severity in ("AMBER", "RED")),
+                  key={"AMBER": 1, "RED": 2}.get, default=None)
+    qualification = f"; input quality is {quality}; review is required before relying on this assessment" if quality else ""
+    return f"{concern}; MST required is {required}; {comparison}{qualification}."
 
 
 def _environment_facts(value, path, *, include_time):

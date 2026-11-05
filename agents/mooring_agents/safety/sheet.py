@@ -181,6 +181,7 @@ def render_html(s: SafetySheet) -> str:
     installation = (f"{s.installed_at_water_level_mllw_ft:g} ft MLLW; held fixed across assessed conditions, with no implicit tending"
                     if s.installed_at_water_level_mllw_ft is not None else "not recorded in this legacy sheet; inspect the cited inputs")
     citations = "".join(f"<li>{e(cite)}</li>" for cite in s.cited_result_ids)
+    assumptions = "".join(f"<li>{e(item)}</li>" for item in s.assumptions)
     return f"""<!doctype html><html><head><meta charset="utf-8"><title>Mooring Evolution Safety Sheet</title>
 <style>body{{font-family:system-ui,sans-serif;margin:24px;color:#111}}table{{border-collapse:collapse}}
 td,th{{border:1px solid #999;padding:4px 8px;text-align:left}}.st{{font-weight:700}}thead{{display:table-header-group}}tr{{break-inside:avoid}}</style></head><body>
@@ -210,6 +211,7 @@ Other reviewed conditions may govern individual elements.</p><table><thead><tr><
 <h2>Go / no-go</h2><ul>{gng}</ul>
 <h2>Sequence</h2>{seq_banner}<ol>{steps}</ol>
 <h2>Warnings</h2><ul>{warn or '<li>None</li>'}</ul>
+<h2>Assessment assumptions and limits</h2><ul>{assumptions or '<li>No assumptions recorded; inspect the cited inputs before use.</li>'}</ul>
 <h2>Agent rationale</h2><ul>{why}</ul>
 <h2>Referenced modeling results</h2><ul>{citations}</ul>
 <h2>Approvals</h2><ul>{appr or '<li>Pending</li>'}</ul>

@@ -369,3 +369,18 @@ def test_printed_sheet_preserves_environment_basis_direction_and_forecast_proven
     assert 'Tidal-only &lt;b&gt;unqualified&lt;/b&gt;' in text
     env.metadata = None
     assert 'Wind averaging, gust duration and reference height: not recorded' in renderer.render_html(sheet)
+
+
+def test_printed_sheet_retains_assumptions_and_escapes_provider_text(plan_id):
+    from mooring_agents.planner.agent import PLANS
+    from mooring_agents.safety import sheet as renderer
+    sheet = renderer.build(PLANS[plan_id])
+    assert sheet.assumptions == PLANS[plan_id].plan.assumptions
+    sheet.assumptions.extend(["Representative snapshots only; unreviewed timing.", "Source <script>unsafe()</script>"])
+    rendered = renderer.render_html(sheet)
+    assert "Assessment assumptions and limits" in rendered
+    assert "Representative snapshots only; unreviewed timing." in rendered
+    assert "Source &lt;script&gt;unsafe()&lt;/script&gt;" in rendered
+    assert "<script>unsafe()</script>" not in rendered
+    sheet.assumptions = []
+    assert "No assumptions recorded; inspect the cited inputs before use." in renderer.render_html(sheet)

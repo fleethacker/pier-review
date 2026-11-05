@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 02:10 EST, B: Narrow shared provenance correction in replay.py: normalized records no longer populate issued_at_utc from observation/valid time. Raw CO-OPS records do not supply an independent publication timestamp. Validity interval, snapshot time, age, numbers and source stay unchanged; issue time remains unknown. Exact/interpolated and real-adapter HTTP regressions cover this. No forecast composition or provider fetch changes.
+
 - 01:52 EST, B: NOAA current direction source check in docs/NOAA_CURRENT_DIRECTION_REVIEW.md: official glossary/Marine Navigation observations support flow-toward; prediction user guide page9 states True North. API field table alone is abbreviated, so the mapping interpretation is explicit. No parser/sign changes or instrument-calibration claim; bin/depth/pier applicability remains open. Consider linking this evidence where provider comments still call the general toward convention unconfirmed.
 
 - 01:39 EST, B: Rechecked official UFC2020 section3-8.1/Figure3-5 visually; no new duration/height factors introduced. Separate regime curves and graphical precision remain limitations (docs/WIND_BASIS_REVIEW.md). Keep unknown public wind/gust averaging and sensor height unknown. Also fixing direct-analysis handling of naive snapshot times plus aware component intervals: invalid/RED instead of TypeError500, with component quality retained. No environment-provider changes.

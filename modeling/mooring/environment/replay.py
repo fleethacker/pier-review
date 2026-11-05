@@ -145,11 +145,12 @@ class ReplaySource:
                 v[k] = circular_lerp_deg(lo.values[k], hi.values[k], w)
             rec_meta, age = lo, (clock - lo.t).total_seconds()
         worst = min((lo, hi), key=lambda r: QUALITY_RANK[r.quality]).quality
+        # Record time establishes observation/validity time, not an independent provider issue time.
         return EnvironmentSnapshot(
             valid_at_utc=t, source=self.source_kind, wind_speed_kt=v["wind_speed_kt"], wind_gust_kt=max(v["wind_gust_kt"], v["wind_speed_kt"]),
             wind_from_true_deg=v["wind_from_true_deg"] % 360, current_speed_kt=v["current_speed_kt"], current_set_true_deg=v["current_set_true_deg"] % 360,
             water_level_mllw_ft=v["water_level_ft"],
-            metadata=EnvironmentMetadata(basis=self.basis, source=rec_meta.source or self.station, issued_at_utc=lo.t, valid_from_utc=lo.t, valid_to_utc=hi.t,
+            metadata=EnvironmentMetadata(basis=self.basis, source=rec_meta.source or self.station, valid_from_utc=lo.t, valid_to_utc=hi.t,
                                          wind_averaging_s=rec_meta.wind_averaging_s, gust_duration_s=rec_meta.gust_duration_s,
                                          wind_reference_height_m=rec_meta.wind_reference_height_m, vertical_datum="MLLW", quality=worst, age_s=max(age, 0.0),
                                          current_depth_ft=rec_meta.current_depth_ft, current_bin=rec_meta.current_bin,

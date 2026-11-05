@@ -21,6 +21,7 @@ export type Provenance = M['schemas']['Provenance'];
 export type JobAccepted = M['schemas']['JobAccepted'];
 export type JobStatus = M['schemas']['JobStatus'];
 export type AgentSchemas = A['schemas'];
+export type ModelingSchemas = M['schemas'];
 export type SideTo = MooringConfig['side_to'];
 
 export type AgentPlan = AgentSchemas['AgentPlan'];

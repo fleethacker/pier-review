@@ -3,6 +3,7 @@ import type { AppHost } from '../../scene/app';
 import type { SceneEdit, SceneState } from '../../scene/types';
 import { awaitJob, describeError, modeling, MODELING_BASE, unwrap, wsUrl } from './api';
 import { AgentSession } from './agent';
+import { AdvanceSession } from './advance/session';
 import { IntakeSession } from './intake/controller';
 import { MotionController } from './motion/controller';
 import { MOTION_KINDS } from './motion/sceneMapper';
@@ -211,6 +212,7 @@ export class MooringController {
   readonly state = new Store<MooringState>(INITIAL);
   readonly intake: IntakeSession = new IntakeSession(this);
   readonly agent: AgentSession = new AgentSession(this);
+  readonly advance: AdvanceSession = new AdvanceSession(this);
   /** While true the Cesium scene belongs to the motion view, and layout redraws are held back. */
   private motionHoldsScene = false;
   private savedScenarioKey: string | null = null;
@@ -290,6 +292,7 @@ export class MooringController {
     this.envStream?.close();
     this.alertStream?.close();
     this.agent.dispose();
+    this.advance.dispose();
     this.intake.dispose();
     this.motion.dispose();
     this.unsubscribeScene();

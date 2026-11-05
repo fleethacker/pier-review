@@ -293,6 +293,37 @@ def main() -> int:
 
         step("Four saved-scenario analysis outcomes", four_cases)
 
+        def advance_planning():
+            # Back on the saved supported scenario: bind a labeled training series, assess arrivals >= 24 h ahead, apply.
+            page.locator("select").filter(has=page.locator("option", has_text="demo-check supported-limited")).select_option(label="demo-check supported-limited")
+            expect(page.get_by_text("Overall AMBER", exact=True).first).to_be_visible()
+            panel_source = page.get_by_label("Forecast source")
+            assert "unavailable" in panel_source.inner_text(), "public forecast must read unavailable until D2 lands"
+            page.get_by_role("button", name="Use training scenario").click()
+            cov = page.get_by_label("Series coverage")
+            expect(cov.get_by_text(re.compile(r": covered\."))).to_be_visible(timeout=60_000)
+            assert "not a weather forecast" in cov.inner_text()
+            with page.expect_response(lambda r: r.url.endswith("/api/v1/mooring/forecast-plan") and r.request.method == "POST") as submitted:
+                page.get_by_role("button", name="Assess arrivals").click()
+            body = submitted.value.request.post_data_json
+            assert body["forecast_binding"]["source"] == "supplied" and body["holding_hours"] == 6, body.get("forecast_binding")
+            result = page.get_by_label("Advance planning result")
+            expect(result.get_by_label("Arrival alternatives")).to_be_visible(timeout=240_000)
+            text = result.inner_text()
+            assert "validity limited" in text, "forecast planning must stay limited"
+            shot(page, "11-advance-planning")
+            if "Selected arrival" in text:
+                result.get_by_role("button", name="Apply selected configuration").click()
+                expect(result.get_by_role("status").filter(has_text="Applied the configuration")).to_be_visible()
+                assert "Recheck required" not in result.inner_text(), "applying the selected configuration must not mark it stale"
+                page.get_by_label("Holding hours").fill("12")
+                expect(result.get_by_text(re.compile("Recheck required"))).to_be_visible()
+                assert result.get_by_role("button", name="Apply selected configuration").is_disabled()
+                return "training series bound and covered; alternatives assessed; selected configuration applied; changed holding marks recheck required"
+            return "training series bound and covered; alternatives assessed; no arrival supported (no configuration published)"
+
+        step("Advance planning: training series, alternatives, apply, recheck", advance_planning)
+
         def clean():
             real = [e for e in errors if "GL Driver" not in e]
             assert not real, f"{len(real)} browser errors, first: {real[0]}"

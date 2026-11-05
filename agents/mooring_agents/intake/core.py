@@ -61,8 +61,16 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
     berth = await tk.berth(berth_id)
     current = await tk.env_now(berth_id, env_scenario_id)
     if env_scenario_id:
-        series = [current.model_copy(update={"valid_at_utc": current.valid_at_utc + timedelta(minutes=FORECAST_STEP_MIN * i)})
-                  for i in range(req.horizon_hours * (60 // FORECAST_STEP_MIN) + 1)]
+        scenario = await tk.environment_scenario(env_scenario_id)
+        if scenario.kind == "steady":
+            # The declared source is constant by definition. Never freeze ramps or replay series.
+            series = [current.model_copy(update={"valid_at_utc": current.valid_at_utc + timedelta(minutes=FORECAST_STEP_MIN * i)})
+                      for i in range(req.horizon_hours * (60 // FORECAST_STEP_MIN) + 1)]
+        else:
+            forecast_complete = False
+            series = [current]
+            quality.append(DataQualityIssue(station_id="forecast", issue="missing", severity="RED",
+                detail=f"The {scenario.kind} scenario has no forecast-series interface; only the current snapshot was assessed. Future conditions were not held constant."))
     else:
         try:
             series = (await tk.forecast(berth_id, req.horizon_hours, FORECAST_STEP_MIN)).series
@@ -75,6 +83,44 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
             series = [current]
             quality.append(DataQualityIssue(station_id="forecast", issue="missing", severity="RED",
                 detail="Forecast unavailable; assessment covers the current snapshot only, not the requested horizon."))
+
+    # Assess only ordered, timezone-aware samples; do not silently sort a malformed feed.
+    times = [sample.valid_at_utc for sample in series]
+    if any(t.tzinfo is None or t.utcoffset() is None for t in times) or any(b <= a for a, b in zip(times, times[1:])):
+        forecast_complete = False
+        series = [current]
+        quality.append(DataQualityIssue(station_id="forecast", issue="missing", severity="RED",
+            detail="Forecast timestamps are unordered, duplicated or lack a timezone; only the current snapshot was assessed."))
+    elif forecast_complete:
+        tolerance = timedelta(minutes=FORECAST_STEP_MIN * 2)
+        start = current.valid_at_utc
+        if (start.tzinfo is None or times[0] > start or
+                times[-1] < start + timedelta(hours=req.horizon_hours) or
+                any(b-a > tolerance for a, b in zip(times, times[1:]))):
+            forecast_complete = False
+            quality.append(DataQualityIssue(station_id="forecast", issue="missing", severity="RED",
+                detail="Forecast samples do not cover the entire requested horizon without gaps; only available samples were assessed."))
+
+    # Quality can be carried by forecast metadata, not just current station observations.
+    flagged = set()
+    for sample in [current, *series]:
+        metadata = sample.metadata
+        if metadata and metadata.quality in ("suspect", "poor"):
+            flagged.add((metadata.source or "environment", "flagged", "RED" if metadata.quality == "poor" else "AMBER",
+                         f"Provider marks environment quality {metadata.quality}; verify before use."))
+        if metadata and metadata.age_s is not None and metadata.age_s > STALE_S:
+            flagged.add((metadata.source or "environment", "stale", "AMBER", "Environment metadata reports stale observations."))
+        for station in sample.quality:
+            flags = " ".join(station.flags).lower()
+            if any(word in flags for word in ("missing", "unavailable", "gap")):
+                flagged.add((station.station_id, "missing", "RED", "A required source reports missing or unavailable data: " + ", ".join(station.flags)))
+            elif any(word in flags for word in ("suspect", "poor", "invalid", "stale")):
+                flagged.add((station.station_id, "flagged", "AMBER", "Provider quality flags require review: " + ", ".join(station.flags)))
+    quality.extend(DataQualityIssue(station_id=station, issue=issue, severity=severity, detail=detail)
+                   for station, issue, severity, detail in sorted(flagged))
+
+    if any(q.issue == "missing" and q.severity == "RED" for q in quality):
+        forecast_complete = False
 
     heading = None
     if side:
@@ -114,10 +160,10 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
 
     worst_gust = max(series, key=lambda s: s.wind_gust_kt)
     worst_cur = max(series, key=broadside)
-    conditions = [PlanningCondition(label="Worst gust in horizon", environment=worst_gust,
+    conditions = [PlanningCondition(label="Worst gust in horizon" if forecast_complete else "Worst gust among available samples", environment=worst_gust,
                                     why=f"Gusts peak at {worst_gust.wind_gust_kt:.0f} kt at {worst_gust.valid_at_utc:%H:%MZ}.")]
     if worst_cur.valid_at_utc != worst_gust.valid_at_utc:
-        conditions.append(PlanningCondition(label="Strongest current in horizon", environment=worst_cur,
+        conditions.append(PlanningCondition(label="Strongest current in horizon" if forecast_complete else "Strongest current among available samples", environment=worst_cur,
                                             why=f"Current peaks at {worst_cur.current_speed_kt:.1f} kt at "
                                                 f"{worst_cur.valid_at_utc:%H:%MZ}."))
     conditions.append(PlanningCondition(label="Now", environment=current, why="Conditions at the time of planning."))
@@ -145,14 +191,15 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
                                             detail="Synthetic data from the mock environment service."))
 
     if not forecast_complete:
-        mst.reason = "Forecast coverage unavailable. " + mst.reason.replace(f"over {req.horizon_hours} h", "at the current snapshot only")
+        mst.reason = "Forecast coverage incomplete. " + mst.reason.replace(f"over {req.horizon_hours} h",
+            "at the current snapshot only" if len(series) == 1 else "over available samples only")
     reds = [w for w in windows if w.severity == "RED"]
     summary = (f"Next {req.horizon_hours} h at {berth.name}: {len(windows)} window(s) of concern"
                f"{f', {len(reds)} severe' if reds else ''}. Gusts peak {worst_gust.wind_gust_kt:.0f} kt; "
                f"MST {mst_req} conditions{'; exceeds ship MST' if exceeds else ''}."
                f"{f' {len(berthing)} berthing window(s) found.' if berthing else ''}")
     if not forecast_complete:
-        summary = "Forecast unavailable; current conditions only. " + summary
+        summary = "Forecast coverage incomplete; available samples only. " + summary
     report = IntakeReport(report_id=report_id, created_at_utc=utcnow(), berth_id=berth_id, ship_class_id=ship_id,
                           side_to=side, horizon_hours=req.horizon_hours, current=current, mst=mst, windows=windows,
                           planning_conditions=conditions, berthing_windows=berthing, data_quality=quality,

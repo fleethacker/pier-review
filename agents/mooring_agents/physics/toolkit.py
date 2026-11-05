@@ -18,6 +18,7 @@ from mooring.core.schemas import (
     BerthCreated,
     BerthingWindowsResponse,
     EnvironmentSnapshot,
+    EnvScenario,
     ExceedanceResponse,
     ForecastSeries,
     LimitEnvelopeResponse,
@@ -171,6 +172,9 @@ class PhysicsToolkit:
     async def env_now(self, berth_id: str, env_scenario_id: str | None = None) -> EnvironmentSnapshot:
         req = {"berth_id": berth_id, "env_scenario_id": env_scenario_id}
         return await self._typed("get_environment", req, EnvironmentSnapshot)
+
+    async def environment_scenario(self, env_scenario_id: str) -> EnvScenario:
+        return await self._typed("get_environment_scenario", {"env_scenario_id": env_scenario_id}, EnvScenario)
 
     async def forecast(self, berth_id: str, hours: int = 24, step_min: int = 30) -> ForecastSeries:
         req = {"berth_id": berth_id, "hours": hours, "step_min": step_min}

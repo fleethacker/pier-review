@@ -67,6 +67,22 @@ it('does not apply a plan computed before an environment edit', async () => {
 });
 
 describe('class and berth selection invalidation', () => {
+  it('serializes follow-ups and invalidates old review evidence before the submission finishes', async () => {
+    vi.stubGlobal('EventSource', class { addEventListener() {} close() {} });
+    c.agent.state.set({ planId: plan.plan_id, plan, phase: 'done',
+      review: { state: 'ready', progress: 1, error: null, review: { review_id: 'old' } as never } });
+    const pending = deferred<unknown>();
+    vi.mocked(agents.POST).mockReturnValue(pending.promise as never);
+    const first = c.agent.ask('Revise the line plan');
+    await c.agent.ask('A concurrent second request');
+    expect(agents.POST).toHaveBeenCalledTimes(1);
+    expect(c.agent.state.get()).toMatchObject({ phase: 'saving', review: { state: 'idle', review: null } });
+    c.agent.resetForSelection();
+    pending.resolve({ data: {} });
+    await first;
+    expect(c.agent.state.get()).toMatchObject({ phase: 'idle', planId: null, chat: [] });
+  });
+
   it('clears the previous plan, review, sheet and undo immediately', () => {
     c.agent.state.set({ phase: 'done', planId: plan.plan_id, plan, objective: 'storm_prep',
       undo: { lines: [line(3)], tugs: [] },

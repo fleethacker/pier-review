@@ -6,15 +6,18 @@ type Step = AgentSchemas['SequenceStep'];
 /** Summarize reported evidence only. An absent check never becomes a passing check. */
 export function sequenceEvidence(sequence: Sequence) {
   const failed = sequence.steps.filter((step) => step.state_ok === false).length;
-  const unknown = sequence.steps.filter((step) => step.state_ok == null).length;
+  const unknown = sequence.steps.filter((step) => stepEvidence(step, sequence.issues).status === 'AMBER').length;
   const partial = (sequence.issues ?? []).some((issue) => issue.code === 'PARTIAL_RESTRAINT');
   const blocked = failed > 0 || (sequence.issues ?? []).some((issue) => issue.severity === 'RED');
   const indeterminate = unknown > 0 || partial || sequence.steps.length === 0;
   return { failed, unknown, blocked, indeterminate };
 }
 
-export function stepEvidence(step: Step): { label: string; status: 'RED' | 'AMBER' | 'NONE' } {
+export function stepEvidence(step: Step, issues: Sequence['issues'] = []): { label: string; status: 'RED' | 'AMBER' | 'NONE' } {
   if (step.state_ok === false) return { label: 'Static check failed', status: 'RED' };
+  if ((issues ?? []).some((issue) => issue.code === 'PARTIAL_RESTRAINT' && (issue.step == null || issue.step === step.step))) {
+    return { label: 'Partial restraint · static state not established', status: 'AMBER' };
+  }
   if (step.state_ok === true) return { label: 'Static check passed', status: 'NONE' };
   return { label: 'Static state not established', status: 'AMBER' };
 }

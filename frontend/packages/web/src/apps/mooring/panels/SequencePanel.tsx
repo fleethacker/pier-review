@@ -78,7 +78,7 @@ export function SequencePanel() {
       )}
       <ol className="space-y-1" aria-label="Line-handling steps">
         {seq.steps.map((step) => {
-          const state = stepEvidence(step);
+          const state = stepEvidence(step, seq.issues);
           return (
             <li key={step.step} className="rounded-sm border border-mil-border bg-mil-bg/60 p-2 text-[11px]">
               <div className="flex items-start justify-between gap-2">

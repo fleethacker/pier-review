@@ -10,7 +10,7 @@ export function SetupPanel() {
   const c = useController();
   const s = useMooring((x) => x);
   const berthLength = s.berth?.face_length_ft ?? 1000;
-  const support = classSupport(s.ship, s.shipClassId, s.loading);
+  const support = classSupport(s.ship, s.shipClassId, s.loading, s.side);
 
   return (
     <Panel title="Scenario" className="space-y-3 p-4">
@@ -38,6 +38,7 @@ export function SetupPanel() {
           <div className="flex justify-between gap-2"><dt>Hull reference</dt><dd>{support.current ? 'Available' : 'Loading…'}</dd></div>
           <div className="flex justify-between gap-2"><dt>Environmental load inputs</dt><dd>{support.hasLoadInputs ? 'Present · unqualified' : 'Unavailable'}</dd></div>
           <div className="flex justify-between gap-2"><dt>Mooring fittings</dt><dd>{support.hasFittings ? `${s.ship?.fittings?.length} records` : 'Unavailable'}</dd></div>
+          <div className="flex justify-between gap-2"><dt>Bitts on selected side</dt><dd>{support.current ? support.usableBitts : 'Unknown'}</dd></div>
           <div className="flex justify-between gap-2"><dt>Planning workflow</dt><dd className="text-mil-amber">{support.canPlan ? 'Demonstration only' : 'Blocked'}</dd></div>
         </dl>
         {support.reason && <p role="status" className="mt-2 text-mil-amber">{support.reason}</p>}

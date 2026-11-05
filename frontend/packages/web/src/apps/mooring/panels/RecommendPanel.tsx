@@ -6,7 +6,7 @@ export function RecommendPanel() {
   const c = useController();
   const rec = useMooring((s) => s.recommend);
   const s = useMooring((state) => state);
-  const support = classSupport(s.ship, s.shipClassId, s.loading);
+  const support = classSupport(s.ship, s.shipClassId, s.loading, s.side);
   return (
     <Panel title="Recommended layouts" className="space-y-2 p-4">
       <Button size="sm" disabled={!support.canPlan || rec.state === 'running'} onClick={() => void c.recommend({ apply: false })}>

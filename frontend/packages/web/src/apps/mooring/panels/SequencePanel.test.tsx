@@ -55,6 +55,8 @@ it('does not call partial restraint feasible even if a legacy step says true', (
   setup({ issues: [{ code: 'PARTIAL_RESTRAINT', severity: 'AMBER', step: 1, message: 'Assistance has not been established.' }] });
   expect(screen.getByText('Feasibility indeterminate')).toBeTruthy();
   expect(screen.queryByText('Reported static checks passed')).toBeNull();
+  expect(screen.queryByText('Static check passed')).toBeNull();
+  expect(screen.getByText('Partial restraint · static state not established')).toBeTruthy();
 });
 
 it('never infers feasibility from an empty sequence', () => {

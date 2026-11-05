@@ -29,7 +29,7 @@ it.each(['CG-47', 'LHD-1', 'CVN-68'])('explains the missing %s fittings and bloc
 });
 
 it('allows the demonstration workflow with actual fitting and loading records', () => {
-  setup('CUSTOM', [{ fitting_id: 'CUSTOM-BITT' }]);
+  setup('CUSTOM', [{ fitting_id: 'CUSTOM-BITT', kind: 'bitt', side: 'starboard' }]);
   expect(screen.getByRole('button', { name: 'Recommend layouts' }).hasAttribute('disabled')).toBe(false);
   expect(screen.getByLabelText('Selected class capabilities').textContent).toContain('Demonstration only');
 });

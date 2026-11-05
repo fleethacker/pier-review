@@ -253,10 +253,15 @@ export class AgentSession {
 
   async ask(text: string): Promise<void> {
     const planId = this.s.planId;
-    if (!planId || !text.trim()) return;
-    const request = this.planRequest;
+    if (!planId || !text.trim() || this.s.phase !== 'done') return;
+    const request = ++this.planRequest;
     const current = () => !this.disposed && request === this.planRequest && this.s.planId === planId;
-    this.state.set({ chat: [...this.s.chat, { role: 'user', text, cites: [] }] });
+    this.source?.close();
+    this.source = null;
+    this.sheetRequest++;
+    this.reviewRequest++;
+    this.state.set({ phase: 'saving', chat: [...this.s.chat, { role: 'user', text, cites: [] }],
+      review: INITIAL.review, sheet: INITIAL.sheet });
     try {
       unwrap(
         await agents.POST('/api/v1/agent/plans/{plan_id}/messages', {
@@ -271,7 +276,7 @@ export class AgentSession {
       this.state.set({ phase: 'running', steps: [], review: INITIAL.review, sheet: INITIAL.sheet });
       this.listen(`/api/v1/agent/plans/${planId}/events`, planId);
     } catch (e) {
-      if (current()) this.state.set({ error: message(e) });
+      if (current()) this.state.set({ phase: 'error', error: message(e) });
     }
   }
 

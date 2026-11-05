@@ -18,7 +18,7 @@ export function AgentPanel() {
   const c = useController();
   const a = useAgent((s) => s);
   const s = useMooring((state) => state);
-  const support = classSupport(s.ship, s.shipClassId, s.loading);
+  const support = classSupport(s.ship, s.shipClassId, s.loading, s.side);
   const [question, setQuestion] = useState('');
   const busy = a.phase === 'saving' || a.phase === 'running';
 

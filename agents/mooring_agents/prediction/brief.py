@@ -39,8 +39,14 @@ def explain(prediction: PredictionResponse) -> PredictionBrief:
             text += (f" Model reports the first clearance-threshold breach at {breach.t_s} s for "
                      f"{breach.kind} {breach.element_id}, clearance {breach.clearance_ft} ft.")
         elif usable:
-            text += (" No breach is reported for the checked hazards; this is not an all-clear indication."
+            text += (" No clearance-threshold breach is reported on the central prediction; this is not an all-clear indication."
                      if result.hazards_checked else " No hazard types were checked; clearance is unknown.")
+        sample_share = closest.probability if closest is not None else breach.probability if breach is not None else None
+        if sample_share is not None:
+            # S7 reports the fraction of sampled trajectories breaching ANY checked
+            # hazard at ANY sampled time, not a probability for the closest element.
+            text += (f" The model reports a sample breach share of {sample_share} across checked hazards and sampled times. "
+                     "This is an uncalibrated sample share, not a collision probability.")
         uncertainty = ("Corridor is model sample spread, not calibrated collision probability."
                        if corridor else "Trajectory uncertainty is unavailable; no calibrated collision probability is established.")
         alternatives.append(PredictionAlternativeBrief(

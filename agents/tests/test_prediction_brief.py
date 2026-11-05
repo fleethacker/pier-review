@@ -91,6 +91,25 @@ def test_zero_time_breach_and_zero_clearance_are_preserved(prediction):
     assert "clearance-threshold breach at 0.0 s" in described.explanation
 
 
+@pytest.mark.parametrize("sample_share", [0.0, 0.5, 1.0])
+def test_sample_exceedance_is_not_hidden_by_a_clear_central_trajectory(prediction, sample_share):
+    alternative = prediction.result.alternatives[0]
+    assert alternative.closest_approach is not None
+    assert alternative.corridor
+    alternative.first_breach = None
+    alternative.closest_approach.probability = sample_share
+    before = prediction.model_dump(mode="json")
+    described = explain(prediction).alternatives[0]
+    assert "No clearance-threshold breach is reported on the central prediction" in described.explanation
+    assert f"sample breach share of {sample_share} across checked hazards and sampled times" in described.explanation
+    assert "uncalibrated sample share, not a collision probability" in described.explanation
+    assert "not an all-clear indication" in described.explanation
+    assert described.first_breach is None
+    assert described.closest_approach.probability == sample_share
+    assert described.cites == [prediction.result_id]
+    assert prediction.model_dump(mode="json") == before
+
+
 def test_endpoint_only_reads_saved_result_and_keeps_citation(monkeypatch, prediction):
     requests = []
     def respond(req):

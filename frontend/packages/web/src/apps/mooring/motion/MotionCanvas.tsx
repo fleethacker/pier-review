@@ -200,7 +200,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
         {frame?.lines.map((l) => {
           const pts = l.polyline && l.polyline.length > 1 ? l.polyline : l.shipEnd && l.pierEnd ? [l.shipEnd, l.pierEnd] : null;
           if (!pts) return null;
-          const color = l.status === 'overloaded' ? STATUS_COLOR.RED : l.status === 'taut' ? STATUS_COLOR.GREEN : DIM;
+          const color = l.status === 'overloaded' ? STATUS_COLOR.RED : l.status === 'taut' ? '#00bcd4' : DIM;
           const w = lw * (l.tensionLbf != null ? 2 + 4 * (l.tensionLbf / maxTension) : 2);
           const mid = pts[Math.floor(pts.length / 2)];
           return (

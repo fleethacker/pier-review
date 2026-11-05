@@ -11,6 +11,7 @@ import re
 import os
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from playwright.sync_api import Page, expect, sync_playwright
 
@@ -59,7 +60,9 @@ def main() -> int:
         page = browser.new_page(viewport={"width": 1600, "height": 1000}, reduced_motion="reduce")
         page.set_default_timeout(45_000)
         PAGE.append(page)
+        page.route("**/*", lambda route: route.continue_() if urlparse(route.request.url).hostname in {"127.0.0.1", "localhost"} else route.abort())
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
+        intake_context: dict = {}
         def on_console(m):
             if m.type != "error":
                 return
@@ -94,17 +97,33 @@ def main() -> int:
             return "lines listed with their analysis"
 
         def intake():
-            page.get_by_role("button", name="Assess conditions").click()
+            with page.expect_response(lambda r: r.url.endswith("/api/v1/intake/reports") and r.request.method == "POST") as submitted:
+                page.get_by_role("button", name="Assess conditions").click()
+            response = submitted.value
+            assert response.ok, "intake submission failed"
+            intake_context["scenario_id"] = response.request.post_data_json["scenario_id"]
+            job_id = response.json()["job_id"]
             expect(page.get_by_text("Mooring condition")).to_be_visible(timeout=90_000)
+            job = page.request.get(f"{URL}/api/agents/api/v1/jobs/{job_id}").json()
+            assert job["state"] == "succeeded", job
+            report = job["result"]
+            intake_context["report_id"] = report["report_id"]
+            assert report["current"]["wind_speed_kt"] == 4 and report["current"]["wind_gust_kt"] == 5, "Intake ignored the saved scenario"
             text = page.locator("aside").first.inner_text()
             assert "MST" in text and "Deterministic summary" in text, "intake result should state MST and where the summary came from"
             shot(page, "02a-intake")
-            return "intake assessment shown with MST, windows and a labeled deterministic summary"
+            return "selected scenario assessed with MST, windows and deterministic summary; current wind matches the saved inputs"
 
         def plan():
             attempts = 0
             for attempts in range(1, 4):
-                page.get_by_role("button", name="Ask the agent to plan").click()
+                with page.expect_response(lambda r: r.url.endswith("/api/v1/agent/plans") and r.request.method == "POST") as submitted:
+                    page.get_by_role("button", name="Ask the agent to plan").click()
+                response = submitted.value
+                assert response.ok, "plan submission failed"
+                body = response.request.post_data_json
+                assert body.get("intake_report_id") == intake_context.get("report_id") and body.get("intake_report_id"), "Planner did not receive the displayed Intake report"
+                assert body["scenario_id"] == intake_context["scenario_id"], "Planner changed the assessed scenario"
                 expect(page.get_by_role("button", name=re.compile("Create safety sheet|Rebuild safety sheet"))).to_be_visible(timeout=150_000)
                 text = page.locator("aside").first.inner_text().lower()
                 # Under software-rendered WebGL the CPU is scarce and a physics tool can pass its 30 s limit; the UI says
@@ -114,9 +133,14 @@ def main() -> int:
                 if attempts == 3:
                     raise AssertionError("the planner timed out three times in a row")
                 page.wait_for_timeout(3000)
+            plan_id = response.json()["plan_id"]
+            result = page.request.get(f"{URL}/api/agents/api/v1/agent/plans/{plan_id}").json()
+            assert result["status"] == "AMBER" and result["intake_report_id"] == intake_context["report_id"], result
+            analysis = page.request.get(f"{URL}/api/modeling/api/v1/results/{result['analysis_result_id']}").json()
+            assert analysis["validity"]["state"] == "limited", analysis
             shot(page, "02-plan")
             note = f" (took {attempts} attempts: transient timeout under CPU load)" if attempts > 1 else ""
-            return f"planner ran (SSE steps), plan applied to the canvas{note}"
+            return f"planner used the displayed Intake and scenario, returned AMBER/limited, and applied its plan{note}"
 
         def sheet():
             dialog = page.get_by_role("dialog").first
@@ -234,6 +258,39 @@ def main() -> int:
             step("Motion: units toggle", units)
 
         step("Berth vision: upload, review, confirm, use", vision)
+
+        def four_cases():
+            base = f"{URL}/api/modeling/api/v1"
+            cases = page.request.get(base + "/demo/docking-cases").json()
+            for case in cases:
+                env = page.request.post(base + "/env/scenarios", data=case["environment_request"]).json()
+                body = {**case["scenario_request"], "env_source": {"mode": "scenario", "env_scenario_id": env["env_scenario_id"]}}
+                case["saved_id"] = page.request.post(base + "/scenarios", data=body).json()["scenario_id"]
+            page.reload(wait_until="load")
+            expect(page.get_by_role("button", name="Ask the agent to plan")).to_be_enabled()
+            for case in cases:
+                expected = ("AMBER", "limited") if case["case_id"] == "ddg-supported-limited" else (
+                    ("RED", "limited") if case["case_id"] == "ddg-overloaded" else ("RED", "invalid"))
+                def matches(r):
+                    if not r.url.endswith("/api/v1/mooring/analyze") or r.request.method != "POST":
+                        return False
+                    body = r.request.post_data_json
+                    return (body["environment"]["wind_speed_kt"] == case["environment_request"]["wind_speed_kt"]
+                            and body["environment"]["water_level_mllw_ft"] == case["environment_request"]["water_level_mllw_ft"]
+                            and len(body["config"]["lines"]) == len(case["analysis_request"]["config"]["lines"]))
+                with page.expect_response(matches) as analyzed:
+                    page.locator("select").filter(has=page.locator(f"option[value='{case['saved_id']}']")).select_option(case["saved_id"])
+                response = analyzed.value
+                assert response.ok, f"{case['case_id']} failed with HTTP {response.status}"
+                result = response.json()
+                assert (result["status"], result["validity"]["state"]) == expected, (case["case_id"], result)
+                expect(page.get_by_text(f"Overall {expected[0]}", exact=True).first).to_be_visible()
+                if expected[1] == "invalid":
+                    expect(page.get_by_text("Line loads unavailable", exact=False).first).to_be_visible()
+                shot(page, case["case_id"])
+            return "saved supported, overloaded, invalid-depth and underconstrained inputs show their expected initial outcomes; invalid loads withheld"
+
+        step("Four saved-scenario analysis outcomes", four_cases)
 
         def clean():
             real = [e for e in errors if "GL Driver" not in e]

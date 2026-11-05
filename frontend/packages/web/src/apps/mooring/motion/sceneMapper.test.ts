@@ -42,7 +42,15 @@ describe('motionSceneParts', () => {
     expect(parts.entities.some((e) => e.kind === 'motion-tug')).toBe(true);
     expect(parts.links.length).toBeGreaterThan(0);
     const taut = parts.links.find((l) => v.lines.find((x) => `motion-line:${x.lineNumber}` === l.id)?.status === 'taut');
-    expect(taut?.status).toBe('GREEN');
+    expect(taut?.status).toBe('NONE'); // taut is a physical state, not a safe-load result
+    expect(taut?.color).toBe('#00bcd4');
+  });
+
+  it('does not give invalid line loads a reassuring color or load-scaled width', () => {
+    const invalid = adaptFrame({ ...frame, validity: { state: 'invalid', reasons: [] } });
+    const p = motionSceneParts(invalid, scene, dims);
+    expect(p.links.length).toBeGreaterThan(0);
+    expect(p.links.every((l) => l.status === 'NONE' && l.widthPx === 2)).toBe(true);
   });
 
   it('does not invent what a legacy frame lacks', () => {

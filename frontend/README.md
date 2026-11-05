@@ -37,8 +37,10 @@ scene (ship hull with deckhouse blocks, tugs, lines colored by status) and leave
 presets (top, bow, port quarter, pier side). The map draws position, heading and heave only when heave is simulated;
 roll, pitch and a water surface are not drawn, and it lists whatever the frame did not supply.
 
-- **Environment intake:** asks the intake agent for the next 24 hours at the chosen berth: MST, windows of concern,
-  berthing windows and data quality (mock data is flagged), with a summary labeled deterministic or model-written.
+- **Environment intake:** assesses the selected saved scenario over 24 hours: MST, windows of concern,
+  berthing windows and data quality, with a summary labeled deterministic or model-written. Manual conditions are
+  saved as steady synthetic conditions, not a weather forecast. The next planning run receives the displayed report;
+  changing inputs clears it. A completed report is not reused against a different environment or arrangement.
 - **Resilience:** every panel sits in an error boundary (a broken panel shows a message and Try again, the rest keeps
   working), API failures read as plain sentences, and decorative motion follows `prefers-reduced-motion`.
 - **Bearer token (optional):** set `VITE_API_BEARER_TOKEN` to send `Authorization: Bearer ...` on REST and job polling
@@ -65,7 +67,8 @@ to the agents service (set `MODELING_PROXY_TARGET` and `AGENTS_PROXY_TARGET` in 
 `http://127.0.0.1:8000` and `:8001`; use the numeric address, because `localhost` can resolve to IPv6 where the services do not listen). REST is under `/api/v1`, WebSockets under `/ws`. Set `VITE_MODELING_URL` or
 `VITE_AGENTS_URL` to an absolute URL to bypass the proxy.
 
-The default local demo needs no credentials. This UI does not yet implement bearer authentication for HTTP, SSE or WebSockets; authenticated deployments require a separate reviewed integration. The 2D and 3D views are drawn from the berth data itself.
+The default local demo needs no credentials. The optional build-time bearer token covers HTTP only; authenticated
+SSE and WebSockets require a separately reviewed gateway integration. The 2D and 3D views are drawn from the berth data itself.
 
 Optional look-and-feel: set `VITE_MAPBOX_TOKEN` (a public `pk.` token) when building to put Mapbox satellite imagery
 under the scene. Vite bakes it into the bundle, so it must be present at build time (on Domino, as a user or project

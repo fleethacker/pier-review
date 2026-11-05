@@ -8,7 +8,7 @@ import { ControllerContext } from './context';
 import { MapCanvas } from './MapCanvas';
 import { RedTeamPanel } from './RedTeam';
 import { Side } from './Side';
-import { StoryboardPanel } from './Storyboard';
+import { StoryboardPanel } from './StoryboardPanel';
 import { Sidebar } from './Sidebar';
 
 /** The panels that float over the map. Both can be opened, but each sits in the same place, so only one shows at a time. */

@@ -5,7 +5,7 @@ import { installErrorReporting, reportClientError, resetReported, scrub } from '
 import { ControllerContext } from './context';
 import { ExerciseController } from './controller';
 import { deleteLocal, listLocal, loadLocal, saveLocal, slugify } from './library';
-import { Library } from './Library';
+import { Library } from './LibraryPanel';
 import { PRESET_SCENARIOS } from './scenarios';
 import { ServerError, deleteShared, fetchConfig, listShared, loadShared, saveShared } from './serverApi';
 

@@ -256,6 +256,38 @@ describe('fitting drags', () => {
 });
 
 describe('selection changes during editing', () => {
+  it('cancels an older automatic recommendation before waiting for a newer scenario', async () => {
+    const { c } = setup();
+    const { awaitJob } = await import('./api');
+    let finishRecommendation!: (value: unknown) => void;
+    const pendingRecommendation = new Promise((resolve) => { finishRecommendation = resolve; });
+    vi.mocked(awaitJob).mockReturnValue(pendingRecommendation);
+    post.mockResolvedValue({ data: { job_id: 'old-recommendation' } });
+    const recommending = c.recommend({ apply: true });
+    await Promise.resolve();
+    let finishScenario!: (value: unknown) => void;
+    const pendingScenario = new Promise((resolve) => { finishScenario = resolve; });
+    const get = vi.mocked(modeling.GET);
+    get.mockImplementation(async (path) => {
+      if (path === '/api/v1/scenarios/{scenario_id}') return pendingScenario as never;
+      return { data: path === '/api/v1/ships/{class_id}' ? ship
+        : path === '/api/v1/berths/{berth_id}' ? berth : env } as never;
+    });
+    const resetAgent = vi.spyOn(c.agent, 'resetForSelection');
+    try {
+      const loading = c.loadScenario('new-scenario');
+      expect(resetAgent).toHaveBeenCalledOnce();
+      finishRecommendation({ result: { candidates: [{ config: { side_to: 'starboard', ship_x_ft: 500,
+        lines: [{ line_number: 99, spec_id: 'OLD', parts: 1, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1' }] } }] } });
+      await recommending;
+      expect(c.state.get().lines).toEqual([]);
+      finishScenario({ data: { scenario_id: 'new-scenario', berth_id: berth.berth_id, ship_class_id: ship.class_id,
+        loading: 'full_load', side_to: 'port', config: { side_to: 'port', ship_x_ft: 555, lines: [] }, tugs: [] } });
+      await loading;
+      expect(c.state.get()).toMatchObject({ scenarioId: 'new-scenario', side: 'port', shipXFt: 555 });
+    } finally { get.mockReset(); c.dispose(); }
+  });
+
   it.each(['side', 'loading', 'position', 'standoff'] as const)('a pending scenario cannot overwrite a later %s edit', async (edit) => {
     const { c } = setup();
     let finish!: (value: unknown) => void;

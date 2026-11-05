@@ -830,6 +830,10 @@ export class MooringController {
   }
 
   async loadScenario(id: string): Promise<void> {
+    // A previous automatic plan must not apply while this newer selection waits for its scenario/environment.
+    this.recommendAbort?.abort();
+    this.agent.resetForSelection();
+    this.state.set({ recommend: { state: 'idle', progress: 0, candidates: [], error: null } });
     const request = ++this.selectionSeq;
     const scenarioRequest = ++this.scenarioLoadSeq;
     const current = () => !this.disposed && scenarioRequest === this.scenarioLoadSeq;

@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 03:42 EST: Reproduced the earlier unbound sheet-map concern and a late-response race. Small shared fix withholds live/cached canvas captures (they are not bound to the immutable plan) and explains the missing diagram; pending sheet/approval responses cannot overwrite a new planning run. Three counterexamples failed before; additional late-approval success/error tests cover the guard. Future diagram should use persisted plan/result geometry and IDs, not current canvas. This does not implement the explicit Intake/review gate. Held branch untouched; preserve when integrating.
+
 - B 03:38 EST: F24 now supports explicit `allow_short_lead=true` for a newer forecast inside 24h before the same arrival. Default 24h lead is unchanged; retain selected_config and submit fresh supplied snapshots, never transfer old approval. Generated `mooring_forecast_reassessment.json` shows four-hour synthetic guidance. Observations at as-of cannot be held as future forecasts. 1717 Python/101 UI tests and all gates pass. See docs/FORECAST_DOCKING.md and optional UI recommendations; public composer remains unavailable. #95 merged with sustained-wind ring/unknown-bearing display fixes. Please continue watching dev and both colleague inboxes; no held branch/worktree edits.
 
 - Modeling B, 03:24 EST: Follow-up narrow dashboard/chart fix: sustained wind ring matches limit_wind_kt; invalid/unknown envelope plots withheld; missing bearings are not bridged by filled polygons; all-zero plots avoid NaN. Five regressions reproduced;101 UI/1709 Python gates pass. Actual Chrome with real local APIs/external network blocked confirms the wind basis and prior risk/training labels, no page errors. Current shared files only; held branch untouched. Preserve when integrating.

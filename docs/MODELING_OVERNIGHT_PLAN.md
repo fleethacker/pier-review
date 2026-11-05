@@ -45,7 +45,7 @@ Temporary public pulls are opt-in and timestamped outside git; tests use small r
 
 ## Modeling recommendations and operational blockers
 
-Prioritize verified line/fitting/fender geometry and ratings; loading/draft/freeboard; depth/datum/clearance; available tugs; forecast freshness and spatial representativeness; safe handling sequence and abort/replan conditions. A fine wave mesh is unnecessary, but unmodeled swell/wake/contact remains explicit. UKC/navigation needs official bathymetry and validated squat, not seed depth. Qualified data and accountable pilot/deck-officer review are necessary before crew operational use.
+Prioritize verified line/fitting/fender geometry and ratings; loading/draft/freeboard; depth/datum/clearance; available tugs; forecast freshness and spatial representativeness; safe handling sequence and abort/replan conditions. A fine wave mesh is unnecessary, but unmodeled swell/wake/contact remains explicit. UKC/navigation needs official bathymetry and validated squat, not seed depth. Qualified data and accountable pilot/deck-officer review are necessary before crew operational use. Add berth-applicable current-profile and station-transfer evidence to the data acquisition plan: station/bin or model-layer provenance alone does not establish a representative full-draft forcing input. No profile integration or transfer coefficient is invented tonight.
 
 ## Integration
 

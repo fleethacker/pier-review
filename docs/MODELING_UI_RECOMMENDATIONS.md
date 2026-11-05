@@ -85,3 +85,5 @@ Berth registration now rejects changed data under an existing ID with HTTP409; i
 Keep `line_number` unique when adding, duplicating or importing lines. Duplicate IDs now return422 rather than producing ambiguous result/sequence references. Gaps are allowed, and the backend does not silently renumber user lines.
 
 The agent currently implements only `objective=moor_for_forecast` with empty constraints. The existing selector also lists storm preparation and berthing; disable or mark those unavailable until their execution paths exist. A forecast-only plan does not establish MST storm-design compliance or approve the approach/contact maneuver. Do not relabel an unsupported objective as a forecast plan silently.
+
+Safety warning SSE follows the plan’s saved source. A terminal `source_unavailable` event means monitoring has stopped; clear any apparent live status and offer an explicit retry. A warning with `requires_recheck` and absent `pct_of_wll_limit` must not retain the last numeric percentage. Temporal availability failures also trigger this state.

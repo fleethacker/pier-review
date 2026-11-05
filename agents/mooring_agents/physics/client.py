@@ -115,6 +115,9 @@ class ModelingClient:
         return await self._req("GET", f"/results/{result_id}")
 
     # ---- Environment ----
+    async def scenario_environment(self, scenario_id: str) -> EnvironmentSnapshot:
+        return EnvironmentSnapshot.model_validate(await self._req("GET", f"/scenarios/{scenario_id}/environment"))
+
     async def env_now(self, berth_id: str, heading_true_deg: float | None = None,
                       env_scenario_id: str | None = None) -> EnvironmentSnapshot:
         params: dict = {"berth_id": berth_id}

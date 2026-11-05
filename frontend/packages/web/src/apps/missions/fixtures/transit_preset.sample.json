@@ -1,0 +1,107 @@
+{
+ "preset_id": "sample-inbound",
+ "title": "MOCK inbound (sample)",
+ "description": "MOCK preset shown only when the backend is unavailable.",
+ "request": {
+  "vessels": [
+   {
+    "vessel_id": "MOCK-A",
+    "ship_class_id": "mock-ship-a",
+    "loading": "full_load",
+    "start": {
+     "lat": 36.9585,
+     "lon": -76.3,
+     "heading_true_deg": 270,
+     "speed_kt": 11
+    },
+    "route": [
+     {
+      "lat": 36.9585,
+      "lon": -76.31,
+      "speed_kt": 11,
+      "name": "WP1"
+     },
+     {
+      "lat": 36.955,
+      "lon": -76.318,
+      "speed_kt": 4,
+      "name": "Berth"
+     }
+    ],
+    "mode": "own_thrust",
+    "propulsion": {
+     "max_speed_kt": 14,
+     "astern_thrust_fraction": 0.6,
+     "engine_time_constant_s": 20,
+     "max_rudder_deg": 35,
+     "rudder_rate_degps": 2.33
+    },
+    "autopilot": {
+     "lookahead_ship_lengths": 2,
+     "arrival_slowdown_nm": 0.5,
+     "arrival_speed_kt": 0
+    },
+    "helm_commands": [],
+    "tug_commands": []
+   },
+   {
+    "vessel_id": "MOCK-B",
+    "ship_class_id": "mock-ship-b",
+    "loading": "full_load",
+    "start": {
+     "lat": 36.95,
+     "lon": -76.305,
+     "heading_true_deg": 350,
+     "speed_kt": 6
+    },
+    "route": [
+     {
+      "lat": 36.956,
+      "lon": -76.306,
+      "speed_kt": 6,
+      "name": "WP1"
+     },
+     {
+      "lat": 36.959,
+      "lon": -76.307,
+      "speed_kt": 2,
+      "name": "Berth"
+     }
+    ],
+    "mode": "tug_assisted",
+    "propulsion": {
+     "max_speed_kt": 12,
+     "astern_thrust_fraction": 0.6,
+     "engine_time_constant_s": 20,
+     "max_rudder_deg": 35,
+     "rudder_rate_degps": 2.33
+    },
+    "autopilot": {
+     "lookahead_ship_lengths": 2,
+     "arrival_slowdown_nm": 0.5,
+     "arrival_speed_kt": 0
+    },
+    "helm_commands": [],
+    "tug_commands": [],
+    "tug_assist": {
+     "policy": "auto",
+     "tug_ids": [],
+     "assist_below_kt": 5
+    }
+   }
+  ],
+  "duration_s": 300,
+  "dt_s": 0.2,
+  "sample_interval_s": 15
+ },
+ "validity": {
+  "state": "limited",
+  "reasons": [
+   {
+    "code": "MOCK_PRESET",
+    "message": "Sample preset.",
+    "affected_components": []
+   }
+  ]
+ }
+}

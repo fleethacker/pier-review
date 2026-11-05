@@ -316,11 +316,28 @@ def api_checks(stack: Stack) -> dict:
         assert berth["berth_id"] == created["berth_id"]
         return f"backend={res['backend']}; {len(flagged)} items needed confirmation; confirmed berth {created['berth_id']} is usable"
 
+    def intake():
+        sc = json.loads((EXAMPLES / "scenario.json").read_text())
+        _, accepted = http("POST", agents + "/intake/reports", {"berth_id": sc["berth_id"], "ship_class_id": sc["ship_class_id"], "side_to": sc["side_to"], "horizon_hours": 24})
+        job = None
+        for _ in range(60):
+            _, job = http("GET", f"{agents}/jobs/{accepted['job_id']}")
+            if job["state"] in ("succeeded", "failed", "cancelled"):
+                break
+            time.sleep(0.5)
+        assert job and job["state"] == "succeeded", f"intake job: {job and job['state']}"
+        rep = job["result"]
+        assert rep["mst"]["mst_required"] and rep["summary"], "intake report is missing its assessment"
+        mock = [d for d in rep["data_quality"] if d["issue"] == "mock"]
+        assert mock, "mock environment data must be flagged in data quality"
+        return f"MST {rep['mst']['mst_required']} required, {len(rep['windows'])} windows of concern, {len(mock)} stations flagged mock"
+
     check("UI page served by the preview server", page)
     check("Motion fixtures bundled for offline replay", fixtures)
     check("Health through the UI proxy (REST)", health)
     check("Capabilities report limits honestly", capabilities)
     check("Environment source is labeled; waves are not invented", environment_honesty)
+    check("Intake agent: environment assessment, mock data flagged", intake)
     check("Berth vision: image to draft berth, flagged items, confirmed and saved", berth_vision)
     if check("Phase 1: save scenario", scenario):
         if check("Phase 1: agent plan streams over SSE through the proxy", plan):

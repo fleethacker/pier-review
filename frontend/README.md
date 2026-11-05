@@ -32,7 +32,19 @@ plan, decisions and status are in [PLAN.md](PLAN.md).
 - **Berth from an image:** upload a picture, get a draft berth with detections and confidence, confirm every flagged
   item, then use the saved berth. The draft is labeled mock or vision data.
 
-Not drawn yet: the motion view is an SVG panel, not part of the Cesium scene, and there is no 3D motion view.
+The motion view has two modes. **Plan** is an SVG panel. **Map 2D/3D** draws the same frames in the shared Cesium
+scene (ship hull with deckhouse blocks, tugs, lines colored by status) and leaves the map interactive, with camera
+presets (top, bow, port quarter, pier side). The map draws position, heading and heave only when heave is simulated;
+roll, pitch and a water surface are not drawn, and it lists whatever the frame did not supply.
+
+- **Environment intake:** asks the intake agent for the next 24 hours at the chosen berth: MST, windows of concern,
+  berthing windows and data quality (mock data is flagged), with a summary labeled deterministic or model-written.
+- **Resilience:** every panel sits in an error boundary (a broken panel shows a message and Try again, the rest keeps
+  working), API failures read as plain sentences, and decorative motion follows `prefers-reduced-motion`.
+- **Bearer token (optional):** set `VITE_API_BEARER_TOKEN` to send `Authorization: Bearer ...` on REST and job polling
+  for services run with `MOORING_AUTH_REQUIRED=1`. The token is built into the bundle, so use it for local or trusted
+  networks. Browsers cannot attach headers to WebSocket or EventSource, so the live streams, the planner's SSE steps
+  and motion sessions still need a trusted gateway in front of an authenticated deployment.
 
 ## Run it
 

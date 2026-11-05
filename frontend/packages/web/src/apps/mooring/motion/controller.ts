@@ -1,5 +1,5 @@
 import { Store } from '../../../lib/store';
-import { modeling, MODELING_BASE, unwrap, wsUrl } from '../api';
+import { authHeaders, modeling, MODELING_BASE, unwrap, wsUrl } from '../api';
 import { openJsonStream } from '../streams';
 import type { StreamHandle, StreamStatus } from '../streams';
 import { adaptFrame, frameIndexAt, parseSimMessage } from './frames';
@@ -243,7 +243,7 @@ export class MotionController {
       return;
     }
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: authHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       this.state.set({ scene: (await res.json()) as SimScene, sceneError: null });
     } catch (e) {

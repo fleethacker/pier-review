@@ -34,7 +34,9 @@ export class ViewController {
    * cancels it so it never fights the user.
    */
   playIntro(): void {
-    this.pendingIntro = true;
+    // People who ask their system for less motion get the framed view straight away.
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    this.pendingIntro = !reduce;
   }
   private pendingIntro = false;
 

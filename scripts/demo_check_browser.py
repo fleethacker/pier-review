@@ -87,6 +87,14 @@ def main() -> int:
             assert re.search(r"\bL?1\b", text), "no lines listed"
             return "lines listed with their analysis"
 
+        def intake():
+            page.get_by_role("button", name="Assess conditions").click()
+            expect(page.get_by_text("Mooring condition")).to_be_visible(timeout=90_000)
+            text = page.locator("aside").first.inner_text()
+            assert "MST" in text and "Deterministic summary" in text, "intake result should state MST and where the summary came from"
+            shot(page, "02a-intake")
+            return "intake assessment shown with MST, windows and a labeled deterministic summary"
+
         def plan():
             page.get_by_role("button", name="Ask the agent to plan").click()
             expect(page.get_by_role("button", name=re.compile("Create safety sheet|Rebuild safety sheet"))).to_be_visible(timeout=120_000)
@@ -131,6 +139,19 @@ def main() -> int:
             assert "not simulated" in text.lower(), "heave must read not simulated"
             shot(page, "05-motion-replay")
             return "replay shows validity, provenance, schema badges; waves unavailable; heave not simulated"
+
+        def motion_map():
+            view = page.get_by_role("dialog", name="Motion view")
+            view.get_by_role("button", name="Map 2D/3D").click()
+            expect(view.get_by_text(re.compile("Not drawn:.*roll and pitch"))).to_be_visible()
+            view.get_by_role("button", name="Port quarter").click()
+            page.wait_for_timeout(2500)
+            shot(page, "05a-motion-map-3d")
+            view.get_by_role("button", name="Top", exact=True).click()
+            page.wait_for_timeout(1500)
+            view.get_by_role("button", name="Plan", exact=True).click()
+            expect(view.get_by_text("Forces on the ship")).to_be_visible()
+            return "map mode draws the frame in Cesium (3D port-quarter and top), lists what it did not draw, and returns to plan"
 
         def motion_live():
             view = page.get_by_role("dialog", name="Motion view")
@@ -188,9 +209,11 @@ def main() -> int:
         step("Load the app and see the standing seed-data banner", load)
         step("Data-source panel is honest", sources)
         step("Analyzed lines are listed", lines)
+        step("Intake agent assessment", intake)
         if step("Phase 1: agent plans (SSE steps)", plan):
             step("Phase 1: safety sheet, approval and print", sheet)
         if step("Motion: open the view and replay the recording", motion_replay):
+            step("Motion: Cesium map mode with 3D camera presets", motion_map)
             step("Motion: live session through the proxy", motion_live)
             step("Motion: units toggle", units)
 

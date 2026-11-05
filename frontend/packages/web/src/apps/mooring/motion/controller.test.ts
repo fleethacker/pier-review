@@ -10,6 +10,7 @@ const stream = vi.hoisted(() => ({
 
 vi.mock('../api', () => ({
   MODELING_BASE: 'http://localhost/api/modeling',
+  authHeaders: () => ({}),
   modeling: { POST: vi.fn() },
   unwrap: <T,>(r: { data: T }) => r.data,
   wsUrl: (_base: string, p: string) => `ws://localhost${p}`,

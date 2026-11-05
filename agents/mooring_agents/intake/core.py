@@ -7,6 +7,7 @@ from mooring.core.envelopes import new_id, utcnow
 from mooring.core.schemas import EnvironmentSnapshot
 
 from ..physics.toolkit import PhysicsToolkit, calls_for
+from ..physics.client import ModelingError
 from .schemas import ConcernWindow, DataQualityIssue, IntakeReport, IntakeRequest, MstAssessment, PlanningCondition
 
 from .thresholds import (
@@ -46,20 +47,34 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
     report_id = new_id("intake")
     tk.plan_id = tk.plan_id or report_id  # ties this report's tool calls together in the ledger
     berth_id, ship_id, side = req.berth_id, req.ship_class_id, req.side_to
+    env_scenario_id = req.env_scenario_id
+    quality = []
+    forecast_complete = True
     if req.scenario_id:
         sc = await tk.scenario(req.scenario_id)
         berth_id, ship_id, side = berth_id or sc.berth_id, ship_id or sc.ship_class_id, side or sc.side_to
+        source = getattr(sc, "env_source", None)
+        if env_scenario_id is None and source is not None and source.mode == "scenario":
+            env_scenario_id = source.env_scenario_id
     if not berth_id:
-        from ..physics.client import ModelingError
-
         raise ModelingError(422, "Give scenario_id or berth_id")
     berth = await tk.berth(berth_id)
-    current = await tk.env_now(berth_id, req.env_scenario_id)
-    if req.env_scenario_id:
+    current = await tk.env_now(berth_id, env_scenario_id)
+    if env_scenario_id:
         series = [current.model_copy(update={"valid_at_utc": current.valid_at_utc + timedelta(minutes=FORECAST_STEP_MIN * i)})
                   for i in range(req.horizon_hours * (60 // FORECAST_STEP_MIN) + 1)]
     else:
-        series = (await tk.forecast(berth_id, req.horizon_hours, FORECAST_STEP_MIN)).series
+        try:
+            series = (await tk.forecast(berth_id, req.horizon_hours, FORECAST_STEP_MIN)).series
+        except ModelingError as exc:
+            if exc.status not in (429, 502, 503, 504):
+                raise
+            series = []
+        if not series:
+            forecast_complete = False
+            series = [current]
+            quality.append(DataQualityIssue(station_id="forecast", issue="missing", severity="RED",
+                detail="Forecast unavailable; assessment covers the current snapshot only, not the requested horizon."))
 
     heading = None
     if side:
@@ -108,14 +123,19 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
     conditions.append(PlanningCondition(label="Now", environment=current, why="Conditions at the time of planning."))
 
     berthing = []
-    if ship_id and side:
+    if ship_id and side and not env_scenario_id:
         start = utcnow().replace(second=0, microsecond=0)
-        bw = await tk.windows({"berth_id": berth_id, "ship_class_id": ship_id, "side_to": side,
-                               "from_utc": start.isoformat(), "to_utc": (start + timedelta(hours=req.horizon_hours)).isoformat(),
-                               "max_current_kt": BERTHING_MAX_CURRENT_KT, "max_gust_kt": GUST_AMBER_KT})
-        berthing = bw.result.windows
+        try:
+            bw = await tk.windows({"berth_id": berth_id, "ship_class_id": ship_id, "side_to": side,
+                                   "from_utc": start.isoformat(), "to_utc": (start + timedelta(hours=req.horizon_hours)).isoformat(),
+                                   "max_current_kt": BERTHING_MAX_CURRENT_KT, "max_gust_kt": GUST_AMBER_KT})
+            berthing = bw.result.windows
+        except ModelingError as exc:
+            if exc.status not in (429, 502, 503, 504):
+                raise
+            quality.append(DataQualityIssue(station_id="berthing_windows", issue="missing", severity="AMBER",
+                detail="Berthing-window service unavailable; no arrival window has been verified."))
 
-    quality = []
     for q in current.quality:
         if q.age_s > STALE_S:
             quality.append(DataQualityIssue(station_id=q.station_id, issue="stale", severity="AMBER",
@@ -124,11 +144,15 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
             quality.append(DataQualityIssue(station_id=q.station_id, issue="mock", severity="INFO",
                                             detail="Synthetic data from the mock environment service."))
 
+    if not forecast_complete:
+        mst.reason = "Forecast coverage unavailable. " + mst.reason.replace(f"over {req.horizon_hours} h", "at the current snapshot only")
     reds = [w for w in windows if w.severity == "RED"]
     summary = (f"Next {req.horizon_hours} h at {berth.name}: {len(windows)} window(s) of concern"
                f"{f', {len(reds)} severe' if reds else ''}. Gusts peak {worst_gust.wind_gust_kt:.0f} kt; "
                f"MST {mst_req} conditions{'; exceeds ship MST' if exceeds else ''}."
                f"{f' {len(berthing)} berthing window(s) found.' if berthing else ''}")
+    if not forecast_complete:
+        summary = "Forecast unavailable; current conditions only. " + summary
     report = IntakeReport(report_id=report_id, created_at_utc=utcnow(), berth_id=berth_id, ship_class_id=ship_id,
                           side_to=side, horizon_hours=req.horizon_hours, current=current, mst=mst, windows=windows,
                           planning_conditions=conditions, berthing_windows=berthing, data_quality=quality,

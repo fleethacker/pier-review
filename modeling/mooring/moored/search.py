@@ -9,8 +9,8 @@ maximum), every supplied forecast condition, at every requested water level (lin
 candidate is feasible only if every case converges and every line, fitting and fender stays within its limit. The
 objective (lowest worst-case utilization, then fewer parts) is applied only among feasible candidates; if none is
 feasible the best infeasible ones are returned and labeled infeasible. A bounded search that finds nothing has not
-proven that nothing exists. Assisted (tug) conditions are not searched: size tugs for the chosen plan with the holding
-service. Real M5 risk is not used to rank candidates because its model is unqualified.
+proven that nothing exists. Explicit holding-tug assignments are checked in every case. Forecast-only search is an explicit
+restricted basis and does not claim MST design compliance. Real M5 risk is not used to rank candidates because its model is unqualified.
 """
 
 import dataclasses
@@ -61,18 +61,23 @@ class Outcome:
     infeasible_reasons: list[str] = field(default_factory=list)
 
 
-def design_cases(berth: Berth, side_to: str, mst: str, forecast: list[EnvironmentSnapshot], levels: list[float]) -> list[tuple[str, EnvironmentSnapshot]]:
+def design_cases(berth: Berth, side_to: str, mst: str, forecast: list[EnvironmentSnapshot], levels: list[float], *, include_mst: bool = True) -> list[tuple[str, EnvironmentSnapshot]]:
     """Every MST wind/current alternative (off-pier), every forecast condition, at every water level."""
     heading = ship_heading_true(berth, side_to)
     pier_side = (heading + (90 if side_to == "starboard" else 270)) % 360
     base: list[tuple[str, EnvironmentSnapshot]] = []
-    for wind_kt, cur_kt in MST_LIMITS[mst]:
+    for wind_kt, cur_kt in (MST_LIMITS[mst] if include_mst else []):
         base.append((f"MST {mst} design {wind_kt:g} kt wind / {cur_kt:g} kt current off the pier",
                      EnvironmentSnapshot(source="scenario", wind_speed_kt=wind_kt, wind_gust_kt=wind_kt, wind_from_true_deg=pier_side,
                                          current_speed_kt=cur_kt, current_set_true_deg=(pier_side + 180) % 360, water_level_mllw_ft=0.0)))
     for i, e in enumerate(forecast):
         base.append((f"forecast condition {i + 1} ({e.wind_gust_kt:g} kt gust from {e.wind_from_true_deg:g})", e))
-    return [(f"{label} @ {lvl:+g} ft", env.model_copy(update={"water_level_mllw_ft": lvl})) for label, env in base for lvl in levels]
+    cases = [(f"{label} @ {lvl:+g} ft", env.model_copy(update={"water_level_mllw_ft": lvl})) for label, env in base for lvl in levels]
+    # Retain actual coincident forecast tides as well as requested sensitivity levels.
+    for i, env in enumerate(forecast):
+        if env.water_level_mllw_ft not in levels:
+            cases.append((f"forecast condition {i + 1} at actual tide {env.water_level_mllw_ft:+g} ft", env))
+    return cases
 
 
 def _slot_options(ship: ShipClass, berth: Berth, slot: Slot, side_to: str, ship_x: float, excluded: set[str], neighbors: int, side_tag: str):
@@ -94,7 +99,7 @@ def _slot_options(ship: ShipClass, berth: Berth, slot: Slot, side_to: str, ship_
 def search_plans(ship: ShipClass, berth: Berth, specs: dict[str, LineSpec], slots: list[Slot], cases: list[tuple[str, EnvironmentSnapshot]], *,
                  side_to: str, ship_x_ft: float, loading: str, mst: str, inventory: dict[str, int] | None = None,
                  locked: list[MooringLine] | None = None, excluded: set[str] | None = None, neighbors: int = 3, max_evals: int = 1500,
-                 lines_wet: bool = True, install_level_ft: float = 0.0, side_tag: str | None = None, standoff_ft: float | None = None) -> Outcome:
+                 lines_wet: bool = True, install_level_ft: float = 0.0, side_tag: str | None = None, standoff_ft: float | None = None, tugs=None, ctx=None) -> Outcome:
     df = design_factor(mst)
     side_tag = side_tag or ("S" if side_to == "starboard" else "P")
     locked = {ln.line_number: ln for ln in (locked or [])}
@@ -161,18 +166,24 @@ def search_plans(ship: ShipClass, berth: Berth, specs: dict[str, LineSpec], slot
     def evaluate(choice, variant):
         nonlocal evaluated
         key = (choice, variant)
+        if ctx is not None:
+            ctx.check_cancelled()
         if key in results:
             return results[key]
+        if evaluated >= max_evals:
+            return None
         cfg = build(choice, variant)
         if cfg is None:
             results[key] = None
             return None
         evaluated += 1
+        if ctx is not None:
+            ctx.progress(min(evaluated / max_evals, 0.9), "Evaluating line configurations")
         worst, worst_case, feasible = 0.0, "", True
         base_sys = None
         for label, env in cases:
             try:
-                sysm = eq.build_system(ship, berth, cfg, specs, env, loading=loading, lines_wet=lines_wet, install_water_level_ft=install_level_ft)
+                sysm = eq.build_system(ship, berth, cfg, specs, env, loading=loading, lines_wet=lines_wet, install_water_level_ft=install_level_ft, tugs=tugs)
             except eq.SystemError:
                 results[key] = None
                 return None
@@ -198,6 +209,8 @@ def search_plans(ship: ShipClass, berth: Berth, specs: dict[str, LineSpec], slot
         notes.append(f"Space of {space} candidates exceeds the budget of {max_evals}: coordinate descent from the nearest-fitting plan. "
                      "Absence of a feasible plan here is not proof that none exists.")
         for variant in variants:
+            if evaluated >= max_evals:
+                break
             current = tuple(s[0] for s in sets)
             best = evaluate(current, variant)
             improved = True
@@ -229,15 +242,21 @@ def recommend(req: RecommendRequest, ctx=None) -> RecommendResponse:
             raise refdata.InvalidReference(f"Unknown line specs in inventory: {unknown}")
         specs = {k: v for k, v in specs.items() if k in inventory}
     ship_x = req.ship_x_ft if req.ship_x_ft is not None else berth.face_length_ft / 2
-    cases = design_cases(berth, req.side_to, req.design_mst, req.forecast_env, req.tide_levels_ft)
+    cases = design_cases(berth, req.side_to, req.design_mst, req.forecast_env, req.tide_levels_ft, include_mst=req.design_basis != "forecast_only")
+    from mooring.tugs.validation import assignment_errors
+    errors = assignment_errors(ship, req.tugs, refdata.tugs())
+    if errors:
+        raise refdata.InvalidReference("; ".join(errors))
     side_tag = "S" if req.side_to == "starboard" else "P"
     out = search_plans(ship, berth, specs, template_slots(), cases, side_to=req.side_to, ship_x_ft=ship_x, loading=req.loading, mst=req.design_mst,
                        inventory=inventory, locked=req.locked_lines, excluded=set(req.excluded_fitting_ids), neighbors=req.neighbors_per_line,
-                       max_evals=req.max_evaluations, install_level_ft=req.tide_levels_ft[0], side_tag=side_tag)
+                       max_evals=req.max_evaluations, install_level_ft=req.tide_levels_ft[0], side_tag=side_tag, standoff_ft=req.standoff_ft, tugs=req.tugs, ctx=ctx)
     design_env = cases[0][1]
     candidates, top_results = [], []
     seen_cfg = set()
     for score, cfg, info in out.ranked:
+        if ctx is not None:
+            ctx.check_cancelled()
         sig = tuple((l.pier_fitting_id, l.parts, l.spec_id) for l in cfg.lines)
         if sig in seen_cfg:
             continue
@@ -245,12 +264,12 @@ def recommend(req: RecommendRequest, ctx=None) -> RecommendResponse:
         if len(candidates) >= req.max_candidates:
             break
         areq = AnalyzeRequest(ship_class_id=req.ship_class_id, loading=req.loading, berth_id=req.berth_id, config=cfg, environment=design_env,
-                              mst=req.design_mst, installed_at_water_level_mllw_ft=req.tide_levels_ft[0])
+                              mst=req.design_mst, tugs=req.tugs, installed_at_water_level_mllw_ft=req.tide_levels_ft[0])
         resp = solver.analyze(areq)
         lim = solver.limit_envelope(LimitEnvelopeRequest(**areq.model_dump(), step_deg=45, sampling_step_kt=10.0, tolerance_kt=1.0))
         worst_lim = lim.result.worst.limit_wind_kt
         candidates.append(Candidate(
-            config=cfg, min_margin_pct_wll=round(info["worst"], 1) if math.isfinite(info["worst"]) else 999.0, limit_wind_kt_worst=worst_lim,
+            config=cfg, tugs=req.tugs, min_margin_pct_wll=round(info["worst"], 1) if math.isfinite(info["worst"]) else 999.0, limit_wind_kt_worst=worst_lim,
             line_count=len(cfg.lines), analysis_result_id=resp.result_id, feasible=info["feasible"], worst_case=info["worst_case"], cases_evaluated=len(cases),
             why=[f"{info['pattern']}, {info['spec']}.", f"Worst case across {len(cases)} cases: {info['worst_case']} at {info['worst']:.0f}%." if math.isfinite(info["worst"]) else "A case failed to solve.",
                  "Feasible: every case solved and every element within its limit." if info["feasible"] else "NOT feasible: at least one case exceeds a limit or did not solve."]))
@@ -278,5 +297,6 @@ def recommend(req: RecommendRequest, ctx=None) -> RecommendResponse:
                                                                     budget=req.max_evaluations, feasible_found=feasible_found, notes=out.notes + out.infeasible_reasons)),
                     status=status_with_validity(status, validity), validity=validity,
                     assumptions=["Hard constraints before objective; objective = lowest worst-case utilization over every MST alternative, forecast case and water level, then fewer parts.",
-                                 "Assisted (tug) conditions are not searched; size tugs for the chosen plan with /tugs/hold-plan.", "Risk (M5) is not used to rank: its model is unqualified.",
+                                 f"Design basis: {req.design_basis or 'mst_and_forecast'}; forecast_only does not establish MST design compliance.",
+                                 "Fixed holding assistance is evaluated in every case and requires continuous availability." if req.tugs else "No holding assistance used.", "Risk (M5) is not used to rank: its model is unqualified.",
                                  *solver.ASSUMPTIONS])

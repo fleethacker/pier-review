@@ -245,7 +245,11 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
     recommendation = await tk.recommend({"ship_class_id": sc.ship_class_id, "loading": sc.loading,
         "berth_id": sc.berth_id, "side_to": sc.side_to,
         "ship_x_ft": sc.config.ship_x_ft if sc.config else None, "design_mst": ship.mst_class,
-        "max_candidates": 3})
+        "max_candidates": 3, "design_basis": "forecast_only",
+        "forecast_env": [e.model_dump(mode="json") for e in environments],
+        "tide_levels_ft": [environments[0].water_level_mllw_ft],
+        "standoff_ft": sc.config.standoff_ft if sc.config else None,
+        "tugs": [assignment.model_dump(mode="json") for assignment in sc.tugs]})
     if not recommendation.result.candidates:
         raise ModelingError(422, "recommend_config returned no candidates")
     cfg = recommendation.result.candidates[0].config
@@ -258,6 +262,8 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
     tugs: list = [assignment.model_dump(mode="json") for assignment in sc.tugs]
     stopped_safely = False
     best = None
+    holding_attempted = False
+    no_improvement = 0
     llm_requested = llm is not None
     fallback_reason = None
     # Keep the essential finishing calls (tugs, risk for every condition, sequence) inside the Planner's tool budget:
@@ -285,14 +291,22 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
             step("Evaluated a required planning condition.", "analyze_mooring", check.result_id)
         if best is None or _score(analysis) < _score(best[2]):
             best = (cfg, list(tugs), analysis, worst_index, checks)
+            no_improvement = 0
+        else:
+            no_improvement += 1
         env = environments[worst_index]
         events.append(("proposal", AgentProposalEvent(config=cfg, status=_analysis_status(analysis)).model_dump(mode="json")))
-        if _analysis_status(analysis) == "GREEN" and analysis.result.min_margin.pct_wll <= req.target_margin_pct_wll:
+        if (_analysis_status(analysis) != "RED"
+                and analysis.result.min_margin.pct_wll <= req.target_margin_pct_wll
+                and all(check.validity is None or check.validity.state != "invalid" for check in checks)):
             stopped_safely = True
             step("The evaluated plan meets the target and has no RED finding.", "analyze_mooring",
                  analysis.result_id)
             break
         if iteration == iterations - 1:
+            break
+        if no_improvement >= 2:
+            open_questions.append("Stopped after repeated evaluated adjustments did not improve the governing result; this is not proof of infeasibility.")
             break
 
         call = None
@@ -322,7 +336,18 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
             number = int(match.group(1)) if match else -1
             line = _line(cfg, number)
             if line is None or line.parts == 3:
-                open_questions.append(f"No deterministic adjustment can resolve governing element {top.element_id}.")
+                if not holding_attempted:
+                    holding_attempted = True
+                    call = ToolUse(id=f"holding-{iteration}", name="hold_tugs", arguments={})
+                    cfg2, tugs2, move_rid, refusal = await _apply_move(call, cfg, tk=tk, sc=sc, env=env,
+                        mst=ship.mst_class, berth=berth, ship=ship, tugs=tugs)
+                    if not refusal and tugs2 != tugs:
+                        step("Proposed holding assistance; every required condition will be re-evaluated.", "hold_tugs", move_rid)
+                        cfg, tugs = cfg2, tugs2
+                        continue
+                    if refusal:
+                        open_questions.append(refusal)
+                open_questions.append(f"No evaluated deterministic adjustment resolved governing element {top.element_id}; no safe plan was found within this search.")
                 break
             call = ToolUse(id=f"fallback-{iteration}", name="double_up",
                            arguments={"line_number": number,
@@ -402,7 +427,8 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
     rationale = [item for item in rationale if item.cites and set(item.cites) <= ledger_ids]
     mode = ("LLM" if llm else f"LLM, then deterministic after {fallback_reason}") if llm_requested else "deterministic"
     assumptions = [f"Configured model: {model_id}; adjustment mode: {mode}.", *([budget_note] if budget_note else []),
-                   "Model text is not used as factual rationale; physics results govern status."]
+                   "Model text is not used as factual rationale; physics results govern status.",
+                   "Forecast-only planning checks the supplied conditions; it does not establish MST design-condition compliance."]
     assumptions.extend(dict.fromkeys(a for result in [*checks, *tug_plans, sequence, *risks]
                                      for a in result.assumptions))
     plan = AgentPlan(plan_id=plan_id, scenario_id=sc.scenario_id, intake_report_id=req.intake_report_id,

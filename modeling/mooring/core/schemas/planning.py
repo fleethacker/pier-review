@@ -2,16 +2,16 @@
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import Envelope, Model, MooringServiceType, SideTo
 from .environment import EnvironmentSnapshot
-from .plans import MooringConfig, MooringLine
+from .plans import MooringConfig, MooringLine, TugAssignment
 from .refdata import LineInventoryItem
 
 
 class RecommendRequest(Model):
-    wire_omitted_defaults = {"max_evaluations": 1500, "neighbors_per_line": 3, "tide_levels_ft": [0.0]}
+    wire_omitted_defaults = {"max_evaluations": 1500, "neighbors_per_line": 3, "tide_levels_ft": [0.0], "tugs": [], "design_basis": None, "standoff_ft": None}
 
     ship_class_id: str = Field(examples=["DDG-51-FIIA"])
     loading: str = "full_load"
@@ -19,6 +19,11 @@ class RecommendRequest(Model):
     side_to: SideTo
     ship_x_ft: float | None = Field(default=None, description="Defaults to the middle of the berth face.")
     design_mst: MooringServiceType = "II"
+    design_basis: Literal["mst_and_forecast", "forecast_only"] | None = Field(default=None,
+        description="Absent means mst_and_forecast. forecast_only checks supplied conditions, not MST design compliance. Strength factors still use design_mst.")
+    tugs: list[TugAssignment] = Field(default_factory=list, max_length=12,
+        description="Fixed holding assistance evaluated in every case; not an autonomous tug schedule.")
+    standoff_ft: float | None = Field(default=None, ge=0)
     forecast_env: list[EnvironmentSnapshot] = Field(
         default_factory=list, description="Extra conditions to check besides the MST design condition."
     )
@@ -31,8 +36,15 @@ class RecommendRequest(Model):
     tide_levels_ft: list[float] = Field(default_factory=lambda: [0.0], min_length=1, max_length=5, description="Water levels (MLLW) every case is evaluated at; lines are installed at the first.")
 
 
+    @model_validator(mode="after")
+    def forecast_basis_requires_conditions(self):
+        if self.design_basis == "forecast_only" and not self.forecast_env:
+            raise ValueError("forecast_only requires forecast_env")
+        return self
+
+
 class Candidate(Model):
-    wire_omitted_defaults = {"feasible": None, "worst_case": None, "cases_evaluated": None}
+    wire_omitted_defaults = {"feasible": None, "worst_case": None, "cases_evaluated": None, "tugs": []}
 
     config: MooringConfig
     min_margin_pct_wll: float = Field(description="Highest utilization over every evaluated case (lower is better).")
@@ -40,6 +52,7 @@ class Candidate(Model):
     line_count: int
     analysis_result_id: str
     why: list[str]
+    tugs: list[TugAssignment] = Field(default_factory=list, description="Holding assistance used in every candidate evaluation.")
     feasible: bool | None = Field(default=None, description="True when every case solved and stayed within every line, fitting and fender limit.")
     worst_case: str | None = None
     cases_evaluated: int | None = None

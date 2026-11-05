@@ -174,3 +174,55 @@ def test_api_empty_inventory_is_a_completed_red_result_not_an_error():
     assert j["result"]["candidates"] == [] and j["status"] == "RED"
     assert "NO_CANDIDATE_GENERATED" in {x["code"] for x in j["validity"]["reasons"]}
     assert j["result"]["search"]["strategy"] == "none"
+
+
+def test_budget_is_a_hard_bound_across_all_variants():
+    assert run([('light', off_pier_env(5))], max_evals=1).evaluated <= 1
+
+
+def test_search_checks_cancellation_inside_candidate_loop():
+    from mooring.core.jobs import JobCancelled
+    class Cancelled:
+        def check_cancelled(self): raise JobCancelled()
+    with pytest.raises(JobCancelled):
+        run([('light', off_pier_env(5))], ctx=Cancelled())
+
+
+def test_forecast_actual_tide_is_not_replaced_by_default_sensitivity_level():
+    forecast = off_pier_env(5).model_copy(update={'water_level_mllw_ft': -7})
+    cases = S.design_cases(BERTH, 'starboard', 'II', [forecast], [0], include_mst=False)
+    assert {env.water_level_mllw_ft for _, env in cases} == {-7, 0}
+    assert not any(label.startswith('MST') for label, _ in cases)
+
+
+def test_forecast_only_requires_forecast_and_reports_restricted_basis():
+    from mooring.core.schemas import RecommendRequest
+    with pytest.raises(ValueError, match='forecast_only requires'):
+        RecommendRequest(**EXAMPLES['mooring_recommend'], design_basis='forecast_only')
+    j = recommend(design_basis='forecast_only', forecast_env=[EXAMPLES['mooring_analyze']['environment']], max_evaluations=50)
+    assert all(not label.startswith('MST') for label in j['result']['cases'])
+    assert any('does not establish MST' in a for a in j['assumptions'])
+
+
+def test_tug_assignments_cannot_exceed_capacity_or_reuse_a_tug():
+    from mooring import refdata
+    from mooring.core.schemas import TugAssignment
+    from mooring.tugs.validation import assignment_errors
+    ship, fleet = refdata.ship('DDG-51-FIIA'), refdata.tugs()
+    assignment = TugAssignment(tug_id=fleet[0].tug_id, push_point_id=ship.push_points[0].push_point_id,
+                               mode='push', force_lbf=1)
+    assert not assignment_errors(ship, [assignment], fleet)
+    assert assignment_errors(ship, [assignment, assignment], fleet)
+    assert assignment_errors(ship, [assignment.model_copy(update={'force_lbf': 1e9})], fleet)
+
+
+def test_assisted_search_applies_same_tugs_to_each_evaluated_case(monkeypatch):
+    from mooring.core.schemas import TugAssignment
+    assignment = TugAssignment(tug_id='synthetic', push_point_id=SHIP.push_points[0].push_point_id, mode='push', force_lbf=100)
+    original, seen = S.eq.build_system, []
+    def tracked(*args, **kwargs):
+        seen.append(kwargs.get('tugs'))
+        return original(*args, **kwargs)
+    monkeypatch.setattr(S.eq, 'build_system', tracked)
+    out = run([('first', off_pier_env(5)), ('second', off_pier_env(6))], max_evals=2, tugs=[assignment])
+    assert out.ranked and len(seen) >= 2 and all(t == [assignment] for t in seen)

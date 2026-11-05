@@ -15,6 +15,8 @@ from mooring.core.schemas import (
     TugSpec,
 )
 from mooring.examples import ex
+from mooring.demo_cases import docking_cases
+from mooring.core.schemas.demo import DockingDemoCase
 
 from ..backend import scenarios
 
@@ -81,3 +83,9 @@ def list_scenarios():
 @router.get("/scenarios/{scenario_id}", response_model=Scenario)
 def get_scenario(scenario_id: str):
     return scenarios.get(scenario_id)
+
+
+@router.get("/demo/docking-cases", response_model=list[DockingDemoCase],
+            summary="Named offline demo requests (seed data; not operational plans)")
+def demo_docking_cases():
+    return docking_cases()

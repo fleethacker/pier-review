@@ -455,3 +455,30 @@ def test_legitimate_narration_still_passes(sentence):
     facts = {"/current/wind_gust_kt": "14.0 kt", "/windows/0/severity": "RED", "/mst/mst_required": "II"}
     assert agent._render(sentence, facts, sentence=True)
 
+
+
+def test_saved_scenario_environment_is_used_instead_of_live_forecast():
+    tk = FakeToolkit(calm=True)
+    seen = []
+    async def scenario(_):
+        return SimpleNamespace(berth_id='NAVSTA-NORFOLK-P12-N', ship_class_id='DDG-51-FIIA', side_to='starboard',
+                               env_source=SimpleNamespace(mode='scenario', env_scenario_id='saved-weather'))
+    async def now(bid, env_scenario_id):
+        seen.append(env_scenario_id)
+        return tk.current
+    tk.scenario, tk.env_now = scenario, now
+    result = run(tk=tk)
+    assert seen == ['saved-weather'] and 'forecast' not in tk.requests
+    assert not result.berthing_windows  # live windows cannot stand in for scenario windows
+    assert result.planning_conditions[0].environment.wind_gust_kt == 8
+
+
+def test_forecast_outage_is_not_silently_replaced_with_calm_forecast():
+    from mooring_agents.physics.client import ModelingError
+    tk = FakeToolkit(calm=True)
+    async def unavailable(*args): raise ModelingError(503, 'forecast unavailable')
+    tk.forecast = unavailable
+    result = run(tk=tk)
+    assert any(q.issue == 'missing' and q.severity == 'RED' for q in result.data_quality)
+    assert 'current snapshot only' in result.mst.reason
+    assert {c.environment.valid_at_utc for c in result.planning_conditions} == {NOW}

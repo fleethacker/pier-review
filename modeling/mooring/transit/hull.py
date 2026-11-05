@@ -82,11 +82,18 @@ def clarke(L, B, T, Cb) -> dict[str, float]:
     }
 
 
+def block_coefficient(cb_catalog: float, m: float, L: float, B: float, T: float) -> float:
+    """Cb for the Clarke terms. The catalog Cb is kept unless it is inconsistent (> 20 %) with displacement/(rho L B T)
+    computed with the catalog draft (which may include the sonar dome; the catalog cannot distinguish a hull draft)."""
+    cb_disp = m / (C.RHO_WATER_DEFAULT * L * B * T)
+    return cb_disp if abs(cb_catalog - cb_disp) / cb_disp > C.CB_INCONSISTENT_FRACTION else cb_catalog
+
+
 def build_hull(ship, loading_cond, rho: float) -> Hull:
     L, B = ship.lwl_ft * C.FT_M, ship.beam_ft * C.FT_M
     T = (loading_cond.draft_fwd_ft + loading_cond.draft_aft_ft) / 2 * C.FT_M
-    Cb = ship.block_coefficient
     m = loading_cond.displacement_lt * C.LT_KG
+    Cb = block_coefficient(ship.block_coefficient, m, L, B, T)
     Iz = m * (C.IZ_RADIUS_FACTOR * L) ** 2
     c = clarke(L, B, T, Cb)
     half = 0.5 * rho

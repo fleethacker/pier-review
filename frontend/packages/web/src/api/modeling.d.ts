@@ -567,6 +567,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mooring/forecast-plan/recheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Compare replacement guidance with a saved plan; never change or approve it */
+        post: operations["forecast_recheck_api_v1_mooring_forecast_plan_recheck_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tugs/berthing-plan": {
         parameters: {
             query?: never;
@@ -2108,9 +2125,21 @@ export interface components {
              * @description Optional pin: reject different content instead of silently evaluating a changed revision.
              */
             expected_content_hash?: string | null;
+            /**
+             * Sample From Utc
+             * @description Scenario-only sampling window retained when rechecking a selected operation from a wider original series.
+             */
+            sample_from_utc?: string | null;
+            /** Sample To Utc */
+            sample_to_utc?: string | null;
         };
         /** ForecastDockingRequest */
         ForecastDockingRequest: {
+            /**
+             * Installed At Water Level Mllw Ft
+             * @description Preserve an existing installation tide during explicit reassessment; omitted means install at each candidate arrival's tide.
+             */
+            installed_at_water_level_mllw_ft?: number | null;
             /**
              * Allow Short Lead
              * @description Explicitly permit reassessment less than 24 hours before arrival. Arrival cannot precede as_of_utc; all forecast provenance/coverage gates remain. Default retains the advance-planning lead requirement.
@@ -2201,6 +2230,82 @@ export interface components {
              * @default 100
              */
             search_budget: number;
+        };
+        /** ForecastRecheckRequest */
+        ForecastRecheckRequest: {
+            /** Prior Result Id */
+            prior_result_id: string;
+            /**
+             * As Of Utc
+             * Format: date-time
+             */
+            as_of_utc: string;
+            /** Forecast */
+            forecast?: components["schemas"]["EnvironmentSnapshot"][] | null;
+            forecast_binding?: components["schemas"]["ForecastBinding"] | null;
+        };
+        /** ForecastRecheckResponse */
+        ForecastRecheckResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /** @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes. */
+            manifest?: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["ForecastRecheckResult"];
+        };
+        /** ForecastRecheckResult */
+        ForecastRecheckResult: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "unchanged" | "recheck_required" | "unavailable";
+            /** Prior Result Id */
+            prior_result_id: string;
+            previous_forecast_manifest?: components["schemas"]["ForecastResolutionManifest"] | null;
+            current_forecast_manifest?: components["schemas"]["ForecastResolutionManifest"] | null;
+            /** Reasons */
+            reasons: string[];
+            /** @description Suggested explicit new calculation preserving the installation. This comparison neither runs it nor transfers approval. */
+            reassessment_request?: components["schemas"]["ForecastDockingRequest"] | null;
+            /** Installed At Water Level Mllw Ft */
+            installed_at_water_level_mllw_ft?: number | null;
         };
         /**
          * ForecastResolutionManifest
@@ -7724,6 +7829,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForecastResolvedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forecast_recheck_api_v1_mooring_forecast_plan_recheck_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForecastRecheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastRecheckResponse"];
                 };
             };
             /** @description Validation Error */

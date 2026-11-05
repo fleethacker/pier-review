@@ -1,4 +1,4 @@
-import { BackendBadge, Button, Field, Panel, StatusChip, inputClass, toStatus } from '../../../shell/ui';
+import { BackendBadge, Button, Field, Panel, StatusChip, inputClass } from '../../../shell/ui';
 import { useController } from '../panels/context';
 import { ResultLink } from '../panels/ResultLink';
 import { OUTCOME_LABEL, coverage, fromLocalInput, outcomeStatus, shortUtc, toLocalInput } from './logic';
@@ -57,10 +57,25 @@ export function AdvancePanel() {
 
       <div className="space-y-1.5 rounded-sm border border-mil-border bg-mil-bg/60 p-2 text-[11px]" aria-label="Forecast source">
         <div className="mil-label">Forecast source</div>
-        <p className="text-mil-dim">
-          Public forecast (NWS + CO-OPS): <span className="text-mil-amber">unavailable</span>. The composed public forecast is not
-          connected yet; use a labeled training scenario.
-        </p>
+        <p className="text-mil-dim">Choose public predictions or explicitly generate training conditions. Public availability depends on the configured providers and the as-of cutoff; no synthetic fallback is used.</p>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Exact current depth (ft below surface)">
+            <input type="number" min={0} step="any" className={inputClass} aria-label="Public current depth ft"
+              value={a.publicInputs.currentDepthFt ?? ''} onChange={(e) => c.advance.setPublicInputs({ currentDepthFt: e.target.value === '' ? null : Number(e.target.value) })} />
+          </Field>
+          <Field label="Current station bin or model layer">
+            <input className={inputClass} aria-label="Public current bin" value={a.publicInputs.currentBin}
+              onChange={(e) => c.advance.setPublicInputs({ currentBin: e.target.value })} />
+          </Field>
+        </div>
+        <p className="text-[10px] text-mil-dim">Use the source's exact depth and bin; ship draft does not select a measurement layer. Unknown issuance stays unknown. Data retrieved after the chosen as-of time may be unavailable; review the cutoff explicitly before fetching again.</p>
+        <Button size="sm" variant="secondary" disabled={a.seriesState === 'loading' || !c.advance.publicBody()}
+          onClick={() => void c.advance.fetchPublicSeries()}>
+          {a.seriesState === 'loading' && a.seriesMode === 'public' ? 'Fetching public forecast…' : 'Fetch public forecast'}
+        </Button>
+        <p className="text-mil-dim">Selected source: {a.seriesMode === 'public' ? 'public predictions' : 'synthetic training'}.</p>
+        {a.series?.manifest && <PublicProvenance manifest={a.series.manifest} resolved={a.series.resolved} />}
+        <div className="mil-label pt-2">Optional synthetic training</div>
         <div className="grid grid-cols-4 gap-2">
           <Field label="Seed">
             <input type="number" className={inputClass} aria-label="Training seed" value={a.training.seed}
@@ -80,9 +95,9 @@ export function AdvancePanel() {
           </Field>
         </div>
         <Button size="sm" variant="secondary" disabled={a.seriesState === 'loading'} onClick={() => void c.advance.generateTrainingSeries()}>
-          {a.seriesState === 'loading' ? 'Generating…' : a.series ? 'Regenerate training scenario' : 'Use training scenario'}
+          {a.seriesState === 'loading' && a.seriesMode === 'training' ? 'Generating…' : a.series?.kind === 'training' ? 'Regenerate training scenario' : 'Use training scenario'}
         </Button>
-        {a.seriesError && <p className="text-mil-red">{a.seriesError}</p>}
+        {a.seriesError && <p role="alert" className="text-mil-red">{a.seriesError}</p>}
         {a.series && (
           <div className="space-y-0.5" aria-label="Series coverage">
             <p className="text-mil-amber">{a.series.label}</p>
@@ -183,8 +198,9 @@ export function AdvancePanel() {
               {a.recheck.error && <p className="text-mil-red">{a.recheck.error}</p>}
               {a.recheck.response && (
                 <>
-                  <StatusChip status={toStatus(a.recheck.response.result.state === 'unchanged' ? 'GREEN' : 'AMBER')}
+                  <StatusChip status={a.recheck.response.status}
                     label={a.recheck.response.result.state.replace('_', ' ')} />
+                  <p className="text-mil-dim">Validity {a.recheck.response.validity?.state ?? 'unknown'}</p>
                   {a.recheck.response.result.reasons.map((r, k) => <p key={k} className="text-mil-text">{r}</p>)}
                   <p className="text-[10px] text-mil-dim">A comparison never changes or approves the plan; assess again for new results.</p>
                 </>
@@ -205,4 +221,33 @@ export function AdvancePanel() {
       )}
     </Panel>
   );
+}
+
+
+function PublicProvenance({ manifest, resolved }: { manifest: import('./logic').ComposedForecast['manifest']; resolved?: import('./logic').ResolvedForecast }) {
+  return <section aria-label="Public forecast provenance" className="space-y-2 border-y border-mil-border py-2">
+    <p className="text-mil-amber">Acquisition {manifest.status}; planning remains unqualified.</p>
+    <p className="break-all text-[10px] text-mil-dim">Manifest revision {manifest.revision}</p>
+    <p className="text-mil-dim">As of {manifest.request.as_of_utc}; horizon {shortUtc(manifest.request.horizon_start_utc)} to {shortUtc(manifest.request.horizon_end_utc)}.</p>
+    <ul className="space-y-2" aria-label="Forecast component availability">
+      {manifest.components.map(({ availability: a, content_sha256 }) => <li key={a.component} className="rounded-sm border border-mil-border p-1.5">
+        <p className={a.state === 'unavailable' ? 'text-mil-amber' : 'text-mil-text'}>{a.component.replace('_', ' ')}: {a.state} · quality {a.quality} · basis {a.basis ?? 'unknown'}</p>
+        <p className="break-words text-mil-dim">{a.source ?? 'Source unknown'}{a.station_id ? ` · station ${a.station_id}` : ''}{a.grid_cell ? ` · grid ${a.grid_cell}` : ''}</p>
+        <p className="text-mil-dim">Issued {a.issued_at_utc ?? 'unknown'}; retrieved {a.retrieved_at_utc ?? 'unknown'}</p>
+        <p className="text-mil-dim">Age {a.age_s == null ? 'unknown' : `${a.age_s} s (${a.age_basis ?? 'basis unknown'})`}</p>
+        <p className="text-mil-dim">Valid {a.valid_from_utc ?? 'unknown'} to {a.valid_to_utc ?? 'unknown'}</p>
+        {a.component === 'current' && <p className="text-mil-dim">Depth {a.current_depth_ft == null ? 'unavailable' : `${a.current_depth_ft} ft`}; bin {a.current_bin ?? 'unavailable'}.</p>}
+        {a.reason && <p className="text-mil-amber">{a.reason}</p>}
+        {(a.limitations ?? []).map((text, index) => <p key={index} className="text-mil-amber">{text}</p>)}
+        {content_sha256 && <p className="break-all text-[10px] text-mil-dim">Component hash {content_sha256}</p>}
+      </li>)}
+    </ul>
+    {(manifest.limitations ?? []).map((text, index) => <p key={index} className="text-mil-amber">{text}</p>)}
+    {resolved && <>
+      <p className="text-mil-text">Canonical binding: {resolved.result.coverage_complete ? 'coverage complete' : 'coverage incomplete'} · validity {resolved.validity?.state ?? 'unknown'}.</p>
+      <p className="break-all text-[10px] text-mil-dim">Content hash {resolved.result.forecast_manifest.content_hash}</p>
+      <p className="break-all text-[10px] text-mil-dim">Binding hash {resolved.result.forecast_manifest.binding_hash}</p>
+      {[...(resolved.result.problems ?? []), ...(resolved.result.limitations ?? [])].map((text, index) => <p key={index} className="text-mil-amber">{text}</p>)}
+    </>}
+  </section>;
 }

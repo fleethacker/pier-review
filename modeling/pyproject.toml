@@ -13,6 +13,7 @@ dependencies = [
     "shapely>=2.0",
     "xarray>=2025.1",
     "netCDF4>=1.7",
+    "pillow>=10.4",  # S5 EXIF/image validation
 ]
 
 [build-system]

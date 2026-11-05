@@ -791,6 +791,214 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/missions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Missions visible to the caller */
+        get: operations["list_missions_api_v1_missions_get"];
+        put?: never;
+        /** Create a mission */
+        post: operations["create_mission_api_v1_missions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One mission */
+        get: operations["get_mission_api_v1_missions__mission_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/track": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recorded track, optionally decimated */
+        get: operations["get_track_api_v1_missions__mission_id__track_get"];
+        put?: never;
+        /** Add recorded fixes (JSON) */
+        post: operations["ingest_track_api_v1_missions__mission_id__track_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/track/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add recorded fixes from a CSV, GPX, NMEA 0183 (RMC/GGA) or GeoJSON file */
+        post: operations["ingest_track_file_api_v1_missions__mission_id__track_file_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Images for a mission */
+        get: operations["list_media_api_v1_missions__mission_id__media_get"];
+        put?: never;
+        /** Upload an image (JPEG, PNG or WebP, at most 8 MB) with optional time/offset metadata */
+        post: operations["upload_media_api_v1_missions__mission_id__media_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/media/{media_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Image bytes */
+        get: operations["get_media_api_v1_missions__mission_id__media__media_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reports for a mission */
+        get: operations["list_reports_api_v1_missions__mission_id__reports_get"];
+        put?: never;
+        /** Add a timestamped report */
+        post: operations["add_report_api_v1_missions__mission_id__reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/storyboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Track plus images and reports located on it by time */
+        get: operations["storyboard_api_v1_missions__mission_id__storyboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/missions/{mission_id}/storyboard.geojson": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Storyboard as a GeoJSON FeatureCollection (track LineString, event Points) */
+        get: operations["storyboard_geojson_api_v1_missions__mission_id__storyboard_geojson_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transit/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Simulate vessels entering or leaving port (job; result is a TransitResponse) */
+        post: operations["simulate_api_v1_transit_simulate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transit/simulations/{job_id}/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sampled frames for every vessel from a completed transit run */
+        get: operations["series_api_v1_transit_simulations__job_id__series_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/transit/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ready-made inbound/outbound transit requests (labeled demonstration routes) */
+        get: operations["presets_api_v1_transit_presets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -1069,6 +1277,27 @@ export interface components {
             capabilities?: {
                 [key: string]: "supported" | "limited" | "unsupported";
             };
+        };
+        /** AutopilotSettings */
+        AutopilotSettings: {
+            /**
+             * Lookahead Ship Lengths
+             * @description Line-of-sight lookahead distance.
+             * @default 2
+             */
+            lookahead_ship_lengths: number;
+            /**
+             * Arrival Slowdown Nm
+             * @description Ramp speed down over this distance before the final waypoint.
+             * @default 0.5
+             */
+            arrival_slowdown_nm: number;
+            /**
+             * Arrival Speed Kt
+             * @description Target speed at the final waypoint.
+             * @default 0
+             */
+            arrival_speed_kt: number;
         };
         /** Berth */
         Berth: {
@@ -1452,6 +1681,51 @@ export interface components {
             gaps?: string[];
             /** Resolution Note */
             resolution_note?: string | null;
+        };
+        /**
+         * BodyWrench
+         * @description Force and yaw moment on the ship in BODY axes (surge forward, sway port, yaw counterclockwise).
+         */
+        BodyWrench: {
+            /** Surge Lbf */
+            surge_lbf: number;
+            /** Sway Lbf */
+            sway_lbf: number;
+            /** Yaw Ftlbf */
+            yaw_ftlbf: number;
+        };
+        /** Body_ingest_track_file_api_v1_missions__mission_id__track_file_post */
+        Body_ingest_track_file_api_v1_missions__mission_id__track_file_post: {
+            /**
+             * File
+             * @description Track file, at most 20 MB
+             */
+            file: string;
+            /**
+             * Format
+             * @description csv | gpx | nmea | geojson
+             */
+            format: string;
+            /**
+             * Utc Offset Min
+             * @description Offset of naive timestamps, minutes east of UTC
+             */
+            utc_offset_min?: number | null;
+            /**
+             * Nmea Date
+             * @description YYYY-MM-DD for NMEA files with GGA only
+             */
+            nmea_date?: string | null;
+        };
+        /** Body_upload_media_api_v1_missions__mission_id__media_post */
+        Body_upload_media_api_v1_missions__mission_id__media_post: {
+            /** Image */
+            image: string;
+            /**
+             * Metadata
+             * @description MediaMetadata as JSON
+             */
+            metadata?: string | null;
         };
         /** CapabilityRow */
         CapabilityRow: {
@@ -2441,6 +2715,13 @@ export interface components {
             /** Series */
             series: components["schemas"]["EnvironmentSnapshot"][];
         };
+        /** GeoPoint */
+        GeoPoint: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+        };
         /** GustModel */
         GustModel: {
             /** Station Id */
@@ -3054,6 +3335,54 @@ export interface components {
             off_pier_component_lbf?: number | null;
         };
         /**
+         * LocatedAt
+         * @description Where the ship was at an event time, and how that was established. Null position means not established.
+         */
+        LocatedAt: {
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "exact_fix" | "interpolated" | "gap" | "before_track" | "after_track" | "no_track" | "no_time";
+            /** Lat */
+            lat?: number | null;
+            /** Lon */
+            lon?: number | null;
+            /** Fix Before Utc */
+            fix_before_utc?: string | null;
+            /** Fix After Utc */
+            fix_after_utc?: string | null;
+            /**
+             * Gap S
+             * @description Span between the bracketing fixes.
+             */
+            gap_s?: number | null;
+            /** Distance Along Track Nm */
+            distance_along_track_nm?: number | null;
+            /**
+             * Sog Kt
+             * @description Speed over ground between the bracketing fixes.
+             */
+            sog_kt?: number | null;
+            /** Heading True Deg */
+            heading_true_deg?: number | null;
+            /**
+             * Stated Lat
+             * @description Position from EXIF or the report.
+             */
+            stated_lat?: number | null;
+            /** Stated Lon */
+            stated_lon?: number | null;
+            /** Stated Source */
+            stated_source?: ("exif" | "report") | null;
+            /**
+             * Discrepancy M
+             * @description Track position vs stated position.
+             */
+            discrepancy_m?: number | null;
+            validity: components["schemas"]["Validity"];
+        };
+        /**
          * ManifestRecord
          * @description A resolved reference record that went into a result.
          */
@@ -3074,6 +3403,54 @@ export interface components {
              */
             revision?: string | null;
         };
+        /** MediaItem */
+        MediaItem: {
+            /** Media Id */
+            media_id: string;
+            /** Mission Id */
+            mission_id: string;
+            /** Filename */
+            filename: string;
+            /**
+             * Content Type
+             * @enum {string}
+             */
+            content_type: "image/jpeg" | "image/png" | "image/webp";
+            /** Bytes */
+            bytes: number;
+            /** Sha256 */
+            sha256: string;
+            /**
+             * Captured Utc
+             * @description True time after offsets; null if unknown.
+             */
+            captured_utc?: string | null;
+            /** Time Source */
+            time_source?: ("exif" | "supplied") | null;
+            /**
+             * Time Note
+             * @description How the time was derived, or why it is unknown.
+             */
+            time_note?: string | null;
+            /**
+             * Camera Clock Offset S
+             * @default 0
+             */
+            camera_clock_offset_s: number;
+            /** Exif Lat */
+            exif_lat?: number | null;
+            /** Exif Lon */
+            exif_lon?: number | null;
+            /** Caption */
+            caption?: string | null;
+            /** Tags */
+            tags?: string[];
+            /**
+             * Url
+             * @description GET path for the image bytes.
+             */
+            url: string;
+        };
         /** MinMargin */
         MinMargin: {
             /**
@@ -3086,6 +3463,68 @@ export interface components {
              * @description Highest utilization in the plan (lines and fittings).
              */
             pct_wll: number;
+        };
+        /** Mission */
+        Mission: {
+            /** Name */
+            name: string;
+            /**
+             * Vessel Id
+             * @description Hull number, MMSI or local identifier.
+             */
+            vessel_id: string;
+            /** Ship Class Id */
+            ship_class_id?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Mission Id */
+            mission_id: string;
+            /**
+             * Created At Utc
+             * Format: date-time
+             */
+            created_at_utc: string;
+            /** Fix Count */
+            fix_count: number;
+            /** Media Count */
+            media_count: number;
+            /** Report Count */
+            report_count: number;
+            /** Start Utc */
+            start_utc?: string | null;
+            /** End Utc */
+            end_utc?: string | null;
+        };
+        /** MissionCreate */
+        MissionCreate: {
+            /** Name */
+            name: string;
+            /**
+             * Vessel Id
+             * @description Hull number, MMSI or local identifier.
+             */
+            vessel_id: string;
+            /** Ship Class Id */
+            ship_class_id?: string | null;
+            /** Description */
+            description?: string | null;
+        };
+        /** MissionTrack */
+        MissionTrack: {
+            /** Mission Id */
+            mission_id: string;
+            /**
+             * Fix Count
+             * @description Stored fixes, before any display decimation.
+             */
+            fix_count: number;
+            /**
+             * Decimated
+             * @description True when fewer fixes are returned than stored (shape-preserving).
+             */
+            decimated: boolean;
+            /** Fixes */
+            fixes: components["schemas"]["TrackFix"][];
         };
         /** MooringConfig */
         MooringConfig: {
@@ -3741,6 +4180,45 @@ export interface components {
             points: components["schemas"]["PolarPoint"][];
         };
         /**
+         * PropulsionAssumptions
+         * @description Reference data has no propulsion or rudder data; these are explicit, labeled assumptions.
+         */
+        PropulsionAssumptions: {
+            /**
+             * Max Speed Kt
+             * @description Calm deep-water speed at full ahead. Null uses the class's labeled default, if any; else invalid.
+             */
+            max_speed_kt?: number | null;
+            /**
+             * Astern Thrust Fraction
+             * @description Full-astern thrust / full-ahead thrust.
+             * @default 0.6
+             */
+            astern_thrust_fraction: number;
+            /**
+             * Engine Time Constant S
+             * @description First-order lag of delivered thrust.
+             * @default 20
+             */
+            engine_time_constant_s: number;
+            /**
+             * Max Rudder Deg
+             * @default 35
+             */
+            max_rudder_deg: number;
+            /**
+             * Rudder Rate Degps
+             * @description Default from the common 35-to-30-degrees-in-28-seconds steering-gear criterion.
+             * @default 2.33
+             */
+            rudder_rate_degps: number;
+            /**
+             * Bow Thruster Lbf
+             * @description Null means no bow thruster.
+             */
+            bow_thruster_lbf?: number | null;
+        };
+        /**
          * Provenance
          * @description Where a value came from, so the UI and safety sheet can show how much to trust it.
          */
@@ -3887,6 +4365,62 @@ export interface components {
              * @description Water levels (MLLW) every case is evaluated at; lines are installed at the first.
              */
             tide_levels_ft?: number[];
+        };
+        /** Report */
+        Report: {
+            /**
+             * T Utc
+             * Format: date-time
+             */
+            t_utc: string;
+            /** Title */
+            title: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /** Author */
+            author?: string | null;
+            /**
+             * Lat
+             * @description Position stated in the report, if any.
+             */
+            lat?: number | null;
+            /** Lon */
+            lon?: number | null;
+            /** Tags */
+            tags?: string[];
+            /** Report Id */
+            report_id: string;
+            /** Mission Id */
+            mission_id: string;
+        };
+        /** ReportCreate */
+        ReportCreate: {
+            /**
+             * T Utc
+             * Format: date-time
+             */
+            t_utc: string;
+            /** Title */
+            title: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /** Author */
+            author?: string | null;
+            /**
+             * Lat
+             * @description Position stated in the report, if any.
+             */
+            lat?: number | null;
+            /** Lon */
+            lon?: number | null;
+            /** Tags */
+            tags?: string[];
         };
         /**
          * ResultManifest
@@ -4680,6 +5214,48 @@ export interface components {
             /** Flags */
             flags?: string[];
         };
+        /** Storyboard */
+        Storyboard: {
+            mission: components["schemas"]["Mission"];
+            /** Max Interp Gap S */
+            max_interp_gap_s: number;
+            stats: components["schemas"]["TrackStats"];
+            /**
+             * Track
+             * @description Shape-preserving decimated track for display.
+             */
+            track: components["schemas"]["TrackFix"][];
+            /**
+             * Events
+             * @description Time order; events without a time come last.
+             */
+            events: components["schemas"]["StoryboardEvent"][];
+            validity: components["schemas"]["Validity"];
+        };
+        /** StoryboardEvent */
+        StoryboardEvent: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "report";
+            /**
+             * Event Id
+             * @description media_id or report_id.
+             */
+            event_id: string;
+            /** T Utc */
+            t_utc?: string | null;
+            /** Title */
+            title: string;
+            /** Body */
+            body?: string | null;
+            /** Media Url */
+            media_url?: string | null;
+            /** Tags */
+            tags?: string[];
+            located: components["schemas"]["LocatedAt"];
+        };
         /** SyntheticForecastRequest */
         SyntheticForecastRequest: {
             /** Berth Id */
@@ -5101,6 +5677,95 @@ export interface components {
              */
             forecast?: components["schemas"]["EnvironmentSnapshot"][] | null;
         };
+        /**
+         * TrackFix
+         * @description One recorded (or simulated) position. Shared by S5 ingestion and S6 simulated tracks.
+         */
+        TrackFix: {
+            /**
+             * T Utc
+             * Format: date-time
+             */
+            t_utc: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /**
+             * Heading True Deg
+             * @description Bow heading, if recorded.
+             */
+            heading_true_deg?: number | null;
+            /**
+             * Cog True Deg
+             * @description Course over ground, if recorded.
+             */
+            cog_true_deg?: number | null;
+            /**
+             * Sog Kt
+             * @description Speed over ground, if recorded.
+             */
+            sog_kt?: number | null;
+            /** Hdop */
+            hdop?: number | null;
+            /**
+             * Quality
+             * @default unknown
+             * @enum {string}
+             */
+            quality: "good" | "degraded" | "unknown";
+            /**
+             * Source
+             * @description e.g. gps, ais, nmea, simulated:<job_id>.
+             */
+            source?: string | null;
+        };
+        /**
+         * TrackIngest
+         * @description JSON track ingestion. Fixes are merged with any existing track for the mission.
+         */
+        TrackIngest: {
+            /** Fixes */
+            fixes: components["schemas"]["TrackFix"][];
+        };
+        /** TrackIngestResult */
+        TrackIngestResult: {
+            /** Mission Id */
+            mission_id: string;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "csv" | "gpx" | "nmea" | "geojson" | "json";
+            /** Accepted */
+            accepted: number;
+            /** Rejected */
+            rejected: number;
+            /**
+             * Duplicates
+             * @description Fixes with a timestamp already present; the first one is kept.
+             */
+            duplicates: number;
+            /**
+             * Reordered
+             * @description Fixes received out of time order (stored sorted).
+             */
+            reordered: number;
+            /**
+             * Errors
+             * @description First errors, with line/record numbers.
+             */
+            errors?: string[];
+            /**
+             * Fix Count
+             * @description Total fixes now stored for the mission.
+             */
+            fix_count: number;
+            /** Start Utc */
+            start_utc?: string | null;
+            /** End Utc */
+            end_utc?: string | null;
+        };
         /** TrackPoint */
         TrackPoint: {
             /** Lat */
@@ -5118,6 +5783,254 @@ export interface components {
             /** Ukc Ft */
             ukc_ft: number;
         };
+        /** TrackStats */
+        TrackStats: {
+            /** Fix Count */
+            fix_count: number;
+            /** Start Utc */
+            start_utc?: string | null;
+            /** End Utc */
+            end_utc?: string | null;
+            /** Duration S */
+            duration_s: number;
+            /** Distance Nm */
+            distance_nm: number;
+            /** Max Gap S */
+            max_gap_s: number;
+            /**
+             * Gaps Over Limit
+             * @description Gaps longer than max_interp_gap_s.
+             */
+            gaps_over_limit: number;
+        };
+        /** TransitForces */
+        TransitForces: {
+            hull: components["schemas"]["BodyWrench"];
+            propeller: components["schemas"]["BodyWrench"];
+            rudder: components["schemas"]["BodyWrench"];
+            wind: components["schemas"]["BodyWrench"];
+            tugs: components["schemas"]["BodyWrench"];
+            bow_thruster: components["schemas"]["BodyWrench"];
+        };
+        /** TransitFrame */
+        TransitFrame: {
+            /** T S */
+            t_s: number;
+            /** T Utc */
+            t_utc?: string | null;
+            /** Vessels */
+            vessels: components["schemas"]["TransitVesselState"][];
+        };
+        /**
+         * TransitHelmCommand
+         * @description Scripted helm/engine order at a simulation time. A null field leaves that control to the autopilot.
+         */
+        TransitHelmCommand: {
+            /** T S */
+            t_s: number;
+            /** Rudder Deg */
+            rudder_deg?: number | null;
+            /** Engine Order */
+            engine_order?: number | null;
+        };
+        /** TransitPreset */
+        TransitPreset: {
+            /** Preset Id */
+            preset_id: string;
+            /** Title */
+            title: string;
+            /** Description */
+            description: string;
+            request: components["schemas"]["TransitRequest"];
+            validity: components["schemas"]["Validity"];
+        };
+        /** TransitRequest */
+        TransitRequest: {
+            /** Vessels */
+            vessels: components["schemas"]["VesselTransit"][];
+            /** @description Steady wind/current for the whole run. Null means explicitly calm (labeled), not unknown. */
+            environment?: components["schemas"]["EnvironmentSnapshot"] | null;
+            /**
+             * Start Utc
+             * @description Optional UTC epoch for track timestamps.
+             */
+            start_utc?: string | null;
+            /** @description Local plane origin; default the first vessel's start. */
+            origin?: components["schemas"]["GeoPoint"] | null;
+            /**
+             * Duration S
+             * @default 3600
+             */
+            duration_s: number;
+            /**
+             * Dt S
+             * @default 0.2
+             */
+            dt_s: number;
+            /**
+             * Sample Interval S
+             * @description Output frame spacing; default 2 s.
+             */
+            sample_interval_s?: number | null;
+        };
+        /** TransitSeries */
+        TransitSeries: {
+            /** Job Id */
+            job_id: string;
+            /** Frames */
+            frames: components["schemas"]["TransitFrame"][];
+        };
+        /** TransitStart */
+        TransitStart: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Heading True Deg */
+            heading_true_deg: number;
+            /**
+             * Speed Kt
+             * @description Initial surge speed through the water.
+             * @default 0
+             */
+            speed_kt: number;
+        };
+        /**
+         * TransitTugCommand
+         * @description Timed tug force on the hull at a named point. Direction is relative to the bow, clockwise: 0 = ahead
+         *     (towing forward), 90 = toward starboard, 180 = astern (braking), 270 = toward port.
+         */
+        TransitTugCommand: {
+            /** T S */
+            t_s: number;
+            /** Tug Id */
+            tug_id: string;
+            /**
+             * Point
+             * @enum {string}
+             */
+            point: "bow" | "stern" | "port_shoulder" | "starboard_shoulder" | "port_quarter" | "starboard_quarter";
+            /** Force Lbf */
+            force_lbf: number;
+            /** Direction Rel Deg */
+            direction_rel_deg: number;
+        };
+        /** TransitTugState */
+        TransitTugState: {
+            /** Tug Id */
+            tug_id: string;
+            /**
+             * Point
+             * @enum {string}
+             */
+            point: "bow" | "stern" | "port_shoulder" | "starboard_shoulder" | "port_quarter" | "starboard_quarter";
+            /** Force Lbf */
+            force_lbf: number;
+            /** Direction Rel Deg */
+            direction_rel_deg: number;
+            /**
+             * Lat
+             * @description Hull contact point; tug hull kinematics are not modeled.
+             */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "command" | "auto_assist";
+        };
+        /** TransitVesselState */
+        TransitVesselState: {
+            /** Vessel Id */
+            vessel_id: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** X East Ft */
+            x_east_ft: number;
+            /** Y North Ft */
+            y_north_ft: number;
+            /** Heading True Deg */
+            heading_true_deg: number;
+            /**
+             * Cog True Deg
+             * @description Null when nearly stopped.
+             */
+            cog_true_deg?: number | null;
+            /** Sog Kt */
+            sog_kt: number;
+            /**
+             * Stw Kt
+             * @description Surge speed through the water, + ahead.
+             */
+            stw_kt: number;
+            /** U Kt */
+            u_kt: number;
+            /**
+             * V Kt
+             * @description Sway through the water, + to port.
+             */
+            v_kt: number;
+            /**
+             * R Degps
+             * @description Yaw rate, + counterclockwise (to port).
+             */
+            r_degps: number;
+            /** Rudder Deg */
+            rudder_deg: number;
+            /**
+             * Engine Order
+             * @description Commanded order.
+             */
+            engine_order: number;
+            /**
+             * Thrust Lbf
+             * @description Delivered thrust after engine lag, + ahead.
+             */
+            thrust_lbf: number;
+            /**
+             * Leg Index
+             * @description Index of the waypoint being steered for.
+             */
+            leg_index: number;
+            /**
+             * Cross Track Ft
+             * @description Signed distance from the current leg, + to port of track.
+             */
+            cross_track_ft: number;
+            /** Distance To Go Nm */
+            distance_to_go_nm: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "underway" | "arrived" | "stopped_short" | "invalid";
+            /** Tugs */
+            tugs?: components["schemas"]["TransitTugState"][];
+            forces: components["schemas"]["TransitForces"];
+        };
+        /** TransitWaypoint */
+        TransitWaypoint: {
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Name */
+            name?: string | null;
+            /**
+             * Speed Kt
+             * @description Target speed through the water on the leg ending here.
+             */
+            speed_kt: number;
+            /**
+             * Acceptance Radius Ft
+             * @description Switch to the next leg inside this radius; default two ship lengths. The final waypoint is the arrival point.
+             */
+            acceptance_radius_ft?: number | null;
+        };
         /** TugAssignment */
         TugAssignment: {
             /** Tug Id */
@@ -5133,6 +6046,29 @@ export interface components {
             force_lbf: number;
             /** Direction True Deg */
             direction_true_deg?: number | null;
+        };
+        /**
+         * TugAssistSettings
+         * @description Automatic low-speed assist: tugs supply the yaw moment the rudder cannot and brake on arrival.
+         */
+        TugAssistSettings: {
+            /**
+             * Policy
+             * @default auto
+             * @enum {string}
+             */
+            policy: "manual" | "auto";
+            /**
+             * Tug Ids
+             * @description Tugs available; empty uses the catalog's first two.
+             */
+            tug_ids?: string[];
+            /**
+             * Assist Below Kt
+             * @description Automatic assist applies below this speed.
+             * @default 5
+             */
+            assist_below_kt: number;
         };
         /** TugCommand */
         TugCommand: {
@@ -5421,6 +6357,34 @@ export interface components {
             modules: {
                 [key: string]: string;
             };
+        };
+        /** VesselTransit */
+        VesselTransit: {
+            /** Vessel Id */
+            vessel_id: string;
+            /** Ship Class Id */
+            ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            start: components["schemas"]["TransitStart"];
+            /** Route */
+            route: components["schemas"]["TransitWaypoint"][];
+            /**
+             * Mode
+             * @default own_thrust
+             * @enum {string}
+             */
+            mode: "own_thrust" | "tug_assisted";
+            propulsion?: components["schemas"]["PropulsionAssumptions"];
+            autopilot?: components["schemas"]["AutopilotSettings"];
+            /** Helm Commands */
+            helm_commands?: components["schemas"]["TransitHelmCommand"][];
+            /** Tug Commands */
+            tug_commands?: components["schemas"]["TransitTugCommand"][];
+            tug_assist?: components["schemas"]["TugAssistSettings"] | null;
         };
         /** Waypoint */
         Waypoint: {
@@ -6696,6 +7660,114 @@ export interface components {
              * @default null
              */
             p_any_bounds: number[] | null;
+        };
+        /** TransitEvent */
+        TransitEvent: {
+            /** T S */
+            t_s: number;
+            /** Vessel Id */
+            vessel_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "waypoint_reached" | "arrived" | "rudder_saturated" | "tug_saturated" | "large_cross_track" | "stopped_short" | "integration_failed";
+            /** Detail */
+            detail: string;
+        };
+        /** TransitResponse */
+        TransitResponse: {
+            /**
+             * Result Id
+             * @description Stable id; the agent and safety sheet cite numbers by this id.
+             */
+            result_id: string;
+            /**
+             * Model
+             * @description Module that produced the result, e.g. 'mooring.solver.static'.
+             */
+            model: string;
+            /** Model Version */
+            model_version: string;
+            /**
+             * Backend
+             * @description 'mock' until the workstream's real module lands.
+             * @enum {string}
+             */
+            backend: "mock" | "real";
+            /**
+             * Inputs Hash
+             * @description sha256 of the canonical request JSON.
+             */
+            inputs_hash: string;
+            /**
+             * Computed At Utc
+             * Format: date-time
+             */
+            computed_at_utc: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "GREEN" | "AMBER" | "RED";
+            /** Assumptions */
+            assumptions?: string[];
+            /** Warnings */
+            warnings?: components["schemas"]["Finding"][];
+            /**
+             * @description Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid' requires status RED; 'limited' cannot be GREEN.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
+            /**
+             * @description Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+             * @default null
+             */
+            manifest: components["schemas"]["ResultManifest"] | null;
+            result: components["schemas"]["TransitResult"];
+        };
+        /** TransitResult */
+        TransitResult: {
+            /** Series Url */
+            series_url: string;
+            /** Vessels */
+            vessels: components["schemas"]["TransitVesselSummary"][];
+            /** Events */
+            events: components["schemas"]["TransitEvent"][];
+        };
+        /** TransitVesselSummary */
+        TransitVesselSummary: {
+            /** Vessel Id */
+            vessel_id: string;
+            /** Ship Class Id */
+            ship_class_id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "own_thrust" | "tug_assisted";
+            /** Arrived */
+            arrived: boolean;
+            /**
+             * Arrival T S
+             * @default null
+             */
+            arrival_t_s: number | null;
+            /** Distance Nm */
+            distance_nm: number;
+            /** Max Cross Track Ft */
+            max_cross_track_ft: number;
+            /** Max Rudder Deg */
+            max_rudder_deg: number;
+            /** Max Tug Force Lbf */
+            max_tug_force_lbf: number;
+            /** Max Speed Assumed Kt */
+            max_speed_assumed_kt: number;
+            /**
+             * Track
+             * @description Sampled positions in the S5 fix format, for storyboard replay.
+             */
+            track: components["schemas"]["TrackFix"][];
         };
         /**
          * UncertaintyModel
@@ -8257,6 +9329,510 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_missions_api_v1_missions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mission"][];
+                };
+            };
+        };
+    };
+    create_mission_api_v1_missions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MissionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mission"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_mission_api_v1_missions__mission_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Mission"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_track_api_v1_missions__mission_id__track_get: {
+        parameters: {
+            query?: {
+                max_points?: number;
+            };
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissionTrack"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_track_api_v1_missions__mission_id__track_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrackIngest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackIngestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ingest_track_file_api_v1_missions__mission_id__track_file_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_ingest_track_file_api_v1_missions__mission_id__track_file_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrackIngestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_media_api_v1_missions__mission_id__media_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_media_api_v1_missions__mission_id__media_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_media_api_v1_missions__mission_id__media_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_media_api_v1_missions__mission_id__media__media_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+                media_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_reports_api_v1_missions__mission_id__reports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_report_api_v1_missions__mission_id__reports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    storyboard_api_v1_missions__mission_id__storyboard_get: {
+        parameters: {
+            query?: {
+                max_interp_gap_s?: number;
+                max_points?: number;
+            };
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Storyboard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    storyboard_geojson_api_v1_missions__mission_id__storyboard_geojson_get: {
+        parameters: {
+            query?: {
+                max_interp_gap_s?: number;
+            };
+            header?: never;
+            path: {
+                mission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/geo+json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simulate_api_v1_transit_simulate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    series_api_v1_transit_simulations__job_id__series_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransitSeries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    presets_api_v1_transit_presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransitPreset"][];
                 };
             };
         };

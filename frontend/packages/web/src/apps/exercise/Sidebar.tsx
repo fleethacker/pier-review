@@ -4,7 +4,8 @@ import { Button, Field, Panel, Select, inputClass } from '../../shell/ui';
 import { useController, useExercise } from './context';
 import { NumField } from './NumField';
 import { PRESET_SCENARIOS } from './scenarios';
-import { CLASS_IDS, SHIP_CLASSES, SIDE_COLORS, isMissile, isPlatform } from './ships';
+import { seaStateFromWind } from './sim';
+import { CLASS_IDS, SENSORS, SHIP_CLASSES, SIDE_COLORS, isMissile, isPlatform } from './ships';
 import type { Behavior, ClassId, LightPreset, Side, UnitConfig } from './types';
 
 /** A text box that commits on blur or Enter. */
@@ -125,6 +126,18 @@ function ScenarioPanel() {
         </Button>
       </div>
       <p className="text-[10px] leading-snug text-mil-dim">Missile hits, defensive shots and mines are chances. The seed fixes how they fall, so a run repeats exactly.</p>
+      <fieldset className="space-y-1.5">
+        <legend className="mil-label mb-1">Realism</legend>
+        <label className="flex items-center gap-2 text-[11px] text-mil-text">
+          <input type="checkbox" checked={!!scenario.detection} onChange={(e) => c.patchScenario({ detection: e.target.checked })} />
+          Sensors and detection
+        </label>
+        <p className="pl-6 text-[10px] leading-snug text-mil-dim">Radar is limited by the horizon and the sea, sonar hears what is under the water. Missiles are only fired at targets the side has found, and ships only shoot at missiles they are tracking. Off, everyone sees everything.</p>
+        <label className="flex items-center gap-2 text-[11px] text-mil-text">
+          <input type="checkbox" checked={!!scenario.seaState} onChange={(e) => c.patchScenario({ seaState: e.target.checked })} />
+          Rough seas slow small ships
+        </label>
+      </fieldset>
       <JsonEditor />
     </Panel>
   );
@@ -133,6 +146,7 @@ function ScenarioPanel() {
 function EnvironmentPanel() {
   const c = useController();
   const env = useExercise((s) => s.scenario.environment);
+  const seaOn = useExercise((s) => !!s.scenario.seaState);
   const set = (key: keyof typeof env) => (v: number | undefined) => v !== undefined && c.patchEnvironment({ [key]: v });
   return (
     <Panel title="Environment" className="space-y-3 p-4">
@@ -144,6 +158,7 @@ function EnvironmentPanel() {
       </div>
       <p className="text-[10px] leading-snug text-mil-dim">
         Current sets every ship over the ground. Wind pushes ships downwind a little, small craft more than big ships.
+        {seaOn && ` Sea state ${seaStateFromWind(env.windKt)} (0 calm, 8 very rough).`}
       </p>
     </Panel>
   );
@@ -220,7 +235,7 @@ function UnitEditor({ unit }: { unit: UnitConfig }) {
   const fixed = cls.domain === 'static';
   const weapon = !!cls.weapon;
   const otherOptions = others.map((u) => ({ value: u.id, label: u.name }));
-  const num = (key: 'hp' | 'damage' | 'pHit' | 'pKill' | 'magazine' | 'altitudeM') => (v: number | undefined) => c.patchUnit(unit.id, { [key]: v });
+  const num = (key: 'hp' | 'damage' | 'pHit' | 'pKill' | 'magazine' | 'altitudeM' | 'signature' | 'radarRangeM' | 'decoys' | 'pDecoy') => (v: number | undefined) => c.patchUnit(unit.id, { [key]: v });
   return (
     <div className="space-y-3 border-t border-mil-border pt-3">
       <TextField label="Name" value={unit.name} onCommit={(name) => c.patchUnit(unit.id, { name })} />
@@ -315,6 +330,23 @@ function UnitEditor({ unit }: { unit: UnitConfig }) {
         </div>
       </details>
 
+      {!weapon && !fixed && (
+        <details className="space-y-2">
+          <summary className="mil-label cursor-pointer">Sensors and countermeasures</summary>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <NumField optional label="Radar signature (1 = normal)" placeholder="1" value={unit.signature} min={0.001} step={0.1} decimals={3} onCommit={num('signature')} />
+            {SENSORS[unit.classId]?.radarRangeM !== undefined && (
+              <NumField optional label="Radar range vs 1 m² (m)" placeholder={`${SENSORS[unit.classId]!.radarRangeM} (class)`} value={unit.radarRangeM} min={0} step={5000} onCommit={num('radarRangeM')} />
+            )}
+            <NumField optional label="Decoys" placeholder="0" value={unit.decoys} min={0} step={1} onCommit={num('decoys')} />
+            <NumField optional label="Decoy chance (0–1)" placeholder="0.3" value={unit.pDecoy} min={0} max={1} step={0.05} decimals={2} onCommit={num('pDecoy')} />
+            <p className="col-span-2 text-[10px] leading-snug text-mil-dim">
+              A low signature shrinks the range at which radar picks the unit up (range scales with the fourth root, so a tenth of the signature is about 56% of the range). Each missile or torpedo that gets close uses up one decoy and may be led away. Only matters when sensors and detection are on.
+            </p>
+          </div>
+        </details>
+      )}
+
       <Button size="sm" variant="ghost" className="text-mil-red" onClick={() => c.removeUnit(unit.id)}>
         Remove {unit.name}
       </Button>
@@ -406,8 +438,8 @@ function ForcesPanel() {
             value=""
             onChange={(v) => v && c.addUnit(v as ClassId)}
             options={[
-              { value: '', label: 'Add aircraft, missile or mine…' },
-              ...(['FIGHTER', 'HELO', 'ASM', 'SAM', 'MINE'] as ClassId[]).map((id) => ({ value: id, label: SHIP_CLASSES[id].name })),
+              { value: '', label: 'Add aircraft, submarine, missile or mine…' },
+              ...(['FIGHTER', 'HELO', 'SSN', 'ASM', 'SAM', 'TORP', 'MINE'] as ClassId[]).map((id) => ({ value: id, label: SHIP_CLASSES[id].name })),
             ]}
           />
         </div>

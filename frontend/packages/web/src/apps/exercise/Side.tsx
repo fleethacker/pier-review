@@ -75,6 +75,9 @@ function SelectedPanel() {
     ['Speed through water', `${st.speedKt.toFixed(1)} kt`],
     ['Course / speed over ground', `${Math.round(st.cogDeg).toString().padStart(3, '0')}°T / ${st.sogKt.toFixed(1)} kt`],
     ...(cls.domain === 'air' ? ([['Altitude', `${Math.round(st.altM).toLocaleString('en-US')} m`]] as [string, string][]) : []),
+    ...(cls.domain === 'sub' ? ([['Depth', `${Math.round(-st.altM)} m`]] as [string, string][]) : []),
+    ...((unit.decoys ?? 0) > 0 ? ([['Decoys', `${unit.decoys}`]] as [string, string][]) : []),
+    ...(unit.signature !== undefined ? ([['Radar signature', `${unit.signature}× normal`]] as [string, string][]) : []),
     ...(cls.sensorRangeNm > 0 ? ([['Sensor range', `${cls.sensorRangeNm} nm (illustrative)`]] as [string, string][]) : []),
     ...(cls.weapon
       ? ([

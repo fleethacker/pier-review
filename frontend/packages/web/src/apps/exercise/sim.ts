@@ -9,9 +9,9 @@ import {
   stationFrom,
   velocityEN,
 } from './geo';
-import { SHIP_CLASSES, isMine, isMissile } from './ships';
+import { SEA_KEEPING, SENSORS, SHIP_CLASSES, isMine, isMissile } from './ships';
 import type { ShipClass } from './ships';
-import type { LonLat, ScenarioConfig, UnitConfig, UnitState } from './types';
+import type { ClassId, LonLat, ScenarioConfig, UnitConfig, UnitState } from './types';
 
 const DEG = Math.PI / 180;
 const MAX_STEPS = 21_600;
@@ -49,7 +49,11 @@ export type EventType =
   /** A mine went off on a ship. `unitId` is the mine, `otherId` the ship. */
   | 'mine'
   /** A unit's hit points reached zero. `otherId` is what did it. */
-  | 'destroyed';
+  | 'destroyed'
+  /** A side's sensors first picked a unit up. `unitId` is the unit, `otherId` what saw it. Only with "Sensors and detection" on. */
+  | 'detected'
+  /** A launch is due but the target is not tracked, so the shot is held. `unitId` is the missile. */
+  | 'held';
 
 export interface SimEvent {
   tS: number;
@@ -84,9 +88,66 @@ export const unitDamage = (u: UnitConfig): number => u.damage ?? SHIP_CLASSES[u.
 export const unitPHit = (u: UnitConfig): number => u.pHit ?? SHIP_CLASSES[u.classId].weapon?.pHit ?? 0;
 export const unitPKill = (u: UnitConfig): number => u.pKill ?? SHIP_CLASSES[u.classId].defence?.pKill ?? 0;
 export const unitMagazine = (u: UnitConfig): number => u.magazine ?? SHIP_CLASSES[u.classId].defence?.magazine ?? 0;
+export const unitDecoys = (u: UnitConfig): number => u.decoys ?? 0;
+export const unitPDecoy = (u: UnitConfig): number => u.pDecoy ?? 0.3;
+
+/** Sea state 0 to 8 for a wind in knots (a rough rule of thumb for a fully developed sea). */
+export function seaStateFromWind(windKt: number): number {
+  return Math.max(0, Math.min(8, Math.round(windKt / 5)));
+}
+
+/** How much of its top speed a ship can make good in this sea state. */
+export function seaSpeedFactor(classId: ClassId, seaState: number): number {
+  const k = SEA_KEEPING[classId];
+  return k ? Math.max(0.4, 1 - k.slope * Math.max(0, seaState - k.limit)) : 1;
+}
+
+const RADAR_HORIZON_K = 4120;
+/** Seconds a track survives without being seen again. */
+const TRACK_HOLD_S = 30;
+const SCAN_PERIOD_S = 5;
+
+/**
+ * How far away `sensor` can pick up `target`, in meters (0 if it cannot at all). Radar range grows with the fourth root of the
+ * target's cross-section and is cut off by the horizon and by sea clutter on low targets. Sonar hears noise, and
+ * quiet submarines are hard to hear. `sensorAltM` and `targetAltM` are heights above the sea.
+ */
+export function detectionRangeM(
+  sensor: UnitConfig,
+  sensorAltM: number,
+  target: UnitConfig,
+  targetAltM: number,
+  targetSpeedKt: number,
+  seaState: number,
+): number {
+  const sc = SHIP_CLASSES[sensor.classId];
+  const tc = SHIP_CLASSES[target.classId];
+  const ss = SENSORS[sensor.classId];
+  const ts = SENSORS[target.classId];
+  if (!ss || !ts || tc.domain === 'static') return 0;
+  let best = 0;
+  if (ss.radarRangeM && sc.domain !== 'sub' && tc.domain !== 'sub') {
+    const rcs = ts.rcsM2 * (target.signature ?? 1);
+    if (rcs > 0) {
+      let r = (sensor.radarRangeM ?? ss.radarRangeM) * Math.pow(rcs, 0.25);
+      const hs = sc.domain === 'air' ? Math.max(sensorAltM, 1) : (ss.heightM ?? 2);
+      const ht = tc.domain === 'air' ? Math.max(targetAltM, 3) : tc.freeboardM;
+      r = Math.min(r, RADAR_HORIZON_K * (Math.sqrt(hs) + Math.sqrt(ht)));
+      if (ht < 50) r *= Math.max(0.5, 1 - 0.06 * seaState);
+      best = r;
+    }
+  }
+  if (ss.sonarRangeM && tc.domain !== 'air') {
+    const loud = ts.noise * (1 + targetSpeedKt / 30);
+    best = Math.max(best, ss.sonarRangeM * loud * Math.max(0.5, 1 - 0.05 * seaState));
+  }
+  return best;
+}
+
 export function unitAltitude(u: UnitConfig): number {
   const cls = SHIP_CLASSES[u.classId];
   if (cls.domain === 'static') return -20;
+  if (cls.domain === 'sub') return cls.cruiseAltM ?? -30;
   if (cls.domain === 'air') return u.altitudeM ?? cls.cruiseAltM ?? 0;
   return 0;
 }
@@ -127,6 +188,10 @@ export function validateScenario(s: ScenarioConfig): string[] {
       if (v !== undefined && !(v >= 0 && v <= 1)) errors.push(`${label}: ${name} must be between 0 and 1.`);
     }
     if (u.magazine !== undefined && !(u.magazine >= 0)) errors.push(`${label}: magazine cannot be negative.`);
+    if (u.signature !== undefined && !(u.signature > 0)) errors.push(`${label}: radar signature must be above zero.`);
+    if (u.radarRangeM !== undefined && !(u.radarRangeM >= 0)) errors.push(`${label}: radar range cannot be negative.`);
+    if (u.decoys !== undefined && !(u.decoys >= 0)) errors.push(`${label}: decoys cannot be negative.`);
+    if (u.pDecoy !== undefined && !(u.pDecoy >= 0 && u.pDecoy <= 1)) errors.push(`${label}: decoy chance must be between 0 and 1.`);
     if (u.launch) {
       if (u.launch.byId === u.id) errors.push(`${label}: cannot launch itself.`);
       else if (!byId.has(u.launch.byId)) errors.push(`${label}: launcher "${u.launch.byId}" does not exist.`);
@@ -155,8 +220,11 @@ export function validateScenario(s: ScenarioConfig): string[] {
       }
     } else if (b.type === 'strike') {
       if (!isMissile(cls)) errors.push(`${label}: only missiles can strike.`);
+      const tgt = byId.get(b.targetId);
       if (b.targetId === u.id) errors.push(`${label}: cannot strike itself.`);
-      else if (!byId.has(b.targetId)) errors.push(`${label}: target "${b.targetId}" does not exist.`);
+      else if (!tgt) errors.push(`${label}: target "${b.targetId}" does not exist.`);
+      else if (cls.domain === 'sub' && SHIP_CLASSES[tgt.classId]?.domain === 'air') errors.push(`${label}: a torpedo cannot hit an aircraft.`);
+      else if (cls.domain === 'air' && SHIP_CLASSES[tgt.classId]?.domain === 'sub') errors.push(`${label}: a missile cannot hit a submerged target.`);
     }
   }
   return errors;
@@ -201,6 +269,11 @@ interface Runtime {
   cmdAlt?: number;
   /** Appeared this step: it stays where it was launched until the next one. */
   justSpawned: boolean;
+  decoys: number;
+  /** When a held launch is let go (it keeps its place in the salvo's rhythm). */
+  releaseT?: number;
+  /** A launch was due and held because the target was not tracked (reported once). */
+  held: boolean;
 }
 
 export function stepSizeS(durationS: number): number {
@@ -275,6 +348,8 @@ export function runScenario(scenario: ScenarioConfig, options: RunOptions = {}):
       attempts: new Map(),
       checked: new Set(),
       justSpawned: false,
+      decoys: unitDecoys(cfg),
+      held: false,
       state: {
         lon: cfg.start.lon,
         lat: cfg.start.lat,
@@ -289,6 +364,18 @@ export function runScenario(scenario: ScenarioConfig, options: RunOptions = {}):
     };
   });
   const byId = new Map(runtimes.map((r) => [r.cfg.id, r]));
+  const detection = !!scenario.detection;
+  // A salvo held back for a track goes off at the same intervals it was planned with.
+  const salvoStart = new Map<string, number>();
+  for (const r of runtimes) {
+    const l = r.cfg.launch;
+    if (l && r.cfg.behavior.type === 'strike') {
+      const key = `${l.byId}|${r.cfg.behavior.targetId}`;
+      salvoStart.set(key, Math.min(salvoStart.get(key) ?? Infinity, l.atS));
+    }
+  }
+  const seaOn = !!scenario.seaState;
+  const seaState = seaStateFromWind(env.windKt);
 
   const here = (r: Runtime) => ({ lon: r.state.lon, lat: r.state.lat });
   const emit = (tS: number, type: EventType, unit: Runtime, other: Runtime | undefined, at: LonLat, extra: Partial<SimEvent> = {}) =>
@@ -313,6 +400,41 @@ export function runScenario(scenario: ScenarioConfig, options: RunOptions = {}):
     }
   };
 
+  // What each side knows: when its sensors first and last picked up each unit of the others.
+  const tracks = new Map<string, { first: number; last: number }>();
+  const announced = new Set<string>();
+  const scanEveryS = Math.max(dtS, SCAN_PERIOD_S);
+  let nextScan = 0;
+
+  const scan = (t: number) => {
+    if (!detection || t < nextScan) return;
+    nextScan = t + scanEveryS;
+    for (const sensor of runtimes) {
+      if (!sensor.state.active || sensor.state.hp <= 0 || !SENSORS[sensor.cls.id]) continue;
+      for (const tg of runtimes) {
+        if (tg === sensor || !tg.state.active || tg.cfg.side === sensor.cfg.side || tg.cls.domain === 'static') continue;
+        const range = detectionRangeM(sensor.cfg, sensor.state.altM, tg.cfg, tg.state.altM, tg.state.speedKt, seaOn ? seaState : 0);
+        if (range <= 0 || distanceM(sensor.state, tg.state) > range) continue;
+        const key = `${sensor.cfg.side}|${tg.cfg.id}`;
+        const tr = tracks.get(key);
+        if (!tr || t - tr.last > TRACK_HOLD_S) {
+          tracks.set(key, { first: t, last: t });
+          if (!announced.has(key)) {
+            announced.add(key);
+            emit(t, 'detected', tg, sensor, here(tg));
+          }
+        } else tr.last = t;
+      }
+    }
+  };
+
+  /** Does `side` have a track on `targetId` that is at least `minAgeS` old? Always, when sensors are not being simulated. */
+  const tracked = (side: string, targetId: string, t: number, minAgeS = 0): boolean => {
+    if (!detection) return true;
+    const tr = tracks.get(`${side}|${targetId}`);
+    return !!tr && t - tr.last <= TRACK_HOLD_S && t - tr.first >= minAgeS;
+  };
+
   const spawnDue = (t: number) => {
     for (const r of runtimes) {
       const launch = r.cfg.launch;
@@ -325,6 +447,26 @@ export function runScenario(scenario: ScenarioConfig, options: RunOptions = {}):
       }
       if (!by.state.active) continue; // the launcher has not appeared yet; wait for it
       const target = r.cfg.behavior.type === 'strike' ? byId.get(r.cfg.behavior.targetId) : undefined;
+      if (target && detection) {
+        // Nothing to aim at yet, or too far to reach: hold the shot until the side has a track and the target is in range.
+        const hold = !tracked(by.cfg.side, target.cfg.id, t)
+          ? 'not tracked'
+          : r.cls.weapon && distanceM(by.state, target.state) > r.cls.weapon.rangeM * 0.9
+            ? 'out of range'
+            : null;
+        if (hold) {
+          if (!r.held) {
+            r.held = true;
+            emit(t, 'held', r, target, here(by), { detail: hold });
+          }
+          continue;
+        }
+        if (r.held) {
+          const first = salvoStart.get(`${launch.byId}|${(r.cfg.behavior as { targetId: string }).targetId}`) ?? launch.atS;
+          r.releaseT ??= t + (launch.atS - first);
+          if (t < r.releaseT) continue;
+        }
+      }
       const s = r.state;
       s.lon = by.state.lon;
       s.lat = by.state.lat;
@@ -332,7 +474,7 @@ export function runScenario(scenario: ScenarioConfig, options: RunOptions = {}):
       s.speedKt = r.cls.weapon ? r.cls.maxSpeedKt * 0.5 : clamp(r.cfg.speedKt, r.cls.minSpeedKt ?? 0, r.cls.maxSpeedKt);
       s.sogKt = s.speedKt;
       s.cogDeg = s.headingDeg;
-      s.altM = r.cls.weapon ? Math.max(by.state.altM, r.cls.cruiseAltM ?? 20) : unitAltitude(r.cfg);
+      s.altM = r.cls.weapon ? (r.cls.domain === 'sub' ? (r.cls.cruiseAltM ?? -15) : Math.max(by.state.altM, r.cls.cruiseAltM ?? 20)) : unitAltitude(r.cfg);
       s.active = true;
       r.everActive = true;
       r.justSpawned = true;
@@ -401,7 +543,8 @@ export function runScenario(scenario: ScenarioConfig, options: RunOptions = {}):
     const air = cls.domain === 'air';
     const dead = s.hp <= 0;
     const crippled = s.hp / r.maxHp < 0.5;
-    const cap = dead ? 0 : crippled ? 0.5 : 1;
+    const sea = seaOn && cls.domain === 'surface' ? seaSpeedFactor(cls.id, seaState) : 1;
+    const cap = dead ? 0 : (crippled ? 0.5 : 1) * sea;
     const maxSpeed = cls.maxSpeedKt * cap;
     const cruiseKt = Math.min(cfg.speedKt, maxSpeed);
     const turnRate = Math.min(cls.turnRateDegPerS, cfg.maxTurnRateDegPerS ?? Infinity);
@@ -439,7 +582,7 @@ export function runScenario(scenario: ScenarioConfig, options: RunOptions = {}):
     s.cogDeg = s.sogKt > 0.01 ? normalizeBearing(Math.atan2(east, north) / DEG) : s.headingDeg;
 
     r.traveledM += ktToMs(s.speedKt) * dt;
-    if (cls.weapon && air && r.traveledM > cls.weapon.rangeM) {
+    if (cls.weapon && r.traveledM > cls.weapon.rangeM) {
       emit(t, 'miss', r, undefined, here(r), { detail: 'out of range' });
       spend(r);
     }
@@ -454,9 +597,10 @@ export function runScenario(scenario: ScenarioConfig, options: RunOptions = {}):
       let bestDist = Infinity;
       for (const w of runtimes) {
         const b = w.cfg.behavior;
-        if (!w.state.active || !isMissile(w.cls) || b.type !== 'strike' || w.cfg.side === d.cfg.side) continue;
+        if (!w.state.active || !isMissile(w.cls) || w.cls.domain !== 'air' || b.type !== 'strike' || w.cfg.side === d.cfg.side) continue;
         const target = byId.get(b.targetId);
         if (!target || target.cfg.side !== d.cfg.side) continue;
+        if (!tracked(d.cfg.side, w.cfg.id, t, def.reactionS ?? 6)) continue;
         if ((w.attempts.get(d.cfg.id) ?? 0) >= def.shots) continue;
         const dist = distanceM(d.state, w.state);
         if (dist <= def.rangeM && dist < bestDist) {
@@ -489,6 +633,13 @@ export function runScenario(scenario: ScenarioConfig, options: RunOptions = {}):
       w.state.lon = at.lon;
       w.state.lat = at.lat;
       spend(w);
+      if (target.decoys > 0) {
+        target.decoys -= 1;
+        if (rng() < unitPDecoy(target.cfg)) {
+          emit(t, 'miss', w, target, at, { detail: 'led away by a decoy' });
+          continue;
+        }
+      }
       if (rng() < unitPHit(w.cfg)) damage(target, unitDamage(w.cfg), w, t, at, 'hit');
       else emit(t, 'miss', w, target, at, { detail: 'did not detonate' });
     }
@@ -537,11 +688,13 @@ export function runScenario(scenario: ScenarioConfig, options: RunOptions = {}):
     });
   };
 
+  scan(0);
   spawnDue(0);
   record(0);
   for (const r of runtimes) r.justSpawned = false;
   for (let i = 1; i < count; i++) {
     const t = i * dtS;
+    scan(t);
     spawnDue(t);
     for (const r of runtimes) {
       if (!r.state.active) continue;

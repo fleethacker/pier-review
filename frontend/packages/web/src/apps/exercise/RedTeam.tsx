@@ -32,6 +32,10 @@ const UNIT_LABEL: Record<UnitField, string> = {
   pHit: 'Hit chance (0–1)',
   pKill: 'Defence kill chance (0–1)',
   magazine: 'Defensive shots',
+  signature: 'Radar signature (1 = normal)',
+  radarRangeM: 'Radar range vs 1 m² (m)',
+  decoys: 'Decoys',
+  pDecoy: 'Decoy chance (0–1)',
   disabled: 'Left out (1) or in (0)',
 };
 
@@ -45,6 +49,7 @@ const OUTCOME_TYPES: { value: OutcomeSpec['type']; label: string }[] = [
   { value: 'mine_strike', label: 'A mine goes off' },
   { value: 'intercepts', label: 'Missiles are shot down' },
   { value: 'closest_approach', label: 'Two units come close' },
+  { value: 'detected', label: 'A unit is detected' },
   { value: 'all', label: 'All of several outcomes' },
   { value: 'any', label: 'Any of several outcomes' },
   { value: 'not', label: 'An outcome does not happen' },
@@ -208,6 +213,8 @@ function makeOutcome(type: OutcomeSpec['type'], id: string, label: string | unde
       return { ...base, type, atLeast: 1 };
     case 'closest_approach':
       return { ...base, type, aId: unitId, bId: units[1]?.id ?? unitId, withinM: 2000 };
+    case 'detected':
+      return { ...base, type, unitId };
     case 'all':
     case 'any':
       return { ...base, type, of: earlier.slice(0, 2) };
@@ -231,9 +238,18 @@ function OutcomeRow({ o, earlier, onChange, onRemove }: { o: OutcomeSpec; earlie
         </button>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        {(o.type === 'hit' || o.type === 'destroyed' || o.type === 'hp_below') && (
+        {(o.type === 'hit' || o.type === 'destroyed' || o.type === 'hp_below' || o.type === 'detected') && (
           <Field label="Unit">
             <Select value={o.unitId} onChange={(v) => onChange({ ...o, unitId: v })} options={options} />
+          </Field>
+        )}
+        {o.type === 'detected' && (
+          <Field label="Detected by">
+            <Select
+              value={o.bySide ?? ''}
+              onChange={(v) => onChange(v ? { ...o, bySide: v as 'BLUE' | 'RED' | 'NEUTRAL' } : { id: o.id, ...(o.label ? { label: o.label } : {}), ...(o.beforeS !== undefined ? { beforeS: o.beforeS } : {}), type: 'detected', unitId: o.unitId })}
+              options={[{ value: '', label: 'Anyone' }, ...['BLUE', 'RED', 'NEUTRAL'].map((s) => ({ value: s, label: s }))]}
+            />
           </Field>
         )}
         {o.type === 'hp_below' && <NumField label="Strength below (0–1)" value={o.frac} min={0.01} max={1} step={0.05} decimals={2} onCommit={(v) => v !== undefined && onChange({ ...o, frac: v })} />}

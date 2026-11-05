@@ -1,7 +1,7 @@
 import type { ClassId, Side } from './types';
 
 /** Surface ships move on the water, aircraft and missiles through the air, mines sit still. */
-export type Domain = 'surface' | 'air' | 'static';
+export type Domain = 'surface' | 'air' | 'static' | 'sub';
 
 export interface WeaponSpec {
   /** Damage done on a hit. */
@@ -24,6 +24,22 @@ export interface DefenceSpec {
   /** Seconds between its shots. */
   reloadS: number;
   magazine: number;
+  /** Seconds a missile has to have been tracked before this ship will shoot at it (when sensors matter). Default 6. */
+  reactionS?: number;
+}
+
+/** What a unit can sense with and how easily it is sensed. Illustrative. */
+export interface SensorSpec {
+  /** Search radar range against a one-square-meter target, meters. Absent: no radar. */
+  radarRangeM?: number;
+  /** Height of the antenna above the sea, meters (aircraft use their altitude). */
+  heightM?: number;
+  /** Sonar range against something of normal noise, meters. Absent: no sonar. */
+  sonarRangeM?: number;
+  /** Radar cross-section, square meters. */
+  rcsM2: number;
+  /** How noisy it is: 1 is a surface ship. Quiet submarines are well below. */
+  noise: number;
 }
 
 /** Illustrative dimensions and handling, rounded from public figures. Not for operational use. */
@@ -58,6 +74,31 @@ export interface ShipClass {
   weapon?: WeaponSpec;
   defence?: DefenceSpec;
 }
+
+/** Seas that slow a ship: speed falls this fraction per sea state above `limit`, to no less than 40%. */
+export const SEA_KEEPING: Partial<Record<ClassId, { limit: number; slope: number }>> = {
+  CVN: { limit: 6, slope: 0.03 },
+  LHD: { limit: 6, slope: 0.04 },
+  CG: { limit: 5, slope: 0.06 },
+  DDG: { limit: 5, slope: 0.06 },
+  FAC: { limit: 3, slope: 0.12 },
+  CARGO: { limit: 5, slope: 0.08 },
+};
+
+export const SENSORS: Partial<Record<ClassId, SensorSpec>> = {
+  CVN: { radarRangeM: 110_000, heightM: 35, rcsM2: 50_000, noise: 1.3 },
+  LHD: { radarRangeM: 100_000, heightM: 30, rcsM2: 30_000, noise: 1.2 },
+  CG: { radarRangeM: 130_000, heightM: 25, sonarRangeM: 15_000, rcsM2: 8_000, noise: 1 },
+  DDG: { radarRangeM: 120_000, heightM: 22, sonarRangeM: 18_000, rcsM2: 6_000, noise: 1 },
+  FAC: { radarRangeM: 35_000, heightM: 10, rcsM2: 300, noise: 0.8 },
+  CARGO: { radarRangeM: 20_000, heightM: 20, rcsM2: 20_000, noise: 1.1 },
+  FIGHTER: { radarRangeM: 150_000, heightM: 2, rcsM2: 5, noise: 0 },
+  HELO: { radarRangeM: 60_000, heightM: 2, sonarRangeM: 6_000, rcsM2: 15, noise: 0 },
+  ASM: { rcsM2: 0.3, noise: 0 },
+  SAM: { rcsM2: 0.5, noise: 0 },
+  SSN: { sonarRangeM: 25_000, heightM: 0, rcsM2: 100, noise: 0.35 },
+  TORP: { rcsM2: 0, noise: 0.9 },
+};
 
 const surface = { domain: 'surface' as const, visualBoost: 1, trailScale: 1 };
 
@@ -250,6 +291,44 @@ export const SHIP_CLASSES: Record<ClassId, ShipClass> = {
     climbRateMps: 250,
     weapon: { damage: 40, fuzeM: 60, pHit: 0.7, rangeM: 70_000 },
   },
+  SSN: {
+    id: 'SSN',
+    name: 'Attack submarine (SSN)',
+    domain: 'sub',
+    loaM: 110,
+    beamM: 12,
+    freeboardM: 1.2,
+    maxSpeedKt: 28,
+    accelKtPerS: 0.1,
+    turnRateDegPerS: 2,
+    windage: 0,
+    sensorRangeNm: 14,
+    hullColor: '#1d2328',
+    deckColor: '#262d33',
+    hp: 150,
+    visualBoost: 2,
+    trailScale: 0.3,
+  },
+  TORP: {
+    id: 'TORP',
+    name: 'Torpedo',
+    domain: 'sub',
+    loaM: 6,
+    beamM: 0.6,
+    freeboardM: 0.3,
+    maxSpeedKt: 50,
+    accelKtPerS: 2,
+    turnRateDegPerS: 6,
+    windage: 0,
+    sensorRangeNm: 0,
+    hullColor: '#cfd6dc',
+    deckColor: '#9fb0bd',
+    hp: 1,
+    visualBoost: 14,
+    trailScale: 0.5,
+    cruiseAltM: -15,
+    weapon: { damage: 120, fuzeM: 20, pHit: 0.75, rangeM: 28_000 },
+  },
   MINE: {
     id: 'MINE',
     name: 'Naval mine',
@@ -274,7 +353,7 @@ export const SHIP_CLASSES: Record<ClassId, ShipClass> = {
 export const CLASS_IDS = Object.keys(SHIP_CLASSES) as ClassId[];
 
 /** A missile: flies, homes on a target and is spent on reaching it. */
-export const isMissile = (cls: ShipClass): boolean => cls.domain === 'air' && !!cls.weapon;
+export const isMissile = (cls: ShipClass): boolean => (cls.domain === 'air' || cls.domain === 'sub') && !!cls.weapon;
 export const isMine = (cls: ShipClass): boolean => cls.domain === 'static' && !!cls.weapon;
 /** A ship or aircraft: what counts as a loss. */
 export const isPlatform = (cls: ShipClass): boolean => !cls.weapon;
@@ -336,6 +415,8 @@ const HULL_PROFILE: [number, number][] = [
 ];
 
 const OUTLINES: Partial<Record<ClassId, [number, number][]>> = {
+  SSN: [[-0.5, 0], [-0.46, 0.45], [-0.3, 0.9], [0.1, 1], [0.38, 0.8], [0.5, 0]],
+  TORP: [[-0.5, 0.5], [0.3, 0.5], [0.5, 0]],
   FIGHTER: [[-0.5, 0.2], [-0.3, 0.24], [0, 0.24], [0.25, 0.16], [0.4, 0.08], [0.5, 0]],
   HELO: [[-0.5, 0.05], [-0.25, 0.1], [0.1, 0.15], [0.3, 0.13], [0.5, 0]],
   ASM: [[-0.5, 0.5], [0.2, 0.5], [0.5, 0]],
@@ -501,6 +582,10 @@ function profile(id: ClassId): Block[] {
       return missileParts('#8a8f94');
     case 'SAM':
       return missileParts('#c0522d');
+    case 'SSN':
+      return [b(0.1, 0.07, 0, 0.1, 6, { lift: 0.4, color: '#2b333a' })];
+    case 'TORP':
+      return missileParts('#9fb0bd');
     case 'MINE':
       return [
         b(0, 0.3, 0, 0.3, 0.7, { color: '#c0392b' }),
@@ -528,7 +613,8 @@ function lightsFor(cls: ShipClass): ShipLight[] {
   const B = cls.beamM;
   const fb = cls.freeboardM;
   if (cls.domain === 'static') return [];
-  if (cls.weapon) return [{ x: -0.5 * L, y: 0, height: fb * 0.6, color: '#ff9a3c', size: Math.max(1.2, L * 0.25), alwaysGlow: true }];
+  if (cls.id === 'SSN') return [];
+  if (cls.weapon) return [{ x: -0.5 * L, y: 0, height: fb * 0.6, color: cls.domain === 'sub' ? '#9be7ff' : '#ff9a3c', size: Math.max(1.2, L * 0.25), alwaysGlow: true }];
   if (cls.domain === 'air') {
     const tip = cls.id === 'FIGHTER' ? B * 0.48 : B * 0.2;
     return [

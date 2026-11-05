@@ -99,7 +99,7 @@ function unit(v: unknown, i: number): UnitConfig {
     speedKt: num(o.speedKt, `${what}.speedKt`),
     behavior: behavior(o.behavior, `${what}.behavior`),
   };
-  for (const key of ['maxTurnRateDegPerS', 'altitudeM', 'hp', 'damage', 'pHit', 'pKill', 'magazine'] as const) {
+  for (const key of ['maxTurnRateDegPerS', 'altitudeM', 'hp', 'damage', 'pHit', 'pKill', 'magazine', 'signature', 'radarRangeM', 'decoys', 'pDecoy'] as const) {
     const n = optNum(o, key, what);
     if (n !== undefined) u[key] = n;
   }
@@ -177,13 +177,15 @@ function outcomeCore(v: unknown, i: number): OutcomeSpec {
       return { ...base, type: 'intercepts', atLeast: num(o.atLeast, `${what}.atLeast`) };
     case 'closest_approach':
       return { ...base, type: 'closest_approach', aId: str(o.aId, `${what}.aId`), bId: str(o.bId, `${what}.bId`), withinM: num(o.withinM, `${what}.withinM`) };
+    case 'detected':
+      return o.bySide === undefined ? { ...base, type: 'detected', unitId: str(o.unitId, `${what}.unitId`) } : { ...base, type: 'detected', unitId: str(o.unitId, `${what}.unitId`), bySide: oneOf(o.bySide, SIDES, `${what}.bySide`) };
     case 'all':
     case 'any':
       return { ...base, type: o.type, of: list(o.of, `${what}.of`).map((x, k) => str(x, `${what}.of[${k}]`)) };
     case 'not':
       return { ...base, type: 'not', of: str(o.of, `${what}.of`) };
     default:
-      throw new Error(`${what}.type must be destroyed, hit, hp_below, side_losses, mine_strike, intercepts, closest_approach, all, any or not.`);
+      throw new Error(`${what}.type must be destroyed, hit, hp_below, side_losses, mine_strike, intercepts, closest_approach, detected, all, any or not.`);
   }
 }
 
@@ -235,6 +237,8 @@ export function parseScenario(json: string): ScenarioConfig {
   };
   const seed = optNum(o, 'seed', 'The scenario');
   if (seed !== undefined) scenario.seed = seed;
+  if (o.detection === true) scenario.detection = true;
+  if (o.seaState === true) scenario.seaState = true;
   if (o.redTeam !== undefined) scenario.redTeam = parseRedTeam(o.redTeam);
   const problems = validateScenario(scenario);
   if (problems.length) throw new Error(problems[0]);

@@ -81,6 +81,7 @@ const BURST: Partial<Record<EventType, { seconds: number; radiusM: number; color
   intercept: { seconds: 15, radiusM: 170, color: '#bfe6ff' },
   launch: { seconds: 12, radiusM: 90, color: '#ffd24a' },
   miss: { seconds: 12, radiusM: 110, color: '#9aa7b3' },
+  detected: { seconds: 20, radiusM: 380, color: '#5ee6c8' },
 };
 
 const WRECK = '#101214';

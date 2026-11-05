@@ -311,8 +311,13 @@ export class ExerciseController {
     return exportScenario(this.state.get().scenario);
   }
 
-  patchScenario(patch: Partial<Pick<ScenarioConfig, 'name' | 'description' | 'durationS' | 'lightPreset' | 'center' | 'seed'>>): void {
-    this.edit((d) => Object.assign(d, patch));
+  patchScenario(patch: Partial<Pick<ScenarioConfig, 'name' | 'description' | 'durationS' | 'lightPreset' | 'center' | 'seed' | 'detection' | 'seaState'>>): void {
+    // Switches that are off are left out of the scenario rather than saved as false.
+    this.edit((d) => {
+      Object.assign(d, patch);
+      if (!d.detection) delete d.detection;
+      if (!d.seaState) delete d.seaState;
+    });
   }
 
   patchEnvironment(patch: Partial<Environment>): void {

@@ -5,7 +5,7 @@ export interface LonLat {
   lat: number;
 }
 
-export type ClassId = 'CVN' | 'LHD' | 'CG' | 'DDG' | 'FAC' | 'CARGO' | 'FIGHTER' | 'HELO' | 'ASM' | 'SAM' | 'MINE';
+export type ClassId = 'CVN' | 'LHD' | 'CG' | 'DDG' | 'FAC' | 'CARGO' | 'FIGHTER' | 'HELO' | 'ASM' | 'SAM' | 'MINE' | 'SSN' | 'TORP';
 export type Side = 'BLUE' | 'RED' | 'NEUTRAL';
 
 export interface Waypoint extends LonLat {
@@ -60,6 +60,14 @@ export interface UnitConfig {
   pKill?: number;
   /** Defensive shots this ship has. Defaults to the class's. */
   magazine?: number;
+  /** How visible it is to radar, as a multiple of its class's (1 is normal, 0.1 is stealthy). Detection range scales with its fourth root. */
+  signature?: number;
+  /** Radar range against a one-square-meter target, meters. Defaults to the class's. */
+  radarRangeM?: number;
+  /** Decoys and jammers: each missile or torpedo that gets close uses one and may be led away. Default 0. */
+  decoys?: number;
+  /** Chance one decoy leads a weapon away, 0 to 1. Default 0.3. */
+  pDecoy?: number;
 }
 
 export interface Environment {
@@ -98,6 +106,10 @@ export type UnitField =
   | 'pHit'
   | 'pKill'
   | 'magazine'
+  | 'signature'
+  | 'radarRangeM'
+  | 'decoys'
+  | 'pDecoy'
   /** 0 or 1. */
   | 'disabled';
 
@@ -132,6 +144,8 @@ export type OutcomeSpec = {
   | { type: 'intercepts'; atLeast: number }
   /** Two units come within this distance of each other at some point. */
   | { type: 'closest_approach'; aId: string; bId: string; withinM: number }
+  /** The unit is first picked up by sensors, by any unit of the other sides or of one side. Needs "Sensors and detection" on. */
+  | { type: 'detected'; unitId: string; bySide?: Side }
   /** Every one of these earlier outcomes happens. It happens when the last of them does. */
   | { type: 'all'; of: string[] }
   /** At least one of these earlier outcomes happens. It happens when the first of them does. */
@@ -169,6 +183,13 @@ export interface ScenarioConfig {
   units: UnitConfig[];
   /** Seeds the chance rolls (missile hits, defensive shots, mines) of the run you watch. Default 1. */
   seed?: number;
+  /**
+   * Units only know about what their side's sensors can see: radar limited by the horizon and by the sea, sonar for what is
+   * under the water. Missiles are only fired at tracked targets and ships only shoot at tracked missiles. Off: everyone sees everything.
+   */
+  detection?: boolean;
+  /** The sea gets rough with the wind: small ships slow down and radar loses low targets in the clutter. */
+  seaState?: boolean;
   /** Settings for the Monte Carlo runner. Does not affect the run you watch. */
   redTeam?: RedTeamSpec;
 }

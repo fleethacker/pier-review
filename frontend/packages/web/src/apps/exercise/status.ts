@@ -58,6 +58,10 @@ export function eventText(e: SimEvent, name: (id: string) => string): string {
       return `${unit} went off under ${other}${left}`;
     case 'destroyed':
       return `${unit} was destroyed${other ? ` by ${other}` : ''}`;
+    case 'detected':
+      return `${unit} was detected by ${other}`;
+    case 'held':
+      return `${unit} held: ${e.detail ?? 'not ready'} (${other})`;
   }
 }
 
@@ -69,6 +73,8 @@ export const EVENT_COLOR: Record<SimEvent['type'], string> = {
   miss: '#9aa7b3',
   mine: '#ff8a2a',
   destroyed: '#ff3b1a',
+  detected: '#5ee6c8',
+  held: '#c7a24a',
 };
 
 /** The unit worth looking at for an event: the ship or aircraft involved rather than a missile or mine. */

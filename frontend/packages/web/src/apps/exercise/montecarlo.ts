@@ -1,5 +1,5 @@
 import { formatClock, offsetM } from './geo';
-import { SHIP_CLASSES, isMine, isMissile, isPlatform } from './ships';
+import { SENSORS, SHIP_CLASSES, isMine, isMissile, isPlatform } from './ships';
 import { closestApproachM, makeRng, readSample, runScenario, unitHp, validateScenario } from './sim';
 import type { Trajectory } from './sim';
 import type {
@@ -30,6 +30,10 @@ export const UNIT_FIELDS: UnitField[] = [
   'pHit',
   'pKill',
   'magazine',
+  'signature',
+  'radarRangeM',
+  'decoys',
+  'pDecoy',
   'disabled',
 ];
 const OFFSET_FIELDS = new Set<UnitField>(['startEastM', 'startNorthM', 'routeEastM', 'routeNorthM']);
@@ -99,6 +103,14 @@ export function unitFieldValue(u: UnitConfig, field: UnitField): number | undefi
       return u.pKill ?? cls.defence?.pKill ?? 0;
     case 'magazine':
       return u.magazine ?? cls.defence?.magazine ?? 0;
+    case 'signature':
+      return u.signature ?? 1;
+    case 'radarRangeM':
+      return u.radarRangeM ?? SENSORS[u.classId]?.radarRangeM ?? 0;
+    case 'decoys':
+      return u.decoys ?? 0;
+    case 'pDecoy':
+      return u.pDecoy ?? 0.3;
     case 'disabled':
       return u.disabled ? 1 : 0;
     default:
@@ -143,6 +155,14 @@ function setUnitField(u: UnitConfig, field: UnitField, v: number): number {
       return (u.pKill = clamp(v, 0, 1));
     case 'magazine':
       return (u.magazine = Math.max(0, Math.round(v)));
+    case 'signature':
+      return (u.signature = Math.max(0.001, v));
+    case 'radarRangeM':
+      return (u.radarRangeM = Math.max(0, v));
+    case 'decoys':
+      return (u.decoys = Math.max(0, Math.round(v)));
+    case 'pDecoy':
+      return (u.pDecoy = clamp(v, 0, 1));
     case 'disabled':
       u.disabled = v >= 0.5;
       return u.disabled ? 1 : 0;
@@ -268,6 +288,10 @@ export function evaluateOutcome(scenario: ScenarioConfig, traj: Trajectory, o: O
       const tS = closestApproachTime(traj, a, b, o.withinM);
       return tS === undefined ? { hit: false } : { hit: true, tS };
     }
+    case 'detected': {
+      const sideOf = (id?: string) => (id ? units.get(id)?.side : undefined);
+      return first((e) => e.type === 'detected' && e.unitId === o.unitId && (o.bySide === undefined || sideOf(e.otherId) === o.bySide));
+    }
     case 'all':
     case 'any':
     case 'not':
@@ -316,6 +340,8 @@ export function describeOutcome(o: OutcomeSpec, name: (id: string) => string, ou
       return `${o.atLeast}+ missiles shot down${when}`;
     case 'closest_approach':
       return `${name(o.aId)} within ${o.withinM} m of ${name(o.bId)}${when}`;
+    case 'detected':
+      return `${name(o.unitId)} detected${o.bySide ? ` by ${o.bySide.toLowerCase()}` : ''}${when}`;
     case 'all':
       return `${o.of.map(outcomeName).join(' and ')}${when}`;
     case 'any':
@@ -436,6 +462,8 @@ export function validateRedTeam(base: ScenarioConfig, spec: RedTeamSpec): string
     outcomeIds.add(o.id);
     const what = `Outcome "${o.label ?? o.id}"`;
     if (o.beforeS !== undefined && !(o.beforeS > 0)) errors.push(`${what}: the time limit must be above zero.`);
+    if (o.type === 'detected' && o.bySide !== undefined && !SIDES.includes(o.bySide)) errors.push(`${what}: unknown side.`);
+    if (o.type === 'detected' && !base.detection) errors.push(`${what}: turn on "Sensors and detection" for the scenario, or nothing is ever detected.`);
     if (o.type === 'all' || o.type === 'any' || o.type === 'not') {
       const refs = o.type === 'not' ? [o.of] : o.of;
       if (refs.length === 0) errors.push(`${what}: pick at least one outcome to combine.`);

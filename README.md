@@ -3,8 +3,8 @@
 Mooring planning demonstrator for FLEETHACKER Norfolk 2026. It evaluates mooring configurations, tug assistance and draft
 line sequences against wind, current and tide, and produces a Mooring Evolution Safety Sheet. The plan, phases and module
 list are in [docs/PLAN.md](docs/PLAN.md). Current implementation and gaps are tracked in the
-[build-out ledger](docs/MODELING_BUILDOUT_STATUS.md); overnight work follows
-[the expanded modeling plan](docs/MODELING_OVERNIGHT_PLAN.md).
+[build-out ledger](docs/MODELING_BUILDOUT_STATUS.md); **priorities, owners and
+sequence for the rest of the build are in the [master plan](docs/MASTER_PLAN.md).**
 
 > **Real code, placeholder data.** Implemented: UFC environmental loads, static equilibrium, limiting wind and tide sweep,
 > rated tug allocation, holding-plan checks, bounded line-plan search, draft sequence checks, risk sampling, bounded jobs

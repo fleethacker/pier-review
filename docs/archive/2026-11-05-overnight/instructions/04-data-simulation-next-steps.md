@@ -39,14 +39,14 @@ this review; their requested scope must not be confused with delivered behavior.
 ## Findings that determine the order of work
 
 1. **Source configuration can silently select synthetic data.** In
-   [environment dispatch](../modeling/mooring/environment/__init__.py), modes other
+   [environment dispatch](../../../../modeling/mooring/environment/__init__.py), modes other
    than `coops` fall through to the mock path. This includes `auto` and misspellings.
    Reject unknown configuration; implement an explicit `auto` policy before using
    that setting. Synthetic data must never repair a failed operational provider.
 2. **Installed forecast readers do not provide a composed planning forecast.**
    The configured CO-OPS forecast path is unavailable; NWS and CBOFS are separate
    readers. `/env/forecast` lacks a scenario/as-of selector, while
-   [scenario resolution](../modeling/mooring/scenarios.py) rejects forecast/replay
+   [scenario resolution](../../../../modeling/mooring/scenarios.py) rejects forecast/replay
    modes. An explicit environment scenario is currently needed for those workflows.
 3. **Partial availability needs an API decision.** The live path requires joined
    wind, current and water-level observations. A missing component can prevent the
@@ -90,10 +90,10 @@ configuration across both uses.
 
 Owner: data/platform; modeling and UI review the additive contract.
 
-Start with [environment dispatch](../modeling/mooring/environment/__init__.py),
-[live acquisition](../modeling/mooring/environment/live.py),
-[environment schemas](../modeling/mooring/core/schemas/environment.py) and
-[environment routes](../modeling/modeling_api/routers/env.py).
+Start with [environment dispatch](../../../../modeling/mooring/environment/__init__.py),
+[live acquisition](../../../../modeling/mooring/environment/live.py),
+[environment schemas](../../../../modeling/mooring/core/schemas/environment.py) and
+[environment routes](../../../../modeling/modeling_api/routers/env.py).
 
 - Validate configuration against supported modes. Define explicit operational,
   recorded-replay and synthetic behavior, including whether startup or the request
@@ -119,11 +119,11 @@ use injected clocks and local fixtures, including malformed/partial responses.
 Owner: data acquisition plus modeling API; agents own consumer binding. Depends on
 packet 1. This is the first complete user-visible milestone.
 
-Read [NWS notes](../docs/DC2_NWS_FORECAST.md),
-[CBOFS notes](../docs/DC3_CBOFS_FORECAST.md) and
-[forecast docking design](../docs/FORECAST_DOCKING.md). Reuse
-[forecast planning](../modeling/mooring/moored/forecast_planning.py) and
-[forecast provenance](../modeling/mooring/core/forecast_provenance.py).
+Read [NWS notes](../../../../docs/DC2_NWS_FORECAST.md),
+[CBOFS notes](../../../../docs/DC3_CBOFS_FORECAST.md) and
+[forecast docking design](../../../../docs/FORECAST_DOCKING.md). Reuse
+[forecast planning](../../../../modeling/mooring/moored/forecast_planning.py) and
+[forecast provenance](../../../../modeling/mooring/core/forecast_provenance.py).
 
 - Compose NWS wind with applicable tide/current predictions or CBOFS output.
   Preserve each source and basis rather than calling the mixture one observation.
@@ -161,10 +161,10 @@ the same revision. Extend `test_dc2_nws.py`, `test_dc3_cbofs.py`,
 Owner: simulation/API; coordinate contract consumption with the UI colleague.
 Can proceed alongside packet 2 once interface ownership is agreed.
 
-Read [motion design](../docs/MOTION_FRAME_DESIGN.md),
-[berthing simulator](../modeling/mooring/berthing/simulator.py),
-[session scheduler](../modeling/modeling_api/sim_sessions.py) and
-[berthing routes](../modeling/modeling_api/routers/berthing.py).
+Read [motion design](../../../../docs/MOTION_FRAME_DESIGN.md),
+[berthing simulator](../../../../modeling/mooring/berthing/simulator.py),
+[session scheduler](../../../../modeling/modeling_api/sim_sessions.py) and
+[berthing routes](../../../../modeling/modeling_api/routers/berthing.py).
 
 - Populate existing motion fields from actual simulator state: immutable scene
   identity/revision, session/run identity, sequence, geometry and available forces.
@@ -208,7 +208,7 @@ Acceptance: time-varying tide/current fixture produces identical batch/WS paths;
 network rate cannot change forcing time; known relative-flow/frame cases agree;
 constant forcing preserves existing checks; gaps and invalid depths are visible.
 Place reusable synthetic generators in
-[data_simulation](../modeling/mooring/data_simulation/README.md), with explicit
+[data_simulation](../../../../modeling/mooring/data_simulation/README.md), with explicit
 seed, UTC anchor and `not_a_forecast` provenance.
 
 ### 5. P1/P2 — Tug geometry and bounded vertical motion
@@ -231,7 +231,7 @@ response. A useful animation does not establish a safe docking envelope.
 ### 6. P2 — Wave inputs and defensible local applicability
 
 Owner: data for acquisition; modeling for response and applicability.
-Read [wave source investigation](../docs/DC4_WAVE_SOURCE_INVESTIGATION.md).
+Read [wave source investigation](../../../../docs/DC4_WAVE_SOURCE_INVESTIGATION.md).
 
 - Implement the documented NDBC 44099 observation / GFS-Wave forecast path, with
   44014 as an independent check where applicable. CBOFS is not a wave source.
@@ -263,7 +263,7 @@ qualification. Start at `environment/uncertainty.py`, `scripts/fit_uncertainty.p
 and `test_s10_uncertainty.py`.
 
 **Telemetry:** ingest and arbitration exist, but arbitration is not wired into the
-environment service. See [telemetry support](../docs/DC7_TELEMETRY_SUPPORT.md).
+environment service. See [telemetry support](../../../../docs/DC7_TELEMETRY_SUPPORT.md).
 Build candidates from actual freshness, quality, calibration and qualification;
 do not rely on permissive candidate defaults. Scope by principal/vessel, preserve
 explicit scenario/manual choices, and distinguish true/apparent wind correctly.
@@ -273,7 +273,7 @@ out-of-order/future timestamps, cross-vessel isolation and fallback provenance.
 
 ### 8. P3 — Connect ENC evidence to approach/UKC with honest limits
 
-Owner: data/approach. Read [ENC qualification](../docs/DC6_ENC_QUALIFICATION.md).
+Owner: data/approach. Read [ENC qualification](../../../../docs/DC6_ENC_QUALIFICATION.md).
 
 The reader checks supported datum/units and corridor coverage using depth areas;
 the runtime approach package is still mock. Depth areas alone do not cover

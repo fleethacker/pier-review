@@ -1,5 +1,6 @@
 """Shared API state and dependencies: job store, modeling client, per-agent physics toolkits."""
 
+import os
 from typing import Annotated
 
 from fastapi import Depends
@@ -10,7 +11,11 @@ from ..physics.client import ModelingClient
 from ..physics.toolkit import PhysicsToolkit
 
 API_PREFIX = "/api/v1"
-JOBS = JobStore(API_PREFIX)
+_workers = int(os.environ.get("AGENTS_WORKERS", "2"))
+_queue = int(os.environ.get("AGENTS_QUEUE", "16"))
+if _workers < 1 or _queue < 0:
+    raise ValueError("AGENTS_WORKERS must be positive and AGENTS_QUEUE nonnegative")
+JOBS = JobStore(API_PREFIX, workers=_workers, queue_size=_queue)
 
 
 def get_client() -> ModelingClient:

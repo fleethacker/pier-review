@@ -9,6 +9,7 @@ from mooring import refdata
 from ...backend import intake
 from ...intake.schemas import IntakeReport, IntakeRequest
 from ..state import JOBS, IntakeTools
+from ..execution import submit_async
 from mooring.core.schemas import JobAccepted
 
 router = APIRouter(tags=["Intake agent"])
@@ -19,8 +20,7 @@ router = APIRouter(tags=["Intake agent"])
 async def create_intake_report(tk: IntakeTools, req: Annotated[IntakeRequest, Body(openapi_examples={"default": {
         "summary": "Next 24 h for a saved scenario",
         "value": {"scenario_id": "<scenario_id from modeling POST /scenarios>", "horizon_hours": 24}}})]):
-    report = await intake.assess(req, tk)
-    return JOBS.submit("intake.report", report)
+    return submit_async(JOBS, "intake.report", tk, lambda ctx: intake.assess(req, tk))
 
 
 @router.get("/intake/reports/{report_id}", response_model=IntakeReport)

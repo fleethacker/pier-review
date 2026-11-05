@@ -193,15 +193,28 @@ async def _conditions(tk, sc, cfg, environments, mst, tugs):
     return checks, max(range(len(checks)), key=lambda i: _score(checks[i]))
 
 
-async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
+class EventLog(list):
+    """Keep the replay record and publish each event when it is computed."""
+    def __init__(self, callback=None):
+        super().__init__()
+        self.callback = callback
+
+    def append(self, event):
+        if self.callback:
+            self.callback(*event)
+        super().append(event)
+
+
+async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None = None,
+              scenario: Scenario | None = None, on_event=None) -> PlanRecord:
     if req.constraints:
         raise ModelingError(422, "Planner constraints are not implemented; refusing to ignore them")
     if req.objective != "moor_for_forecast":
         raise ModelingError(422, "Only moor_for_forecast is currently supported")
-    plan_id = new_id("plan")
+    plan_id = plan_id or new_id("plan")
     tk.plan_id = plan_id
     llm, model_id = _safe()
-    events: list[tuple[str, dict]] = []
+    events: list[tuple[str, dict]] = EventLog(on_event)
     rationale: list[RationaleItem] = []
     open_questions: list[str] = []
     event_no = 0
@@ -212,7 +225,7 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit) -> PlanRecord:
         events.append(("step", AgentStepEvent(iteration=event_no, thought_summary=summary, tool=tool,
                                                result_id=result_id).model_dump(mode="json")))
 
-    sc = await tk.scenario(req.scenario_id)
+    sc = scenario or await tk.scenario(req.scenario_id)
     ship = await tk.ship(sc.ship_class_id)
     berth = await tk.berth(sc.berth_id)
     other_conditions: list[Any] = []

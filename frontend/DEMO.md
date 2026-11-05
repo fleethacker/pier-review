@@ -1,8 +1,9 @@
 # Demo walkthrough
 
-A five-minute path through the Phase 1 demo (gate G2): a green plan for a DDG 51 at a mock NAVSTA pier, tug
-horsepower, gust warnings in a storm, and an approved Mooring Evolution Safety Sheet. Everything runs on the mock
-backends, so every screen says **MOCK DATA**; say so out loud when you present it.
+A five-minute path through the current Phase 1 demonstration: a supported **AMBER/limited** plan for a DDG 51
+at a seed NAVSTA pier, tug assistance, synthetic storm warnings and a reviewed Mooring Evolution Safety Sheet.
+The modeling and agent workflows are implemented; the reference data and surrogate motion remain unqualified.
+Point out the seed-data and synthetic-source labels when presenting. This is not a completed G2 acceptance gate.
 
 ## Setup
 
@@ -12,6 +13,22 @@ cd frontend/packages/web && npm install && npm run dev      # http://localhost:4
 ```
 
 `make demo-check` at the repo root runs the whole demo headlessly and saves screenshots to `docs/overnight/screens/`.
+
+## Current acceptance scope
+
+The five-minute presentation below is the existing demo, not completion of the master plan. `make demo-check` now
+checks the supported, overloaded, invalid-depth and initially underconstrained cases through the full **API** chain.
+The underconstrained input is repaired by search; show its initial RED/invalid result separately from its final
+AMBER/limited result. Independent review identity is printed on each reviewed sheet. Supplied training forecasts
+retain their synthetic labels; a successful API check does not establish the advance-planning UI story.
+
+Live motion still uses legacy frames on this branch; rich rm0 playback is an authored fixture. Source-component
+availability, live scenes/recordings/speed, forecast revision binding and U1/U2/U4 browser acceptance remain open.
+Run `make demo-check-readiness` to see the explicit gaps. Current rehearsal is local; no Domino or clean-`main`
+release rehearsal is claimed.
+
+[Local rehearsal screenshots](../docs/LOCAL_REHEARSAL.md) show the seed-data workspace, printed independent-review
+identity and authored motion replay. Use them with their qualification labels visible.
 
 ## Script
 

@@ -309,14 +309,33 @@ Bixler updates this table; everyone else posts in the team channel.
 
 | Item | Owner | State | PR | Notes |
 | --- | --- | --- | --- | --- |
-| A0 remote cut-over | Bixler | history imported; default branch and CI to confirm | | |
-| S1 rm0 live frames | Snyder (Claude) | not started | | interface PR first |
-| P1 forecast resolver | Snyder (GPT) | not started | | |
+| A0 remote cut-over | Bixler | local cut-over docs complete; protection pending admin | | GitHub checked 5 Nov: default `main`, `dev`/`main` unprotected; explicit `--base dev`; CI triggers both branches |
+| S1 rm0 live frames | Snyder (Claude) | remote branches published; not integrated here | | `ws-e/s1-frames`, `ws-e/s1-protocol`, `ws-e/s1-rm0-live-frames`; baseline still emits legacy frames |
+| P1 forecast resolver | Snyder (GPT) | interface published; implementation/merge pending | | `ws-b/p1-forecast-resolver` at `828d5ec`; resolve route is a 501 preview |
 | U1 Intake/review selection | Kori | not started | | |
 | U2 live rm0 motion | Kori | blocked on S1 interface | | build on fixtures meanwhile |
 | D1 source selection | Cruz | not started | | |
 | D2 composed forecast | Cruz | not started | | |
-| A1 demo-check | Bixler | not started | | |
+| A1 demo-check | Bixler | expanded baseline implemented locally; full gate pending | | Four API chains, synthetic advance planning, legacy WS; CI job added; readiness profile fails uncovered S1/D1/A3/browser gates |
+| A2 hosting | Bixler | local launcher/browser rehearsal passed; target deferred | | Node >=22.17, startup health, installer/service cleanup, HTML fallback; Bixler requested local tests instead of Domino |
+| A3 forecast binding | Bixler | blocked on implemented P1/D2 | | Published binding/manifest contract exists; resolver still 501, no latest-revision lookup for supplied series; saved-source Safety watch remains |
+| A4 release | Bixler | draft notes/procedure prepared; unreleased | | [Release draft](RELEASE_NOTES.md); milestone dependencies, review, CI and clean-main target gate remain |
+| A5 vision | Bixler | implemented locally | | Fixture-image/fake-LLM HTTP flow; empty/duplicate/oversized proposal fallback; no-LLM catalog labels preserved |
+| A6 docs | Bixler | integration truthfulness pass | | README, contribution/release/hosting docs and UI/modeling status distinguish baseline evidence from full acceptance |
+
+This Bixler work is on `agents/a0-bixler-integration`, based on `origin/dev` at `282c046`. Changes are local and
+unreleased. The new CI job retains logs and failure ownership in its run summary; no team messages were sent.
+Cross-workstream edits are limited to the A6 status notes in the modeling ledger and UI plan/demo documents.
+
+Local validation: **1,769 Python tests and 227 UI tests passed**; contract/typecheck/lint/build, Bash syntax and
+ShellCheck passed. The actual `app.sh` rehearsal passed **27 API/browser checks**, including REST/SSE/WS and the
+printed review ID. Readiness correctly failed six explicitly uncovered build requirements. See
+[local rehearsal evidence and screenshots](LOCAL_REHEARSAL.md); this is not release or Domino evidence.
+
+A3's next implementation should consume P1's logged resolver response, retain `forecast_manifest` through Intake,
+Planner, review and sheet, and compare `revision`, `content_hash` and `binding_hash` before explicit reassessment.
+No duplicate resolver or provisional public schema was introduced. Safety watch also needs a D2-supported way to
+look up a newer source revision; a caller-declared `source_id` for supplied samples cannot provide that itself.
 
 ## Document map
 

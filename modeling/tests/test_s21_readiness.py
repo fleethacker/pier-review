@@ -223,7 +223,9 @@ def test_websocket_rejects_bad_messages_without_damaging_session(client,monkeypa
         ws.receive_json()
         if isinstance(payload,bytes): ws.send_bytes(payload)
         else: ws.send_text(payload)
-        with pytest.raises(WebSocketDisconnect) as exc: ws.receive_json()
+        # rm0-v1 may still deliver queued lifecycle/frame messages before the close.
+        with pytest.raises(WebSocketDisconnect) as exc:
+            while True: ws.receive_json()
         assert exc.value.code==code
     assert model.integrator.state==initial and model.t==0
     assert state.SESSIONS[session["session_id"]].connection is None

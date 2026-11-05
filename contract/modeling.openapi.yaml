@@ -1700,6 +1700,58 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/berthing/sessions/{session_id}/scene:
+    get:
+      tags:
+      - M11 Berthing simulator
+      summary: Static rm0-v1 scene (berth, hull, fittings, fenders) for an interactive session
+      operationId: session_scene_api_v1_berthing_sessions__session_id__scene_get
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimScene'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/berthing/sessions/{session_id}/recording:
+    get:
+      tags:
+      - M11 Berthing simulator
+      summary: 'Bounded recording of an interactive session: live copy, else the persisted one'
+      operationId: session_recording_api_v1_berthing_sessions__session_id__recording_get
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimRecording'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/approach/route:
     post:
       tags:
@@ -7044,6 +7096,169 @@ components:
       - kind
       - source
       title: MotionProvenance
+    MotionSceneDepth:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        position:
+          $ref: '#/components/schemas/BerthPosition'
+        depth_mllw_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Depth Mllw Ft
+      additionalProperties: false
+      type: object
+      required:
+      - position
+      title: MotionSceneDepth
+    MotionSceneFender:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        fender_id:
+          type: string
+          minLength: 1
+          title: Fender Id
+        position:
+          $ref: '#/components/schemas/BerthPosition'
+        length_ft:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Length Ft
+        standoff_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Standoff Ft
+      additionalProperties: false
+      type: object
+      required:
+      - fender_id
+      - position
+      title: MotionSceneFender
+    MotionScenePierFitting:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        fitting_id:
+          type: string
+          minLength: 1
+          title: Fitting Id
+        position:
+          $ref: '#/components/schemas/BerthPosition'
+        kind:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Kind
+        capacity_lbf:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Capacity Lbf
+      additionalProperties: false
+      type: object
+      required:
+      - fitting_id
+      - position
+      title: MotionScenePierFitting
+    MotionSceneShipFitting:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        fitting_id:
+          type: string
+          minLength: 1
+          title: Fitting Id
+        position:
+          $ref: '#/components/schemas/ShipPoint'
+        kind:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Kind
+        capacity_lbf:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Capacity Lbf
+      additionalProperties: false
+      type: object
+      required:
+      - fitting_id
+      - position
+      title: MotionSceneShipFitting
     MotionTugState:
       properties:
         availability:
@@ -9007,6 +9222,29 @@ components:
       - velocity
       - dofs
       title: ShipMotion
+    ShipPoint:
+      properties:
+        x_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: X Ft
+          description: Forward from the ship reference origin.
+        y_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Y Ft
+          description: Port from the ship reference origin.
+        z_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Z Ft
+          description: Up from the declared reference waterline/loading.
+      additionalProperties: false
+      type: object
+      title: ShipPoint
     ShipState:
       properties:
         x_ft:
@@ -9215,6 +9453,313 @@ components:
       - alerts
       title: SimFrame
       description: 'One frame: a WS /ws/sim/{session_id} message, or one entry of a batch run''s series.'
+    SimLifecycle:
+      properties:
+        type:
+          type: string
+          const: session_lifecycle
+          title: Type
+          default: session_lifecycle
+        schema_version:
+          type: string
+          const: rm0-v1
+          title: Schema Version
+          default: rm0-v1
+        session_id:
+          type: string
+          minLength: 1
+          title: Session Id
+        run_id:
+          type: string
+          minLength: 1
+          title: Run Id
+          description: Changes on reset; sequence remains monotonic for the session.
+        sequence:
+          type: integer
+          minimum: 0.0
+          title: Sequence
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+        state:
+          type: string
+          enum:
+          - created
+          - running
+          - paused
+          - reset
+          - ended
+          - error
+          title: State
+        scene_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scene Id
+        scene_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scene Revision
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        speed:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Speed
+          description: Current simulated seconds per wall second.
+      additionalProperties: false
+      type: object
+      required:
+      - session_id
+      - run_id
+      - sequence
+      - t_s
+      - state
+      title: SimLifecycle
+      description: Server lifecycle metadata for the rm0-v1 session stream.
+    SimRecording:
+      properties:
+        schema_version:
+          type: string
+          const: rm0-v1
+          title: Schema Version
+          default: rm0-v1
+        recording_id:
+          type: string
+          minLength: 1
+          title: Recording Id
+        session_id:
+          type: string
+          minLength: 1
+          title: Session Id
+        scene_id:
+          type: string
+          minLength: 1
+          title: Scene Id
+        scene_revision:
+          type: string
+          minLength: 1
+          title: Scene Revision
+        duration_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Duration S
+          description: Recorded simulation duration, excluding paused wall time.
+        sampling:
+          $ref: '#/components/schemas/SimSamplingPolicy'
+        frames:
+          items:
+            $ref: '#/components/schemas/SimFrame'
+          type: array
+          maxItems: 10000
+          minItems: 1
+          title: Frames
+        lifecycle:
+          items:
+            $ref: '#/components/schemas/SimLifecycle'
+          type: array
+          maxItems: 1000
+          title: Lifecycle
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - recording_id
+      - session_id
+      - scene_id
+      - scene_revision
+      - sampling
+      - frames
+      title: SimRecording
+      description: Bounded display recording. Sequence gaps mean decimation, never missing physics integration steps.
+    SimSamplingPolicy:
+      properties:
+        physics_dt_s:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Physics Dt S
+          description: Integrator step if fixed; rendering never controls it.
+        display_interval_s:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Display Interval S
+        max_pending_frames:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Max Pending Frames
+        slow_client_policy:
+          type: string
+          const: drop_display_frames
+          title: Slow Client Policy
+          default: drop_display_frames
+        description:
+          type: string
+          title: Description
+          default: Keep the newest display frame; never skip or slow physics. Sequence gaps disclose dropped frames.
+      additionalProperties: false
+      type: object
+      title: SimSamplingPolicy
+    SimScene:
+      properties:
+        availability:
+          type: string
+          enum:
+          - available
+          - unavailable
+          - not_simulated
+          - unknown
+          title: Availability
+          default: unknown
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionProvenance'
+          - type: 'null'
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Absent means unknown, never valid.
+        schema_version:
+          type: string
+          const: rm0-v1
+          title: Schema Version
+          default: rm0-v1
+        scene_id:
+          type: string
+          minLength: 1
+          title: Scene Id
+        revision:
+          type: string
+          minLength: 1
+          title: Revision
+        berth_id:
+          type: string
+          minLength: 1
+          title: Berth Id
+        ship_class_id:
+          type: string
+          minLength: 1
+          title: Ship Class Id
+        loading:
+          type: string
+          minLength: 1
+          title: Loading
+        face_bearing_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: Face Bearing True Deg
+        deck_height_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Deck Height Mllw Ft
+          description: Fixed pier-deck elevation above MLLW.
+        ship_reference:
+          type: string
+          title: Ship Reference
+          description: Origin used by ship geometry and frame motion.
+          default: midships at the reference waterline
+        berth_outline:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/BerthPosition'
+            type: array
+            maxItems: 0
+          - items:
+              $ref: '#/components/schemas/BerthPosition'
+            type: array
+            maxItems: 4096
+            minItems: 3
+          - type: 'null'
+          title: Berth Outline
+        ship_hull_outline:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ShipPoint'
+            type: array
+            maxItems: 0
+          - items:
+              $ref: '#/components/schemas/ShipPoint'
+            type: array
+            maxItems: 4096
+            minItems: 3
+          - type: 'null'
+          title: Ship Hull Outline
+        ship_fittings:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionSceneShipFitting'
+            type: array
+            maxItems: 512
+          - type: 'null'
+          title: Ship Fittings
+        pier_fittings:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionScenePierFitting'
+            type: array
+            maxItems: 512
+          - type: 'null'
+          title: Pier Fittings
+        fenders:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionSceneFender'
+            type: array
+            maxItems: 512
+          - type: 'null'
+          title: Fenders
+        depth_profile:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionSceneDepth'
+            type: array
+            maxItems: 4096
+          - type: 'null'
+          title: Depth Profile
+      additionalProperties: false
+      type: object
+      required:
+      - scene_id
+      - revision
+      - berth_id
+      - ship_class_id
+      - loading
+      title: SimScene
+      description: Static scene fetched once. Producers publish a new revision whenever scene content changes.
     SimSeries:
       properties:
         job_id:
@@ -9247,6 +9792,13 @@ components:
             exclusiveMinimum: 0.0
           - type: 'null'
           title: Duration S
+        record_interval_s:
+          anyOf:
+          - type: number
+            minimum: 0.1
+          - type: 'null'
+          title: Record Interval S
+          description: Simulation-time interval between recorded frames; absent means 1 s.
         scenario_id:
           type: string
           title: Scenario Id
@@ -9283,6 +9835,12 @@ components:
           - type: 'null'
           title: Protocol
           description: Present only when the session implements the RM0 stream protocol.
+        recording_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recording Url
+          description: Bounded SimRecording resource for this session (live copy, else persisted).
       additionalProperties: false
       type: object
       required:
@@ -12478,184 +13036,6 @@ components:
       - message
       title: JobProgressEvent
       type: object
-    MotionSceneDepth:
-      additionalProperties: false
-      properties:
-        availability:
-          default: unknown
-          enum:
-          - available
-          - unavailable
-          - not_simulated
-          - unknown
-          title: Availability
-          type: string
-        provenance:
-          anyOf:
-          - $ref: '#/components/schemas/MotionProvenance'
-          - type: 'null'
-          default: null
-        validity:
-          anyOf:
-          - $ref: '#/components/schemas/Validity'
-          - type: 'null'
-          default: null
-          description: Absent means unknown, never valid.
-        position:
-          $ref: '#/components/schemas/BerthPosition'
-        depth_mllw_ft:
-          anyOf:
-          - minimum: 0
-            type: number
-          - type: 'null'
-          default: null
-          title: Depth Mllw Ft
-      required:
-      - position
-      title: MotionSceneDepth
-      type: object
-    MotionSceneFender:
-      additionalProperties: false
-      properties:
-        availability:
-          default: unknown
-          enum:
-          - available
-          - unavailable
-          - not_simulated
-          - unknown
-          title: Availability
-          type: string
-        provenance:
-          anyOf:
-          - $ref: '#/components/schemas/MotionProvenance'
-          - type: 'null'
-          default: null
-        validity:
-          anyOf:
-          - $ref: '#/components/schemas/Validity'
-          - type: 'null'
-          default: null
-          description: Absent means unknown, never valid.
-        fender_id:
-          minLength: 1
-          title: Fender Id
-          type: string
-        position:
-          $ref: '#/components/schemas/BerthPosition'
-        length_ft:
-          anyOf:
-          - exclusiveMinimum: 0
-            type: number
-          - type: 'null'
-          default: null
-          title: Length Ft
-        standoff_ft:
-          anyOf:
-          - minimum: 0
-            type: number
-          - type: 'null'
-          default: null
-          title: Standoff Ft
-      required:
-      - fender_id
-      - position
-      title: MotionSceneFender
-      type: object
-    MotionScenePierFitting:
-      additionalProperties: false
-      properties:
-        availability:
-          default: unknown
-          enum:
-          - available
-          - unavailable
-          - not_simulated
-          - unknown
-          title: Availability
-          type: string
-        provenance:
-          anyOf:
-          - $ref: '#/components/schemas/MotionProvenance'
-          - type: 'null'
-          default: null
-        validity:
-          anyOf:
-          - $ref: '#/components/schemas/Validity'
-          - type: 'null'
-          default: null
-          description: Absent means unknown, never valid.
-        fitting_id:
-          minLength: 1
-          title: Fitting Id
-          type: string
-        position:
-          $ref: '#/components/schemas/BerthPosition'
-        kind:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Kind
-        capacity_lbf:
-          anyOf:
-          - exclusiveMinimum: 0
-            type: number
-          - type: 'null'
-          default: null
-          title: Capacity Lbf
-      required:
-      - fitting_id
-      - position
-      title: MotionScenePierFitting
-      type: object
-    MotionSceneShipFitting:
-      additionalProperties: false
-      properties:
-        availability:
-          default: unknown
-          enum:
-          - available
-          - unavailable
-          - not_simulated
-          - unknown
-          title: Availability
-          type: string
-        provenance:
-          anyOf:
-          - $ref: '#/components/schemas/MotionProvenance'
-          - type: 'null'
-          default: null
-        validity:
-          anyOf:
-          - $ref: '#/components/schemas/Validity'
-          - type: 'null'
-          default: null
-          description: Absent means unknown, never valid.
-        fitting_id:
-          minLength: 1
-          title: Fitting Id
-          type: string
-        position:
-          $ref: '#/components/schemas/ShipPoint'
-        kind:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Kind
-        capacity_lbf:
-          anyOf:
-          - exclusiveMinimum: 0
-            type: number
-          - type: 'null'
-          default: null
-          title: Capacity Lbf
-      required:
-      - fitting_id
-      - position
-      title: MotionSceneShipFitting
-      type: object
     RecommendResponse:
       additionalProperties: false
       properties:
@@ -12797,32 +13177,6 @@ components:
       - feasible_found
       title: SearchDiagnostics
       type: object
-    ShipPoint:
-      additionalProperties: false
-      properties:
-        x_ft:
-          anyOf:
-          - type: number
-          - type: 'null'
-          default: null
-          description: Forward from the ship reference origin.
-          title: X Ft
-        y_ft:
-          anyOf:
-          - type: number
-          - type: 'null'
-          default: null
-          description: Port from the ship reference origin.
-          title: Y Ft
-        z_ft:
-          anyOf:
-          - type: number
-          - type: 'null'
-          default: null
-          description: Up from the declared reference waterline/loading.
-          title: Z Ft
-      title: ShipPoint
-      type: object
     SimControlMessage:
       additionalProperties: false
       properties:
@@ -12860,83 +13214,6 @@ components:
       - detail
       title: SimEvent
       type: object
-    SimLifecycle:
-      additionalProperties: false
-      description: Server lifecycle metadata; defining this schema does not enable a new runtime protocol.
-      properties:
-        type:
-          const: session_lifecycle
-          default: session_lifecycle
-          title: Type
-          type: string
-        schema_version:
-          const: rm0-v1
-          default: rm0-v1
-          title: Schema Version
-          type: string
-        session_id:
-          minLength: 1
-          title: Session Id
-          type: string
-        run_id:
-          description: Changes on reset; sequence remains monotonic for the session.
-          minLength: 1
-          title: Run Id
-          type: string
-        sequence:
-          minimum: 0
-          title: Sequence
-          type: integer
-        t_s:
-          minimum: 0
-          title: T S
-          type: number
-        state:
-          enum:
-          - created
-          - running
-          - paused
-          - reset
-          - ended
-          - error
-          title: State
-          type: string
-        scene_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Scene Id
-        scene_revision:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Scene Revision
-        message:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Message
-        validity:
-          anyOf:
-          - $ref: '#/components/schemas/Validity'
-          - type: 'null'
-          default: null
-        provenance:
-          anyOf:
-          - $ref: '#/components/schemas/MotionProvenance'
-          - type: 'null'
-          default: null
-      required:
-      - session_id
-      - run_id
-      - sequence
-      - t_s
-      - state
-      title: SimLifecycle
-      type: object
     SimLineEventMessage:
       additionalProperties: false
       properties:
@@ -12968,249 +13245,23 @@ components:
       - event
       title: SimLineEventMessage
       type: object
-    SimRecording:
+    SimSpeedMessage:
       additionalProperties: false
-      description: Bounded display recording. Sequence gaps mean decimation, never missing physics integration steps.
+      description: 'Client message: simulated seconds per wall second. The physics step never changes.'
       properties:
-        schema_version:
-          const: rm0-v1
-          default: rm0-v1
-          title: Schema Version
+        type:
+          const: set_speed
+          title: Type
           type: string
-        recording_id:
-          minLength: 1
-          title: Recording Id
-          type: string
-        session_id:
-          minLength: 1
-          title: Session Id
-          type: string
-        scene_id:
-          minLength: 1
-          title: Scene Id
-          type: string
-        scene_revision:
-          minLength: 1
-          title: Scene Revision
-          type: string
-        duration_s:
-          anyOf:
-          - minimum: 0
-            type: number
-          - type: 'null'
-          default: null
-          description: Recorded simulation duration, excluding paused wall time.
-          title: Duration S
-        sampling:
-          $ref: '#/components/schemas/SimSamplingPolicy'
-        frames:
-          items:
-            $ref: '#/components/schemas/SimFrame'
-          maxItems: 10000
-          minItems: 1
-          title: Frames
-          type: array
-        lifecycle:
-          items:
-            $ref: '#/components/schemas/SimLifecycle'
-          maxItems: 1000
-          title: Lifecycle
-          type: array
-        validity:
-          anyOf:
-          - $ref: '#/components/schemas/Validity'
-          - type: 'null'
-          default: null
-        provenance:
-          anyOf:
-          - $ref: '#/components/schemas/MotionProvenance'
-          - type: 'null'
-          default: null
+        speed:
+          exclusiveMinimum: 0
+          maximum: 16
+          title: Speed
+          type: number
       required:
-      - recording_id
-      - session_id
-      - scene_id
-      - scene_revision
-      - sampling
-      - frames
-      title: SimRecording
-      type: object
-    SimSamplingPolicy:
-      additionalProperties: false
-      properties:
-        physics_dt_s:
-          anyOf:
-          - exclusiveMinimum: 0
-            type: number
-          - type: 'null'
-          default: null
-          description: Integrator step if fixed; rendering never controls it.
-          title: Physics Dt S
-        display_interval_s:
-          anyOf:
-          - exclusiveMinimum: 0
-            type: number
-          - type: 'null'
-          default: null
-          title: Display Interval S
-        max_pending_frames:
-          anyOf:
-          - minimum: 1
-            type: integer
-          - type: 'null'
-          default: null
-          title: Max Pending Frames
-        slow_client_policy:
-          const: drop_display_frames
-          default: drop_display_frames
-          title: Slow Client Policy
-          type: string
-        description:
-          default: Keep the newest display frame; never skip or slow physics. Sequence gaps disclose dropped frames.
-          title: Description
-          type: string
-      title: SimSamplingPolicy
-      type: object
-    SimScene:
-      additionalProperties: false
-      description: Static scene fetched once. Producers publish a new revision whenever scene content changes.
-      properties:
-        availability:
-          default: unknown
-          enum:
-          - available
-          - unavailable
-          - not_simulated
-          - unknown
-          title: Availability
-          type: string
-        provenance:
-          anyOf:
-          - $ref: '#/components/schemas/MotionProvenance'
-          - type: 'null'
-          default: null
-        validity:
-          anyOf:
-          - $ref: '#/components/schemas/Validity'
-          - type: 'null'
-          default: null
-          description: Absent means unknown, never valid.
-        schema_version:
-          const: rm0-v1
-          default: rm0-v1
-          title: Schema Version
-          type: string
-        scene_id:
-          minLength: 1
-          title: Scene Id
-          type: string
-        revision:
-          minLength: 1
-          title: Revision
-          type: string
-        berth_id:
-          minLength: 1
-          title: Berth Id
-          type: string
-        ship_class_id:
-          minLength: 1
-          title: Ship Class Id
-          type: string
-        loading:
-          minLength: 1
-          title: Loading
-          type: string
-        face_bearing_true_deg:
-          anyOf:
-          - exclusiveMaximum: 360
-            minimum: 0
-            type: number
-          - type: 'null'
-          default: null
-          title: Face Bearing True Deg
-        deck_height_mllw_ft:
-          anyOf:
-          - type: number
-          - type: 'null'
-          default: null
-          description: Fixed pier-deck elevation above MLLW.
-          title: Deck Height Mllw Ft
-        ship_reference:
-          default: midships at the reference waterline
-          description: Origin used by ship geometry and frame motion.
-          title: Ship Reference
-          type: string
-        berth_outline:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/BerthPosition'
-            maxItems: 0
-            type: array
-          - items:
-              $ref: '#/components/schemas/BerthPosition'
-            maxItems: 4096
-            minItems: 3
-            type: array
-          - type: 'null'
-          default: null
-          title: Berth Outline
-        ship_hull_outline:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/ShipPoint'
-            maxItems: 0
-            type: array
-          - items:
-              $ref: '#/components/schemas/ShipPoint'
-            maxItems: 4096
-            minItems: 3
-            type: array
-          - type: 'null'
-          default: null
-          title: Ship Hull Outline
-        ship_fittings:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/MotionSceneShipFitting'
-            maxItems: 512
-            type: array
-          - type: 'null'
-          default: null
-          title: Ship Fittings
-        pier_fittings:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/MotionScenePierFitting'
-            maxItems: 512
-            type: array
-          - type: 'null'
-          default: null
-          title: Pier Fittings
-        fenders:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/MotionSceneFender'
-            maxItems: 512
-            type: array
-          - type: 'null'
-          default: null
-          title: Fenders
-        depth_profile:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/MotionSceneDepth'
-            maxItems: 4096
-            type: array
-          - type: 'null'
-          default: null
-          title: Depth Profile
-      required:
-      - scene_id
-      - revision
-      - berth_id
-      - ship_class_id
-      - loading
-      title: SimScene
+      - type
+      - speed
+      title: SimSpeedMessage
       type: object
     SimTugCommandMessage:
       additionalProperties: false
@@ -13852,15 +13903,20 @@ x-websockets:
       '4404': Scenario/source/reference not found or not owned
       '4400': Invalid interval, limit or reference
   /ws/sim/{session_id}:
-    query: limit
-    client_messages: SimTugCommandMessage | SimLineEventMessage | SimControlMessage
-    server_messages: SimFrame (latest state; nominal 10 Hz at default dt)
+    query: limit (counts all server messages), after_sequence (resend only newer retained lifecycle; the current frame is
+      always sent on connect; a restating lifecycle is sent if history was evicted)
+    client_messages: SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage
+    server_messages: SimLifecycle (type=session_lifecycle; reliable, retained) and SimFrame (rm0-v1, latest state only; sequence
+      gaps are dropped display frames), interleaved in session-wide sequence order
+    scene: GET /api/v1/berthing/sessions/{session_id}/scene
+    recording: GET /api/v1/berthing/sessions/{session_id}/recording
   /ws/telemetry:
     client_messages: TelemetryRecord
     server_messages: TelemetryAccepted
 x-motion-contract:
   schema_version: rm0-v1
-  status: Schemas and mock fixtures only; live producers retain legacy frames until explicitly upgraded.
+  status: Interactive sessions (POST /berthing/sessions, WS /ws/sim) emit rm0-v1 frames, lifecycle, scene and recording from
+    the live simulator (S1). Batch /berthing/simulate series remain legacy frames.
   models:
   - SimFrame
   - SimScene

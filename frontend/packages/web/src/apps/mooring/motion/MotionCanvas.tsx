@@ -163,7 +163,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
           const p = pt(f.position);
           if (!p) return null;
           const live = frame?.fittings.find((x) => x.id === f.fitting_id && x.owner === 'pier');
-          const st = live?.status ?? utilizationStatus(live?.loadLbf ?? null, live?.capacityLbf ?? f.capacity_lbf);
+          const st = live?.status ?? utilizationStatus(live?.loadLbf ?? null, live?.capacityLbf ?? f.capacity_lbf ?? null);
           return <circle key={f.fitting_id} cx={p.x} cy={p.y} r={font * 0.7} fill={st ? STATUS_COLOR[st] : DIM} stroke="#0a1628" strokeWidth={lw} />;
         })}
 
@@ -184,7 +184,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
             {scene?.ship_fittings?.map((f) => {
               const p = shipToBerth(f.position, ship);
               const live = frame?.fittings.find((x) => x.id === f.fitting_id && x.owner === 'ship');
-              const st = live?.status ?? utilizationStatus(live?.loadLbf ?? null, live?.capacityLbf ?? f.capacity_lbf);
+              const st = live?.status ?? utilizationStatus(live?.loadLbf ?? null, live?.capacityLbf ?? f.capacity_lbf ?? null);
               return <circle key={f.fitting_id} cx={p.x} cy={p.y} r={font * 0.7} fill={st ? STATUS_COLOR[st] : DIM} stroke="#0a1628" strokeWidth={lw} />;
             })}
             <circle cx={ship.x_ft} cy={ship.y_ft} r={font * 0.5} fill="#00e5ff" />

@@ -142,7 +142,7 @@ def qualify_tug(tug: TugSpec) -> AssetQualification:
                      "Bollard pull is not a certified rating on file; do not treat it as one.", [tug.tug_id])]
     return AssetQualification(
         asset_kind="tug", asset_id=tug.tug_id,
-        level="demonstration" if tug.provenance.confidence not in QUALIFYING_CONFIDENCE else "qualified",
+        level=_level(issues, tug.provenance.confidence),
         provenance_confidence=tug.provenance.confidence, issues=issues, capabilities={"tug_allocation": "limited"})
 
 
@@ -212,7 +212,8 @@ def capability_matrix() -> list[CapabilityRow]:
     mock = "mock"
     return [
         CapabilityRow(capability="Environmental loads", module="M3", backend="real", qualification="demonstration",
-                      limitations=["UFC 4-159-03 Chapter 4 formulas; seed ship geometry is estimated or mock data.", "Wind basis documented only when the snapshot carries metadata."]),
+                      limitations=["UFC 4-159-03 Chapter 4 formulas; seed ship geometry is estimated or mock data.", "Wind basis documented only when the snapshot carries metadata.",
+                                   "Static wind and current only; wave and wake loads are not evaluated."]),
         CapabilityRow(capability="Static mooring equilibrium, limiting wind, tide sweep", module="M4", backend="real", qualification="demonstration",
                       limitations=["Rigid-body 3-DOF quasi-static; no heave/roll/pitch or dynamics.", "NSTM rule subset: see GET /rules coverage; paragraph references not re-verified.",
                                    "Fitting heights not corrected for loading; fenders linear and parallel-body only."],

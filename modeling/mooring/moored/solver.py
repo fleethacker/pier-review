@@ -33,6 +33,7 @@ MODEL = "mooring.solver.equilibrium"
 VERSION = "1.0.0"
 ASSUMPTIONS = [
     "Quasi-static 3-DOF equilibrium (surge, sway, yaw) of a rigid hull; heave, roll, pitch and dynamics are not modeled.",
+    "Applied environmental loads include wind and current only; wave and wake loads are not evaluated.",
     "Lines are tension-only; tension = parts x effective MBS x curve(strain) with the catalog stretch curve scaled by the effective (wet/dry) MBS.",
     "Fenders are unilateral springs (catalog linear stiffness) in contact over a parallel body of +/- half the waterline length.",
     "Pier-fitting loads are the 3-D vector sum of attached lines compared with the nominal capacity.",

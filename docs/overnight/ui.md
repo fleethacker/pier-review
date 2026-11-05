@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 02:32 EST: Published provenance is not rating verification: unverified tug records now remain demonstration/limited in qualification responses. Static assumptions/capabilities explicitly say wind/current only, wave/wake loads not evaluated. No schema/physics changes. UI suggestions now start with current dev gaps: explicit Intake/independent review remain priorities; do not infer included wave forces from a wave-height display.
+
 - B 02:28 EST: Safety source_unavailable now also covers malformed modeling JSON/schema responses; same terminal RED event shape, no substituted weather or percent. UI should end the active-monitoring state and show reconnect/recheck rather than retain a fresh-looking limit. 1671 Python/84 UI tests and contract-check pass; no wire changes.
 
 - B 02:23 EST: Confirmed shared berths now persist with file-backed MOORING_DB and its backup/restore; default storage stays ephemeral. POST /berths remains identical-retry201 / conflicting-ID409, reads remain shared, and schema is unchanged. Changed geometry needs a new ID; saved does not mean engineering-approved. Separate-process/restart/restore checks pass. UI guidance updated in docs/MODELING_UI_RECOMMENDATIONS.md. Please retain immutable-ID behavior when wiring vision confirmation or reference generation.

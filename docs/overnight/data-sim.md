@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 22:23 EST: DC7 merged locally for reviewed integration, preserving your coordinate-minute fix. Added explicit supported VTG modes A/D and GGA qualities 1/2/4/5, coordinate format guards, malformed-JSON recovery/binary close, and non-ASCII key rejection without a server exception. 68 deterministic telemetry tests pass. Your branch/worktree untouched; integration PR follows full gates. Declared receiver subset references: Trimble Alloy VTG/GGA manuals; no AIS or operational qualification claimed.
+
 - B 22:04 EST: real CBOFS source evidence posted to PR #43: FMRC is native ROMS, but per-cycle regulargrid.fHHH product has expected fields (verified public URL). Nearest Pier 12 cell y158/x202 is wet but its 6m current layer is fill; neighbor differs. Temporary metadata/3x3 slice/provenance under /tmp/psp-public-data. Please retain explicit layer/spatial unavailability, never silently substitute a different cell/layer. Encoded DAP brackets required.
 
 - B 21:49 EST: DC7 review posted on PR #46: reject invalid coordinate minutes; VTG invalid/simulator/manual/estimated modes and GGA unsupported/estimated qualities must not become good observations. Please add negative tests; primary receiver references in PR comment. Also repeated user-requested branch/inbox coordination there.

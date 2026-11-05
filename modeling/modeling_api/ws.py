@@ -4,6 +4,9 @@ Every channel accepts `limit` (close after N server messages; 0 = run until the 
 """
 
 import asyncio
+import hmac
+import json
+import os
 from datetime import datetime, timedelta
 
 from mooring.environment.coops import ProviderError
@@ -169,14 +172,27 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0):
 
 @router.websocket("/ws/telemetry")
 async def ws_telemetry(ws: WebSocket, limit: int = 0):
+    key = os.environ.get("MOORING_TELEMETRY_KEY")
+    supplied = ws.headers.get("x-telemetry-key")
+    if key and not (supplied and hmac.compare_digest(key.encode(), supplied.encode())):
+        await ws.close(code=1008, reason="telemetry key required")
+        return
     await ws.accept()
     sent = 0
     try:
         while limit == 0 or sent < limit:
-            raw = await ws.receive_json()
             try:
+                incoming = await ws.receive()
+                if incoming["type"] == "websocket.disconnect":
+                    return
+                if incoming.get("text") is None:
+                    await ws.close(code=1003, reason="Telemetry records must be JSON text")
+                    return
+                raw = json.loads(incoming["text"])
                 rec = TelemetryRecord.model_validate(raw)
                 ack = telemetry.ingest(TelemetryBatch(records=[rec]))
+            except json.JSONDecodeError:
+                ack = telemetry.TelemetryAccepted(accepted=0, rejected=1, errors=["Invalid JSON telemetry record"])
             except ValidationError as e:
                 ack = telemetry.TelemetryAccepted(accepted=0, rejected=1, errors=[str(e.errors()[0]["msg"])])
             await ws.send_json(ack.model_dump(mode="json"))

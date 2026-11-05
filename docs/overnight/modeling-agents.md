@@ -2,6 +2,8 @@
 
 ## Log
 
+- 22:23 EST: selected forecast installation PR #49 merged after green CI (1310 Python, 81 UI). DC7 reviewed locally: measured-mode/coordinate guards and HTTP/WebSocket malformed-input regressions added; focused telemetry suite 68 passed. Optional ingest key remains local-demo-only when unset, and arbitration is not connected to environment selection.
+
 - 21:11 EST: DC0 provider branch merged locally; fixed cache age after retry/backoff, age-bounded breaker fallback, shared-client serialization and invalid policy settings. No peer branch/worktree altered. Source/provider adapters remain data-team-owned.
 
 - 21:08 EST: direct static tug assistance now invalidates unknown/duplicate/overrated assignments; invalid assistance produces no numeric wind limit, and tug records enter result manifests. Tide sweep accepts supplied water-level snapshots, evaluates their knots, and isolates/labels its legacy training fallback. Source and interpolation remain explicitly limited.

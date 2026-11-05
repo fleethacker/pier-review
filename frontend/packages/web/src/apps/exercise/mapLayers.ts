@@ -13,6 +13,7 @@ const SOURCES: Record<string, Source> = {
   'ex-foam': { type: 'geojson', data: empty },
   'ex-lights': { type: 'geojson', data: empty },
   'ex-glows': { type: 'geojson', data: empty },
+  'ex-bursts': { type: 'geojson', data: empty },
   'ex-routes': { type: 'geojson', data: empty },
   'ex-waypoints': { type: 'geojson', data: empty },
   'ex-trails': { type: 'geojson', data: empty, lineMetrics: true },
@@ -32,6 +33,9 @@ export const LIGHT_LEVEL: Record<LightPreset, { pillars: number; glow: number }>
 
 /** Bloom radius in screen pixels at zoom 0 per meter of light size, at about 33 degrees north (a few percent off elsewhere). */
 const GLOW_PX0 = (512 * 4) / (40_075_016.686 * Math.cos((33 * Math.PI) / 180));
+
+/** A light's glow: the time-of-day level, but never less than the light's own minimum (a missile's exhaust glows by day). */
+const glowOpacity = (level: number) => ['max', ['get', 'minGlow'], level];
 
 const FONT = ['DIN Pro Bold', 'Arial Unicode MS Bold'];
 const get = (key: string) => ['get', key];
@@ -118,6 +122,30 @@ function layers(): Layer[] {
       },
     },
     {
+      id: 'overlay-strike',
+      type: 'line',
+      source: 'ex-overlays',
+      ...slot,
+      filter: ['==', get('kind'), 'strike'],
+      paint: { 'line-color': get('color'), 'line-width': 1, 'line-opacity': 0.55, 'line-dasharray': [1, 2], 'line-emissive-strength': 1 },
+    },
+    {
+      id: 'overlay-danger',
+      type: 'line',
+      source: 'ex-overlays',
+      ...slot,
+      filter: ['==', get('kind'), 'danger'],
+      paint: { 'line-color': get('color'), 'line-width': 1, 'line-opacity': 0.35, 'line-emissive-strength': 1 },
+    },
+    {
+      id: 'overlay-defence',
+      type: 'line',
+      source: 'ex-overlays',
+      ...slot,
+      filter: ['==', get('kind'), 'defence'],
+      paint: { 'line-color': get('color'), 'line-width': 1.2, 'line-opacity': 0.8, 'line-dasharray': [2, 2], 'line-emissive-strength': 1 },
+    },
+    {
       id: 'ship-lights',
       type: 'fill-extrusion',
       source: 'ex-lights',
@@ -156,7 +184,20 @@ function layers(): Layer[] {
         'circle-color': get('color'),
         'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 0, ['*', get('sizeM'), GLOW_PX0], 24, ['*', get('sizeM'), GLOW_PX0 * 16777216]],
         'circle-blur': 1,
-        'circle-opacity': LIGHT_LEVEL.day.glow,
+        'circle-opacity': glowOpacity(LIGHT_LEVEL.day.glow),
+        'circle-emissive-strength': 1,
+      },
+    },
+    {
+      id: 'burst-glows',
+      type: 'circle',
+      source: 'ex-bursts',
+      ...slot,
+      paint: {
+        'circle-color': get('color'),
+        'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 0, ['*', get('sizeM'), GLOW_PX0], 24, ['*', get('sizeM'), GLOW_PX0 * 16777216]],
+        'circle-blur': 0.9,
+        'circle-opacity': get('opacity'),
         'circle-emissive-strength': 1,
       },
     },
@@ -167,7 +208,7 @@ function layers(): Layer[] {
       ...slot,
       paint: {
         'circle-color': get('color'),
-        'circle-radius': ['case', get('selected'), 8, 6],
+        'circle-radius': ['case', get('selected'), 8, get('r')],
         'circle-stroke-color': '#0a1628',
         'circle-stroke-width': 2,
         // Ships are drawn to scale up close; the dot takes over once they are too small to see.
@@ -256,7 +297,7 @@ function setData(map: MapboxMap, id: string, data: unknown): void {
 export function setLightLevel(map: MapboxMap, preset: LightPreset): void {
   const level = LIGHT_LEVEL[preset];
   if (map.getLayer('ship-lights')) map.setPaintProperty('ship-lights', 'fill-extrusion-opacity', level.pillars);
-  if (map.getLayer('light-glows')) map.setPaintProperty('light-glows', 'circle-opacity', level.glow);
+  if (map.getLayer('light-glows')) map.setPaintProperty('light-glows', 'circle-opacity', glowOpacity(level.glow) as never);
 }
 
 export function setFrameData(map: MapboxMap, f: FrameData): void {
@@ -264,6 +305,7 @@ export function setFrameData(map: MapboxMap, f: FrameData): void {
   setData(map, 'ex-foam', f.foam);
   setData(map, 'ex-lights', f.lights);
   setData(map, 'ex-glows', f.glows);
+  setData(map, 'ex-bursts', f.bursts);
   setData(map, 'ex-trails', f.trails);
   setData(map, 'ex-hulls', f.hulls);
   setData(map, 'ex-parts', f.parts);

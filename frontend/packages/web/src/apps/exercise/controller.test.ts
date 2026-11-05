@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ExerciseController } from './controller';
+import { prepareRun } from './montecarlo';
 import { PRESET_SCENARIOS } from './scenarios';
 import { parseScenario } from './scenarioJson';
 import { runScenario } from './sim';
@@ -245,5 +246,274 @@ describe('simulation cost', () => {
     runScenario(preset);
     const each = (performance.now() - t0) / 3;
     expect(each).toBeLessThan(500);
+  });
+});
+
+const salvo = () => PRESET_SCENARIOS.find((p) => p.id === 'salvo-defense')!;
+const unitOf = (c: ExerciseController, id: string) => c.state.get().scenario.units.find((u) => u.id === id)!;
+
+describe('adding aircraft, missiles, mines and salvos', () => {
+  it('adds an aircraft with a route, a helicopter that is slower, and a mine that stays put', () => {
+    const c = make();
+    c.addUnit('FIGHTER');
+    const fighter = c.state.get().scenario.units.at(-1)!;
+    expect(fighter).toMatchObject({ classId: 'FIGHTER', speedKt: 350, side: 'BLUE' });
+    expect(fighter.behavior.type).toBe('route');
+    expect(c.state.get().selectedId).toBe(fighter.id);
+    expect(c.state.get().errors).toEqual([]);
+
+    c.addUnit('HELO');
+    expect(c.state.get().scenario.units.at(-1)!.speedKt).toBe(80);
+    c.addUnit('MINE');
+    const mine = c.state.get().scenario.units.at(-1)!;
+    expect(mine).toMatchObject({ classId: 'MINE', side: 'RED', speedKt: 0, behavior: { type: 'hold' } });
+    expect(c.state.get().active.trajectory.unitIds).toHaveLength(8);
+  });
+
+  it('adds a missile launched from a unit at one on the other side, or says why it cannot', () => {
+    const c = make();
+    c.addUnit('ASM');
+    const m = c.state.get().scenario.units.at(-1)!;
+    expect(m.launch).toEqual({ byId: 'cvn1', atS: 60 });
+    expect(m.behavior).toMatchObject({ type: 'strike', targetId: 'mv1' });
+    expect(c.state.get().errors).toEqual([]);
+
+    const solo = new ExerciseController(undefined, { ...PRESET_SCENARIOS[0], units: [PRESET_SCENARIOS[0].units[0]] });
+    solo.addUnit('SAM');
+    expect(solo.state.get().scenario.units).toHaveLength(1);
+    expect(solo.state.get().notice).toContain('needs a ship or aircraft');
+  });
+
+  it('adds a salvo of missiles launched in turn, with their own ids, on the launcher’s side', () => {
+    const c = new ExerciseController(undefined, salvo());
+    const before = c.state.get().scenario.units.length;
+    c.addSalvo('rdd1', 'cg1', 'ASM', 3, 100, 5);
+    const added = c.state.get().scenario.units.slice(before);
+    expect(added).toHaveLength(3);
+    expect(new Set(c.state.get().scenario.units.map((u) => u.id)).size).toBe(c.state.get().scenario.units.length);
+    expect(added.map((u) => u.launch!.atS)).toEqual([100, 105, 110]);
+    expect(added.every((u) => u.side === 'RED' && u.behavior.type === 'strike' && u.launch!.byId === 'rdd1')).toBe(true);
+    expect(c.state.get().errors).toEqual([]);
+  });
+
+  it('refuses a salvo that makes no sense, and caps its size', () => {
+    const c = new ExerciseController(undefined, salvo());
+    const n = c.state.get().scenario.units.length;
+    c.addSalvo('ghost', 'cg1', 'ASM', 3, 0, 5);
+    expect(c.state.get().notice).toContain('needs a launcher');
+    c.addSalvo('rdd1', 'cg1', 'FIGHTER', 3, 0, 5);
+    c.addSalvo('rdd1', 'cg1', 'ASM', 0, 0, 5);
+    expect(c.state.get().scenario.units).toHaveLength(n);
+    c.addSalvo('rdd1', 'cg1', 'ASM', 500, 0, 1);
+    expect(c.state.get().scenario.units).toHaveLength(n + 40);
+  });
+
+  it('leaves out units that were to launch from a unit that is removed, and stops missiles aimed at it', () => {
+    const c = new ExerciseController(undefined, salvo());
+    c.removeUnit('rdd1');
+    expect(unitOf(c, 'm1').disabled).toBe(true);
+    expect(unitOf(c, 'm1').launch).toBeUndefined();
+    expect(unitOf(c, 'rm1').launch).toBeDefined();
+    c.removeUnit('cg1');
+    expect(unitOf(c, 'rm1').behavior.type).toBe('hold');
+    expect(c.state.get().errors).toEqual([]);
+  });
+
+  it('switches to circling and striking where that makes sense, and says no where it does not', () => {
+    const c = new ExerciseController(undefined, salvo());
+    c.setBehaviorType('cvn1', 'loiter');
+    expect(unitOf(c, 'cvn1').behavior.type).toBe('route');
+    expect(c.state.get().notice).toContain('Only aircraft');
+    c.setBehaviorType('rf1', 'loiter');
+    expect(unitOf(c, 'rf1').behavior).toMatchObject({ type: 'loiter', radiusM: 4000 });
+    c.setBehaviorType('cvn1', 'strike');
+    expect(c.state.get().notice).toContain('Only missiles');
+    c.setBehaviorType('m1', 'hold');
+    c.setBehaviorType('m1', 'strike');
+    expect(unitOf(c, 'm1').behavior).toMatchObject({ type: 'strike' });
+    expect(c.state.get().errors).toEqual([]);
+  });
+
+  it('sets and clears when and by whom a unit is launched', () => {
+    const c = new ExerciseController(undefined, salvo());
+    c.patchLaunch('m1', { byId: 'rdd1', atS: 500 });
+    expect(unitOf(c, 'm1').launch).toEqual({ byId: 'rdd1', atS: 500 });
+    c.patchLaunch('m1', null);
+    expect(unitOf(c, 'm1').launch).toBeUndefined();
+  });
+
+  it('keeps waypoint altitudes only while they are set', () => {
+    const c = make();
+    c.addUnit('FIGHTER');
+    const id = c.state.get().selectedId!;
+    c.patchWaypoint(id, 0, { altitudeM: 3000 });
+    const wp = () => (unitOf(c, id).behavior.type === 'route' ? (unitOf(c, id).behavior as { waypoints: { altitudeM?: number }[] }).waypoints[0] : null);
+    expect(wp()!.altitudeM).toBe(3000);
+    c.patchWaypoint(id, 0, { altitudeM: undefined });
+    expect('altitudeM' in wp()!).toBe(false);
+  });
+
+  it('re-rolls the chance seed, which changes how the chances fall but not the setup', () => {
+    const c = new ExerciseController(undefined, salvo());
+    const first = JSON.stringify(c.state.get().active.trajectory.events);
+    const outcomes = new Set([first]);
+    for (let seed = 1; seed <= 12; seed++) {
+      c.patchScenario({ seed });
+      outcomes.add(JSON.stringify(c.state.get().active.trajectory.events));
+    }
+    expect(outcomes.size).toBeGreaterThan(3);
+    c.patchScenario({ seed: 4 });
+    expect(JSON.stringify(c.state.get().active.trajectory.events)).toBe(first);
+  });
+});
+
+describe('red team in the controller', () => {
+  const small = () => {
+    const c = new ExerciseController(undefined, salvo());
+    c.setRedTeam({ ...c.redTeamSpec(), runs: 4, sweep: { target: { kind: 'salvo', unitIds: ['m1', 'm2', 'm3'] }, values: [1, 3] } });
+    return c;
+  };
+
+  it('gives a scenario suggested settings the first time the panel opens, and keeps its own after that', () => {
+    const c = make();
+    expect(c.state.get().scenario.redTeam).toBeUndefined();
+    c.toggleRedTeam(true);
+    expect(c.state.get().redTeamOpen).toBe(true);
+    const made = c.state.get().scenario.redTeam!;
+    expect(made.outcomes.length).toBeGreaterThan(0);
+    c.toggleRedTeam();
+    expect(c.state.get().redTeamOpen).toBe(false);
+    c.toggleRedTeam(true);
+    expect(c.state.get().scenario.redTeam).toBe(made);
+    const own = new ExerciseController(undefined, salvo());
+    own.toggleRedTeam(true);
+    expect(own.state.get().scenario.redTeam).toEqual(salvo().redTeam);
+  });
+
+  it('changes settings without re-running the scenario you are watching', () => {
+    const c = new ExerciseController(undefined, salvo());
+    const before = c.state.get().active;
+    c.seek(300);
+    c.setRedTeam({ ...c.redTeamSpec(), runs: 7 });
+    expect(c.state.get().scenario.redTeam!.runs).toBe(7);
+    expect(c.state.get().active).toBe(before);
+    expect(c.clock.timeS).toBe(300);
+    expect(c.state.get().errors).toEqual([]);
+  });
+
+  it('reports problems with the settings by name, and none for sound ones', () => {
+    const c = new ExerciseController(undefined, salvo());
+    expect(c.redTeamProblems()).toEqual([]);
+    c.setRedTeam({ ...c.redTeamSpec(), outcomes: [{ id: 'x', type: 'destroyed', unitId: 'ghost' }] });
+    expect(c.redTeamProblems().join()).toContain('"ghost"');
+    expect(make().redTeamProblems()).toEqual([]);
+  });
+
+  it('runs a batch, reporting progress, and keeps the setup it measured', async () => {
+    const c = small();
+    const seen: number[] = [];
+    c.state.subscribe(() => seen.push(c.state.get().mc.done));
+    const run = c.runRedTeam();
+    expect(c.state.get().mc.status).toBe('running');
+    void c.runRedTeam();
+    await run;
+    const { mc } = c.state.get();
+    expect(mc.status).toBe('done');
+    expect(mc.result!.groups).toHaveLength(2);
+    expect(mc.result!.totalRuns).toBe(8);
+    expect(mc.done).toBe(8);
+    expect(mc.spec!.runs).toBe(4);
+    expect(mc.base!.id).toBe('salvo-defense');
+    expect(Math.max(...seen)).toBe(8);
+  });
+
+  it('stops when asked and keeps what it has', async () => {
+    const c = new ExerciseController(undefined, salvo());
+    c.setRedTeam({ ...c.redTeamSpec(), runs: 5000, sweep: undefined });
+    const run = c.runRedTeam();
+    setTimeout(() => c.stopRedTeam(), 50);
+    await run;
+    expect(c.state.get().mc.status).toBe('done');
+    expect(c.state.get().mc.result!.stopped).toBe(true);
+    expect(c.state.get().mc.result!.totalRuns).toBeLessThan(5000);
+  });
+
+  it('shows why it could not run', async () => {
+    const c = new ExerciseController(undefined, salvo());
+    c.setRedTeam({ ...c.redTeamSpec(), outcomes: [] });
+    await c.runRedTeam();
+    expect(c.state.get().mc.status).toBe('error');
+    expect(c.state.get().mc.error).toContain('at least one outcome');
+  });
+
+  it('replays one run of a finished batch exactly as the batch saw it', async () => {
+    const c = small();
+    await c.runRedTeam();
+    const { mc } = c.state.get();
+    const run = mc.result!.groups[1].hitRuns['cv-hit']?.[0] ?? mc.result!.groups[1].missRuns['cv-hit'][0];
+    c.seek(200);
+    c.replayRun(1, run, 'Carrier is hit');
+    const s = c.state.get();
+    expect(s.replay).toMatchObject({ run: run + 1, groupLabel: '3 of 3 enabled', outcomeLabel: 'Carrier is hit' });
+    expect(s.replay!.values.length).toBeGreaterThan(0);
+    expect(s.active.scenario).not.toBe(s.scenario);
+    expect(s.active.scenario.units.filter((u) => u.disabled)).toHaveLength(0);
+    expect(c.clock.timeS).toBe(0);
+    expect(c.clock.playing).toBe(false);
+    const prepared = prepareRun(mc.base!, mc.spec!, run, 3);
+    expect(s.active.trajectory.events).toEqual(runScenario(prepared.scenario, { seed: prepared.seed }).events);
+    // The scenario being edited is untouched, and the other batch shows only one missile of the three.
+    expect(s.scenario.units.filter((u) => u.disabled)).toHaveLength(0);
+    c.replayRun(0, run);
+    expect(c.state.get().active.scenario.units.filter((u) => u.disabled).map((u) => u.id)).toEqual(['m2', 'm3']);
+    expect(c.state.get().replay!.groupLabel).toBe('1 of 3 enabled');
+  });
+
+  it('goes back from a replay on request, and when the scenario is edited or another is loaded', async () => {
+    const c = small();
+    await c.runRedTeam();
+    c.replayRun(0, 0);
+    c.exitReplay();
+    expect(c.state.get().replay).toBeNull();
+    expect(c.state.get().active.scenario).toBe(c.state.get().scenario);
+    expect(c.state.get().active.scenario.units.filter((u) => u.disabled)).toHaveLength(0);
+
+    c.replayRun(0, 1);
+    c.patchEnvironment({ windKt: 3 });
+    expect(c.state.get().replay).toBeNull();
+    expect(c.state.get().active.scenario.environment.windKt).toBe(3);
+
+    c.replayRun(0, 1);
+    c.loadPreset('formation-drill');
+    expect(c.state.get().replay).toBeNull();
+    expect(c.state.get().mc.status).toBe('idle');
+    expect(c.state.get().mc.result).toBeNull();
+  });
+
+  it('ignores a replay request when there is no result, or no such batch', () => {
+    const c = make();
+    c.replayRun(0, 0);
+    expect(c.state.get().replay).toBeNull();
+  });
+
+  it('gives a scenario loaded while the panel is open its own suggested settings', () => {
+    const c = make();
+    c.toggleRedTeam(true);
+    c.loadPreset('blank');
+    expect(c.state.get().scenario.redTeam).toBeDefined();
+    expect(c.redTeamProblems()).toEqual([]);
+    c.toggleRedTeam(false);
+    c.loadPreset('formation-drill');
+    expect(c.state.get().scenario.redTeam).toBeUndefined();
+  });
+
+  it('keeps the red-team settings through export and import', () => {
+    const c = new ExerciseController(undefined, salvo());
+    c.setRedTeam({ ...c.redTeamSpec(), runs: 12 });
+    const json = c.exportJson();
+    const d = make();
+    expect(d.importJson(json)).toBe(true);
+    expect(d.state.get().scenario.redTeam!.runs).toBe(12);
+    expect(d.state.get().scenario.seed).toBe(4);
   });
 });

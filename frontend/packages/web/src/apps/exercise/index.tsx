@@ -5,6 +5,7 @@ import { Bottom } from './Bottom';
 import { ExerciseController } from './controller';
 import { ControllerContext } from './context';
 import { MapCanvas } from './MapCanvas';
+import { RedTeamPanel } from './RedTeam';
 import { Side } from './Side';
 import { Sidebar } from './Sidebar';
 
@@ -32,6 +33,7 @@ export const exerciseApp: AppDefinition = {
       Side: withController(controller, Side),
       Bottom: withController(controller, Bottom),
       Banner: withController(controller, Banner),
+      Overlay: withController(controller, RedTeamPanel),
       dispose: () => controller.dispose(),
     };
   },

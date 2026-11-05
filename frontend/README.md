@@ -117,10 +117,20 @@ the tab says so if Mapbox refuses.
 - Scenario: name, length, light (dawn, day, dusk, night; on the Standard styles), and the starting view.
 - Environment: wind (speed, direction it blows from) and current (speed, direction it flows toward). Current sets every
   ship over the ground; wind pushes ships downwind a little, small craft more.
-- Ships: class (CVN, LHD, CG, DDG, fast attack craft, merchant), side (blue, red, neutral), start position, heading,
-  speed and an optional turn-rate limit. Every ship has one behavior: follow a **route** (waypoints with optional
-  per-leg speed, optional loop; click the map to add waypoints), keep **station** on another ship (ahead and abeam
-  offsets), **pursue** a ship and shadow it, or **hold** and drift.
+- Units: ships (CVN, LHD, CG, DDG, fast attack craft, merchant), **aircraft** (fighter, helicopter), **missiles**
+  (anti-ship, surface-to-air) and **mines**. Each has a side (blue, red, neutral), start position, heading, speed and an
+  optional turn-rate limit. Every unit has one behavior: follow a **route** (waypoints with optional per-leg speed and,
+  for aircraft, altitude; optional loop; click the map to add waypoints), keep **station** on another unit, **pursue**
+  one, **circle** a point (aircraft), **strike** a unit (missiles) or **hold** (ships drift, helicopters hover, fixed-wing
+  aircraft circle where they are, mines stay put).
+- Launches: any unit can be launched by another at a set time (a missile fired, an aircraft launched). It appears at the
+  launcher; if the launcher has been destroyed by then, the launch does not happen. **+ Add salvo** fires several
+  missiles in turn.
+- Damage: every ship and aircraft has hit points and every missile and mine has a damage rating, a fuze radius and a hit
+  chance. Anything that does at least a unit's hit points in one hit destroys it; a ship below half strength slows to half
+  speed; a destroyed ship stays where it is, dark and burning, and a destroyed aircraft is gone. Ships also shoot at
+  missiles aimed at their own side (a shot kill chance, shots per missile, a reload time, a magazine and a radar-horizon
+  range), which is what makes a salvo a contest. All of these are set per class and can be overridden per unit.
 - Playback: play, pause, restart, scrub, 1x to 600x. Camera: fit all, follow, chase, orbit (circles the selected ship, or
   the whole group), and **Present**, which hides the panels and fills the screen with the map plus a minimal HUD (Esc
   exits). The view opens with a fly-in to the main group. View: ship size exaggeration (so ships read when zoomed
@@ -128,21 +138,54 @@ the tab says so if Mapbox refuses.
 - Look: the light preset (dawn, day, dusk, night) lights the sea, and at dusk and night the ships' navigation and deck
   lights glow. Dusk and night are the most dramatic; the presets use them.
 
-Three presets ship with it: a carrier group transit, a surface contact intercept at dusk, and a formation drill. Use
-**Edit as JSON** or **Download** in the Scenario panel to save or load your own.
+Six presets ship with it: a carrier group transit, a surface contact intercept at night, a formation drill, a **missile
+salvo on a carrier group**, a **minefield transit** and an **air raid with SAM defence**. The last three include red-team
+setups. Use **Edit as JSON** or **Download** in the Scenario panel to save or load your own. The **Events** tab at the
+bottom lists launches, hits, interceptions and losses in words (click one to jump to it) and the timeline marks them.
+
+### Red team: how likely is it?
+
+**Red team** in the map toolbar runs the scenario hundreds or thousands of times with random variation and measures how
+often things happen. You set three things, all saved with the scenario:
+
+- **Outcomes**: the questions to ask. A unit is hit, destroyed or falls below a strength; a side loses N units; a mine goes
+  off; N missiles are shot down; two units come within some distance of each other.
+- **What varies**: any of wind and current, or, per unit, speed, heading, start position, route position, launch time,
+  altitude, hit points, damage, hit chance, defence kill chance and shots, or whether it is present at all. Each draws from
+  a uniform, normal, triangular or listed distribution, and replaces, adds to or multiplies the scenario's value.
+  Missile hits, defensive shots and mines are chances on top of that.
+- **A sweep** (optional): repeat the whole batch at several values to draw a curve, for example how the chance a carrier
+  is hit grows as the salvo goes from 1 to 8 missiles.
+
+Results show each outcome's chance with a 95% interval (Wilson), a histogram of when it happens, a ranking of which
+variation drives it (the correlation between each draw and the outcome, with the average value when it happens and when it
+does not), and average hits, interceptions and losses per run. Runs go in the browser in short slices so the page stays
+usable, with progress and a Stop button.
+
+Every batch is reproducible: the same seed, scenario and settings give the same numbers, and every run can be **replayed
+on the map** (choose a run where an outcome happened, or one where it did not) with the same random draws and the same
+chance rolls. Replays are in the batch's own scenario, not yours, which is untouched; **Exit replay** goes back. Sweep
+values share the same random draws run for run, so the curve is not noise.
+
+These are chances on illustrative numbers, so the output is only as good as what you put in: the point is to see which
+assumptions the answer depends on, not to predict a real engagement.
 
 **How it works.** `apps/exercise/sim.ts` runs the whole scenario up front at a fixed step (deterministic, so scrubbing
 and rewinding are free) and the map interpolates between samples. Ships are generated hull outlines with
 class-specific superstructure (masts, radar domes, flight-deck markings and parked aircraft on the carriers, container
 stacks on the merchant), drawn as Mapbox fill-extrusions at true size times the size slider. Hulls are stacked slices,
 which gives a dark waterline band and a flared deck edge. Wakes are a fading center trail plus a V; foam around the hull
-scales with speed; lights are tiny emissive pillars with a soft glow. Ship dimensions and handling are rounded, illustrative figures, not for operational use. Handling is simple on
+scales with speed; lights are tiny emissive pillars with a soft glow. Aircraft are drawn at their altitude with a
+glow on the sea beneath them, missiles are drawn large enough to see with an exhaust glow and a faint line to their target,
+and hits, interceptions and launches flash where they happen. `montecarlo.ts` draws the random variation, runs batches
+and computes the statistics; `sim.ts` takes a seed for the chance rolls so any run can be repeated. Ship dimensions and handling are rounded, illustrative figures, not for operational use. Handling is simple on
 purpose: speed and turn rate are limited per class, and escorts hold station with a proportional controller. Formation
 turns need a slow guide turn rate (see `maxTurnRateDegPerS` in the presets), because an escort 1.5 km abeam cannot keep
 up with a guide that turns on a 300 m radius.
 
-Tests cover the simulation, the scenario JSON, the map view (against a fake Mapbox) and the panels. The map itself
-was checked in headless Chromium with software WebGL; check it on a real GPU before demoing.
+Tests cover the simulation (including the engagements and the Monte Carlo statistics), the scenario JSON, the map view
+(against a fake Mapbox) and the panels. The map itself was checked in headless Chromium with software WebGL; check it on a
+real GPU before demoing.
 
 ## Contract conventions the UI follows
 

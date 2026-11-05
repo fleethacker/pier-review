@@ -4,7 +4,8 @@ import { formatLatLon } from './geo';
 import { MAP_STYLES } from './mapStyles';
 import type { MapStyleId } from './mapStyles';
 import { SHIP_CLASSES, SIDE_COLORS } from './ships';
-import { unitStateAt } from './sim';
+import { unitHp, unitStateAt } from './sim';
+import { STATUS_LABEL, unitStatus } from './status';
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -63,14 +64,27 @@ function SelectedPanel() {
   const i = run.trajectory.unitIds.indexOf(unit.id);
   const st = unitStateAt(run.trajectory, i, second);
   const cls = SHIP_CLASSES[unit.classId];
+  const status = unitStatus(unit, st, second, run.trajectory.events);
   const rows: [string, string][] = [
     ['Class', cls.name],
+    ['Status', STATUS_LABEL[status]],
+    ...(!cls.weapon && cls.domain !== 'static' ? ([['Hit points', `${Math.round(st.hp)} / ${unitHp(unit)}`]] as [string, string][]) : []),
     ['Length / beam', `${cls.loaM} / ${cls.beamM} m`],
     ['Position', formatLatLon(st)],
     ['Heading', `${Math.round(st.headingDeg).toString().padStart(3, '0')}°T`],
     ['Speed through water', `${st.speedKt.toFixed(1)} kt`],
     ['Course / speed over ground', `${Math.round(st.cogDeg).toString().padStart(3, '0')}°T / ${st.sogKt.toFixed(1)} kt`],
-    ['Sensor range', `${cls.sensorRangeNm} nm (illustrative)`],
+    ...(cls.domain === 'air' ? ([['Altitude', `${Math.round(st.altM).toLocaleString('en-US')} m`]] as [string, string][]) : []),
+    ...(cls.sensorRangeNm > 0 ? ([['Sensor range', `${cls.sensorRangeNm} nm (illustrative)`]] as [string, string][]) : []),
+    ...(cls.weapon
+      ? ([
+          ['Damage', `${unit.damage ?? cls.weapon.damage}`],
+          ['Hit chance', `${Math.round((unit.pHit ?? cls.weapon.pHit) * 100)}%`],
+        ] as [string, string][])
+      : []),
+    ...(cls.defence
+      ? ([['Defence', `${Math.round((unit.pKill ?? cls.defence.pKill) * 100)}% per shot, ${(cls.defence.rangeM / 1000).toFixed(0)} km`]] as [string, string][])
+      : []),
   ];
   return (
     <Panel title="Selected ship" className="space-y-2 p-4">
@@ -103,8 +117,10 @@ function Key() {
         </div>
       ))}
       <p className="text-[10px] leading-snug text-mil-dim">
-        The colored glow under each ship is its side. Dashed lines are planned routes; numbered dots are waypoints. The white
-        trail is the wake. Ship dimensions and handling are illustrative, not for operational use.
+        The colored glow under each unit is its side. Dashed lines are planned routes; numbered dots are waypoints. Faint
+        dotted lines join a missile to its target, and thin rings mark where a mine would go off. The white trail is the
+        wake or ground track. Orange flashes are hits, white-blue ones shot-down missiles. A dark, burning ship is destroyed.
+        Dimensions, handling and weapons are illustrative, not for operational use.
       </p>
     </Panel>
   );

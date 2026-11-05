@@ -1,7 +1,7 @@
 import { bearingTo, circleRing, destination, distanceM, stationFrom } from './geo';
-import { SHIP_CLASSES, SIDE_COLORS, shipShape } from './ships';
-import { statesAt, trailOf } from './sim';
-import type { Trajectory } from './sim';
+import { SHIP_CLASSES, SIDE_COLORS, isMine, isMissile, mix, shipShape } from './ships';
+import { statesAt, trailOf, unitHp as unitMaxHp } from './sim';
+import type { EventType, Trajectory } from './sim';
 import type { LonLat, ScenarioConfig, UnitConfig, UnitState } from './types';
 
 export interface Feature<G> {
@@ -48,6 +48,8 @@ export interface FrameData {
   lights: FeatureCollection<Poly>;
   /** The same lights as points, for a soft glow around them. */
   glows: FeatureCollection<Pt>;
+  /** Flashes where things were hit, shot down or launched, and fires on wrecks. */
+  bursts: FeatureCollection<Pt>;
   markers: FeatureCollection<Pt>;
   trails: FeatureCollection<Line>;
   overlays: FeatureCollection<Line>;
@@ -71,6 +73,18 @@ function ring(at: LonLat, headingDeg: number, pts: [number, number][], scale: nu
   return out;
 }
 
+/** How long each kind of event flashes for, in simulated seconds, and how big the flash gets, meters. */
+const BURST: Partial<Record<EventType, { seconds: number; radiusM: number; color: string }>> = {
+  hit: { seconds: 25, radiusM: 260, color: '#ff7a1a' },
+  mine: { seconds: 25, radiusM: 300, color: '#ff8a2a' },
+  destroyed: { seconds: 60, radiusM: 520, color: '#ff3b1a' },
+  intercept: { seconds: 15, radiusM: 170, color: '#bfe6ff' },
+  launch: { seconds: 12, radiusM: 90, color: '#ffd24a' },
+  miss: { seconds: 12, radiusM: 110, color: '#9aa7b3' },
+};
+
+const WRECK = '#101214';
+
 export function buildFrameData(
   scenario: ScenarioConfig,
   trajectory: Trajectory,
@@ -85,101 +99,158 @@ export function buildFrameData(
   const foam: Feature<Poly>[] = [];
   const lights: Feature<Poly>[] = [];
   const glows: Feature<Pt>[] = [];
+  const bursts: Feature<Pt>[] = [];
   const markers: Feature<Pt>[] = [];
   const trails: Feature<Line>[] = [];
   const overlays: Feature<Line>[] = [];
-  const s = view.shipScale;
+  const byId = new Map(scenario.units.map((u, i) => [u.id, i]));
 
   scenario.units.forEach((unit, i) => {
     const st = states[i];
+    if (!st.active) return;
     const cls = SHIP_CLASSES[unit.classId];
+    const weapon = !!cls.weapon;
+    const air = cls.domain === 'air';
+    const dead = st.hp <= 0;
+    const s = view.shipScale * cls.visualBoost;
+    const alt = air ? Math.max(0, st.altM) : 0;
     const shape = shipShape(unit.classId);
     const selected = unit.id === selectedId;
     const sideColor = SIDE_COLORS[unit.side];
     const here = { lon: st.lon, lat: st.lat };
+    const shade = (c: string) => (dead ? mix(c, WRECK, 0.7) : c);
 
     for (const slice of shape.slices) {
       hulls.push({
         type: 'Feature',
-        properties: { id: unit.id, base: slice.base * s, height: slice.top * s, color: slice.color },
+        properties: { id: unit.id, base: alt + slice.base * s, height: alt + slice.top * s, color: shade(slice.color) },
         geometry: { type: 'Polygon', coordinates: [ring(here, st.headingDeg, shape.hull.map(([x, y]): [number, number] => [x * slice.stretch, y * slice.beamScale]), s)] },
       });
     }
     for (const part of shape.parts) {
       parts.push({
         type: 'Feature',
-        properties: { id: unit.id, base: part.base * s, height: part.height * s, color: part.color },
+        properties: { id: unit.id, base: alt + part.base * s, height: alt + part.height * s, color: shade(part.color) },
         geometry: { type: 'Polygon', coordinates: [ring(here, st.headingDeg, part.points, s)] },
       });
     }
     halos.push({
       type: 'Feature',
-      properties: { id: unit.id, color: sideColor, selected },
+      properties: { id: unit.id, color: dead ? '#6b7178' : sideColor, selected },
       geometry: { type: 'Polygon', coordinates: [ring(here, st.headingDeg, shape.hull, s, 1.35)] },
     });
-    foam.push({
-      type: 'Feature',
-      properties: { id: unit.id, foam: Math.min(1, st.speedKt / 18) },
-      geometry: { type: 'Polygon', coordinates: [ring(here, st.headingDeg, shape.hull, s, 1.16)] },
-    });
-    for (const light of shape.lights) {
-      const half = (light.size * s) / 2;
-      const at = shipPoint(here, st.headingDeg, light.x * s, light.y * s);
-      const corner = (dx: number, dy: number) => shipPoint(here, st.headingDeg, light.x * s + dx, light.y * s + dy);
-      lights.push({
+    if (cls.domain === 'surface' && !dead) {
+      foam.push({
         type: 'Feature',
-        properties: { id: unit.id, color: light.color, base: (light.height - light.size / 2) * s, height: (light.height + light.size / 2) * s },
-        geometry: { type: 'Polygon', coordinates: [[corner(-half, -half), corner(half, -half), corner(half, half), corner(-half, half), corner(-half, -half)]] },
+        properties: { id: unit.id, foam: Math.min(1, st.speedKt / 18) },
+        geometry: { type: 'Polygon', coordinates: [ring(here, st.headingDeg, shape.hull, s, 1.16)] },
       });
-      glows.push({ type: 'Feature', properties: { id: unit.id, color: light.color, sizeM: light.size * s }, geometry: { type: 'Point', coordinates: at } });
     }
+    if (!dead) {
+      for (const light of shape.lights) {
+        const half = (light.size * s) / 2;
+        const at = shipPoint(here, st.headingDeg, light.x * s, light.y * s);
+        const corner = (dx: number, dy: number) => shipPoint(here, st.headingDeg, light.x * s + dx, light.y * s + dy);
+        lights.push({
+          type: 'Feature',
+          properties: { id: unit.id, color: light.color, base: alt + (light.height - light.size / 2) * s, height: alt + (light.height + light.size / 2) * s },
+          geometry: { type: 'Polygon', coordinates: [[corner(-half, -half), corner(half, -half), corner(half, half), corner(-half, half), corner(-half, -half)]] },
+        });
+        glows.push({
+          type: 'Feature',
+          properties: { id: unit.id, color: light.color, sizeM: light.size * s, minGlow: light.alwaysGlow ? 0.9 : 0 },
+          geometry: { type: 'Point', coordinates: at },
+        });
+      }
+    } else {
+      // A burning wreck: a flickering fire where it floats.
+      const flicker = 0.55 + 0.25 * Math.sin(timeS * 0.9 + i * 1.7);
+      bursts.push({
+        type: 'Feature',
+        properties: { color: '#ff6a1a', sizeM: Math.max(14, cls.loaM * 0.12 * view.shipScale), opacity: flicker },
+        geometry: { type: 'Point', coordinates: [st.lon, st.lat] },
+      });
+    }
+
+    const hpPct = Math.round((st.hp / unitMaxHp(unit)) * 100);
+    const infoParts = dead
+      ? ['DESTROYED']
+      : [
+          `${Math.round(st.speedKt)} kt  ${Math.round(st.headingDeg).toString().padStart(3, '0')}°`,
+          ...(air && !weapon ? [`${Math.round(st.altM).toLocaleString('en-US')} m`] : []),
+          ...(hpPct < 100 ? [`${hpPct}%`] : []),
+        ];
     markers.push({
       type: 'Feature',
       properties: {
         id: unit.id,
-        name: unit.name,
-        info: `${Math.round(st.speedKt)} kt  ${Math.round(st.headingDeg).toString().padStart(3, '0')}°`,
-        color: sideColor,
+        // Missiles and mines are numerous and short-lived: they are named only when selected.
+        name: weapon && !selected ? '' : unit.name,
+        info: weapon && !selected ? '' : infoParts.join('  '),
+        color: dead ? '#8a9199' : sideColor,
         selected,
+        r: weapon ? 3.5 : 6,
         speedKt: Math.round(st.speedKt),
       },
       geometry: { type: 'Point', coordinates: [st.lon, st.lat] },
     });
 
-    if (view.trailS > 0 && st.sogKt > 0.5) {
-      const stepS = Math.max(trajectory.dtS, view.trailS / 40);
-      const back = trailOf(trajectory, i, timeS, view.trailS, stepS);
+    if (view.trailS > 0 && cls.trailScale > 0 && st.sogKt > 0.5) {
+      const trailS = weapon ? Math.min(view.trailS, 30) : air ? Math.min(view.trailS, 90) : view.trailS;
+      const stepS = Math.max(trajectory.dtS, trailS / 40);
+      const back = trailOf(trajectory, i, timeS, trailS, stepS);
       const stern = shipPoint(here, st.headingDeg, (-cls.loaM / 2) * s, 0);
       const line = [stern, ...back.slice(1)];
       if (line.length >= 2) {
-        const beam = cls.beamM * s;
+        const beam = cls.beamM * s * cls.trailScale;
         trails.push({
           type: 'Feature',
           properties: { id: unit.id, widthPx0: widthPxAtZoom0(beam * 0.9, st.lat) },
           geometry: { type: 'LineString', coordinates: line },
         });
-        // The V of the wake: two arms that open at about 19 degrees and fade like the trail does.
-        const arms: [number, number][][] = [[], []];
-        let behind = 0;
-        line.forEach((pt, k) => {
-          if (k > 0) behind += distanceM({ lon: line[k - 1][0], lat: line[k - 1][1] }, { lon: pt[0], lat: pt[1] });
-          const next = line[Math.min(k + 1, line.length - 1)];
-          const prev = line[Math.max(k - 1, 0)];
-          const along = bearingTo({ lon: prev[0], lat: prev[1] }, { lon: next[0], lat: next[1] });
-          const spread = beam * 0.45 + behind * 0.28;
-          [90, -90].forEach((turn, arm) => {
-            const p = destination({ lon: pt[0], lat: pt[1] }, along + turn, spread);
-            arms[arm].push([p.lon, p.lat]);
+        if (cls.domain === 'surface') {
+          // The V of the wake: two arms that open at about 19 degrees and fade like the trail does.
+          const arms: [number, number][][] = [[], []];
+          let behind = 0;
+          line.forEach((pt, k) => {
+            if (k > 0) behind += distanceM({ lon: line[k - 1][0], lat: line[k - 1][1] }, { lon: pt[0], lat: pt[1] });
+            const next = line[Math.min(k + 1, line.length - 1)];
+            const prev = line[Math.max(k - 1, 0)];
+            const along = bearingTo({ lon: prev[0], lat: prev[1] }, { lon: next[0], lat: next[1] });
+            const spread = beam * 0.45 + behind * 0.28;
+            [90, -90].forEach((turn, arm) => {
+              const p = destination({ lon: pt[0], lat: pt[1] }, along + turn, spread);
+              arms[arm].push([p.lon, p.lat]);
+            });
           });
-        });
-        for (const arm of arms) {
-          trails.push({
-            type: 'Feature',
-            properties: { id: unit.id, widthPx0: widthPxAtZoom0(beam * 0.16, st.lat) },
-            geometry: { type: 'LineString', coordinates: arm },
-          });
+          for (const arm of arms) {
+            trails.push({
+              type: 'Feature',
+              properties: { id: unit.id, widthPx0: widthPxAtZoom0(beam * 0.16, st.lat) },
+              geometry: { type: 'LineString', coordinates: arm },
+            });
+          }
         }
       }
+    }
+
+    if (isMissile(cls) && view.showRoutes && unit.behavior.type === 'strike') {
+      const ti = byId.get(unit.behavior.targetId);
+      const tgt = ti === undefined ? undefined : states[ti];
+      if (tgt?.active) {
+        overlays.push({
+          type: 'Feature',
+          properties: { kind: 'strike', color: sideColor },
+          geometry: { type: 'LineString', coordinates: [[st.lon, st.lat], [tgt.lon, tgt.lat]] },
+        });
+      }
+    }
+    if (isMine(cls) && view.showRoutes) {
+      overlays.push({
+        type: 'Feature',
+        properties: { kind: 'danger', color: sideColor },
+        geometry: { type: 'LineString', coordinates: circleRing(here, cls.weapon!.fuzeM, 24) },
+      });
     }
 
     if (selected) {
@@ -188,15 +259,37 @@ export function buildFrameData(
         properties: { kind: 'selection', color: '#ffffff' },
         geometry: { type: 'LineString', coordinates: circleRing(here, Math.max(cls.loaM * s * 0.8, 120), 64) },
       });
-      if (view.showRange) {
+      if (view.showRange && cls.sensorRangeNm > 0) {
         overlays.push({
           type: 'Feature',
           properties: { kind: 'range', color: sideColor },
           geometry: { type: 'LineString', coordinates: circleRing(here, cls.sensorRangeNm * 1852, 128) },
         });
       }
+      if (cls.defence && view.showRange) {
+        overlays.push({
+          type: 'Feature',
+          properties: { kind: 'defence', color: '#7ad7ff' },
+          geometry: { type: 'LineString', coordinates: circleRing(here, cls.defence.rangeM, 96) },
+        });
+      }
     }
   });
+
+  // Flashes from events that have just happened.
+  const flashScale = Math.max(1, view.shipScale / 3);
+  for (const e of trajectory.events) {
+    const spec = BURST[e.type];
+    if (!spec || e.tS > timeS) continue;
+    const age = timeS - e.tS;
+    if (age >= spec.seconds) continue;
+    const p = age / spec.seconds;
+    bursts.push({
+      type: 'Feature',
+      properties: { color: spec.color, sizeM: (spec.radiusM * flashScale * (0.3 + 2.2 * p)) / 4, opacity: 0.9 * (1 - p) ** 1.5 },
+      geometry: { type: 'Point', coordinates: [e.lon, e.lat] },
+    });
+  }
 
   return {
     hulls: collection(hulls),
@@ -205,6 +298,7 @@ export function buildFrameData(
     foam: collection(foam),
     lights: collection(lights),
     glows: collection(glows),
+    bursts: collection(bursts),
     markers: collection(markers),
     trails: collection(trails),
     overlays: collection(overlays),
@@ -247,12 +341,13 @@ export function buildStaticData(scenario: ScenarioConfig, view: ViewOptions, sel
 /** The units within `radiusM` of the one at `anchor` (counting it): the main group, for the opening camera shot. */
 export function groupStates(states: UnitState[], anchor = 0, radiusM = 8000): UnitState[] {
   const a = states[anchor];
-  if (!a) return [];
-  return states.filter((st) => distanceM(a, st) <= radiusM);
+  if (!a?.active) return [];
+  return states.filter((st) => st.active && distanceM(a, st) <= radiusM);
 }
 
 /** Everything the camera needs to frame all units at one instant. */
-export function boundsOf(states: UnitState[]): [[number, number], [number, number]] | null {
+export function boundsOf(all: UnitState[]): [[number, number], [number, number]] | null {
+  const states = all.filter((st) => st.active);
   if (!states.length) return null;
   let w = Infinity;
   let s = Infinity;

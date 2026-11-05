@@ -63,6 +63,8 @@ function Toolbar() {
   const c = useController();
   const follow = useExercise((s) => s.follow);
   const placing = useExercise((s) => s.placing);
+  const redTeamOpen = useExercise((s) => s.redTeamOpen);
+  const replay = useExercise((s) => s.replay);
   const selectedId = useExercise((s) => s.selectedId);
   const name = useExercise((s) => s.scenario.units.find((u) => u.id === s.selectedId)?.name ?? null);
 
@@ -91,10 +93,40 @@ function Toolbar() {
         <ToolButton title="Hide the panels and fill the screen with the map" onClick={() => c.setPresenting(true)}>
           Present
         </ToolButton>
+        <ToolButton title="Run the scenario many times with random variation and measure how often things happen" pressed={redTeamOpen} onClick={() => c.toggleRedTeam()}>
+          Red team
+        </ToolButton>
         <ToolButton title="Click the map to add waypoints to the selected ship" pressed={placing} onClick={() => c.setPlacing(!placing)}>
           Add waypoints
         </ToolButton>
       </div>
+      {replay && (
+        <div role="status" className="pointer-events-auto max-w-[44rem] space-y-1 border border-mil-amber/60 bg-mil-panel/95 px-3 py-2 text-xs text-mil-amber">
+          <p>
+            Replaying run {replay.run} of a red-team batch ({replay.groupLabel}
+            {replay.outcomeLabel ? `, chosen for: ${replay.outcomeLabel}` : ''}). Press Play to watch it.
+          </p>
+          <details className="text-[10px] text-mil-text">
+            <summary className="cursor-pointer">The random draws in this run</summary>
+            <ul className="mt-1 grid grid-cols-2 gap-x-4">
+              {replay.values.map((v) => (
+                <li key={v.label} className="flex justify-between gap-2">
+                  <span className="truncate">{v.label}</span>
+                  <span className="tabular-nums text-white">{Number(v.value.toFixed(3))}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+          <div className="flex gap-3 text-[10px] uppercase tracking-wider">
+            <button className="text-mil-cyan hover:text-white" onClick={() => c.toggleRedTeam(true)}>
+              Back to red team
+            </button>
+            <button className="text-mil-cyan hover:text-white" onClick={() => c.exitReplay()}>
+              Exit replay
+            </button>
+          </div>
+        </div>
+      )}
       {placing && selectedId && (
         <div role="status" className="pointer-events-auto border border-mil-cyan/50 bg-mil-panel/90 px-3 py-1.5 text-xs text-mil-cyan">
           Click the map to add waypoints to {name}. Press Esc or the button to stop.

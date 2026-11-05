@@ -138,7 +138,15 @@ export class ExerciseMapView {
     else if (now.fitRevision !== was.fitRevision) this.fitAll(true);
     if (now.follow !== was.follow) this.setOrbiting(now.follow);
     this.map.getCanvas().style.cursor = now.placing ? 'crosshair' : '';
-    this.draw();
+    // State the map does not show (a Monte Carlo batch reporting progress, say) must not make it rebuild every ship.
+    const changed =
+      now.active !== was.active ||
+      now.selectedId !== was.selectedId ||
+      now.view !== was.view ||
+      now.follow !== was.follow ||
+      now.scenarioRevision !== was.scenarioRevision ||
+      now.fitRevision !== was.fitRevision;
+    if (changed) this.draw();
   };
 
   private refreshStatic(): void {

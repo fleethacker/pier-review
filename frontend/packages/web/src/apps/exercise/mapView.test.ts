@@ -8,6 +8,8 @@ import { PRESET_SCENARIOS } from './scenarios';
 
 type Handler = (e?: unknown) => void;
 
+const glow = (level: number) => ['max', ['get', 'minGlow'], level];
+
 class FakeMap {
   static instances: FakeMap[] = [];
   handlers = new Map<string, Handler[]>();
@@ -142,7 +144,7 @@ describe('ExerciseMapView', () => {
     const { map, data } = setup();
     expect(map.layers.size).toBe(0);
     map.fire('style.load');
-    expect(map.sources.size).toBe(11);
+    expect(map.sources.size).toBe(12);
     expect(map.layers.size).toBeGreaterThanOrEqual(10);
     for (const id of PICK_LAYERS) expect(map.getLayer(id), id).toBeDefined();
     expect(data('ex-hulls')).toHaveLength(15);
@@ -151,7 +153,7 @@ describe('ExerciseMapView', () => {
     expect(data('ex-lights').length).toBeGreaterThan(20);
     expect(data('ex-routes').length).toBeGreaterThan(0);
     expect(map.paint['ship-lights.fill-extrusion-opacity']).toBe(LIGHT_LEVEL.dusk.pillars);
-    expect(map.paint['light-glows.circle-opacity']).toBe(LIGHT_LEVEL.dusk.glow);
+    expect(map.paint['light-glows.circle-opacity']).toEqual(glow(LIGHT_LEVEL.dusk.glow));
   });
 
   it('glides in to the main group on first load, tilted down on it, leaving distant ships out of frame', () => {
@@ -177,17 +179,17 @@ describe('ExerciseMapView', () => {
     const { map, controller } = setup({ ...PRESET_SCENARIOS[1] });
     map.fire('style.load');
     expect(map.config.lightPreset).toBe('night');
-    expect(map.paint['light-glows.circle-opacity']).toBe(LIGHT_LEVEL.night.glow);
+    expect(map.paint['light-glows.circle-opacity']).toEqual(glow(LIGHT_LEVEL.night.glow));
     controller.patchScenario({ lightPreset: 'dawn' });
     expect(map.config.lightPreset).toBe('dawn');
-    expect(map.paint['light-glows.circle-opacity']).toBe(LIGHT_LEVEL.dawn.glow);
+    expect(map.paint['light-glows.circle-opacity']).toEqual(glow(LIGHT_LEVEL.dawn.glow));
 
     // Non-Standard styles have no light preset to set, but the ship lights still follow the time of day.
     controller.setMapStyle('dark');
     map.fire('style.load');
     controller.patchScenario({ lightPreset: 'day' });
     expect(map.config.lightPreset).toBe('dawn');
-    expect(map.paint['light-glows.circle-opacity']).toBe(0);
+    expect(map.paint['light-glows.circle-opacity']).toEqual(glow(0));
     expect(map.paint['ship-lights.fill-extrusion-opacity']).toBe(LIGHT_LEVEL.day.pillars);
   });
 
@@ -240,6 +242,30 @@ describe('ExerciseMapView', () => {
     map.fire('click', { point: { x: 1, y: 1 }, lngLat: { lng: -62, lat: 33 } });
     expect(controller.state.get().selectedId).toBeNull();
     expect(controller.state.get().follow).toBe('orbit');
+  });
+
+  it('does not rebuild the ships for state the map does not show, but does when something it shows changes', () => {
+    const { map, controller } = setup();
+    map.fire('style.load');
+    let writes = 0;
+    for (const id of ['ex-hulls', 'ex-markers', 'ex-bursts']) {
+      const src = map.getSource(id)!;
+      const original = src.setData;
+      src.setData = (d) => {
+        writes++;
+        original(d);
+      };
+    }
+    controller.notify('hello');
+    controller.toggleRedTeam(true);
+    controller.state.set((s) => ({ mc: { ...s.mc, status: 'running', done: 5, total: 10 } }));
+    expect(writes).toBe(0);
+    controller.select('cvn1');
+    expect(writes).toBe(3);
+    controller.setView({ shipScale: 6 });
+    expect(writes).toBe(6);
+    controller.seek(100);
+    expect(writes).toBe(9);
   });
 
   it('stops turning when orbit ends or the view is disposed', () => {

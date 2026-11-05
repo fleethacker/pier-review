@@ -41,13 +41,19 @@ export function lerpAngle(a: number, b: number, f: number): number {
 /** Normalize a longitude into [-180, 180). */
 export const wrapLongitude = (lon: number): number => ((lon + 180) % 360 + 360) % 360 - 180;
 
+/** Near-antipodal endpoints have no numerically stable, unique shortest arc for display. */
+export function ambiguousSphericalInterval(a: { lat: number; lon: number }, b: { lat: number; lon: number }): boolean {
+  const dot = Math.sin(rad(a.lat)) * Math.sin(rad(b.lat)) + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.cos(rad(b.lon - a.lon));
+  return dot < -1 + 1e-12;
+}
+
 /** Shortest spherical arc. Antipodal endpoints have no unique arc, so no position is established. */
 export function sphericalPosition(a: { lat: number; lon: number }, b: { lat: number; lon: number }, f: number): { lat: number; lon: number } | null {
   const vector = (p: { lat: number; lon: number }) => [Math.cos(rad(p.lat)) * Math.cos(rad(p.lon)), Math.cos(rad(p.lat)) * Math.sin(rad(p.lon)), Math.sin(rad(p.lat))];
   const u = vector(a);
   const v = vector(b);
   const dot = Math.max(-1, Math.min(1, u.reduce((s, x, i) => s + x * v[i], 0)));
-  if (dot < -1 + 1e-12) return null;
+  if (ambiguousSphericalInterval(a, b)) return null;
   const angle = Math.acos(dot);
   const sine = Math.sin(angle);
   const wa = angle < 1e-8 ? 1 - f : Math.sin((1 - f) * angle) / sine;

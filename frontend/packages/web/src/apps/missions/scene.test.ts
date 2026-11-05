@@ -55,3 +55,14 @@ describe('display geometry and recording coverage', () => {
     expect(links[0].kind).toBe('track-gap');
   });
 });
+
+
+it('does not draw a nonunique antipodal interval as continuous recorded geometry', () => {
+  const track = [
+    { t_utc: '2026-11-05T12:00:00Z', lat: 0, lon: 0, quality: 'good' as const },
+    { t_utc: '2026-11-05T12:01:00Z', lat: 0, lon: 180, quality: 'good' as const },
+  ];
+  const { links } = storyboardContent({ ...sampleStoryboard, track }, makeProjector(0, 0), null, prepareTrack(track));
+  expect(links).toHaveLength(1);
+  expect(links[0].kind).toBe('track-gap');
+});

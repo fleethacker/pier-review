@@ -1,5 +1,5 @@
 import type { LocalFrame, SceneEntity, SceneLink, SceneVector } from '../../scene/types';
-import { haversineM, thin, wrapLongitude, type TimedFix } from './geo';
+import { ambiguousSphericalInterval, haversineM, thin, wrapLongitude, type TimedFix } from './geo';
 import { KIND_COLOR, DISCREPANCY_WARN_M, hasMarker, locateStyle } from './styling';
 import type { Storyboard, StoryboardEvent, TransitTugState, TransitVesselState } from './types';
 
@@ -121,7 +121,8 @@ export function storyboardContent(sb: Storyboard, p: Projector, selectedEventId:
   // Gap evidence comes only from original fixes, never from the display sampling interval.
   const gaps: { start: number; end: number }[] = [];
   for (let i = 1; i < evidence.length; i++) {
-    if ((evidence[i].tMs - evidence[i - 1].tMs) / 1000 > sb.max_interp_gap_s)
+    if ((evidence[i].tMs - evidence[i - 1].tMs) / 1000 > sb.max_interp_gap_s ||
+      ambiguousSphericalInterval(evidence[i - 1], evidence[i]))
       gaps.push({ start: evidence[i - 1].tMs, end: evidence[i].tMs });
   }
   const links: SceneLink[] = [];

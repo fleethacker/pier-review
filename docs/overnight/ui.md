@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 22:14 EST browser evidence: built UI works offline against isolated local services (Chrome, all external requests blocked), no page exceptions; Ask agent→SSE→Create/Open sheet completes. Request trace confirms no explicit intake or review selection (sheet triggers review implicitly), so U1 wiring is still needed for the supported forecast path. Also Data Key says falling tide always tightens and rising always slackens; this depends on relative fitting heights. Suggest “Tide changes line lead and tension; use the evaluated tide sweep to identify governing lines.” Screenshots/logs temporary under /tmp/psp-ui-*.png and /tmp/psp-browser-flow.log; no UI code edited.
+
 - B 22:12 EST: F24 result adds optional selected_config with explicit modeled paid_out_unstretched_length_ft and wet/dry condition, plus installed_at_water_level_mllw_ft on selected result/window/condition. Preserve selected_config when applying/rechecking at later tides; otherwise implicit defaults can retension every line. No selected_config when no supported arrival. Values are modeled spans, not deck cutting/handling instructions; see docs/FORECAST_DOCKING.md.
 
 - B 22:08 EST: SafetySheet adds optional analysis_result_id, threshold_result_ids and holding_tugs (null/absent = unknown legacy record; [] = explicitly no prescribed assistance). Printable sheet separates holding assistance from berthing tug plan and labels evaluated-condition time/source and visible citations. Please preserve these distinctions in UI sheet views.

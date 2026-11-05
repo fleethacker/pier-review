@@ -72,12 +72,13 @@ export function Bottom() {
 
 export function Banner() {
   const tab = useMissions((s) => s.tab);
+  const cameraOn = useMissions((s) => s.cameraOn);
   const sample = useMissions((s) =>
     s.tab === 'storyboard' ? s.sampleStoryboard : s.sampleTransit,
   );
   return (
     <div className="flex items-center gap-3">
-      {tab === 'camera' && <CameraBanner />}
+      {(tab === 'camera' || (tab === 'transit' && cameraOn)) && <CameraBanner />}
       {sample && (
         <span
           role="status"

@@ -114,3 +114,13 @@ def test_qualification_and_capability_endpoints():
     assert forecast["backend"] == "real" and forecast["qualification"] == "demonstration" and forecast["blockers"]
     rules = client.get(f"{P}/rules").json()
     assert all("coverage" in r and r["source_verified"] is False for r in rules)
+
+
+def test_published_tug_is_not_qualified_while_rating_source_is_unverified():
+    from mooring.qualification import qualify_tug
+    tug = refdata.tugs()[0]
+    tug.provenance.confidence = 'published'
+    report = qualify_tug(tug)
+    assert report.level == 'demonstration'
+    assert report.capabilities['tug_allocation'] == 'limited'
+    assert any(issue.code == 'RATING_SOURCE_UNVERIFIED' for issue in report.issues)

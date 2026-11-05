@@ -32,6 +32,7 @@ def _metadata(ship, loading, depth, water_density, use_gust, current_speed, resu
         "UFC 4-159-03 (2020), Chapter 4; Eq. 4-3 harmonic and symmetric angle folding restored from the earlier UFC edition.",
         "Wind basis follows supplied metadata; unsupported conversions and any legacy assumptions are listed below.",
         "Wind shielding scales all wind forces and moments equally; current is unshielded.",
+        "Static wind and current loads only; wave and wake loads are not evaluated.",
         "Water depth is actual depth at the ship; water level is not added again.",
         "Current model assumes a wide harbor/channel, level keel, and 15 C salt-water viscosity (Table 4-1); density uses the request.",
         "Yaw uses UFC Tables 4-5/4-10: DDG and CG use destroyer wind / FFG current; CVN and LHD use carrier wind / CVE 55 current. CG is assumed at midships.",

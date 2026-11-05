@@ -70,6 +70,28 @@ def history(station_id, start, end, step_min=6):
     return live.history(station_id, start, end, step_min)
 
 
+def replay_snapshot(berth_id, at, heading_true_deg=None):
+    """Replay a recorded/provider observation at an explicit historical time."""
+    if source_mode() == "coops":
+        from . import live
+        return live.at(berth_id, at, heading_true_deg)
+    from .errors import ProviderError
+    from .replay import Unavailable, recorded_fixture_source
+    snap = recorded_fixture_source().at(at, now=at)
+    if isinstance(snap, Unavailable):
+        raise ProviderError("no_data", snap.reason)
+    return with_relative(snap, heading_true_deg)
+
+
+def provider_modules() -> dict[str, str]:
+    coops = "live" if source_mode() == "coops" else "mock (disabled)"
+    return {
+        "Provider NOAA CO-OPS": coops,
+        "Provider NWS": "unavailable (DC2 not installed)",
+        "Provider CBOFS": "unavailable (DC3 not installed)",
+    }
+
+
 def forecast(berth_id, hours=48, step_min=30):
     if source_mode() == "coops":
         from .coops import ProviderError

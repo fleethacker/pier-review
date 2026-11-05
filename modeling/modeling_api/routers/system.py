@@ -7,7 +7,7 @@ from mooring import refdata
 from mooring.core.envelopes import RESULTS
 from mooring.core.schemas import Health, JobStatus, VersionInfo
 
-from ..backend import BACKENDS, overall_backend
+from ..backend import backend_modules, overall_backend
 from ..state import JOBS
 
 router = APIRouter(tags=["System"])
@@ -52,7 +52,7 @@ def health():
 
 @router.get("/version", response_model=VersionInfo)
 def version():
-    return VersionInfo(api_version="1.0.0", modules=BACKENDS)
+    return VersionInfo(api_version="1.0.0", modules=backend_modules())
 
 
 @router.get("/metrics", response_model=dict[str, float], summary="Single-process operational counters (authenticated when enabled)")

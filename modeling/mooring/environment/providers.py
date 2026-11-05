@@ -218,6 +218,7 @@ class ProviderHttpClient:
         )
         self._cache: dict[tuple[str, tuple[tuple[str, str], ...]], tuple[datetime, HttpPayload]] = {}
         self._last_call: datetime | None = None
+        self.calls = 0
 
     @staticmethod
     def _key(url: str, params: Mapping[str, str]) -> tuple[str, tuple[tuple[str, str], ...]]:
@@ -256,6 +257,7 @@ class ProviderHttpClient:
                 if wait > 0:
                     self.clock.sleep(wait)
             self._last_call = self.clock.now()
+            self.calls += 1
             try:
                 payload = self.transport(
                     url,
@@ -287,6 +289,11 @@ class ProviderHttpClient:
             f"{self.provider_id} unavailable after {self.policy.retries + 1} attempts "
             f"({last_error}); no usable cached response",
         )
+
+    def invalidate(self, url: str, params: Mapping[str, str] | None = None) -> None:
+        """Remove a response that a provider parser found uncacheable."""
+        with self._lock:
+            self._cache.pop(self._key(url, params or {}), None)
 
 
 def canonical_fixture_bytes(value: Any) -> bytes:

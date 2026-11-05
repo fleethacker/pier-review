@@ -2,7 +2,11 @@
 
 Agent B, 4–5 November 2026. Extends team_agent_instructions/02-modeling-and-agents.md. Shared overnight ownership/integration rules apply; generated contracts define wire shapes. Target 08:00 EST: demonstrable integration, not operational qualification.
 
-## UI coverage audit
+## Reading this plan after implementation
+
+The audit below records the starting state, not the current implementation. Use [MODELING_BUILDOUT_STATUS.md](MODELING_BUILDOUT_STATUS.md) for implemented scope and blockers, [MODELING_UI_RECOMMENDATIONS.md](MODELING_UI_RECOMMENDATIONS.md) for optional UI integration, and [the overnight log](overnight/modeling-agents.md) for evidence. The backend supports the explicit Intake/Planner/review/sheet chain and supplied-series advance planning. The shared UI still lacks explicit Intake/review selection, and production public forecast composition remains unavailable.
+
+## Baseline UI coverage audit
 
 | Existing UI | Backend/integration gap | Required work |
 | --- | --- | --- |
@@ -29,7 +33,7 @@ Agent B, 4–5 November 2026. Extends team_agent_instructions/02-modeling-and-ag
 
 Planning time differs from arrival time. Acquire at least 48h where supported: 24h starting now cannot cover an operation beginning tomorrow plus docking/initial holding.
 
-Inputs: scenario, explicit as-of UTC, candidate arrival interval, operation/holding duration, forecast or source, utilization target, bounded budget. Outputs: selected arrival and alternatives, governing element/time, evaluated conditions and immutable result IDs, coverage/issue metadata, line placements, tug assignments and draft sequence.
+Inputs: scenario, explicit as-of UTC, candidate arrival interval, operation/holding duration, forecast or source, utilization target, bounded budget. Implemented static outputs: selected arrival and alternatives, governing element/time, evaluated conditions and immutable result IDs, coverage/issue metadata, line placements and holding-tug assignments. Draft sequences remain a separate generation/validation workflow; the forecast response does not bundle an approved sequence or docking maneuver.
 
 - Reject future-issued data relative to as-of; duplicates, unordered times, missing coverage and unsupported datums must not silently pass. Never extrapolate calm conditions over a gap.
 - Use coincident snapshots, not artificial combinations of independent maxima. Evaluate interior gust/current/tide peaks and direction changes throughout docking/holding.

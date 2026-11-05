@@ -16,7 +16,10 @@ import statistics
 from collections.abc import Sequence
 from datetime import datetime
 
-from mooring.core.schemas import EnvironmentSnapshot, HeldOutValidation, UncertaintyModel, UncertaintySector
+from mooring.core.schemas import (
+    Distribution, EnvironmentSnapshot, FitWindow, GustModel, GustSector, HeldOutValidation, Provenance,
+    UncertaintyModel, UncertaintySector,
+)
 
 MIN_EVENTS = 30            # independent events (storm episodes / days) required
 MIN_DAYS = 365.0           # span of fitting data
@@ -183,3 +186,27 @@ def load_model(model_id: str) -> UncertaintyModel:
     if "/" in model_id or ".." in model_id or not path.is_file():
         raise KeyError(model_id)
     return qualify(UncertaintyModel.model_validate_json(path.read_text()))
+
+
+def served_gust_model(station_id: str, model_id: str = "coops-8638614-2025") -> GustModel:
+    """Project a committed fitted artifact onto the legacy gust-model response without inventing sector detail."""
+    model = load_model(model_id)
+    if station_id not in model.station_ids:
+        raise ValueError(f"model {model_id!r} was not fitted for station {station_id!r}")
+    sectors = [
+        GustSector(from_deg=sector.from_deg, to_deg=sector.to_deg,
+                   gust_factor=Distribution(dist="lognormal", params={"mu": sector.gust_factor_mu, "sigma": sector.gust_factor_sigma}),
+                   dir_sigma_deg=model.direction_sigma_deg)
+        for sector in model.sectors
+    ]
+    if not sectors:
+        sectors = [GustSector(from_deg=0, to_deg=360,
+                              gust_factor=Distribution(dist="lognormal", params={"mu": model.gust_factor_mu, "sigma": model.gust_factor_sigma}),
+                              dir_sigma_deg=model.direction_sigma_deg)]
+    assert model.fit_start_utc is not None and model.fit_end_utc is not None
+    notes = "; ".join([f"qualification={model.qualification}", *model.qualification_reasons, *model.limitations])
+    return GustModel(
+        station_id=station_id, sectors=sectors, current_residual_sigma_kt=model.current_sigma_kt,
+        fitted_on=FitWindow(start_utc=model.fit_start_utc, end_utc=model.fit_end_utc, n=model.n_events),
+        provenance=Provenance(source=f"Fitted artifact {model.model_id} revision {model.revision}", confidence="estimated", notes=notes),
+    )

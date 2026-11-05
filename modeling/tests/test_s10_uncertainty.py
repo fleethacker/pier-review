@@ -126,6 +126,16 @@ def test_committed_fitted_artifact_is_valid_calibrated_and_honestly_unqualified(
     for bad in ("../etc/passwd", "nope", "a/b"):
         with pytest.raises(KeyError):
             u.load_model(bad)
+
+
+def test_gust_endpoint_serves_fitted_artifact_with_honest_limitations():
+    served = u.served_gust_model("8638614")
+    assert served.provenance.confidence == "estimated" and "coops-8638614-2025" in served.provenance.source
+    assert "qualification=unqualified" in served.provenance.notes
+    assert len(served.sectors) == 1  # legacy artifact has no sector fits; do not manufacture eight
+    assert served.sectors[0].gust_factor.params["mu"] == pytest.approx(u.load_model("coops-8638614-2025").gust_factor_mu)
+    with pytest.raises(ValueError, match="was not fitted"):
+        u.served_gust_model("not-this-station")
     assert u.available_models()[:2] == ["synthetic-demo", "coops-8638614-2025"]
 
 

@@ -70,9 +70,11 @@ scoped `make demo-check` 24/24; use the current PR/CI evidence for newer counts)
 - LLM providers: none (default), OpenAI, Anthropic. Everything runs offline with no key.
 
 **Modeling integration update, 5 November:** P1 immutable forecast resolution (#4), P2 explicit forecast reassessment
-(#8), and the initial P3 independent dynamics benchmarks (#5) are merged into `dev`. S1 (#6) review fixes are complete
-and undergoing final checks. S5/S6 (#10) remains a draft with its owner addressing review findings. S7/U8/D8/A7 below
-are planned work, not implemented prediction capability. Composed public forecasts and vessel qualification remain open.
+(#8), and the initial P3 independent dynamics benchmarks (#5) are merged into `dev`. S1 (#6) review fixes await
+integration and CI. S5/S6 (#10) merged at `355bec8` into `dev` at `ed12e31`, but all 16 independent review findings
+remain open; this is not review approval. See the [PR #10 review](https://github.com/fleethacker/pier-review/pull/10#issuecomment-6663809986).
+S7/U8/D8/A7 below are planned work, not implemented prediction capability. Composed public forecasts and vessel
+qualification remain open.
 
 **Not done** (this plan's scope):
 
@@ -145,7 +147,7 @@ file, and use each as the other's independent reviewer.
 
 | Session | Lane | Files (exclusive) |
 | --- | --- | --- |
-| **Claude (M-SIM)** | S1 → S7 interface/minimum deterministic camera → S2 → S7 changing-forcing extension → S3 | `berthing/`, `sim_sessions.py`, `ws.py`, `routers/berthing.py`, `schemas/motion.py`, `schemas/dynamics.py`; coordinate additive prediction route/schema with shared-file owners |
+| **Claude (M-SIM)** | S1 → S7 interface/minimum deterministic camera → S2 → S7 changing-forcing extension → S3; S5/S6 review fixes remain open and gate their use in the camera | `berthing/`, `sim_sessions.py`, `ws.py`, `routers/berthing.py`, `schemas/motion.py`, `schemas/dynamics.py`; `missions/`, `transit/`, `routers/{missions,transit}.py`, `schemas/{missions,transit}.py`; coordinate additive prediction route/schema with shared-file owners |
 | **GPT (M-PLAN)** | Static modeling and the forecast consumer side: P1 → P2 → S4 → P3, then benchmarks for S1–S3 | `moored/`, `loads/`, `mechanics/`, `tugs/`, `rules/`, `data_simulation/`, `routers/{moored,loads}.py`, `schemas/{forecast_planning,planning,mooring,risk}.py` |
 
 Rules for the two sessions:
@@ -176,6 +178,31 @@ current without double-counting damping; water level updates depth and line geom
 Uncovered forcing stops or invalidates per a documented policy. Synthetic series come from `data_simulation/` (GPT lane)
 or Cruz's series contract; use fixtures until those land.
 
+**S5 (P0, added 5 Nov). Mission storyboarding.** After a mission, rebuild the ship's path from its recorded lat/lon
+fixes and tie timestamped images and reports to positions on that path. Ingest tracks (JSON, CSV, GPX, NMEA RMC/GGA),
+images (timestamp and position from EXIF, with a supplied camera clock offset and UTC offset, or an explicit timestamp)
+and reports (timestamp, text, optional reported position). Locate every event on the track by time with an explicit
+method: exact fix, interpolated between fixes, in a gap longer than the allowed interpolation span, or before/after the
+track; never extrapolate. Compare the interpolated position with EXIF/reported positions and report the discrepancy.
+Outputs: storyboard (time-ordered events with positions, distance along track, speed), decimated track, GeoJSON export.
+Naive timestamps are rejected unless an offset is supplied; duplicates and out-of-order fixes are reported, not hidden.
+UI: a storyboard view (track on the map, event markers, timeline scrubber that moves the ship along the path, image and
+report panels). Acceptance: parser fixtures for each format, interpolation/gap/extrapolation tests, EXIF timezone and
+clock-offset tests, round-trip GeoJSON, bounded upload sizes, ownership checks.
+
+**S6 (P0, added 5 Nov). Port transit simulation: own thrust and tug-assisted, multiple ships.** Simulate ships entering
+or leaving port along lat/lon routes under their own propulsion, or with tugs. 3-DOF maneuvering (surge, sway, yaw) in a
+local tangent plane tied to lat/lon; hull forces from published main-dimension regressions (Clarke et al. 1983 linear
+derivatives, Mumford wetted surface), propeller thrust with engine lag, rudder with rate limit and propeller wash,
+apparent wind through the existing UFC loads, current as moving water. Line-of-sight autopilot with leg speeds and an
+arrival slowdown; tugs by timed commands or an automatic low-speed turning/braking assist within bollard pull and slew.
+Several vessels on one clock (no ship–ship interaction, stated). Propulsion data are explicit labeled assumptions (no
+ship speed/power in reference data). Validity always limited with reasons (surrogate maneuvering, assumed propulsion,
+deep water: no squat/bank/UKC, tug kinematics not modeled). Simulated tracks use the S5 fix format so they replay in the
+storyboard. Acceptance: analytic and sanity benchmarks (steady speed, zero-rudder straight line, turning-circle
+symmetry and range, rudder step response, drift with current, pure tug sway force, deceleration), multi-vessel
+independence, determinism, inbound and outbound Norfolk presets that reach their final waypoint.
+
 **S3 (P2). Tug geometry and vertical motion.** Packet 5. Tugs bound to permitted push points, capacity and slew; moments from
 contact geometry; tug positions only where a kinematic model exists. Tide-following heave first; quasi-static heel only
 with supported loading/stability inputs (else "not simulated"). No invented GM or hydrodynamic coefficients.
@@ -188,8 +215,8 @@ revisions and timestamps, validity, hazard coverage and model-computed contact/c
 preserve required hidden state (actuator lag/slew, pending commands, active lines and paid-out lengths), not just the
 displayed pose/velocity. Clone it per alternative; prediction never advances or mutates the live session.
 
-Deliver in gates: **S7a** is the deterministic single-engine camera using reviewed S1 or, after PR #10 is reviewed and
-merged, S6, with an explicit fixed-environment basis. Recorded/synthetic initial states are acceptable, labeled, until
+Deliver in gates: **S7a** is the deterministic single-engine camera using reviewed S1 or, after the open PR #10 findings
+are fixed and independently re-reviewed, S6, with an explicit fixed-environment basis. Recorded/synthetic initial states are acceptable, labeled, until
 D8 supplies live state. **S7b** adds S2's changing forcing and a documented engine handoff with tested frames, units,
 state/parameter mapping and supported operating domain; never switch engines silently by proximity to a pier.
 **S7c** adds trajectory uncertainty when its input-error and temporal sampling model are specified. Seeded ensemble
@@ -305,7 +332,8 @@ Times are relative to the start of work after the remote move (**T0**). Adjust t
 | T0 + 1 h | Default branch/CI confirmed on the new remote, everyone re-cloned (A0). Contract-only PRs opened for S1 (frames/scene/recording routes) and D1 (availability shape) | Bixler, Snyder (Claude), Cruz |
 | T0 + 3 h | U1 merged; S1 live frames merged; D1 merged; demo-check extended to the planning chain | Kori, Snyder, Cruz, Bixler |
 | T0 + 5 h | U2 live rm0 motion in the UI; D2 series contract + fixtures published; P1 resolver against fixtures. **Release to `main` #1** | Kori, Cruz, Snyder (GPT), Bixler |
-| After reviewed S1, before declaring the build complete | S7a contract/fixtures → U8 deterministic camera and A7 cited warnings → integration gate for definition-of-done item 7. Use labeled replay/synthetic state until D8 lands; S6 remains gated on PR #10 review. A milestone release before this gate is not completion of the build. | Snyder (M-SIM service; M-PLAN benchmarks), Kori, Bixler; Cruz supplies D8 |
+| T0 + 6 h (integration recorded) | S5 storyboarding and S6 port transit merged in #10; 16 independent findings remain open. Fix and re-review before treating either feature as accepted. | Snyder (Claude; independent review) |
+| After reviewed S1, before declaring the build complete | S7a contract/fixtures → U8 deterministic camera and A7 cited warnings → integration gate for definition-of-done item 7. Use labeled replay/synthetic state until D8 lands; S6 remains gated on closure and independent re-review of the PR #10 findings. A milestone release before this gate is not completion of the build. | Snyder (M-SIM service; M-PLAN benchmarks), Kori, Bixler; Cruz supplies D8 |
 | T0 + 8 h | S2 sim-time forcing; D2 composed forecast; U3/U4; A3 agents on forecast revision. **Release to `main` #2** | all |
 | After S2/D8 interfaces | S7b changing forcing/live state and explicit engine handoff; S7c uncertainty only with its declared sampling model and evidence. Retain unavailable labels for unimplemented parts. | Snyder, Cruz, Kori, Bixler |
 | Then | P2 items: S3, S4/D4, U5–U7, D5, A5. Release after each green milestone | all |
@@ -382,7 +410,9 @@ Bixler updates this table; everyone else posts in the team channel.
 | Item | Owner | State | PR | Notes |
 | --- | --- | --- | --- | --- |
 | A0 remote cut-over | Bixler | local cut-over docs complete; protection pending admin | | GitHub checked 5 Nov: default `main`, `dev`/`main` unprotected; explicit `--base dev`; CI triggers both branches |
-| S1 rm0 live frames | Snyder (Claude; GPT review/fixes) | review fixes complete; final checks pending | #6 | Rich frames, scene, lifecycle/speed/reconnect, bounded workers and saved recordings/index; synthetic vessel dynamics |
+| S1 rm0 live frames | Snyder (Claude; GPT review/fixes) | review fixes await integration and CI | #6 | Rich frames, scene, lifecycle/speed/reconnect, bounded workers and saved recordings/index; synthetic vessel dynamics |
+| S5 mission storyboarding | Snyder (Claude) | merged; review findings open | #10 | Part of the 16 unresolved [independent findings](https://github.com/fleethacker/pier-review/pull/10#issuecomment-6663809986); not approved clean. Demo: [DEMO_MISSIONS_TRANSIT.md](DEMO_MISSIONS_TRANSIT.md) |
+| S6 port transit simulation | Snyder (Claude) | merged; review findings open | #10 | Same unresolved review as S5; surrogate/limited; camera use awaits fixes and independent re-review |
 | S7 trajectory prediction | Snyder (Claude service; GPT independent benchmarks) | planned; contract first after S1 | #11 plan only | S7a is deterministic and single-engine; S7b/S7c depend on S2, data/uncertainty support; no prediction endpoint exists yet |
 | P1 forecast resolver | Snyder (GPT) | merged | #4 | Immutable supplied/scenario resolution, hashes and coverage gates; public composition still depends on D2 |
 | P2 forecast recheck | Snyder (GPT) | merged | #8 | Explicit reassessment on revision change; historical results remain immutable |
@@ -393,7 +423,7 @@ Bixler updates this table; everyone else posts in the team channel.
 | D1 source selection | Cruz | not started | | |
 | D2 composed forecast | Cruz | not started | | |
 | D8 own-ship state | Cruz | planned | | Publish state/age/quality contract for S7; recorded/synthetic demo fallback must be labeled; AIS ingest remains unsupported until implemented |
-| A1 demo-check | Bixler | expanded baseline implemented locally; full gate pending | | Four API chains, synthetic advance planning, legacy WS; CI job added; readiness profile fails uncovered S1/D1/A3/browser gates |
+| A1 demo-check | Bixler | merged (baseline); full gate pending | #7 | Four API chains, synthetic advance planning, legacy WS; CI job added; readiness profile fails uncovered S1/D1/A3/browser gates |
 | A2 hosting | Bixler | local launcher/browser rehearsal passed; target deferred | | Node >=22.17, startup health, installer/service cleanup, HTML fallback; Bixler requested local tests instead of Domino |
 | A3 forecast binding | Bixler | consumer integration pending; P1 available | | Carry the merged resolver manifest through Intake/Planner/Safety; automatic public revision lookup still depends on D2 |
 | A7 prediction narration | Bixler | planned; depends on S7 result contract | | Cite code-owned warnings and immutable prediction IDs; add the item 7 demo gate |

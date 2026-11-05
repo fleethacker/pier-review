@@ -149,7 +149,10 @@ def test_interactive_session_ws():
 
 
 def test_env_ws():
-    with client.websocket_connect("/ws/env?berth_id=NAVSTA-NORFOLK-P12-N&interval_s=0&limit=2") as ws:
+    source = client.post(f"{P}/env/scenarios", json=EXAMPLES["env_scenario"]).json()["env_scenario_id"]
+    with client.websocket_connect(
+        f"/ws/env?berth_id=NAVSTA-NORFOLK-P12-N&mode=scenario&env_scenario_id={source}&interval_s=0&limit=2"
+    ) as ws:
         a, b = ws.receive_json(), ws.receive_json()
     assert "wind_speed_kt" in a and "water_level_mllw_ft" in b
 

@@ -2,19 +2,20 @@
 
 # Optional installed native-library path, assigned inside the recipe for macOS make.
 PDF_LIBRARY_PATH ?=
+MOORING_ENV_SOURCE ?= auto
 DEMO_CHECK_ARGS ?=
 
 install:            ## Install both Python services into one virtualenv
 	uv sync --all-packages
 
-modeling:           ## Modeling (physics/ML) mock API on :8000, docs at /docs
-	uv run --all-packages uvicorn modeling_api.main:app --reload --port 8000 --reload-dir modeling
+modeling:           ## Modeling (physics/ML) API on :8000, docs at /docs
+	MOORING_ENV_SOURCE="$(MOORING_ENV_SOURCE)" uv run --all-packages uvicorn modeling_api.main:app --reload --port 8000 --reload-dir modeling
 
 agents:             ## Agents mock API on :8001 (calls modeling on :8000)
 	MODELING_API_URL=http://localhost:8000/api/v1 $(if $(PDF_LIBRARY_PATH),DYLD_FALLBACK_LIBRARY_PATH="$(PDF_LIBRARY_PATH)") uv run --all-packages uvicorn mooring_agents.api.main:app --reload --port 8001 --reload-dir agents
 
-mock:               ## Both services; Ctrl-C stops both
-	$(MAKE) -j2 modeling agents
+mock:               ## Both services with explicitly synthetic environment; Ctrl-C stops both
+	$(MAKE) -j2 modeling agents MOORING_ENV_SOURCE=mock
 
 contract:           ## Regenerate contract/*.openapi.yaml and examples from the schemas
 	uv run --all-packages python scripts/export_contract.py
@@ -29,7 +30,8 @@ check: test
 
 smoke-live:           ## Opt-in live provider checks (never part of CI)
 	@if test "$${MOORING_LIVE_SMOKE:-}" = 1; then \
-		uv run --all-packages python scripts/smoke_coops.py; \
+		uv run --all-packages python scripts/smoke_coops.py && \
+		uv run --all-packages python scripts/smoke_waves.py; \
 	else \
 		echo "skipped: set MOORING_LIVE_SMOKE=1"; \
 	fi

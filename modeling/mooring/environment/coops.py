@@ -77,9 +77,11 @@ def request_params(product: str, station: str, begin: datetime, end: datetime, *
 # ---------- parsing (pure) ----------
 
 def _check_error(doc: dict) -> None:
+    if not isinstance(doc, dict):
+        raise ProviderError("malformed", "response JSON is not an object")
     err = doc.get("error")
     if err:
-        msg = str(err.get("message", err)).strip()
+        msg = str(err.get("message", err) if isinstance(err, dict) else err).strip()
         low = msg.lower()
         kind = "no_data" if "no data" in low else "bad_request"
         raise ProviderError(kind, msg)
@@ -114,9 +116,14 @@ def _flags(f: str | None) -> list[int]:
 def _data(doc: dict, key: str = "data") -> list[dict]:
     _check_error(doc)
     rows = doc.get(key)
-    if not isinstance(rows, list):
-        raise ProviderError("malformed", f"response has no '{key}' list")
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise ProviderError("malformed", f"response '{key}' must be a list of objects")
     return rows
+
+
+def _require_current_bin(rows: list[dict], requested_bin: int | str, *, field: str) -> None:
+    if any(row.get(field) is not None and str(row[field]) != str(requested_bin) for row in rows):
+        raise ProviderError("no_data", f"current response bin differs from requested bin {requested_bin}; no bin substitution is permitted")
 
 
 def parse_wind(doc: dict) -> list[dict]:
@@ -139,9 +146,12 @@ def parse_water_level(doc: dict) -> list[dict]:
     return out
 
 
-def parse_currents(doc: dict) -> list[dict]:
+def parse_currents(doc: dict, *, expected_bin: int | str | None = None) -> list[dict]:
     out = []
-    for r in _data(doc):
+    rows = _data(doc)
+    if expected_bin is not None:
+        _require_current_bin(rows, expected_bin, field="b")
+    for r in rows:
         out.append({"t": _t(r.get("t")), "current_speed_kt": _num(r.get("s")), "current_set_true_deg": _num(r.get("d")), "bin": r.get("b"),
                     "quality": "good", "original": dict(r)})
     return out
@@ -149,14 +159,18 @@ def parse_currents(doc: dict) -> list[dict]:
 
 def parse_predictions(doc: dict) -> list[dict]:
     _check_error(doc)
-    return [{"t": _t(r.get("t")), "water_level_ft": _num(r.get("v"))} for r in doc.get("predictions", [])]
+    rows = doc.get("predictions")
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise ProviderError("malformed", "response predictions must be a list of objects")
+    return [{"t": _t(r.get("t")), "water_level_ft": _num(r.get("v"))} for r in rows]
 
 
 def parse_current_predictions(doc: dict) -> list[dict]:
     _check_error(doc)
-    rows = (doc.get("current_predictions") or {}).get("cp")
-    if not isinstance(rows, list):
-        raise ProviderError("malformed", "response has no current_predictions.cp list")
+    predictions = doc.get("current_predictions")
+    rows = predictions.get("cp") if isinstance(predictions, dict) else None
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise ProviderError("malformed", "response current_predictions.cp must be a list of objects")
     return [{"t": _t(r.get("Time")), "current_speed_kt": _num(r.get("Speed")), "current_set_true_deg": _num(r.get("Direction")),
              "bin": r.get("Bin"), "depth_ft": _num(r.get("Depth"))} for r in rows]
 
@@ -171,6 +185,7 @@ def _nearest(series: list[dict], t: datetime, tol_s: float) -> dict | None:
 def assemble(wind: list[dict], level: list[dict], current: list[dict], *, wind_station: str, level_station: str, current_station: str, bin: int,
              bin_depth_ft: float | None = None, tol_s: float = ALIGN_TOLERANCE_S) -> tuple[list[dict], list[str]]:
     """Raw records for `ReplaySource`, joined on the wind timestamps. Returns (records, notes about dropped timestamps)."""
+    _require_current_bin(current, bin, field="bin")
     out, notes = [], []
     for w in wind:
         lv, cu = _nearest(level, w["t"], tol_s), _nearest(current, w["t"], tol_s)
@@ -213,6 +228,7 @@ class Fetched:
     doc: dict
     stale: bool
     age_s: float
+    retrieved_at_utc: datetime | None = None
 
 
 class Fetcher:
@@ -273,7 +289,13 @@ class Fetcher:
             raise ProviderError("malformed", "response JSON is not an object")
         if "error" in doc:
             self.client.invalidate(self.base_url, {str(k): str(v) for k, v in params.items()})
-        return Fetched(doc, payload.stale, payload.age_s)
+        elif params.get("product") == "currents" and params.get("bin") is not None:
+            try:
+                _require_current_bin(_data(doc), params["bin"], field="b")
+            except ProviderError:
+                self.client.invalidate(self.base_url, {str(k): str(v) for k, v in params.items()})
+                raise
+        return Fetched(doc, payload.stale, payload.age_s, payload.retrieved_at_utc)
 
 
 class Coops:

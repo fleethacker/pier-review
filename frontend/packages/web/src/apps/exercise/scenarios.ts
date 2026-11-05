@@ -1,0 +1,735 @@
+import { LARGE_SCENARIOS } from './scenariosLarge';
+import { stock } from './stockImages';
+import { at, minefield, OCEAN_CENTER, station, wp } from './scenarioKit';
+import { offsetM } from './geo';
+import type { LonLat, RedTeamSpec, ScenarioConfig, UnitConfig, Waypoint } from './types';
+
+export { OCEAN_CENTER };
+
+const CALM = { windFromDeg: 250, windKt: 12, currentToDeg: 45, currentKt: 0.8 };
+
+const transit: ScenarioConfig = {
+  id: 'csg-transit',
+  name: 'Carrier group transit',
+  description:
+    'A carrier steams east and makes two course changes while a cruiser and two destroyers hold screen stations. A merchant crosses ahead.',
+  center: OCEAN_CENTER,
+  durationS: 5400,
+  lightPreset: 'dusk',
+  environment: CALM,
+  units: [
+    {
+      id: 'cvn1',
+      name: 'Carrier 1',
+      classId: 'CVN',
+      side: 'BLUE',
+      start: at(-12000, 0),
+      headingDeg: 90,
+      speedKt: 18,
+      maxTurnRateDegPerS: 0.1,
+      behavior: { type: 'route', waypoints: [wp(14000, 0), wp(24000, -9000), wp(42000, -9000)] },
+    },
+    {
+      id: 'cg1',
+      name: 'Cruiser 1',
+      classId: 'CG',
+      side: 'BLUE',
+      start: station(at(-12000, 0), 90, 3000, 0),
+      headingDeg: 90,
+      speedKt: 18,
+      behavior: { type: 'escort', leaderId: 'cvn1', aheadM: 3000, abeamM: 0 },
+    },
+    {
+      id: 'ddg1',
+      name: 'Destroyer 1',
+      classId: 'DDG',
+      side: 'BLUE',
+      start: station(at(-12000, 0), 90, 1200, -3000),
+      headingDeg: 90,
+      speedKt: 18,
+      behavior: { type: 'escort', leaderId: 'cvn1', aheadM: 1200, abeamM: -3000 },
+    },
+    {
+      id: 'ddg2',
+      name: 'Destroyer 2',
+      classId: 'DDG',
+      side: 'BLUE',
+      start: station(at(-12000, 0), 90, 1200, 3000),
+      headingDeg: 90,
+      speedKt: 18,
+      behavior: { type: 'escort', leaderId: 'cvn1', aheadM: 1200, abeamM: 3000 },
+    },
+    {
+      id: 'mv1',
+      name: 'Merchant 1',
+      classId: 'CARGO',
+      side: 'NEUTRAL',
+      start: at(18000, 22000),
+      headingDeg: 180,
+      speedKt: 15,
+      behavior: { type: 'route', waypoints: [wp(18000, -40000)] },
+    },
+  ],
+};
+
+const encounter: ScenarioConfig = {
+  id: 'surface-encounter',
+  name: 'Surface contact intercept',
+  description:
+    'Three fast attack craft run at a destroyer pair. A cruiser closes from the north-west to shadow the lead craft while a merchant passes through.',
+  center: OCEAN_CENTER,
+  durationS: 2700,
+  lightPreset: 'night',
+  environment: { windFromDeg: 300, windKt: 18, currentToDeg: 90, currentKt: 1.2 },
+  units: [
+    {
+      id: 'ddg1',
+      name: 'Destroyer 1',
+      classId: 'DDG',
+      side: 'BLUE',
+      start: at(-6000, -2000),
+      headingDeg: 90,
+      speedKt: 14,
+      behavior: { type: 'route', waypoints: [wp(30000, -2000)] },
+    },
+    {
+      id: 'ddg2',
+      name: 'Destroyer 2',
+      classId: 'DDG',
+      side: 'BLUE',
+      start: station(at(-6000, -2000), 90, 0, 2200),
+      headingDeg: 90,
+      speedKt: 14,
+      behavior: { type: 'escort', leaderId: 'ddg1', aheadM: 0, abeamM: 2200 },
+    },
+    {
+      id: 'cg1',
+      name: 'Cruiser 1',
+      classId: 'CG',
+      side: 'BLUE',
+      start: at(-14000, 16000),
+      headingDeg: 120,
+      speedKt: 28,
+      behavior: { type: 'pursue', targetId: 'fac1', standoffM: 2500 },
+    },
+    {
+      id: 'fac1',
+      name: 'Fast craft 1',
+      classId: 'FAC',
+      side: 'RED',
+      start: at(9000, 18000),
+      headingDeg: 200,
+      speedKt: 38,
+      behavior: { type: 'route', waypoints: [wp(2000, -2500), wp(-8000, -9000), wp(-32000, -13000)] },
+    },
+    {
+      id: 'fac2',
+      name: 'Fast craft 2',
+      classId: 'FAC',
+      side: 'RED',
+      start: station(at(9000, 18000), 200, -450, -400),
+      headingDeg: 200,
+      speedKt: 38,
+      behavior: { type: 'escort', leaderId: 'fac1', aheadM: -450, abeamM: -400 },
+    },
+    {
+      id: 'fac3',
+      name: 'Fast craft 3',
+      classId: 'FAC',
+      side: 'RED',
+      start: station(at(9000, 18000), 200, -450, 400),
+      headingDeg: 200,
+      speedKt: 38,
+      behavior: { type: 'escort', leaderId: 'fac1', aheadM: -450, abeamM: 400 },
+    },
+    {
+      id: 'mv1',
+      name: 'Merchant 1',
+      classId: 'CARGO',
+      side: 'NEUTRAL',
+      start: at(20000, 6000),
+      headingDeg: 270,
+      speedKt: 16,
+      behavior: { type: 'route', waypoints: [wp(-30000, 6000)] },
+    },
+  ],
+};
+
+const drillStart = at(-8000, -6000);
+
+const drill: ScenarioConfig = {
+  id: 'formation-drill',
+  name: 'Formation maneuvering drill',
+  description:
+    'A cruiser leads three destroyers around a box on a wide, slow turn radius, changing speed between legs. Watch the escorts swing about the guide and hold station.',
+  center: OCEAN_CENTER,
+  durationS: 5400,
+  lightPreset: 'day',
+  environment: { windFromDeg: 180, windKt: 8, currentToDeg: 0, currentKt: 0.5 },
+  units: [
+    {
+      id: 'cg1',
+      name: 'Guide',
+      classId: 'CG',
+      side: 'BLUE',
+      start: drillStart,
+      headingDeg: 90,
+      speedKt: 16,
+      maxTurnRateDegPerS: 0.2,
+      behavior: {
+        type: 'route',
+        waypoints: [wp(2000, -6000, 16), wp(2000, 2000, 18), wp(-8000, 2000, 18), wp(-8000, -6000, 14)],
+        loop: true,
+      },
+    },
+    {
+      id: 'ddg1',
+      name: 'Escort 1',
+      classId: 'DDG',
+      side: 'BLUE',
+      start: station(drillStart, 90, 0, -1200),
+      headingDeg: 90,
+      speedKt: 16,
+      behavior: { type: 'escort', leaderId: 'cg1', aheadM: 0, abeamM: -1200 },
+    },
+    {
+      id: 'ddg2',
+      name: 'Escort 2',
+      classId: 'DDG',
+      side: 'BLUE',
+      start: station(drillStart, 90, 0, 1200),
+      headingDeg: 90,
+      speedKt: 16,
+      behavior: { type: 'escort', leaderId: 'cg1', aheadM: 0, abeamM: 1200 },
+    },
+    {
+      id: 'ddg3',
+      name: 'Escort 3',
+      classId: 'DDG',
+      side: 'BLUE',
+      start: station(drillStart, 90, -1800, 0),
+      headingDeg: 90,
+      speedKt: 16,
+      behavior: { type: 'escort', leaderId: 'cg1', aheadM: -1800, abeamM: 0 },
+    },
+  ],
+};
+
+
+const blueGroup = (origin: LonLat, speedKt: number): UnitConfig[] => [
+  {
+    id: 'cvn1',
+    name: 'Carrier 1',
+    classId: 'CVN',
+    side: 'BLUE',
+    start: origin,
+    headingDeg: 90,
+    speedKt,
+    maxTurnRateDegPerS: 0.1,
+    behavior: { type: 'route', waypoints: [offsetM(origin, 60000, 0)] },
+  },
+  {
+    id: 'cg1',
+    name: 'Cruiser 1',
+    classId: 'CG',
+    side: 'BLUE',
+    start: station(origin, 90, 3000, 0),
+    headingDeg: 90,
+    speedKt,
+    behavior: { type: 'escort', leaderId: 'cvn1', aheadM: 3000, abeamM: 0 },
+  },
+  {
+    id: 'ddg1',
+    name: 'Destroyer 1',
+    classId: 'DDG',
+    side: 'BLUE',
+    start: station(origin, 90, 1200, -3000),
+    headingDeg: 90,
+    speedKt,
+    behavior: { type: 'escort', leaderId: 'cvn1', aheadM: 1200, abeamM: -3000 },
+  },
+  {
+    id: 'ddg2',
+    name: 'Destroyer 2',
+    classId: 'DDG',
+    side: 'BLUE',
+    start: station(origin, 90, 1200, 3000),
+    headingDeg: 90,
+    speedKt,
+    behavior: { type: 'escort', leaderId: 'cvn1', aheadM: 1200, abeamM: 3000 },
+  },
+];
+
+const salvoOrigin = at(-12000, 0);
+const salvoShooter = at(15000, 62000);
+
+const salvoDefense: ScenarioConfig = {
+  id: 'salvo-defense',
+  name: 'Missile salvo on a carrier group',
+  description:
+    'A hostile destroyer fires eight anti-ship missiles at the carrier and two aircraft fire at the cruiser. The escorts shoot what they can. Open Red team to ask how often the carrier is hit, and how that changes with the size of the salvo.',
+  center: OCEAN_CENTER,
+  durationS: 1500,
+  lightPreset: 'dusk',
+  seed: 4,
+  environment: { windFromDeg: 250, windKt: 12, currentToDeg: 45, currentKt: 0.8 },
+  units: [
+    ...blueGroup(salvoOrigin, 18),
+    {
+      id: 'bh1',
+      name: 'Plane guard helo',
+      classId: 'HELO',
+      side: 'BLUE',
+      start: station(salvoOrigin, 90, 0, 900),
+      headingDeg: 90,
+      speedKt: 18,
+      altitudeM: 150,
+      behavior: { type: 'escort', leaderId: 'cvn1', aheadM: -200, abeamM: 900 },
+    },
+    {
+      id: 'rdd1',
+      name: 'Hostile destroyer',
+      classId: 'DDG',
+      side: 'RED',
+      start: salvoShooter,
+      headingDeg: 180,
+      speedKt: 8,
+      behavior: { type: 'route', waypoints: [offsetM(salvoShooter, 0, -20000)] },
+    },
+    ...Array.from({ length: 8 }, (_, i): UnitConfig => ({
+      id: `m${i + 1}`,
+      name: `Missile ${i + 1}`,
+      classId: 'ASM',
+      side: 'RED',
+      start: salvoShooter,
+      headingDeg: 200,
+      speedKt: 300,
+      launch: { byId: 'rdd1', atS: 300 + i * 4 },
+      behavior: { type: 'strike', targetId: 'cvn1' },
+    })),
+    {
+      id: 'rf1',
+      name: 'Raider 1',
+      classId: 'FIGHTER',
+      side: 'RED',
+      start: at(70000, 38000),
+      headingDeg: 250,
+      speedKt: 420,
+      altitudeM: 1500,
+      behavior: { type: 'route', waypoints: [at(-40000, 0)] },
+    },
+    {
+      id: 'rf2',
+      name: 'Raider 2',
+      classId: 'FIGHTER',
+      side: 'RED',
+      start: at(70000, 33000),
+      headingDeg: 250,
+      speedKt: 420,
+      altitudeM: 1500,
+      behavior: { type: 'route', waypoints: [at(-40000, -2000)] },
+    },
+    ...['rf1', 'rf2'].map((from, i): UnitConfig => ({
+      id: `rm${i + 1}`,
+      name: `Raider missile ${i + 1}`,
+      classId: 'ASM',
+      side: 'RED',
+      start: at(70000, 35000),
+      headingDeg: 250,
+      speedKt: 300,
+      launch: { byId: from, atS: 330 + i * 6 },
+      behavior: { type: 'strike', targetId: 'cg1' },
+    })),
+  ],
+  storyboard: [
+    { id: 'sb1', atS: 0, holdS: 120, at: OCEAN_CENTER, title: 'Carrier group on station', caption: 'The task group steams east at 18 knots. A hostile destroyer is over the horizon to the north.', image: stock.formation },
+    { id: 'sb2', unitId: 'cvn1', atS: 90, holdS: 120, title: 'Carrier 1 — flight quarters', caption: 'The plane guard helicopter takes station on the quarter.', image: stock.carrier },
+    { id: 'sb3', unitId: 'rdd1', atS: 210, holdS: 110, title: 'Hostile destroyer — closing', caption: 'Steady on 180, inside missile range of the group.', image: stock.bridge },
+    { id: 'sb4', unitId: 'rdd1', atS: 300, holdS: 130, title: 'Salvo away', caption: 'T+00:05:00  Eight anti-ship missiles leave the hostile destroyer, four seconds apart.', image: stock.launch },
+    { id: 'sb5', unitId: 'rf1', atS: 330, holdS: 110, title: 'Raiders join', caption: 'Two aircraft add their own missiles, aimed at the cruiser.', image: stock.jet },
+    { id: 'sb6', unitId: 'ddg1', atS: 470, holdS: 110, title: 'Destroyer 1 — engaging', caption: 'T+00:08:01  The screen takes the leaders of the salvo one by one.', image: stock.destroyer },
+    { id: 'sb7', unitId: 'cg1', atS: 520, holdS: 100, title: 'Cruiser 1 — engaging', caption: 'Every shot that misses leaves one more missile running at the carrier.', image: stock.launch },
+    { id: 'sb8', unitId: 'cvn1', atS: 546, holdS: 200, title: 'Carrier 1 — hit', caption: 'T+00:09:06  One of the eight gets through. 340 of 400 hit points left.', image: stock.burning },
+    { id: 'sb9', atS: 820, holdS: 240, at: OCEAN_CENTER, title: 'What it cost', caption: 'Seven of ten missiles shot down, one hit, two spent. Open Red team to ask how often it goes this way.', image: stock.satellite },
+  ],
+  redTeam: {
+    runs: 60,
+    seed: 11,
+    perturbations: [
+      { id: 'wind', label: 'Wind speed', target: { kind: 'environment', field: 'windKt' }, mode: 'add', dist: { type: 'normal', mean: 0, sd: 5 } },
+      { id: 'shooter-e', label: 'Hostile destroyer east', target: { kind: 'unit', unitId: 'rdd1', field: 'startEastM' }, mode: 'add', dist: { type: 'normal', mean: 0, sd: 6000 } },
+      { id: 'shooter-n', label: 'Hostile destroyer north', target: { kind: 'unit', unitId: 'rdd1', field: 'startNorthM' }, mode: 'add', dist: { type: 'normal', mean: 0, sd: 6000 } },
+      { id: 'cg-pkill', label: 'Cruiser defence kill chance', target: { kind: 'unit', unitId: 'cg1', field: 'pKill' }, mode: 'set', dist: { type: 'uniform', min: 0.3, max: 0.65 } },
+      { id: 'ddg1-pkill', label: 'Destroyer 1 defence kill chance', target: { kind: 'unit', unitId: 'ddg1', field: 'pKill' }, mode: 'set', dist: { type: 'uniform', min: 0.25, max: 0.6 } },
+      { id: 'ddg2-pkill', label: 'Destroyer 2 defence kill chance', target: { kind: 'unit', unitId: 'ddg2', field: 'pKill' }, mode: 'set', dist: { type: 'uniform', min: 0.25, max: 0.6 } },
+      { id: 'asm-phit', label: 'Missile 1 hit chance', target: { kind: 'unit', unitId: 'm1', field: 'pHit' }, mode: 'set', dist: { type: 'uniform', min: 0.6, max: 0.95 } },
+    ],
+    outcomes: [
+      { id: 'cv-hit', label: 'Carrier is hit', type: 'hit', unitId: 'cvn1' },
+      { id: 'cv-twice', label: 'Carrier loses 15%+ of its strength', type: 'hp_below', unitId: 'cvn1', frac: 0.85 },
+      { id: 'blue-loss', label: 'Any blue ship or aircraft lost', type: 'side_losses', side: 'BLUE', atLeast: 1 },
+      { id: 'cg-hit', label: 'Cruiser is hit', type: 'hit', unitId: 'cg1' },
+    ],
+    sweep: { target: { kind: 'salvo', unitIds: Array.from({ length: 8 }, (_, i) => `m${i + 1}`) }, values: [1, 2, 4, 6, 8] },
+  },
+};
+
+const mineTrack = (eastM: number): Waypoint[] => [wp(eastM, 0)];
+
+const minefieldTransit: ScenarioConfig = {
+  id: 'minefield-transit',
+  name: 'Minefield transit',
+  description:
+    'Three destroyers and a merchant ship follow one track through an uncharted minefield. Each mine goes off with a chance when a ship passes close. Run the red team to see how likely each ship is to be lost.',
+  center: OCEAN_CENTER,
+  durationS: 3900,
+  lightPreset: 'day',
+  seed: 2,
+  environment: { windFromDeg: 200, windKt: 10, currentToDeg: 90, currentKt: 0.4 },
+  units: [
+    ...['ddg1', 'ddg2', 'ddg3'].map((id, i): UnitConfig => ({
+      id,
+      name: `Destroyer ${i + 1}`,
+      classId: 'DDG',
+      side: 'BLUE',
+      start: at(-14000 - i * 1500, 0),
+      headingDeg: 90,
+      speedKt: 15,
+      behavior: { type: 'route', waypoints: mineTrack(14000) },
+    })),
+    {
+      id: 'mv1',
+      name: 'Merchant 1',
+      classId: 'CARGO',
+      side: 'NEUTRAL',
+      start: at(-19000, 0),
+      headingDeg: 90,
+      speedKt: 15,
+      behavior: { type: 'route', waypoints: mineTrack(14000) },
+    },
+    ...minefield(36, 0, 0, 3000, 1500, 7),
+  ],
+  redTeam: {
+    runs: 200,
+    seed: 5,
+    perturbations: [
+      { id: 'track-n', label: 'Track offset north (navigation error)', target: { kind: 'unit', unitId: 'ddg1', field: 'routeNorthM' }, mode: 'add', dist: { type: 'normal', mean: 0, sd: 250 } },
+      { id: 'mine-p', label: 'Mine trigger chance (mine 1)', target: { kind: 'unit', unitId: 'mine01', field: 'pHit' }, mode: 'set', dist: { type: 'uniform', min: 0.4, max: 0.9 } },
+    ],
+    outcomes: [
+      { id: 'lead-struck', label: 'Lead destroyer strikes a mine', type: 'hit', unitId: 'ddg1' },
+      { id: 'any-strike', label: 'Any mine goes off', type: 'mine_strike' },
+      { id: 'lost-ship', label: 'A destroyer is lost', type: 'side_losses', side: 'BLUE', atLeast: 1 },
+      { id: 'merchant-hit', label: 'Merchant ship is damaged', type: 'hit', unitId: 'mv1' },
+    ],
+  },
+};
+
+const raidStart = at(70000, 30000);
+
+const airRaid: ScenarioConfig = {
+  id: 'air-raid',
+  name: 'Air raid and SAM defence',
+  description:
+    'Four hostile fighters run in low on a cruiser and a destroyer, each firing an anti-ship missile. The ships answer with surface-to-air missiles and their close defences. Run the red team to see how often the cruiser gets through.',
+  center: OCEAN_CENTER,
+  durationS: 900,
+  lightPreset: 'day',
+  seed: 4,
+  environment: { windFromDeg: 300, windKt: 8, currentToDeg: 0, currentKt: 0.3 },
+  units: [
+    {
+      id: 'cg1',
+      name: 'Cruiser 1',
+      classId: 'CG',
+      side: 'BLUE',
+      start: at(0, 0),
+      headingDeg: 90,
+      speedKt: 12,
+      behavior: { type: 'route', waypoints: [at(30000, 0)] },
+    },
+    {
+      id: 'ddg1',
+      name: 'Destroyer 1',
+      classId: 'DDG',
+      side: 'BLUE',
+      start: station(at(0, 0), 90, 0, 2500),
+      headingDeg: 90,
+      speedKt: 12,
+      behavior: { type: 'escort', leaderId: 'cg1', aheadM: 0, abeamM: 2500 },
+    },
+    ...Array.from({ length: 4 }, (_, i): UnitConfig => ({
+      id: `rf${i + 1}`,
+      name: `Raider ${i + 1}`,
+      classId: 'FIGHTER',
+      side: 'RED',
+      start: offsetM(raidStart, i * 1500, i * 900),
+      headingDeg: 255,
+      speedKt: 450,
+      altitudeM: 2000,
+      behavior: { type: 'route', waypoints: [at(-30000, 0)] },
+    })),
+    ...Array.from({ length: 4 }, (_, i): UnitConfig => ({
+      id: `rm${i + 1}`,
+      name: `Raider missile ${i + 1}`,
+      classId: 'ASM',
+      side: 'RED',
+      start: raidStart,
+      headingDeg: 255,
+      speedKt: 300,
+      launch: { byId: `rf${i + 1}`, atS: 70 + i * 8 },
+      behavior: { type: 'strike', targetId: 'cg1' },
+    })),
+    ...Array.from({ length: 4 }, (_, i): UnitConfig => ({
+      id: `sam${i + 1}`,
+      name: `SAM ${i + 1}`,
+      classId: 'SAM',
+      side: 'BLUE',
+      start: at(0, 0),
+      headingDeg: 70,
+      speedKt: 600,
+      launch: { byId: i % 2 === 0 ? 'cg1' : 'ddg1', atS: 150 + i * 8 },
+      behavior: { type: 'strike', targetId: `rf${i + 1}` },
+    })),
+  ],
+  redTeam: {
+    runs: 200,
+    seed: 3,
+    perturbations: [
+      { id: 'sam-phit', label: 'SAM 1 hit chance', target: { kind: 'unit', unitId: 'sam1', field: 'pHit' }, mode: 'set', dist: { type: 'uniform', min: 0.4, max: 0.9 } },
+      { id: 'raid-alt', label: 'Raider 1 altitude', target: { kind: 'unit', unitId: 'rf1', field: 'altitudeM' }, mode: 'set', dist: { type: 'uniform', min: 30, max: 3000 } },
+      { id: 'raid-n', label: 'Raider 1 start north', target: { kind: 'unit', unitId: 'rf1', field: 'startNorthM' }, mode: 'add', dist: { type: 'normal', mean: 0, sd: 3000 } },
+      { id: 'cg-mag', label: 'Cruiser magazine', target: { kind: 'unit', unitId: 'cg1', field: 'magazine' }, mode: 'set', dist: { type: 'choice', values: [6, 12, 24, 40] } },
+    ],
+    outcomes: [
+      { id: 'cg-hit', label: 'Cruiser is hit', type: 'hit', unitId: 'cg1' },
+      { id: 'cg-lost', label: 'Cruiser is destroyed', type: 'destroyed', unitId: 'cg1' },
+      { id: 'raiders-lost', label: 'At least two raiders shot down', type: 'side_losses', side: 'RED', atLeast: 2 },
+      { id: 'close', label: 'A raider passes within 5 km of the cruiser', type: 'closest_approach', aId: 'rf1', bId: 'cg1', withinM: 5000 },
+    ],
+  },
+};
+
+
+const ambushOrigin = at(-16000, 0);
+const subAt = at(7000, 400);
+
+const subAmbush: ScenarioConfig = {
+  id: 'sub-ambush',
+  name: 'Submarine ambush',
+  description:
+    'A hostile submarine lies quietly across the track of a cruiser and two destroyers. It can hear them long before they can hear it, and fires torpedoes once it has a track. Sensors, rough seas and decoys are all on. Open Red team to ask how often a ship is hit, and how much the decoys and the size of the salvo matter.',
+  center: OCEAN_CENTER,
+  durationS: 1800,
+  lightPreset: 'night',
+  seed: 3,
+  detection: true,
+  seaState: true,
+  environment: { windFromDeg: 300, windKt: 18, currentToDeg: 90, currentKt: 0.6 },
+  units: [
+    {
+      id: 'cg1',
+      name: 'Cruiser 1',
+      classId: 'CG',
+      side: 'BLUE',
+      start: ambushOrigin,
+      headingDeg: 90,
+      speedKt: 14,
+      decoys: 4,
+      pDecoy: 0.5,
+      maxTurnRateDegPerS: 0.3,
+      behavior: { type: 'route', waypoints: [offsetM(ambushOrigin, 40000, 0)] },
+    },
+    {
+      id: 'ddg1',
+      name: 'Destroyer 1',
+      classId: 'DDG',
+      side: 'BLUE',
+      start: station(ambushOrigin, 90, -800, -2200),
+      headingDeg: 90,
+      speedKt: 14,
+      decoys: 4,
+      pDecoy: 0.5,
+      behavior: { type: 'escort', leaderId: 'cg1', aheadM: -800, abeamM: -2200 },
+    },
+    {
+      id: 'ddg2',
+      name: 'Destroyer 2',
+      classId: 'DDG',
+      side: 'BLUE',
+      start: station(ambushOrigin, 90, -800, 2200),
+      headingDeg: 90,
+      speedKt: 14,
+      decoys: 4,
+      pDecoy: 0.5,
+      behavior: { type: 'escort', leaderId: 'cg1', aheadM: -800, abeamM: 2200 },
+    },
+    {
+      id: 'ssn1',
+      name: 'Hostile submarine',
+      classId: 'SSN',
+      side: 'RED',
+      start: subAt,
+      headingDeg: 270,
+      speedKt: 4,
+      behavior: { type: 'hold' },
+    },
+    ...[
+      ['cg1', 150],
+      ['cg1', 170],
+      ['ddg1', 190],
+      ['ddg2', 210],
+    ].map(
+      ([target, atS], i): UnitConfig => ({
+        id: `t${i + 1}`,
+        name: `Torpedo ${i + 1}`,
+        classId: 'TORP',
+        side: 'RED',
+        start: subAt,
+        headingDeg: 270,
+        speedKt: 45,
+        launch: { byId: 'ssn1', atS: atS as number },
+        behavior: { type: 'strike', targetId: target as string },
+      }),
+    ),
+  ],
+  storyboard: [
+    { id: 'sb1', atS: 0, holdS: 150, at: OCEAN_CENTER, title: 'Submarine ambush', caption: 'A cruiser and two destroyers steam east through a strait at night. Something is lying across the track.', image: stock.satellite },
+    { id: 'sb2', unitId: 'ssn1', atS: 20, holdS: 150, title: 'Hostile submarine — she hears them first', caption: 'T+00:00:00 The submarine has all three ships on sonar. Quiet and slow, she is heard by none of them.', image: stock.submarine },
+    { id: 'sb3', unitId: 'ssn1', atS: 150, holdS: 160, title: 'Torpedoes away', caption: 'T+00:02:30 Four torpedoes leave the submarine, twenty seconds apart, aimed at three different ships.', image: stock.launch },
+    { id: 'sb4', unitId: 'cg1', atS: 180, holdS: 150, title: 'Cruiser 1 — torpedo in the water', caption: 'T+00:02:35 The cruiser hears the first torpedo. Decoys away, and nothing else to do but turn.', image: stock.bridge },
+    { id: 'sb5', unitId: 'cg1', atS: 816, holdS: 200, title: 'Cruiser 1 — lost', caption: 'T+00:13:36 The first torpedo runs home. One hit is enough for a cruiser.', image: stock.burning },
+    { id: 'sb6', unitId: 'ddg1', atS: 882, holdS: 170, title: 'Destroyer 1 — decoy works', caption: 'T+00:14:42 The third torpedo is led away by a decoy. The same trick saved the cruiser once, a minute too late.', image: stock.destroyer },
+    { id: 'sb7', unitId: 'ddg2', atS: 906, holdS: 220, title: 'Destroyer 2 — lost', caption: 'T+00:15:06 The fourth torpedo finds the second destroyer.', image: stock.burning },
+    { id: 'sb8', atS: 1300, holdS: 300, at: OCEAN_CENTER, title: 'What it cost', caption: 'Two of four torpedoes hit, two ships lost, two led away by decoys — and the submarine was never found. Open Red team to ask how much the decoys are worth.', image: stock.formation },
+  ],
+  redTeam: {
+    runs: 80,
+    seed: 5,
+    outcomes: [
+      { id: 'cg-hit', label: 'The cruiser is hit', type: 'hit', unitId: 'cg1' },
+      { id: 'ddg1-hit', label: 'Destroyer 1 is hit', type: 'hit', unitId: 'ddg1' },
+      { id: 'ddg2-hit', label: 'Destroyer 2 is hit', type: 'hit', unitId: 'ddg2' },
+      { id: 'any-hit', label: 'Any ship is hit', type: 'any', of: ['cg-hit', 'ddg1-hit', 'ddg2-hit'] },
+      { id: 'loss', label: 'A ship is lost', type: 'side_losses', side: 'BLUE', atLeast: 1 },
+      { id: 'seen', label: 'The escorts find the submarine', type: 'detected', unitId: 'ssn1', bySide: 'BLUE' },
+    ],
+    perturbations: [
+      { id: 'wind', label: 'Wind speed', target: { kind: 'environment', field: 'windKt' }, mode: 'add', dist: { type: 'normal', mean: 0, sd: 6 } },
+      { id: 'sub-pos', label: 'Submarine position (north)', target: { kind: 'unit', unitId: 'ssn1', field: 'startNorthM' }, mode: 'add', dist: { type: 'normal', mean: 0, sd: 2500 } },
+      { id: 'decoys', label: 'Decoys on the cruiser', target: { kind: 'unit', unitId: 'cg1', field: 'decoys' }, mode: 'set', dist: { type: 'choice', values: [0, 2, 4, 6] } },
+    ],
+    sweep: { target: { kind: 'salvo', unitIds: ['t1', 't2', 't3', 't4'] }, values: [1, 2, 3, 4] },
+  },
+};
+
+const horizonOrigin = at(-30000, 0);
+const horizonShooter = at(60000, 4000);
+
+const overTheHorizon: ScenarioConfig = {
+  id: 'over-the-horizon',
+  name: 'Over the horizon',
+  description:
+    'A hostile destroyer is too far away to see the carrier group, so it sends a helicopter to look. Its missiles are held until the group is found. Sensors, rough seas and decoys are on. Open Red team and sweep the helicopter’s altitude: flying higher sees farther, so the shot comes sooner.',
+  center: OCEAN_CENTER,
+  durationS: 1200,
+  lightPreset: 'day',
+  seed: 2,
+  detection: true,
+  seaState: true,
+  environment: { windFromDeg: 240, windKt: 14, currentToDeg: 45, currentKt: 0.6 },
+  units: [
+    ...blueGroup(horizonOrigin, 16).map((u) => (u.id === 'cvn1' ? { ...u, decoys: 6 } : u.id === 'cg1' ? { ...u, decoys: 4 } : u)),
+    {
+      id: 'rdd1',
+      name: 'Hostile destroyer',
+      classId: 'DDG',
+      side: 'RED',
+      start: horizonShooter,
+      headingDeg: 270,
+      speedKt: 18,
+      behavior: { type: 'route', waypoints: [offsetM(horizonShooter, -40000, 0)] },
+    },
+    {
+      id: 'rh1',
+      name: 'Scout helicopter',
+      classId: 'HELO',
+      side: 'RED',
+      start: station(horizonShooter, 270, 4000, 0),
+      headingDeg: 270,
+      speedKt: 140,
+      altitudeM: 150,
+      behavior: { type: 'route', waypoints: [offsetM(horizonShooter, -60000, 0)] },
+    },
+    ...Array.from({ length: 8 }, (_, i): UnitConfig => ({
+      id: `m${i + 1}`,
+      name: `Missile ${i + 1}`,
+      classId: 'ASM',
+      side: 'RED',
+      start: horizonShooter,
+      headingDeg: 270,
+      speedKt: 300,
+      launch: { byId: 'rdd1', atS: 60 + i * 3 },
+      behavior: { type: 'strike', targetId: 'cvn1' },
+    })),
+  ],
+  storyboard: [
+    { id: 'sb1', atS: 0, holdS: 140, at: OCEAN_CENTER, title: 'Over the horizon', caption: 'A hostile destroyer sits 90 km from the carrier group with eight missiles ready, and no idea where to point them.', image: stock.formation },
+    { id: 'sb2', unitId: 'rdd1', atS: 60, holdS: 150, title: 'Hostile destroyer — shot held', caption: 'T+00:01:00 The missiles are held: the group is below the horizon, so there is no track to fire at.', image: stock.bridge },
+    { id: 'sb3', unitId: 'rh1', atS: 160, holdS: 160, title: 'Scout helicopter — sent to look', caption: 'T+00:02:35 The helicopter flies west to find the group. The carrier sees it coming long before it sees the carrier.', image: stock.helo },
+    { id: 'sb4', unitId: 'rh1', atS: 415, holdS: 150, title: 'Scout helicopter — contact', caption: 'T+00:06:55 The helicopter finds the carrier. That single track is what releases the salvo.', image: stock.uav },
+    { id: 'sb5', unitId: 'rdd1', atS: 430, holdS: 150, title: 'Salvo away', caption: 'T+00:06:55 Eight missiles leave the destroyer three seconds apart, nearly seven minutes later than planned.', image: stock.launch },
+    { id: 'sb6', unitId: 'cvn1', atS: 585, holdS: 140, title: 'Carrier 1 — missiles inbound', caption: 'T+00:09:45 The group picks up the salvo with time to work.', image: stock.carrier },
+    { id: 'sb7', unitId: 'ddg1', atS: 659, holdS: 140, title: 'Destroyer 1 — engaging', caption: 'T+00:10:59 The screen takes them one at a time as they come over the horizon.', image: stock.destroyer },
+    { id: 'sb8', unitId: 'cg1', atS: 700, holdS: 180, title: 'All eight shot down', caption: 'T+00:11:35 Not one gets through. The delay in finding the group gave the screen everything it needed.', image: stock.replenish },
+    { id: 'sb9', atS: 950, holdS: 240, at: OCEAN_CENTER, title: 'What it cost', caption: 'Finding the group took seven minutes and cost the attacker the shot. Open Red team and sweep the helicopter altitude: flying higher sees farther, so the shot comes sooner.', image: stock.satellite },
+  ],
+  redTeam: {
+    runs: 80,
+    seed: 7,
+    outcomes: [
+      { id: 'found', label: 'The carrier group is found', type: 'detected', unitId: 'cvn1', bySide: 'RED' },
+      { id: 'cvn-hit', label: 'The carrier is hit', type: 'hit', unitId: 'cvn1' },
+      { id: 'cvn-late', label: 'The carrier is hit within 12 minutes', type: 'hit', unitId: 'cvn1', beforeS: 720 },
+      { id: 'cvn-safe', label: 'The carrier is not hit', type: 'not', of: 'cvn-hit' },
+    ],
+    perturbations: [
+      { id: 'wind', label: 'Wind speed', target: { kind: 'environment', field: 'windKt' }, mode: 'add', dist: { type: 'normal', mean: 0, sd: 5 } },
+      { id: 'cvn-sig', label: 'Carrier radar signature', target: { kind: 'unit', unitId: 'cvn1', field: 'signature' }, mode: 'set', dist: { type: 'uniform', min: 0.3, max: 1 } },
+      { id: 'cvn-decoys', label: 'Decoys on the carrier', target: { kind: 'unit', unitId: 'cvn1', field: 'decoys' }, mode: 'set', dist: { type: 'choice', values: [0, 3, 6, 9] } },
+    ],
+    sweep: { target: { kind: 'unit', unitId: 'rh1', field: 'altitudeM' }, values: [50, 150, 400, 1000] },
+  },
+};
+
+export const PRESET_SCENARIOS: ScenarioConfig[] = [transit, encounter, drill, salvoDefense, minefieldTransit, airRaid, subAmbush, overTheHorizon, ...LARGE_SCENARIOS];
+
+export type { RedTeamSpec };
+
+export function blankScenario(): ScenarioConfig {
+  return {
+    id: 'custom',
+    name: 'New scenario',
+    description: '',
+    center: OCEAN_CENTER,
+    durationS: 3600,
+    lightPreset: 'day',
+    environment: CALM,
+    units: [
+      {
+        id: 'u1',
+        name: 'Destroyer 1',
+        classId: 'DDG',
+        side: 'BLUE',
+        start: OCEAN_CENTER,
+        headingDeg: 90,
+        speedKt: 15,
+        behavior: { type: 'route', waypoints: [wp(15000, 0)] },
+      },
+    ],
+  };
+}
+
+export function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}

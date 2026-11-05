@@ -36,7 +36,7 @@ from mooring.core.schemas import (
 from mooring.core.schemas.forecast_planning import ForecastDockingResponse
 from mooring.core.schemas.risk import ExceedanceResponse, TimelineResponse
 
-from .routers import (approach, berthing, env, loads, missions, moored, prediction, qualification, refdata as refdata_router, system,
+from .routers import (approach, berthing, env, loads, missions, moored, prediction, qualification, exercise, refdata as refdata_router, system,
                       telemetry, transit)
 from .backend import overall_backend
 from .security import Controls
@@ -65,7 +65,8 @@ DESCRIPTION = """
 Physics and planning service for the mooring assistant. `GET /version` reports implementation status;
 `GET /capabilities` reports scope and qualification blockers. A `real` backend is not operational certification.
 Inspect each result's validity, reasons and source provenance: seed assets, synthetic forcing and unqualified
-models remain limited or invalid. The offline default environment is synthetic; public providers are opt-in.
+models remain limited or invalid. Normal launchers default to `auto`: complete current observations, then recorded-real
+replay, then explicit failure. Synthetic forcing is used only when `mock` or a synthetic scenario is explicitly selected.
 
 Conventions: unit-suffixed field names (`_kt`, `_ft`, `_lbf`, `_deg`, `_utc`); wind direction is where it blows
 FROM, current direction is where it flows TOWARD; long-running endpoints return `202` with a job (poll
@@ -145,7 +146,7 @@ async def invalid_reference(_: Request, exc: refdata.InvalidReference):
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
-for r in (env, refdata_router, qualification, loads, moored, berthing, approach, telemetry, missions, transit, prediction, system):
+for r in (env, refdata_router, qualification, loads, moored, berthing, approach, telemetry, missions, transit, prediction, system, exercise):
     app.include_router(r.router, prefix=API_PREFIX)
 app.include_router(ws_router)
 
@@ -158,7 +159,7 @@ def openapi_schema() -> dict:
     comps = schema.setdefault("components", {}).setdefault("schemas", {})
     for name, s in defs.get("$defs", {}).items():
         comps.setdefault(name, s)
-    schema["servers"] = [{"url": "http://localhost:8000", "description": "Local mock server"}]
+    schema["servers"] = [{"url": "http://localhost:8000", "description": "Local modeling service"}]
     schema["x-websockets"] = WEBSOCKETS
     schema["x-motion-contract"] = {
         "schema_version": "rm0-v1",

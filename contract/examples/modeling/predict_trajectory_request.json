@@ -3,27 +3,75 @@
     "vessel_id": "DDG-51-demo",
     "ship_class_id": "DDG-51-FIIA",
     "loading": "full_load",
-    "observed_utc": "2026-11-05T14:59:58Z",
+    "observed_utc": "2026-11-05T17:10:58Z",
     "position": {
-      "lat": 36.956,
-      "lon": -76.326
+      "lat": 36.9638,
+      "lon": -76.3279331
     },
-    "heading_true_deg": 200.0,
-    "surge_kt": 6.0,
+    "heading_true_deg": 189.5,
+    "surge_kt": 4.0,
     "sway_kt": 0.0,
     "yaw_rate_degps": 0.0,
-    "rudder_deg": 5.0,
-    "engine_order": 0.25,
+    "rudder_deg": 1.0,
+    "engine_order": 0.03,
     "tugs": [],
     "uncertainty": {
       "position_sd_ft": 15.0,
       "heading_sd_deg": 1.0,
       "speed_sd_kt": 0.2
     },
-    "source": "gps+gyro"
+    "source": "demonstration"
   },
-  "as_of_utc": "2026-11-05T15:00:00Z",
-  "horizon_s": 300.0,
+  "environment": {
+    "valid_at_utc": "2026-11-05T16:54:00Z",
+    "source": "live",
+    "wind_speed_kt": 12.44,
+    "wind_gust_kt": 14.0,
+    "wind_from_true_deg": 214.0,
+    "current_speed_kt": 0.617,
+    "current_set_true_deg": 352.0,
+    "water_level_mllw_ft": 0.869,
+    "tide_stage": null,
+    "air_density_kgm3": 1.225,
+    "water_density_kgm3": 1020.0,
+    "wind_rel_ship_deg": null,
+    "current_rel_ship_deg": null,
+    "quality": [],
+    "metadata": {
+      "basis": "observation",
+      "source": "NOAA CO-OPS wind 8638614, water level 8638610, currents cb0402 bin 4; current direction d assumed to be the direction the current flows toward (to be confirmed with CO-OPS)",
+      "issued_at_utc": null,
+      "valid_from_utc": "2026-11-05T16:54:00Z",
+      "valid_to_utc": "2026-11-05T16:54:00Z",
+      "wind_averaging_s": null,
+      "gust_duration_s": null,
+      "wind_reference_height_m": null,
+      "current_depth_ft": 20.6,
+      "current_bin": "4",
+      "vertical_datum": "MLLW",
+      "quality": "suspect",
+      "age_s": 1020.0,
+      "original": {
+        "wind_d": "214.0",
+        "wind_dr": "SW",
+        "wind_f": "0,0",
+        "wind_g": "14.0",
+        "wind_s": "12.44",
+        "wind_t": "2026-11-05 16:54",
+        "level_f": "1,0,0,0",
+        "level_q": "p",
+        "level_s": "0.036",
+        "level_t": "2026-11-05 16:54",
+        "level_v": "0.869",
+        "current_b": "4",
+        "current_d": "352",
+        "current_s": "0.617",
+        "current_t": "2026-11-05 16:56"
+      }
+    }
+  },
+  "as_of_utc": "2026-11-05T17:11:00Z",
+  "horizon_s": 420.0,
   "tick_s": 10.0,
   "dt_s": 0.2,
   "propulsion": {
@@ -46,22 +94,22 @@
     },
     {
       "alt_id": "tug-push",
-      "label": "Tug pushes to starboard at the port shoulder",
+      "label": "Tug pushes the bow to port (270 deg relative)",
       "helm_commands": [],
       "tug_commands": [
         {
           "t_s": 0.0,
           "tug_id": "T1",
-          "point": "port_shoulder",
+          "point": "bow",
           "force_lbf": 30000.0,
-          "direction_rel_deg": 90.0
+          "direction_rel_deg": 270.0
         }
       ]
     }
   ],
   "others": [],
   "uncertainty": {
-    "samples": 32,
+    "samples": 16,
     "seed": 7,
     "model": "s10_gust_current",
     "percentile": 90.0

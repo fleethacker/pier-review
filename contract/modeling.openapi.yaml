@@ -2390,7 +2390,7 @@ paths:
     get:
       tags:
       - S7 Prediction
-      summary: Ready-made prediction requests for demos
+      summary: Ready-made prediction requests built from real recorded NOAA conditions
       operationId: presets_api_v1_predict_presets_get
       responses:
         '200':

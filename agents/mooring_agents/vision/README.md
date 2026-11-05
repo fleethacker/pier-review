@@ -46,3 +46,14 @@ AGENTS_PERSIST=1. Stored berths are shared references, not private assets or eng
 
 Image payload follows [OpenAI Responses image inputs](https://developers.openai.com/api/docs/guides/images-vision).
 No real model-perception accuracy is established; tests use a generated fixture and fake model transport.
+
+## Trained bollard detector (optional)
+
+`detector.py` runs a YOLO model for pixel locations of bollards; `extraction_source` is then `detector` and `bbox_px`
+is filled from the measured box. Precedence: detector, then LLM, then catalog-only. It needs the same anchors and scale
+as the LLM path, projects through modeling, and every item still requires confirmation. Detections are mapped to the
+catalog kind `bitt` (`BOLLARD_FITTING_KIND`) and dropped if the berth has no such fitting.
+
+Train with `scripts/train_bollard_detector.py` (Roboflow "Bollards" dataset, CC BY 4.0, author "Testing",
+https://universe.roboflow.com/testing-0bbg4/bollards). Enable with `BOLLARD_MODEL_PATH=models/bollard.pt` and
+optional `BOLLARD_MIN_CONF` (default 0.25); requires `ultralytics` and `pillow`. No accuracy on berth imagery is established.

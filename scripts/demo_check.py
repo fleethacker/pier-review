@@ -88,7 +88,8 @@ def wait_for(url: str, seconds: float, what: str) -> None:
 class Stack:
     """The two services and the UI preview server, with log files and clean shutdown."""
 
-    def __init__(self, logs: Path):
+    def __init__(self, logs: Path, tool_timeout_s: float = 120.0):
+        self.tool_timeout_s = tool_timeout_s
         self.procs: list[subprocess.Popen] = []
         self.logs = logs
         logs.mkdir(parents=True, exist_ok=True)
@@ -114,7 +115,13 @@ class Stack:
         self._spawn(
             "agents",
             [*py, "mooring_agents.api.main:app", "--host", "127.0.0.1", "--port", str(self.agents_port)],
-            {**env, "MODELING_API_URL": f"http://127.0.0.1:{self.modeling_port}/api/v1"},
+            {
+                **env,
+                "MODELING_API_URL": f"http://127.0.0.1:{self.modeling_port}/api/v1",
+                # Headless software-rendered WebGL saturates the CPU and makes the planner several times slower; the
+                # production default is 30 s. Raised here only, and printed in the run header.
+                "AGENTS_TOOL_TIMEOUT_S": str(self.tool_timeout_s),
+            },
             ROOT,
         )
         wait_for(f"http://127.0.0.1:{self.modeling_port}/api/v1/health", 60, "modeling")
@@ -418,6 +425,7 @@ def main() -> int:
     ap.add_argument("--skip-build", action="store_true", help="reuse frontend/packages/web/dist")
     ap.add_argument("--no-browser", action="store_true", help="API and proxy checks only")
     ap.add_argument("--browser-python", help="interpreter that has Playwright (default: DEMO_CHECK_BROWSER_PYTHON or this one)")
+    ap.add_argument("--tool-timeout", type=float, default=120.0, help="AGENTS_TOOL_TIMEOUT_S for the agents service during the check (default 120; production default is 30)")
     ap.add_argument("--browser-timeout", type=float, default=1500, help="seconds allowed for the whole browser flow (default 1500)")
     ap.add_argument("--logs", default=str(ROOT / "docs" / "overnight" / "demo-check-logs"))
     args = ap.parse_args()
@@ -425,8 +433,8 @@ def main() -> int:
     if not shutil.which("node"):
         print("node is required to build and serve the UI", file=sys.stderr)
         return 2
-    stack = Stack(Path(args.logs))
-    print(f"demo-check: modeling :{stack.modeling_port}, agents :{stack.agents_port}, ui :{stack.ui_port}", flush=True)
+    stack = Stack(Path(args.logs), args.tool_timeout)
+    print(f"demo-check: modeling :{stack.modeling_port}, agents :{stack.agents_port}, ui :{stack.ui_port}, agent tool timeout {args.tool_timeout:g} s", flush=True)
     try:
         stack.start_services()
         stack.build_and_serve_ui(args.skip_build)

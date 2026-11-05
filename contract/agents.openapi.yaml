@@ -3912,8 +3912,9 @@ components:
         extraction_source:
           anyOf:
           - enum:
-            - llm
             - deterministic
+            - llm
+            - detector
             type: string
           - type: 'null'
           default: null

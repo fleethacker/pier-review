@@ -8,7 +8,7 @@ export interface ShipDims {
   hull: [number, number][];
   freeboardM: number;
   /** Cosmetic deckhouse and mast blocks for the 3D view, already in ship-local meters. */
-  parts: { id: string; points: [number, number][]; heightM: number; liftM: number }[];
+  parts: { id: string; points: [number, number][]; heightM: number; liftM: number; color?: string }[];
 }
 
 export const MOTION_KINDS = ['motion-ship', 'motion-ship-part', 'motion-tug'];
@@ -60,7 +60,7 @@ export function motionSceneParts(frame: ViewFrame, scene: SimScene | null, dims:
         kind: 'motion-ship-part',
         pose: { ...pose, z: pose.z + (dims?.freeboardM ?? 0) + p.liftM },
         geometry: { type: 'polygon', points: p.points, heightM: p.heightM },
-        color: '#7ba3d1',
+        color: p.color ?? '#7ba3d1',
         selectable: false,
       });
     }

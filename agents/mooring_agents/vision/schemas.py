@@ -47,7 +47,7 @@ class Detection(Model):
 class VisionResult(Model):
     wire_omitted_defaults = {"extraction_source": None, "extraction_note": None, "geometry_result_id": None, "image_sha256": None, "recommendation_result_id": None}
     recommendation_result_id: str | None = None
-    extraction_source: Literal["deterministic", "llm"] | None = None
+    extraction_source: Literal["deterministic", "llm", "detector"] | None = None
     extraction_note: str | None = None
     geometry_result_id: str | None = None
     image_sha256: str | None = None

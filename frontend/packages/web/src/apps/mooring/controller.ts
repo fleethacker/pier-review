@@ -955,8 +955,9 @@ export class MooringController {
       points: e.geometry.type === 'polygon' ? e.geometry.points : [],
       heightM: e.geometry.type === 'polygon' ? e.geometry.heightM : 0,
       liftM: e.pose.z - freeboardM,
+      color: e.color,
     }));
-    return { hull: hullPoints(ship.loa_ft, ship.beam_ft), freeboardM, parts };
+    return { hull: hullPoints(ship.loa_ft, ship.beam_ft, ship.hull_type), freeboardM, parts };
   }
 
   pushScene(mode: 'full' | 'update' | 'ship'): void {

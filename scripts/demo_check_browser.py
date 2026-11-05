@@ -54,7 +54,9 @@ def main() -> int:
     errors: list[str] = []
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=os.environ.get("DEMO_CHECK_BROWSER_EXECUTABLE"), args=["--enable-unsafe-swiftshader"])
-        page = browser.new_page(viewport={"width": 1600, "height": 1000})
+        # Reduced motion also stops the streaming particles that keep Cesium rendering, which frees the CPU the physics
+        # tools need (a saturated CPU makes the planner roughly 7x slower and can pass their 30 s limit).
+        page = browser.new_page(viewport={"width": 1600, "height": 1000}, reduced_motion="reduce")
         page.set_default_timeout(45_000)
         PAGE.append(page)
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
@@ -100,10 +102,21 @@ def main() -> int:
             return "intake assessment shown with MST, windows and a labeled deterministic summary"
 
         def plan():
-            page.get_by_role("button", name="Ask the agent to plan").click()
-            expect(page.get_by_role("button", name=re.compile("Create safety sheet|Rebuild safety sheet"))).to_be_visible(timeout=120_000)
+            attempts = 0
+            for attempts in range(1, 4):
+                page.get_by_role("button", name="Ask the agent to plan").click()
+                expect(page.get_by_role("button", name=re.compile("Create safety sheet|Rebuild safety sheet"))).to_be_visible(timeout=150_000)
+                text = page.locator("aside").first.inner_text().lower()
+                # Under software-rendered WebGL the CPU is scarce and a physics tool can pass its 30 s limit; the UI says
+                # so plainly and the user just asks again. Unloaded, the same plan finishes in a few seconds.
+                if "exceeded its" not in text and "took too long" not in text:
+                    break
+                if attempts == 3:
+                    raise AssertionError("the planner timed out three times in a row")
+                page.wait_for_timeout(3000)
             shot(page, "02-plan")
-            return "planner ran (SSE steps), plan applied to the canvas"
+            note = f" (took {attempts} attempts: transient timeout under CPU load)" if attempts > 1 else ""
+            return f"planner ran (SSE steps), plan applied to the canvas{note}"
 
         def sheet():
             dialog = page.get_by_role("dialog").first
@@ -198,9 +211,8 @@ def main() -> int:
             expect(page.get_by_text("draft: needs your confirmation")).to_be_visible()
             confirm = page.get_by_role("button", name="Confirm and use this berth")
             assert confirm.is_disabled(), "confirm must stay disabled until flagged items are ticked"
-            boxes = page.get_by_role("checkbox")
-            for i in range(boxes.count()):
-                boxes.nth(i).check()
+            # One pass in the page: there can be dozens of flagged items and each Playwright click is slow here.
+            page.evaluate("() => document.querySelectorAll('input[type=checkbox]').forEach((el) => { if (!el.checked) el.click(); })")
             shot(page, "08-vision-review")
             assert confirm.is_enabled(), "confirm should open once every flagged item is ticked"
             confirm.click()

@@ -41,13 +41,26 @@ if needs_node; then
 fi
 echo "Using node $(node -v), npm $(npm -v)"
 
-# Start from a clean tree. A leftover node_modules — a stale directory, or a symlink whose target has moved — makes npm
-# fail while reading what is already there, before it installs anything ("Cannot read properties of null (reading
-# 'edgesOut')"), and the project directory is not always as clean as a fresh clone.
-rm -rf node_modules package-lock.json
-if ! npm install --no-audit --no-fund; then
+# Start from a clean tree: the project directory an app starts from is not always as clean as a fresh clone, and a
+# leftover node_modules makes npm fail while reading what is already there.
+rm -rf node_modules
+
+# With a lockfile, `npm ci` installs the pinned tree and never resolves versions itself. Without one, `npm install` has
+# to build the tree from registry metadata, and npm 10.9 dies doing it here ("Cannot read properties of null (reading
+# 'edgesOut')"), which is what kept this app from starting. Keep the lockfile committed.
+install() {
+  if [ -f package-lock.json ]; then
+    npm ci --no-audit --no-fund
+  else
+    echo "No package-lock.json: falling back to npm install, which npm 10.9 is known to fail on here." >&2
+    npm install --no-audit --no-fund
+  fi
+}
+if ! install; then
   echo "--- npm debug log ---" >&2
-  tail -n 40 "$HOME"/.npm/_logs/*-debug-0.log 2>/dev/null >&2 || true
+  for log in "${HOME:-/home/ubuntu}"/.npm/_logs/*-debug-0.log; do
+    [ -f "$log" ] && { echo "$log" >&2; tail -n 60 "$log" >&2; }
+  done
   exit 1
 fi
 npm run build

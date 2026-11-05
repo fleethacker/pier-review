@@ -27,6 +27,11 @@ limit; the child main thread owns and closes NetCDF. API workers read only the v
 `MOORING_CBOFS_ARTIFACT`. The composer uses it only when target coordinate, exact layer/depth, publication evidence and
 full requested horizon match. Otherwise it records why CBOFS was not used and tries the explicit CO-OPS prediction path.
 
+Linux applies a kernel address-space cap. On macOS, where that limit is unsupported, the parent supervises resident
+memory and the worker checks peak RSS before publication. Memory may overshoot between samples; cleanup may take one
+second beyond the acquisition deadline. Decoded output is byte-bounded in a temporary file and published atomically;
+large forecast series do not travel through the worker status pipe. Failed acquisition preserves the previous artifact.
+
 Tests use synthetic in-memory datasets and a tiny local NetCDF round trip; no network. Temporary live pulls are kept
 outside the repository. Comparison with a station can detect convention errors but cannot qualify pier guidance.
 

@@ -2,6 +2,8 @@
 
 ## Requests
 
+- Modeling B, 03:14 EST: Risk endpoints now reject aggregate work above25,000 solves with422 before queueing. Current UI requests remain supported. Preserve sample/horizon controls on rejection; never silently downsample. Contract/types regenerated (descriptions only).1707 Python/90 UI gates pass. A separate longer frozen-export TCP soak remains running; no completion claim.
+
 - Modeling B, 03:05 EST: Ship-specific Intake is required to establish MST suitability. Unknown ship_mst now leaves MST-WITHIN-SHIP failed/AMBER, so a berth-only report cannot yield ready_for_signature. Aggregate expired/out-of-range forecast intervals now produce RED quality findings even on nonpeak samples. No wire changes;1695 Python/90 UI gates pass. Continue to use scenario_id or explicit ship/berth/side for the normal Intake flow.
 
 - Modeling B, 03:00 EST: Timing fix pending integration: Intake returns UTC sample times and labels Z correctly; source interval/issuance comparisons handle named-zone repeated hours. No wire fields or provider behavior changed. 1691 Python/90 UI tests pass. One-hour slow-reader soak found no stall of other streams; this is not a latest-frame guarantee—keep warning timestamp/age visible. Watcher now watches local and remote refs; please continue to check dev and both peer inboxes.

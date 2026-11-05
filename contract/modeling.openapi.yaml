@@ -3727,6 +3727,7 @@ components:
       - config
       - environment
       title: ExceedanceRequest
+      description: At most 25,000 combined baseline, instantaneous and trajectory equilibrium solves per job.
     Fender:
       properties:
         fender_id:
@@ -8530,6 +8531,7 @@ components:
       - config
       - environment
       title: TimelineRequest
+      description: At most 25,000 baseline, per-knot and Monte Carlo equilibrium solves per job.
     TrackPoint:
       properties:
         lat:

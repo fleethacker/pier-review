@@ -129,7 +129,18 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
     cites = sorted({cite for item in plan.rationale for cite in item.cites})
     results = [await checks.cites_resolve(tk, cites), checks.cites_in_ledger(req.plan_id, cites)]
 
-    report = REPORTS.get(req.intake_report_id) if req.intake_report_id else None
+    intake_id = req.intake_report_id or getattr(plan, "intake_report_id", None)
+    report = REPORTS.get(intake_id) if intake_id else None
+    if intake_id and report is None:
+        raise ModelingError(404, f"Intake report '{intake_id}' not found")
+    if report is not None:
+        for name, expected in (("berth_id", rec.scenario.berth_id),
+                               ("ship_class_id", rec.scenario.ship_class_id),
+                               ("side_to", getattr(rec.scenario, "side_to", None))):
+            if getattr(report, name, None) not in (None, expected):
+                raise ModelingError(422, "Intake report does not match the plan ship, berth or side")
+        if not report.planning_conditions:
+            raise ModelingError(422, "Intake report has no planning conditions")
     if plan.config is None:
         raise ModelingError(422, "Plan has no configuration to review")
     # Independent re-analysis at every intake planning condition (at least as thorough as the Planner),
@@ -162,9 +173,10 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
 
     failed = [result for result in results if not result.passed]
     mst_ok = results[-1].passed
-    verdict = "reject" if not mst_ok else ("revise" if any(result.severity == "RED" for result in failed)
-                                           else "ready_for_signature")
+    verdict = "reject" if not mst_ok else ("revise" if failed else "ready_for_signature")
     status = "RED" if any(result.severity == "RED" for result in failed) else "AMBER" if failed else "GREEN"
+    # A review must not erase the validity floor imposed by the physics results.
+    status = max([status, *(r.status for r in reanalyses), getattr(envelope, "status", "GREEN")], key=rank.get)
     threshold = Thresholds(
         wind_rel_deg=worst.wind_rel_deg, governing_element=worst.first_failure_element,
         limit_wll_gust_kt=limit_wll, forecast_max_gust_kt=forecast_gust,
@@ -173,7 +185,7 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
     )
     headline = _headline(verdict, len(results) - len(failed), len(results), limit_wll)
     result = SafetyReview(
-        review_id=new_id("review"), plan_id=req.plan_id, intake_report_id=req.intake_report_id,
+        review_id=new_id("review"), plan_id=req.plan_id, intake_report_id=intake_id,
         created_at_utc=utcnow(), verdict=verdict, status=status, checks=results, thresholds=threshold,
         summary=headline, summary_source="deterministic", narration_note=None, backend="real",
     )
@@ -184,20 +196,24 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
 
 
 def _limit_for(points: list[LimitEnvelopePoint], rel_deg: float) -> LimitEnvelopePoint | None:
-    usable = [point for point in points if point.limit_wind_kt is not None]
-    if not usable:
+    if not points:
         return None
-    return min(usable, key=lambda point: abs((point.wind_rel_deg - rel_deg + 180) % 360 - 180))
+    # Do not substitute a distant known sector when the nearest sector is unknown.
+    nearest = min(points, key=lambda point: abs((point.wind_rel_deg - rel_deg + 180) % 360 - 180))
+    return nearest if nearest.limit_wind_kt is not None else None
 
 
 def _warning(plan_id: str, env, point: LimitEnvelopePoint | None, factor: float, *, prefix: str = "") -> GustWarning:
-    pct_wll = 100 * env.wind_gust_kt / point.limit_wind_kt if point else None
-    pct_break = 100 * env.wind_gust_kt / (point.limit_wind_kt * math.sqrt(factor)) if point else None
+    positive_limit = point is not None and point.limit_wind_kt is not None and point.limit_wind_kt > 0
+    pct_wll = 100 * env.wind_gust_kt / point.limit_wind_kt if positive_limit else None
+    pct_break = 100 * env.wind_gust_kt / (point.limit_wind_kt * math.sqrt(factor)) if positive_limit else None
     severity = "RED" if pct_wll and pct_wll >= 100 else "AMBER" if pct_wll and pct_wll >= 80 else "INFO"
+    if not positive_limit:
+        severity = "RED" if point is not None and point.limit_wind_kt == 0 else "AMBER"
     message = (f"{prefix}Gust {env.wind_gust_kt:.0f} kt from {env.wind_from_true_deg:03.0f}: " +
                (f"{pct_wll:.0f}% of the {point.limit_wind_kt:.0f} kt working-load limit, "
                 f"{pct_break:.0f}% of estimated breaking ({point.first_failure_element} governs)."
-                if point else "wind from this side loads the fenders only."))
+                if positive_limit else "gust threshold is unavailable; do not infer safe conditions."))
     return GustWarning(warning_id=new_id("warn"), plan_id=plan_id, at_utc=env.valid_at_utc, severity=severity,
                        gust_kt=env.wind_gust_kt, wind_from_true_deg=env.wind_from_true_deg,
                        pct_of_wll_limit=round(pct_wll, 1) if pct_wll is not None else None,

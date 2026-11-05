@@ -57,7 +57,14 @@ def no_red_findings(reanalysis) -> CheckResult:
 
 
 def gust_threshold(forecast_gust: float, limit_wll: float | None, result_id: str) -> CheckResult:
-    ratio = forecast_gust / limit_wll if limit_wll else 0.0
+    if limit_wll is None:
+        return _check("GUST-THRESHOLD", "Forecast gusts stay below 80% of the plan's limiting gust",
+                      False, "AMBER", "Limiting gust is unavailable or unbounded within the search; threshold is not established.",
+                      [result_id])
+    if limit_wll <= 0:
+        return _check("GUST-THRESHOLD", "Forecast gusts stay below 80% of the plan's limiting gust",
+                      False, "RED", "Plan fails at zero wind; no positive gust allowance is established.", [result_id])
+    ratio = forecast_gust / limit_wll
     return _check("GUST-THRESHOLD", "Forecast gusts stay below 80% of the plan's limiting gust", ratio < 0.8,
                   "RED" if ratio >= 1 else "AMBER",
                   f"Forecast max gust {forecast_gust:.0f} kt vs limit {limit_wll or float('nan'):.0f} kt "

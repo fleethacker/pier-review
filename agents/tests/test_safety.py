@@ -165,3 +165,27 @@ def test_review_reanalyzes_every_condition_with_holding_tugs(monkeypatch):
     assert not by_id["REANALYSIS-NOT-RED"].passed  # the storm condition is RED even though the first is GREEN
     assert set(by_id["REANALYSIS-NOT-RED"].cites) == {"re-20", "re-99"}
     assert review.verdict == "revise"
+
+
+def test_unknown_or_zero_limit_cannot_pass_gust_check():
+    from mooring_agents.safety.checks import gust_threshold
+    unknown = gust_threshold(0, None, 'result')
+    zero = gust_threshold(0, 0, 'result')
+    assert not unknown.passed and unknown.severity == 'AMBER'
+    assert not zero.passed and zero.severity == 'RED'
+    assert gust_threshold(10, 50, 'result').passed
+
+
+def test_missing_nearest_sector_does_not_borrow_a_distant_limit():
+    points = [LimitEnvelopePoint(wind_rel_deg=0, limit_wind_kt=100, first_failure_element='line-1', failure_mode='WLL'),
+              LimitEnvelopePoint(wind_rel_deg=90, limit_wind_kt=None, first_failure_element=None, failure_mode='none', outcome='undetermined')]
+    assert agent._limit_for(points, 89) is None
+    warning = agent._warning('plan', env(89), None, 3)
+    assert warning.severity == 'AMBER' and warning.pct_of_wll_limit is None
+    assert 'unavailable' in warning.message and 'fenders only' not in warning.message
+
+
+def test_zero_wind_limit_warning_is_red_without_division_by_zero():
+    point = LimitEnvelopePoint(wind_rel_deg=90, limit_wind_kt=0, first_failure_element='line-1', failure_mode='WLL', outcome='fails_at_zero_wind')
+    warning = agent._warning('plan', env(90, gust=0), point, 3)
+    assert warning.severity == 'RED' and warning.pct_of_wll_limit is None

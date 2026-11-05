@@ -4,6 +4,8 @@ import { openJsonStream } from '../streams';
 import type { StreamHandle, StreamStatus } from '../streams';
 import { adaptFrame, frameIndexAt, parseSimMessage } from './frames';
 import type { SimFrame, SimLifecycle, SimRecording, SimScene, Vec2, ViewFrame } from './frames';
+import { SimClock } from './clock';
+import type { SimClockView } from './clock';
 import { motionSceneParts } from './sceneMapper';
 import type { MotionSceneParts, ShipDims } from './sceneMapper';
 import type { CameraPreset } from '../../../scene/types';
@@ -44,6 +46,8 @@ export interface MotionState {
   playing: boolean;
   speed: number;
   cursorS: number;
+  /** Live sessions: simulation vs wall time and when the forcing applies. Null for recordings and before the first frame. */
+  clock: SimClockView | null;
   /** Interactive sessions started from this browser whose recording can be replayed (live copy, else persisted). */
   sessionRecordings: SessionRecordingRef[];
 }
@@ -82,6 +86,7 @@ const INITIAL: MotionState = {
   speed: 1,
   cursorS: 0,
   sessionRecordings: [],
+  clock: null,
 };
 
 /** What the motion view needs from the mooring setup. */
@@ -136,6 +141,7 @@ export class MotionController {
   private sessionLayoutKey: string | null = null;
   /** Newest lifecycle sequence received; a reconnect asks only for lifecycle messages after it. */
   private lastLifecycleSeq = -1;
+  private readonly simClock = new SimClock();
 
   constructor(
     private readonly host: MotionHost,
@@ -195,6 +201,8 @@ export class MotionController {
   /** Draws one frame now (replay, scrub) or the newest pending frame (live). */
   private show(raw: SimFrame): void {
     const frame = adaptFrame(raw, { faceBearingDeg: this.face() });
+    const clock = this.s.source === 'live' ? this.simClock.observe(raw, Date.now(), this.s.lifecycle === 'running') : null;
+    if (clock || this.s.clock) this.state.set({ clock });
     const p = { x: frame.ship.x_ft, y: frame.ship.y_ft };
     this.state.set((s) => {
       // A new run (reset) starts a fresh trail; time never runs backwards within a run.
@@ -375,7 +383,8 @@ export class MotionController {
     }
     this.stopEverything();
     this.lastLifecycleSeq = -1;
-    this.state.set({ speed: 1 });
+    this.simClock.reset();
+    this.state.set({ speed: 1, clock: null });
     this.state.set({ busy: true, error: null, source: 'live', link: 'connecting', frame: null, trail: [], lifecycle: null, lifecycleMessage: null, lastSequence: null, droppedForDisplay: 0, recording: null, playing: false });
     try {
       const scenarioId = await this.host.ensureScenario();

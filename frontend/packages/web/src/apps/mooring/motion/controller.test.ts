@@ -434,6 +434,17 @@ describe('rm0-v1 session protocol (S1)', () => {
     m.dispose();
   });
 
+  it('shows simulation time for live frames and none for recordings', async () => {
+    const m = await rich();
+    stream.handlers!.onMessage(lifecycle(1, 'running'));
+    stream.handlers!.onMessage({ ...legacy(2.5, 3), environment: { t_s: 2.5 } });
+    flush();
+    expect(m.s.clock).toMatchObject({ simS: 2.5, forcingTS: 2.5, forcingRevision: null });
+    await m.loadRecording();
+    expect(m.s.clock).toBeNull();
+    m.dispose();
+  });
+
   it('does not list a recording for a legacy session', async () => {
     vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's0', ws_url: '/ws/sim/s0' } } as never);
     const m = make();

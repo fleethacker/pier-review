@@ -6,6 +6,7 @@ import { fmt, useUnitSystem } from '../units';
 import { DEFAULT_FACE_BEARING } from './frames';
 import type { Badge, ValidityState, ViewFrame } from './frames';
 import type { MotionController, MotionState } from './controller';
+import { clockText } from './clock';
 import { LIVE_SPEEDS, REPLAY_SPEEDS } from './controller';
 import { EnvironmentGlyph, MotionCanvas } from './MotionCanvas';
 
@@ -53,6 +54,11 @@ export function Badges({ frame, state }: { frame: ViewFrame | null; state: Motio
       <Pill color={env ? '#8ba4c4' : STATUS_COLOR.NONE}>
         environment: {env ? `${sourceText ?? 'source not stated'}${ageS != null ? `, ${ageS.toFixed(0)} s old` : ', age not stated'}` : 'not in frame'}
       </Pill>
+      {state.clock?.training && (
+        <Pill color={STATUS_COLOR.AMBER} title="The forcing in this session is synthetic training data, not an observation or forecast.">
+          training · synthetic forcing
+        </Pill>
+      )}
       <Pill color={state.source === 'live' ? '#00e5ff' : '#a78bfa'}>{state.source === 'live' ? 'live session' : state.source === 'recording' ? 'replay' : 'idle'}</Pill>
       {frame?.assumedFaceBearing && <Pill color={STATUS_COLOR.AMBER} title="This frame carries no scene, so the berth orientation was assumed.">berth orientation assumed</Pill>}
     </div>
@@ -234,6 +240,20 @@ function LiveControls({ c, s, tugIds, lineNumbers }: { c: MotionController; s: M
         <ChipText tone={s.link === 'open' ? undefined : 'warn'}>link: {s.link}</ChipText>
         <ChipText>session: {s.lifecycle ?? 'state not reported'}</ChipText>
       </div>
+      {s.clock && (
+        <div className="flex flex-wrap items-center gap-2 text-[10px]" aria-label="Simulation time">
+          <ChipText>sim {clockText(s.clock.simS)}</ChipText>
+          <ChipText>wall running {clockText(s.clock.wallRunningS)}</ChipText>
+          <ChipText>
+            {s.clock.effectiveSpeed == null ? 'rate: measuring' : `rate ${s.clock.effectiveSpeed.toFixed(1)}× (asked ${s.speed}×)`}
+          </ChipText>
+          <ChipText tone={s.clock.forcingTS == null ? 'warn' : undefined}>
+            {s.clock.forcingTS == null
+              ? 'forcing time: not reported by this simulator'
+              : `forcing at t=${s.clock.forcingTS.toFixed(1)} s${s.clock.forcingRevision ? ` · revision ${s.clock.forcingRevision}` : ' · no forcing revision'}`}
+          </ChipText>
+        </div>
+      )}
       <div className="flex items-end gap-2">
         <label className="text-[10px] text-mil-dim">
           Tug

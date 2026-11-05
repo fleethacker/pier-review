@@ -22,6 +22,13 @@ sequence for the rest of the build are in the [master plan](docs/MASTER_PLAN.md)
 > Without a vision model, Berth Map creates a draft from supplied metadata/catalog geometry, not image extraction.
 > Drafts require confirmation; sequence rules and durations need deck-officer/pilot review.
 
+Two further features are in review: **mission storyboarding** rebuilds a ship's path from recorded fixes and ties timestamped
+images and reports to it (gaps are never filled and nothing is extrapolated;
+[MISSION_STORYBOARD.md](docs/MISSION_STORYBOARD.md)), and **port transit simulation** runs own-thrust and tug-assisted
+ships along demonstration routes with a surrogate maneuvering model, always of limited validity
+([PORT_TRANSIT.md](docs/PORT_TRANSIT.md)). A 5-minute demo script for both, with data preparation, is in
+[DEMO_MISSIONS_TRANSIT.md](docs/DEMO_MISSIONS_TRANSIT.md) (open the UI with `?app=missions`).
+
 Optional UI handoffs are kept in [MODELING_UI_RECOMMENDATIONS.md](docs/MODELING_UI_RECOMMENDATIONS.md).
 
 ## Layout

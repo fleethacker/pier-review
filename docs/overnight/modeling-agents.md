@@ -2,6 +2,8 @@
 
 ## Log
 
+- 00:10 EST: Follow-up tide-sweep source audit preserves component limitations/unknown issuance and rejects bad water inputs before interpolation. Twenty focused and 1509 full Python tests pass, no skips/xfails. UI 82 tests/typecheck/lint/build and contract-check pass. No wire/schema changes. A new assertion initially expected an explicit null issue time; corrected to require omission under the additive wire-default rule. Data colleague notified of PR #64 via commit comment 208236472; no read acknowledgment claimed.
+
 - 00:08 EST: Temporary NWS + CO-OPS tidal current/level composition exercised 72 hourly snapshots, seven arrivals 24–30 h ahead and 63 real static evaluations. All unchanged-template arrivals overloaded (119.0–216.0% WLL), correctly RED/limited with no selected arrival. Actual NWS issue retained separately from two NOAA retrievals; tidal/weather residual, depth/spatial and wind-basis limitations retained. No production provider wiring or raw data committed.
 
 - 00:08 EST: PR #63 merged after both CI jobs passed; shared UI now preserves assessed holding tugs and avoids forced capture renders. Per-component forecast provenance implementation: 62 focused and 1500 full Python tests pass; 82 UI tests, typecheck, lint, build, contract regeneration and contract-check pass. No skips/xfails. NWS issuance and NOAA retrieval remain separate; no provider composition or physical coefficient change.

@@ -29,7 +29,7 @@ LIMITATIONS = ['Static line/holding assessment, not a validated docking maneuver
 
 
 def _input_problem(snapshot, as_of, valid_until=None):
-    if problem := availability_problem(snapshot, as_of):
+    if problem := availability_problem(snapshot, as_of, require_forecast=True):
         return problem
     meta = snapshot.metadata
     for item in meta.components if meta else []:
@@ -178,6 +178,8 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
         validity.reasons.append(ValidityReason(code='NO_USABLE_ARRIVAL_ASSESSMENT',
             message='No arrival has a complete usable static assessment; inspect unavailable, invalid or undetermined window outcomes. This does not prove physical infeasibility.',
             affected_components=['forecast', 'docking']))
+    timing_limits = (['Short-lead reassessment of supplied conditions; this does not establish a 24-hour advance forecast.']
+                     if req.arrival_from_utc < req.as_of_utc + timedelta(hours=24) else [])
     component_provenance = [item for snap in req.forecast if snap.metadata for item in snap.metadata.components]
     unknown_issuance = any(item.basis == 'prediction' and item.issued_at_utc is None for item in component_provenance)
     result = ForecastDockingResult(as_of_utc=req.as_of_utc, forecast_start_utc=dates[0], forecast_end_utc=dates[-1],
@@ -191,7 +193,7 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
         installed_at_water_level_mllw_ft=selected.installed_at_water_level_mllw_ft if selected else None,
         selected_arrival_utc=selected.arrival_utc if selected else None, windows=windows, conditions=conditions,
         evaluations=evaluations, complete=complete, recheck_triggers=RECHECK,
-        limitations=LIMITATIONS + (['Some component issue times are unknown; retrieval establishes only an available-by bound, not issuance or forecast freshness.'] if unknown_issuance else []) + (['Input contains synthetic scenario data; this is not a public weather forecast.']
+        limitations=LIMITATIONS + timing_limits + (['Some component issue times are unknown; retrieval establishes only an available-by bound, not issuance or forecast freshness.'] if unknown_issuance else []) + (['Input contains synthetic scenario data; this is not a public weather forecast.']
                                   if any(s.source in ('scenario', 'mock') for s in req.forecast) else []))
     snapshot = {'request': req.model_dump(mode='json'), 'config': config.model_dump(mode='json'),
                 'selected_config': selected_config.model_dump(mode='json') if selected_config else None,
@@ -208,4 +210,4 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
         backend='real', request=req, result=result, manifest=manifest, status='AMBER' if selected else 'RED', validity=validity,
         assumptions=[f'Forecast sampled/held with maximum gap {req.max_gap_min} minutes.',
                      'Target is a utilization bound on supplied forecast conditions, not an MST design certification.',
-                     *LIMITATIONS])
+                     *LIMITATIONS, *timing_limits])

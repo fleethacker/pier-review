@@ -34,7 +34,7 @@ Inputs: scenario, explicit as-of UTC, candidate arrival interval, operation/hold
 - Reject future-issued data relative to as-of; duplicates, unordered times, missing coverage and unsupported datums must not silently pass. Never extrapolate calm conditions over a gap.
 - Use coincident snapshots, not artificial combinations of independent maxima. Evaluate interior gust/current/tide peaks and direction changes throughout docking/holding.
 - Search lines against the full required conditions and tide range; check fittings/fenders and available tugs. Budget/cancellation are explicit; incomplete search is undetermined.
-- Recheck on new forecast, missing/stale component, arrival or asset changes. Approval never automatically transfers to changed inputs.
+- Recheck on new forecast, missing/stale component, arrival or asset changes, including closer than 24 hours before docking through an explicit short-lead reassessment option. Keep the default 24-hour advance-planning requirement and all source/coverage gates. Approval never automatically transfers to changed inputs.
 - Tests: arrival ≥24h after as-of; coverage past day one; interior peak; circular direction; truncated/missing forecast; future-issue leakage; UTC/DST; offline determinism; cancellation; consumer validation.
 
 ## Public sources and simulation

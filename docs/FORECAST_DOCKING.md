@@ -1,6 +1,6 @@
 # Advance docking planning
 
-`POST /api/v1/mooring/forecast-plan` returns a job; its result is `ForecastDockingResponse`. Use `contract/examples/modeling/mooring_forecast_plan.json` for a complete, explicitly synthetic 48-hour example. Arrival must be at least 24 hours after `as_of_utc`; docking and holding must end within 120 hours.
+`POST /api/v1/mooring/forecast-plan` returns a job; its result is `ForecastDockingResponse`. Use `contract/examples/modeling/mooring_forecast_plan.json` for a complete, explicitly synthetic 48-hour example. By default, arrival must be at least 24 hours after `as_of_utc`; docking and holding must end within 120 hours. Explicit short-lead reassessment is described below.
 
 The caller supplies an ordered, timezone-aware forecast. Agent C owns `/env/forecast` and public-provider normalization. The modeling endpoint does not fetch the network: it evaluates the supplied snapshots and retains their source, issue and valid times. Submit forecasts whose availability no later than planning time is established by actual issuance or the component retrieval provenance described below. An observation in the future, missing/stale component flag, or uncovered interval is unavailable, not zero. Forecasts with unknown averaging metadata remain limited under the loads model.
 
@@ -77,3 +77,9 @@ The legacy observation/replay normalizer does not infer provider issuance from a
 Intake also normalizes copied sample times to UTC before ordering, coverage and summary formatting. Source validity and issuance/retrieval checks compare absolute instants, including a named zone’s repeated hour. Metadata offsets remain intact; a local offset is never printed as a Z suffix without conversion.
 
 Tide-sweep bounds, tending action times and supplied tide samples also use UTC before interpolation and scheduling. Risk timelines normalize both their start and copied forecast samples, so a two-hour horizon remains two elapsed hours through daylight-saving changes and action text uses actual Z time. Source objects are preserved; no synthetic tidal/weather equations are changed.
+
+## Reassessment closer to arrival
+
+Set `allow_short_lead=true` when a new forecast or changed conditions require reassessment less than 24 hours before arrival. The default remains false and is omitted on the wire for compatibility. Arrival must still be at or after the new `as_of_utc`; coverage, issue/retrieval availability, quality, budgets and static-only validity rules do not change. The result identifies a short-lead reassessment instead of implying a new 24-hour advance forecast.
+
+Use fresh supplied snapshots and retain `selected_config` when rechecking the same installation. A revised calculation produces new result IDs; an earlier approval does not transfer. The generated `contract/examples/modeling/mooring_forecast_reassessment.json` is an explicitly synthetic example with four hours of lead. It demonstrates the API option, not a public forecast composer or an automatic F24-to-Safety approval workflow.

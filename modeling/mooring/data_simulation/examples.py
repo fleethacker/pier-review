@@ -16,5 +16,7 @@ def examples():
         berth_id=base.berth_id, config=base.config, as_of_utc=simulation.start_utc,
         arrival_from_utc=simulation.start_utc+timedelta(hours=24),
         arrival_to_utc=simulation.start_utc+timedelta(hours=30), forecast=forecast.series)
-    return {'data_simulation_forecast': simulation.model_dump(mode='json'),
+    reassessment = request.model_copy(update={'allow_short_lead': True, 'as_of_utc': simulation.start_utc+timedelta(hours=20)})
+    return {'mooring_forecast_reassessment': reassessment.model_dump(mode='json'),
+            'data_simulation_forecast': simulation.model_dump(mode='json'),
             'mooring_forecast_plan': request.model_dump(mode='json')}

@@ -204,3 +204,38 @@ def test_windows_refine_crossings_and_respect_minimum_duration():
 def test_insufficient_fleet_gives_no_windows():
     j = windows(available_tug_ids=["T4"], max_current_kt=2.0, max_gust_kt=60.0).json()
     assert j["status"] in ("AMBER", "RED") or j["result"]["windows"] is not None
+
+
+@pytest.mark.parametrize("problem", ["over_target", "invalid", "unknown"])
+def test_holding_candidate_requires_the_fresh_assessment_to_establish_feasibility(monkeypatch, problem):
+    from mooring.moored import holding
+    from mooring.core.schemas import Validity, ValidityReason
+    original = holding.solver.analyze
+    def fresh(req):
+        response = original(req).model_copy(deep=True)
+        if problem == "over_target":
+            response.result.min_margin.pct_wll = 95.0  # Above the requested 80% margin target, below WLL.
+        else:
+            response.validity = Validity(state=problem, reasons=[ValidityReason(code="TEST_FRESH_FAILURE",
+                message="Injected fresh-assessment failure", affected_components=["equilibrium"])])
+        return response
+    monkeypatch.setattr(holding.solver, "analyze", fresh)
+    response = hold()
+    assert response.status_code == 200
+    result = response.json()
+    assert result["result"]["feasible"] is False and result["status"] == "RED"
+    assert any("fresh independent solve" in note for note in result["result"]["rationale"])
+
+
+def test_holding_report_retains_fender_governing_utilization_from_fresh_assessment(monkeypatch):
+    from mooring.moored import holding
+    original = holding.solver.analyze
+    def fresh(req):
+        response = original(req).model_copy(deep=True)
+        response.result.min_margin.element_id = "fender-test"
+        response.result.min_margin.pct_wll = 79.0
+        return response
+    monkeypatch.setattr(holding.solver, "analyze", fresh)
+    result = hold().json()["result"]
+    assert result["assisted_max_pct_wll"] == 79.0
+    assert any("fender-test" in note for note in result["rationale"])

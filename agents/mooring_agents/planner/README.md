@@ -99,3 +99,5 @@ not after an artificial mock delay. Poll plan/job terminal state before requesti
 Failure and cancellation emit terminal `done` with `state` and `error`; reconnect with `Last-Event-ID`.
 
 All new plans retain `installed_at_water_level_mllw_ft`, taken from the first intake planning condition (or sole environment snapshot). Search, subsequent condition analyses, holding assistance, draft sequence, risk and what-if requests retain this common installation tide; they do not implicitly retension lines at each later tide. Independent review preserves it, including when a supplemental intake is supplied. Legacy plans without this field retain their old per-condition assumption; regenerate them before relying on multi-tide comparisons.
+
+Holding-tug search returns additional assignments. The planner retains existing assistance and adds those assignments before re-evaluating every condition; a zero-addition response does not release existing tugs. The endpoint’s fresh independent assessment governs feasibility and utilization, including fenders.

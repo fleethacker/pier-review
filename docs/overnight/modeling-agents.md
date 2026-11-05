@@ -2,6 +2,10 @@
 
 ## Log
 
+- 23:43 EST: public 72h probes succeed for configured CO-OPS tide station 8638610 and cb0402/bin4 at 21 ft (73 hourly points each); NWS supplies 48 complete wind/gust intervals across 72h. Raw CO-OPS/URL/retrieval/SHA256 saved outside git, no new runtime composition or qualification claimed. C inbox documents per-component issuance versus retrieval and bin applicability blockers.
+
+- 23:41 EST: holding assistance audit fixes planner replacement of existing tugs (endpoint returns additions), and makes fresh assessment govern feasibility and utilization including fenders. 73 focused and 1472 full Python tests pass, no skips/xfails; UI 81/typecheck/lint/build pass, contract regenerated unchanged. Additional peer notification delivered to UI commit discussion (208234027); no acknowledgment assumed.
+
 - 23:37 EST: multi-tide planner audit found analyses/risk/review implicitly reinstalling lines at each condition. Added common installation tide to plans/sheets, requests and draft sequence checks, including persistence/what-if. Regression checks later governing tide and supplemental review. One fixed integration fixture now correctly has an unknown directional gust limit and blocks readiness; its assertion now checks that conservative outcome. 90 focused, 20 API and 1467 full Python tests pass, no skips/xfails. Contract/types regenerated, UI 81 tests/typecheck/lint/build pass.
 
 - 23:33 EST: forecast planning rejects future replay observations without archived prediction/issuance provenance, isolates invalid snapshot inputs so later usable arrivals remain assessable, and marks wholly unusable assessments invalid without claiming physical infeasibility. Capability discovery now includes advance docking and correct installed-reader/telemetry status. 44 focused and 1465 full Python tests pass, no skips/xfails; contract regenerated without drift. UI typecheck/lint/build and 81 tests pass.

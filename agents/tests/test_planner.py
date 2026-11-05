@@ -494,3 +494,15 @@ def test_tide_changes_keep_one_installation_through_plan_risk_and_what_if(setup,
     asyncio.run(agent.answer(restored, "NW 15 kt", tk))
     assert client.requests[-1]["installed_at_water_level_mllw_ft"] == -1.25
     assert client.requests[-1]["environment"]["water_level_mllw_ft"] == 3.5
+
+
+def test_holding_search_adds_to_existing_assistance_instead_of_replacing_it(setup, monkeypatch):
+    client, tk = setup
+    existing = {"tug_id": "T4", "push_point_id": "PP-AFT-P", "force_lbf": 5000, "mode": "push"}
+    client.sc.tugs = [TugAssignment.model_validate(existing)]
+    client.analyze_fn = lambda b: ("GREEN", 40) if len(b["tugs"]) == 2 else ("RED", 120)
+    monkeypatch.setattr(agent, "get_llm", lambda: FakeLLM(move("hold_tugs")))
+    rec = run(tk)
+    assert {a.tug_id for a in rec.plan.holding_tugs} == {"T1", "T4"}
+    assert len(rec.holding_tugs) == 2
+    assert all({a["tug_id"] for a in b["tugs"]} == {"T1", "T4"} for b in client.risks)

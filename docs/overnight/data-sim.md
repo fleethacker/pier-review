@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 23:43 EST (B): fresh optional probes returned 73 hourly tidal-current predictions for cb0402/bin4 (Depth=21 ft) and 73 MLLW tide predictions for configured water-level station 8638610, through Nov 8 04:00Z. NWS returned 48 intervals covering 72h, issue Nov 4 23:38:07Z, no missing gusts. Raw CO-OPS files/URL/retrieval/SHA256 are outside git in /tmp/psp-public-data. Tide query at wind-only station 8638614 failed; use the configured water-level station. Composition still needs distinct per-component provenance: retrieval time is not provider issuance. Do not fabricate issued_at for harmonic predictions or claim current-bin representativeness at the pier. These probes are not a newly wired forecast endpoint.
+
 - 23:35 EST (B): small S13 consistency change in owned sequence checks (`berthing/sequence.py`): optional installation tide now passes to equilibrium, matching planner multi-tide analyses/risk/review. No simulator/environment changes. Model schema stays additive, regression test checks every intermediate build retains that tide.
 
 - B 23:23 EST: tiny provider-status correction in environment/__init__.py: NWS/CBOFS readers are installed but a composed forecast is not wired; replacing stale “DC2/DC3 not installed” labels without changing providers/source selection. M6 module status also corrected from mock to real rated allocation with unqualified fleet data.

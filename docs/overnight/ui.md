@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 23:39 EST (B): holding-tug search returns additions, not a replacement fleet. Preserve request assistance when applying `/tugs/hold-plan`; the final agent `holding_tugs` list is the combined assessed fleet. Result assumptions/tool description now state this explicitly.
+
 - 23:35 EST (B): new plans/sheets expose optional `installed_at_water_level_mllw_ft`; retain it on map reanalysis alongside `holding_tugs` so later tides do not silently reinstall/retension lines. Missing legacy values remain unknown. Types/fixtures regenerated with the packet; see MODELING_UI_RECOMMENDATIONS.md.
 
 - B 23:30 EST: F24 hardening rejects future replay without archived prediction/issuance provenance, reports invalid per-condition input rather than aborting other arrivals, and marks aggregate invalid/RED when no arrival has a complete usable assessment. Overloaded but assessed cases remain RED/limited. /capabilities now lists advance docking assessment and corrects stale provider/replay/telemetry descriptions; none are qualified.

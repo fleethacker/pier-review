@@ -239,3 +239,34 @@ def test_holding_report_retains_fender_governing_utilization_from_fresh_assessme
     result = hold().json()["result"]
     assert result["assisted_max_pct_wll"] == 79.0
     assert any("fender-test" in note for note in result["rationale"])
+
+
+@pytest.mark.parametrize('call', [hold, berthing, windows], ids=['holding', 'berthing', 'windows'])
+def test_explicit_empty_available_fleet_never_uses_catalog_tugs(call):
+    response = call(available_tug_ids=[])
+    assert response.status_code == 200, response.text
+    result = response.json()['result']
+    if call is windows:
+        assert result['windows'] == []  # The synthetic series has nonzero environmental loads.
+    else:
+        assert result['assignments'] == []
+        assert result['recommended_tug_count'] == 0
+        assert result['feasible'] is False
+
+
+@pytest.mark.parametrize('call', [hold, berthing, windows], ids=['holding', 'berthing', 'windows'])
+def test_duplicate_available_tug_ids_are_rejected_before_allocation(call):
+    response = call(available_tug_ids=['T4', 'T4'])
+    assert response.status_code == 422, response.text
+    assert 'unique' in response.text
+
+
+def test_empty_additional_fleet_preserves_existing_holding_assistance():
+    first = hold().json()['result']
+    assert first['feasible'] and first['assignments']
+    response = hold(tugs=first['assignments'], available_tug_ids=[])
+    assert response.status_code == 200, response.text
+    result = response.json()['result']
+    assert result['feasible'] and result['assignments'] == []
+    assert result['recommended_tug_count'] == 0
+    assert result['assisted_max_pct_wll'] <= 100 / 1.25

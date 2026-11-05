@@ -1,14 +1,24 @@
 """Tug planner schemas (module M6): holding tugs, berthing tugs, berthing windows."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import AfterValidator, Field
 
 from .common import Envelope, Model, SideTo
 from .environment import EnvironmentSnapshot
 from .mooring import AnalyzeRequest
 from .plans import TugAssignment
+
+
+def _unique_available_tugs(value: list[str] | None) -> list[str] | None:
+    if value is not None and len(value) != len(set(value)):
+        raise ValueError("available_tug_ids must be unique; one tug cannot be allocated twice")
+    return value
+
+
+AvailableTugIds = Annotated[list[str] | None, AfterValidator(_unique_available_tugs)]
+FLEET_DESCRIPTION = "Unique available tug IDs. Omitted/null uses the catalog fleet; an empty list means no available tugs."
 
 
 class BerthingTugRequest(Model):
@@ -18,12 +28,12 @@ class BerthingTugRequest(Model):
     side_to: SideTo
     environment: EnvironmentSnapshot
     margin: float = Field(default=0.25, ge=0, le=1, description="Added to the gust load (pilot practice: 20-25%).")
-    available_tug_ids: list[str] | None = Field(default=None, description="Defaults to the whole fleet.")
+    available_tug_ids: AvailableTugIds = Field(default=None, description=FLEET_DESCRIPTION)
 
 
 class HoldTugRequest(AnalyzeRequest):
     margin: float = Field(default=0.25, ge=0, le=1)
-    available_tug_ids: list[str] | None = None
+    available_tug_ids: AvailableTugIds = Field(default=None, description=FLEET_DESCRIPTION)
 
 
 class PushPointForce(Model):
@@ -75,7 +85,7 @@ class BerthingWindowRequest(Model):
     to_utc: datetime
     max_current_kt: float = Field(default=0.5, ge=0)
     max_gust_kt: float | None = Field(default=None, ge=0)
-    available_tug_ids: list[str] | None = Field(default=None, description="Fleet requested for the berthing; defaults to the whole catalog fleet.")
+    available_tug_ids: AvailableTugIds = Field(default=None, description=FLEET_DESCRIPTION)
     margin: float = Field(default=0.25, ge=0, le=1)
     step_min: int = Field(default=6, ge=1, le=60, description="Coarse sampling interval; threshold crossings between samples are refined to 1 min.")
     min_duration_min: float = Field(default=0.0, ge=0, description="Windows shorter than this are dropped.")

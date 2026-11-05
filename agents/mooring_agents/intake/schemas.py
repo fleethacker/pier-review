@@ -1,9 +1,12 @@
 """Environment/Intake agent schemas."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
+
+from mooring.core.schemas.forecast_planning import ForecastResolveRequest, ForecastResolutionManifest
+from ..shared.forecast import optional_wire_schema
 
 from mooring.core.schemas import (
     BerthingWindow,
@@ -16,12 +19,26 @@ from mooring.core.schemas import (
 
 
 class IntakeRequest(Model):
+    wire_omitted_defaults = {"forecast_request": None}
+    forecast_request: ForecastResolveRequest | None = Field(default=None, json_schema_extra=optional_wire_schema,
+        description="Explicit supplied/scenario forecast selection using the canonical modeling resolver. Its interval must match horizon_hours; no default provider is substituted.")
     scenario_id: str | None = Field(default=None, description="Takes berth, ship and side from the scenario.")
     berth_id: str | None = None
     ship_class_id: str | None = None
     side_to: SideTo | None = None
     horizon_hours: int = Field(default=24, ge=1, le=120)
     env_scenario_id: str | None = Field(default=None, description="Use a synthetic environment instead of live data.")
+
+    @model_validator(mode="after")
+    def bound_horizon(self):
+        if self.forecast_request is not None:
+            if self.forecast_request.to_utc - self.forecast_request.from_utc != timedelta(hours=self.horizon_hours):
+                raise ValueError("Forecast interval must equal horizon_hours")
+            if self.env_scenario_id is not None:
+                raise ValueError("Use forecast_request.forecast_binding to select the forecast scenario")
+            if self.berth_id is not None and self.berth_id != self.forecast_request.berth_id:
+                raise ValueError("Forecast and intake berth must match")
+        return self
 
 
 class ConcernWindow(Model):
@@ -62,8 +79,13 @@ class DataQualityIssue(Model):
 
 
 class IntakeReport(Model):
+    wire_omitted_defaults = {"forecast_manifest": None, "forecast_result_id": None, "forecast_request": None}
+    forecast_manifest: ForecastResolutionManifest | None = Field(default=None, json_schema_extra=optional_wire_schema)
+    forecast_result_id: str | None = Field(default=None, json_schema_extra=optional_wire_schema)
+    forecast_request: ForecastResolveRequest | None = Field(default=None, json_schema_extra=optional_wire_schema,
+        description="Frozen explicit selection used to re-resolve the same supplied/scenario source; no public latest-revision discovery is implied.")
     report_id: str
-    created_at_utc: datetime = Field(description="UTC availability cutoff captured after input retrieval; assessment processing may finish later.")
+    created_at_utc: datetime = Field(description="UTC availability cutoff; explicit forecast selections retain their resolver as_of cutoff. Assessment processing may finish later.")
     berth_id: str
     ship_class_id: str | None
     side_to: SideTo | None

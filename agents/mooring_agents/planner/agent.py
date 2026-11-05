@@ -19,6 +19,7 @@ from .schemas import (AgentDoneEvent, AgentMessageEvent, AgentPlan, AgentPlanReq
                        AgentStepEvent, RationaleItem)
 from ..shared.llm import LLM, LLMNotConfigured, Message, ToolUse, get_llm
 from ..shared.layout import PlanGeometrySnapshot, capture_geometry
+from ..shared.forecast import resolve_forecast
 
 PROMPTS = Path(__file__).with_name("prompts")
 TEMPERATURE = 0.0
@@ -262,6 +263,7 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None 
     ship = (await tk.ship(sc.ship_class_id)).model_copy(deep=True)
     berth = (await tk.berth(sc.berth_id)).model_copy(deep=True)
     other_conditions: list[Any] = []
+    forecast_manifest = forecast_result_id = forecast_request = None
     if req.intake_report_id:
         try:
             from ..intake.agent import REPORTS
@@ -276,6 +278,15 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None 
             raise ModelingError(422, "Intake report does not match the scenario ship, berth or side")
         if not report.planning_conditions:
             raise ModelingError(422, "Intake report has no planning conditions")
+        if getattr(report, "forecast_manifest", None) is not None:
+            if report.forecast_request is None:
+                raise ModelingError(422, "Bound intake has no saved forecast selection; create a new Intake")
+            resolution = await resolve_forecast(tk, report.forecast_request, report.forecast_manifest)
+            forecast_manifest = resolution.result.forecast_manifest
+            forecast_result_id = resolution.result_id
+            forecast_request = report.forecast_request.model_copy(deep=True)
+            step("Confirmed the Intake forecast revision, content and temporal binding.", "resolve_forecast", forecast_result_id)
+            rationale.append(RationaleItem(text="The plan retains the canonical Intake forecast binding; supplied source identifiers do not provide public latest-revision discovery.", cites=[forecast_result_id]))
         env = report.planning_conditions[0].environment
         other_conditions = list(report.planning_conditions[1:])
         step(f"Selected intake planning condition: {report.planning_conditions[0].label}.", "intake_report")
@@ -495,6 +506,7 @@ async def run(req: AgentPlanRequest, tk: PhysicsToolkit, *, plan_id: str | None 
     if invalid_assistance_note:
         assumptions.append(invalid_assistance_note)
     plan = AgentPlan(plan_id=plan_id, scenario_id=sc.scenario_id, intake_report_id=req.intake_report_id,
+        forecast_manifest=forecast_manifest, forecast_result_id=forecast_result_id, forecast_request=forecast_request,
         state="succeeded", status=status, config=cfg, tug_plan=tug_plan.result, sequence=sequence.result,
         sequence_result_id=sequence.result_id,
         analysis_result_id=analysis.result_id, risk_result_id=risk.result_id, rationale=rationale,

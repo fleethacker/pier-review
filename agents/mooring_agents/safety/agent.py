@@ -25,6 +25,8 @@ from ..physics.toolkit import PhysicsToolkit
 from ..planner.mock import PLANS, PlanRecord, _analyze_body
 from ..shared import llm
 from ..shared.environment_quality import component_issues
+from ..shared.forecast import bound_samples, resolve_forecast, same_forecast
+from ..shared.layout import review_geometry_matches
 from ..shared.narration import GuardrailError, format_fact, render
 from . import checks
 from .schemas import (DirectionalThreshold, GustWarning, SafetyReview, SafetyReviewRequest, Thresholds)
@@ -130,6 +132,13 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
     rec = plan_record(req.plan_id)
     tk.plan_id = req.plan_id
     plan = rec.plan
+    forecast_manifest = getattr(plan, "forecast_manifest", None)
+    forecast_result_id = getattr(plan, "forecast_result_id", None)
+    if forecast_manifest is not None:
+        if plan.forecast_request is None:
+            raise ModelingError(422, "Bound plan has no saved forecast selection; create a new Intake and plan")
+        resolution = await resolve_forecast(tk, plan.forecast_request, forecast_manifest)
+        forecast_result_id = resolution.result_id
     cites = sorted({cite for item in plan.rationale for cite in item.cites})
     results = [await checks.cites_resolve(tk, cites), checks.cites_in_ledger(req.plan_id, cites)]
 
@@ -148,6 +157,8 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
                 raise ModelingError(422, "Intake report does not match the plan ship, berth or side")
         if not report.planning_conditions:
             raise ModelingError(422, "Intake report has no planning conditions")
+        if not same_forecast(forecast_manifest, getattr(report, "forecast_manifest", None)):
+            raise ModelingError(409, "Intake forecast binding differs from the plan; create a new plan for explicit reassessment, without transferring prior approvals")
         reports.append(report)
     if plan.config is None:
         raise ModelingError(422, "Plan has no configuration to review")
@@ -203,6 +214,8 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
             reasons=list({r.code: r for v in validities for r in v.reasons}.values()))
     headline = _headline(verdict, len(results) - len(failed), len(results), limit_wll)
     result = SafetyReview(
+        geometry_snapshot_verified=review_geometry_matches(getattr(rec, "geometry_snapshot", None), [*reanalyses, *envelopes]),
+        **({"forecast_manifest": forecast_manifest, "forecast_result_id": forecast_result_id} if forecast_manifest is not None else {}),
         review_id=new_id("review"), plan_id=req.plan_id, intake_report_id=intake_id,
         created_at_utc=utcnow(), verdict=verdict, status=status, checks=results, thresholds=threshold,
         validity=review_validity, summary=headline, summary_source="deterministic", narration_note=None, backend="real",
@@ -320,6 +333,13 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
                else (berth.face_bearing_true_deg + 180) % 360)
     factor = 1.0  # Legacy helper parameter; breaking estimates are deliberately unavailable.
     emitted = 0
+    forecast_request = getattr(getattr(rec, "plan", None), "forecast_request", None)
+    bound_resolution = None
+    if forecast_request is not None:
+        # Check identity before emitting any forecast-ahead percentage from an archived review.
+        forecast_request = forecast_request.model_copy(deep=True)
+        watch_tk = PhysicsToolkit(client, "safety", plan_id, operation_id=new_id("forecast_watch"))
+        bound_resolution = await resolve_forecast(watch_tk, forecast_request, rec.plan.forecast_manifest)
 
     report = REPORTS.get(safety_review.intake_report_id) if safety_review.intake_report_id else None
     report_ids = {value for value in (safety_review.intake_report_id,
@@ -350,11 +370,31 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
     rank = {"INFO": 0, "AMBER": 1, "RED": 2}
     heartbeat_s = max(heartbeat_minutes * 60, 0)
     while limit == 0 or emitted < limit:
-        env = await client.scenario_environment(rec.scenario.scenario_id)
+        if forecast_request is not None:
+            # An explicit bound forecast must not be replaced by the scenario's unrelated default provider.
+            # Supplied bytes are immutable and have no latest-revision endpoint. Scenario records can change,
+            # so refresh only those, with each poll a separately budgeted, logged operation.
+            if bound_resolution is None:
+                watch_tk = PhysicsToolkit(client, "safety", plan_id, operation_id=new_id("forecast_watch"))
+                bound_resolution = await resolve_forecast(watch_tk, forecast_request, rec.plan.forecast_manifest)
+            resolution = bound_resolution
+            manifest = resolution.result.forecast_manifest
+            if manifest.source == "scenario":
+                bound_resolution = None
+            at = utcnow()
+            if not manifest.from_utc <= at <= manifest.to_utc:
+                raise ModelingError(409, "Watch time is outside the assessed forecast interval; explicit reassessment is required")
+            samples = [sample for sample in bound_samples(resolution) if sample.valid_at_utc <= at]
+            if not samples:
+                raise ModelingError(422, "No assessed forecast sample covers the watch time")
+            env = samples[-1]
+        else:
+            env = await client.scenario_environment(rec.scenario.scenario_id)
         rel = (env.wind_from_true_deg - heading) % 360
         point = _limit_for(points, rel)
         recheck_reasons, invalid_input = _watch_recheck(env, assessed)
-        warning = _warning(plan_id, env, point, factor, recheck_reasons=recheck_reasons, invalid_input=invalid_input)
+        warning = _warning(plan_id, env, point, factor, recheck_reasons=recheck_reasons, invalid_input=invalid_input,
+                           prefix="Bound forecast sample: " if forecast_request is not None else "")
         now = time.monotonic()
         point_limit = _gust_limit(point) if point and _gust_limit(point) is not None else math.inf
         severity_rise = rank[warning.severity] > previous_severity

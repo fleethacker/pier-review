@@ -26,24 +26,27 @@ jobs:
           version: "0.12.1"
       - name: Install locked dependencies
         run: uv sync --locked --all-packages
+        working-directory: mooring
       - name: Contract is up to date
         run: make contract-check
+        working-directory: mooring
       - name: Tests (offline; no live NOAA or model calls)
         run: make test
+        working-directory: mooring
 
   frontend:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: frontend/packages/web
+        working-directory: mooring/frontend/packages/web
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: frontend/packages/web/package-lock.json
+          cache-dependency-path: mooring/frontend/packages/web/package-lock.json
       - run: npm ci
       - run: npm run types && git diff --exit-code -- src/api
       - run: npm run typecheck
@@ -95,19 +98,21 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: frontend/packages/web/package-lock.json
+          cache-dependency-path: mooring/frontend/packages/web/package-lock.json
       - name: Install locked dependencies
+        working-directory: mooring
         run: |
           uv sync --locked --all-packages
           npm ci --no-audit --no-fund --prefix frontend/packages/web
       - name: Four-case planning, advance planning, REST/SSE/WebSocket proxy
+        working-directory: mooring
         run: make demo-check DEMO_CHECK_ARGS="--no-browser --logs demo-check-logs"
       - name: Preserve demo logs for the item owner
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: demo-check-logs
-          path: demo-check-logs/
+          path: mooring/demo-check-logs/
           if-no-files-found: ignore
       - name: Record coverage and failure ownership
         if: always()
@@ -117,5 +122,5 @@ jobs:
           Browser acceptance and full release readiness remain separate gates.
           For failures, download `demo-check-logs`: Bixler owns agents/integration,
           Snyder owns modeling/motion, Cruz owns source availability, Kori owns UI.
-          See docs/MASTER_PLAN.md and run make demo-check-readiness before release.
+          See mooring/docs/MASTER_PLAN.md and run make demo-check-readiness in mooring/ before release.
           EOF

@@ -64,7 +64,8 @@ DESCRIPTION = """
 Physics and planning service for the mooring assistant. `GET /version` reports implementation status;
 `GET /capabilities` reports scope and qualification blockers. A `real` backend is not operational certification.
 Inspect each result's validity, reasons and source provenance: seed assets, synthetic forcing and unqualified
-models remain limited or invalid. The offline default environment is synthetic; public providers are opt-in.
+models remain limited or invalid. Normal launchers default to `auto`: complete current observations, then recorded-real
+replay, then explicit failure. Synthetic forcing is used only when `mock` or a synthetic scenario is explicitly selected.
 
 Conventions: unit-suffixed field names (`_kt`, `_ft`, `_lbf`, `_deg`, `_utc`); wind direction is where it blows
 FROM, current direction is where it flows TOWARD; long-running endpoints return `202` with a job (poll
@@ -157,7 +158,7 @@ def openapi_schema() -> dict:
     comps = schema.setdefault("components", {}).setdefault("schemas", {})
     for name, s in defs.get("$defs", {}).items():
         comps.setdefault(name, s)
-    schema["servers"] = [{"url": "http://localhost:8000", "description": "Local mock server"}]
+    schema["servers"] = [{"url": "http://localhost:8000", "description": "Local modeling service"}]
     schema["x-websockets"] = WEBSOCKETS
     schema["x-motion-contract"] = {
         "schema_version": "rm0-v1",

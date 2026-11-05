@@ -14,8 +14,8 @@ modeling:           ## Modeling (physics/ML) API on :8000, docs at /docs
 agents:             ## Agents mock API on :8001 (calls modeling on :8000)
 	MODELING_API_URL=http://localhost:8000/api/v1 $(if $(PDF_LIBRARY_PATH),DYLD_FALLBACK_LIBRARY_PATH="$(PDF_LIBRARY_PATH)") uv run --all-packages uvicorn mooring_agents.api.main:app --reload --port 8001 --reload-dir agents
 
-mock:               ## Both services (source defaults to auto); Ctrl-C stops both
-	$(MAKE) -j2 modeling agents
+mock:               ## Both services with explicitly synthetic environment; Ctrl-C stops both
+	$(MAKE) -j2 modeling agents MOORING_ENV_SOURCE=mock
 
 contract:           ## Regenerate contract/*.openapi.yaml and examples from the schemas
 	uv run --all-packages python scripts/export_contract.py

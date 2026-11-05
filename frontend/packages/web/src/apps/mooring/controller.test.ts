@@ -9,9 +9,9 @@ vi.mock('./api', () => ({
   awaitJob: vi.fn(),
 }));
 
-import { MooringController } from './controller';
+import { MooringController, type Candidate } from './controller';
 import { modeling } from './api';
-import type { Berth, Environment, ShipClass } from './types';
+import type { Berth, Environment, ShipClass, TugAssignment } from './types';
 
 const berth = {
   berth_id: 'B1',
@@ -219,4 +219,26 @@ it('does not substitute another source when saved environment resolution fails',
     expect(c.state.get().notice).toContain('Selected source unavailable');
     expect(get).not.toHaveBeenCalledWith('/api/v1/env/now', expect.anything());
   } finally { c.dispose(); get.mockReset(); }
+});
+
+
+describe('applying an assessed recommendation', () => {
+  const oldTug: TugAssignment = { tug_id: 'OLD', push_point_id: 'PP', mode: 'push', force_lbf: 100 };
+  const holdingTug: TugAssignment = { tug_id: 'HOLD', push_point_id: 'PP', mode: 'push', force_lbf: 200 };
+  it.each([{ assignments: [holdingTug] }, { assignments: [] }])('reanalyzes with candidate assistance $assignments', ({ assignments }) => {
+    const { c } = setup();
+    c.state.set({ tugAssignments: [oldTug] });
+    const candidate = {
+      config: { side_to: 'starboard', ship_x_ft: 500, lines: [{
+        line_number: 1, spec_id: 'NYLON', parts: 2, ship_fitting_id: 'BITT-1S', pier_fitting_id: 'P1',
+        paid_out_unstretched_length_ft: 144, condition: 'wet',
+      }] },
+      tugs: assignments,
+    } as unknown as Candidate;
+    c.applyCandidate(candidate);
+    const request = c.buildAnalyzeRequest();
+    expect(request?.tugs ?? []).toEqual(assignments);
+    expect(request?.config.lines).toEqual(candidate.config.lines);
+    c.dispose();
+  });
 });

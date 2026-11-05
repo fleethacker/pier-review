@@ -36,6 +36,7 @@ import { ft, subscribeUnits, toFt } from './units';
 import type { BerthSite } from './world';
 
 export interface Candidate {
+  tugs?: TugAssignment[];
   config: { lines: MooringLine[]; ship_x_ft: number };
   min_margin_pct_wll: number;
   limit_wind_kt_worst: number | null;
@@ -560,6 +561,7 @@ export class MooringController {
   }
 
   applyCandidate(candidate: Candidate): void {
+    this.setTugAssignments(candidate.tugs ?? []);
     this.setLines(candidate.config.lines.map((l) => ({ ...l })));
   }
 

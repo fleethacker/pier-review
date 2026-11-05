@@ -310,6 +310,8 @@ def test_intake_ledger_still_belongs_to_report(monkeypatch):
 
 
 @pytest.mark.parametrize("sentence", [
+    "Proceed with docking.", "Docking is approved.",
+    "The berth is suitable for arrival.", "The plan is ready_for_signature.",
     "Conditions are calm and safe for berthing.", "The gust window is low risk.",
     "Conditions are MST III.", "Conditions are MST: III.", "The windows are GREEN.",
     "The situation is benign.", "Conditions are amber.", "The window is RED.",

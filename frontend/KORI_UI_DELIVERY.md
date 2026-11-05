@@ -55,6 +55,11 @@ browser checks navigate those tabs; switching applications cancels active pointe
   not promoted to passing; Bixler owns their integrated release evidence.
 - GitHub CI is intentionally skipped for the time-boxed packet at Snyder's request. Local checks were retained.
 
+Before merge, the subsequent `dev` update `8f75b89` (#25) was incorporated cleanly. Contract/type generation,
+all **1,039 frontend tests**, typecheck and production build passed again, plus **41 focused modeling tests**
+covering mission evidence, motion wiring and forecast/wave adapters. The 2,634-test full Python result above
+belongs to the preceding `a5a8b2f` integration; the full suite was not repeated for #25.
+
 Browser artifacts/logs were written under `/tmp`, not committed. Tests run offline against loopback services, with
 no LLM and synthetic demonstration data. The public acquisition flow has offline fixture evidence, not a live-provider
 network rehearsal. Chromium software rendering is not a real-GPU or multi-browser acceptance test.

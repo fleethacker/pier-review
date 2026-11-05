@@ -68,11 +68,15 @@ def main() -> None:
 
         try:
             page.goto(url, wait_until='load')
+            page.get_by_role('button', name='Open Mooring Assistant', exact=True).click()
+            expect(page.get_by_role('tab', name='Setup', exact=True)).to_have_attribute('aria-selected', 'true')
             ready()
             case = page.get_by_label('Demo cases').locator('li').filter(has_text='DDG moderate weather')
             case.get_by_role('button', name='Load', exact=True).click()
-            expect(page.get_by_text('Overall AMBER', exact=True).first).to_be_visible()
             expect(page.get_by_label('Case outcomes')).to_contain_text('validity limited')
+            page.get_by_role('tab', name='Lines', exact=True).click()
+            expect(page.get_by_text('Overall AMBER', exact=True).first).to_be_visible()
+            page.get_by_role('tab', name='Setup', exact=True).click()
             ready()
 
             # Starboard and port orientations must both update along-pier and off-pier geometry.
@@ -117,6 +121,7 @@ def main() -> None:
             print('PASS cancelled ship drag preserves geometry and line identities', flush=True)
 
             # A new line uses the selected type and actual fitting IDs, then reconnect preserves every other field.
+            page.get_by_role('tab', name='Lines', exact=True).click()
             before = scene()
             ship_id = next(key for key in before['entities'] if key.startswith('sfit:'))
             pier_ids = [key for key in before['entities'] if key.startswith('pier:')]
@@ -151,6 +156,7 @@ def main() -> None:
             print('PASS invalid fitting drop preserves endpoints', flush=True)
 
             # Numbered berths are chosen through the world picker, not by changing hidden app state.
+            page.get_by_role('tab', name='Setup', exact=True).click()
             page.get_by_role('button', name=re.compile(r'^Port NAVSTA Norfolk, \d+ berths')).click()
             page.get_by_role('button', name='Pier 12 South face (NAVSTA Norfolk)', exact=True).click()
             expect(page.get_by_role('combobox', name='Berth', exact=True)).to_have_value('NAVSTA-NORFOLK-P12-S')
@@ -160,8 +166,11 @@ def main() -> None:
             for class_id in ('CG-47', 'LHD-1', 'CVN-68'):
                 page.get_by_role('combobox', name='Ship class', exact=True).select_option(class_id)
                 expect(page.get_by_label('Selected class capabilities')).to_contain_text('No class-specific mooring fittings')
+                page.get_by_role('tab', name='Lines', exact=True).click()
                 expect(page.get_by_role('button', name='Recommend layouts', exact=True)).to_be_disabled()
+                page.get_by_role('tab', name='Plan & review', exact=True).click()
                 expect(page.get_by_role('button', name='Ask the agent to plan', exact=True)).to_be_disabled()
+                page.get_by_role('tab', name='Setup', exact=True).click()
                 assert not scene()['links'], 'Previous class lines survived the selection'
             print('PASS all three hull-only classes explain and block unsupported planning', flush=True)
             page.get_by_label('Selected class capabilities').scroll_into_view_if_needed()

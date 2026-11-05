@@ -90,6 +90,7 @@ export class SceneRenderer {
    */
   setStore(store: SceneStore): void {
     if (this.disposed || store === this.store) return;
+    this.cancelGesture(false);
     this.unsubscribe();
     this.store.capture = () => null;
     this.store = store;
@@ -612,10 +613,13 @@ export class SceneRenderer {
   private cancelGesture(notify: boolean): void {
     const drag = this.drag;
     const connection = this.connection;
+    const pointerId = this.pointerDown?.pointerId;
     this.drag = null;
     this.connection = null;
     this.pan = null;
     this.pointerDown = null;
+    const canvas = this.viewer.scene.canvas;
+    if (pointerId != null && canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
     this.clearPreview();
     if (notify && drag?.moved) {
       this.store.moveEntity(drag.entityId, drag.startPose);

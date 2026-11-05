@@ -18,7 +18,8 @@ It started from the drone-simulator (Cesium, React, TypeScript, Vite, Tailwind) 
 look. The drone-specific code, models and backends were removed. The demo script is in [DEMO.md](DEMO.md); the build
 plan, decisions and status are in [PLAN.md](PLAN.md).
 
-Current integration includes `dev` through `962d6b6` (D1/D2/D4 #13, exercise #21 and S2/S3/P5/P6/S4/S8 #22).
+Current integration includes `dev` through `a5a8b2f`: D1/D2/D4 #13, exercise #21, S2/S3/P5/P6/S4/S8 #22,
+A3/A8/A11 #23, tab UI #26, compatibility #24 and docs #20. Combined validation is recorded below.
 [Kori's delivery record](KORI_UI_DELIVERY.md) separates implemented UI, local evidence and outstanding dependencies;
 the [master plan](../docs/MASTER_PLAN.md#execution-ownership) assigns Kori, Snyder, Cruz and Bixler their next work.
 
@@ -30,13 +31,15 @@ the [master plan](../docs/MASTER_PLAN.md#execution-ownership) assigns Kori, Snyd
   or select a line and drag an endpoint to reconnect it. Escape cancels. Numeric placement and keyboard fitting
   selectors remain available. Edits clear previous margins and trigger a fresh analysis without changing installed lengths.
 - **Class coverage:** the Scenario panel separates hull/load inputs from usable mooring bitts. Classes without
-  bitts on the selected side cannot start planning; catalog presence is not class qualification.
+  bitts on the selected side cannot start planning; catalog presence is not class qualification. A8 capability routes
+  and geometry-based templates are merged; their dedicated UI integration and approved additional-class inputs remain.
 - **Sequence and gust evidence:** steps distinguish failed, unevaluated and partial-restraint states, retain review
   status and citations, and flag changed layouts. Wind limits distinguish sustained/gust working limits from
   unavailable ultimate breaking thresholds. P6's assessment backend exists, but approved capacity inputs and the UI
   basis-selection workflow remain outstanding. S8's bounded static search exists; its proposal UI is not yet connected.
-  Bollard structural strain remains unavailable pending P7. A11/U13's assessed sheet graphic is still a dependency;
-  open PR #23 is not treated as landed.
+  Bollard structural strain remains unavailable pending P7. A11 merged in #23: the existing sheet HTML includes
+  saved assessed SVG when evidence supports it. U13 sidebar integration and target PDF setup remain. See the
+  [immutable fixture](../agents/tests/fixtures/reviewed_sheet.README.md); never replace it with the current canvas.
 - **Motion view** (button in the sidebar): a plan view of the berthing simulator. It draws only what a frame
   supplies: hull and pier, fittings and fenders by load, lines by status and tension, tugs with velocity,
   acceleration and push, wind, current and wave glyphs, and the force breakdown. It handles both legacy frames and
@@ -49,7 +52,9 @@ the [master plan](../docs/MASTER_PLAN.md#execution-ownership) assigns Kori, Snyd
   layer. The immutable composed manifest is retained; canonical resolution verifies full arrival/docking/holding
   coverage and supplies the content hash pinned by planning. Partial forecasts block assessment, without an automatic
   synthetic fallback. Training generation is a separate labeled choice. Changed inputs or revisions require recheck;
-  unknown issue times stay unknown. Local tests use offline fixtures, not proof of live-provider availability.
+  unknown issue times stay unknown. A3 agent-wide canonical binding also merged in #23; explicit public revision
+  acquisition/selection still needs connecting to that workflow. See [Bixler’s handoff](../docs/BIXLER_IMPLEMENTATION.md).
+  Local tests use offline fixtures, not proof of live-provider availability.
 - **Berth from an image:** upload a picture, get a draft berth with detections and confidence, confirm every flagged
   item, then use the saved berth. The draft is labeled mock or vision data.
 

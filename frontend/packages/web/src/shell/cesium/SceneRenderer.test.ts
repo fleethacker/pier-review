@@ -67,7 +67,7 @@ function setup() {
     Object.defineProperty(event, 'pointerId', { value: 1 });
     canvas.dispatchEvent(event);
   };
-  return { store, pointer, edits, canvas };
+  return { store, pointer, edits, canvas, renderer };
 }
 
 describe('canvas pointer gestures', () => {
@@ -132,4 +132,21 @@ describe('canvas pointer gestures', () => {
     pointer('pointerup', 290, 230);
     expect(edits).toHaveLength(1);
   });
+});
+
+it('cancels a connection and pointer capture before handing the viewer to another app', () => {
+  const { pointer, edits, canvas, renderer } = setup();
+  canvas.hasPointerCapture = () => true;
+  pointer('pointerdown', 50, 50);
+  pointer('pointermove', 50, 150);
+  expect(edits).toHaveLength(1);
+  const replacement = new SceneStore();
+  replacement.setContent({ frame: { lonDeg: 0, latDeg: 0, xBearingTrueDeg: 90 }, entities: [], links: [], vectors: [] });
+  renderer.setStore(replacement);
+  expect(canvas.releasePointerCapture).toHaveBeenCalledWith(1);
+  pointer('pointerup', 50, 150);
+  expect(edits).toHaveLength(1);
+  pointer('pointerdown', 200, 200);
+  expect(canvas.setPointerCapture).toHaveBeenCalledTimes(2);
+  pointer('pointerup', 200, 200);
 });

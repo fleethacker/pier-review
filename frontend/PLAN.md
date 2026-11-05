@@ -3,29 +3,29 @@
 > Priorities, owners, dependencies and reviewers: [master plan execution ownership](../docs/MASTER_PLAN.md#execution-ownership).
 > **Kori owns UI execution**; Snyder supplies modeling interfaces, Cruz supplies source contracts, and Bixler owns integrated demo/release evidence.
 
-Integration status checked 5 November 2026 against `dev` through `962d6b6`: U1–U7 (#18), D1/D2/D4 (#13),
-the exercise application (#21), and S2/S3/P5/P6/S4/S8 (#22) are merged. The current UI packet integrates their
+Integration status checked 5 November 2026 against `dev` through `a5a8b2f`: U1–U7 (#18), D1/D2/D4 (#13),
+exercise (#21), S2/S3/P5/P6/S4/S8 (#22), A3/A8/A11 (#23), tab UI (#26), compatibility (#24) and docs (#20) are merged. The current UI packet integrates their
 available contracts; [delivery evidence](KORI_UI_DELIVERY.md) records its local checks and remaining work.
-PR #23 remains open. A merged panel does not close browser, hosting, live-provider or engineering acceptance gates.
+Combined checks include the tabbed workspace. A merged panel does not close hosting, live-provider or engineering acceptance gates.
 
 | Master-plan item | Merged implementation | Remaining integration / acceptance |
 | --- | --- | --- |
 | U1 | Explicit Intake → Planner → independent Safety review → sheet; initial/final demo outcomes (#18) | Bixler/Kori record the complete browser chain on the release candidate. |
 | U2 | Live rm0 frames, speed control, reconnect sequence and recordings (#6/#18) | Preserve limited vessel labels; rehearse reconnect and playback through the target proxy. |
-| U3/U4 | Public availability separate from selected forcing; exact depth/bin public acquisition, canonical resolution and hash-pinned arrival planning, selected configuration and recheck | Live-provider rehearsal and agent-wide immutable revision binding remain A3. Partial forecasts block planning; training remains an explicit separate choice. |
+| U3/U4 | Public availability separate from selected forcing; exact depth/bin public acquisition, canonical resolution and hash-pinned arrival planning, selected configuration and recheck | A3 agent-wide binding merged in #23; explicit public revision acquisition/selection and live-provider rehearsal remain. Partial forecasts block planning; training remains an explicit separate choice. |
 | U5/U7 | Simulation/source clocks and forcing revisions; persistent synthetic metadata and coverage-stop reasons; DOF-gated Cesium motion/water display | Forcing authoring and target-host rehearsal remain; absent/limited states stay visible. |
 | U6 | Test-toolchain upgrade (#18) | PR reports 365 UI tests, typecheck/lint/build and zero audit findings; these are branch evidence, not a new release rehearsal. |
 | U8 | Missions/transit backup-camera overlay (#14) | S7 limits remain visible; berthing prediction, live own-ship state and calibrated uncertainty are separate work. |
 | U9 / R2 | Two-axis placement and fitting drag/reconnect, cancellation, numeric/keyboard alternatives and stale-result guards | See [delivery evidence](KORI_UI_DELIVERY.md); seed layouts remain unqualified. |
-| U9 / R3 | Catalog coverage and selected-side bitt gates; class changes clear old lines and agent results | A8 still owes the backend class capability contract and approved additional-class data. |
+| U9 / R3 | Catalog coverage and selected-side bitt gates; class changes clear old lines and agent results | A8 capability routes/templates merged in #23; connect their UI display and obtain approved additional-class data. |
 | U10 / R6 | Existing sustained/gust/advisory limits and search outcomes; P6 backend merged in #22 | Approved capacity basis, UI basis-selection workflow and A9 Safety integration remain; no invented breaking threshold. |
 | U11 / R7 | Review state, intermediate checks/issues/limitations, citations and stale-layout indicators; S8 bounded static search backend merged in #22 | Connect the proposal UI; transient handling qualification and forecast revision binding remain open. |
 | U12 / R8 | Structural strain explicitly unavailable; fitting utilization is not strain | P7's reviewed structural model, contract and asset data. |
-| U13 / R1 | Existing immutable-sheet identity and unavailable graphic retained | A11/PR #23 remains unmerged; consume frozen assessed geometry when available, never the current canvas. |
+| U13 / R1 | A11 saved SVG/identity merged in #23; existing HTML preview includes the assessed diagram | Connect U13 sidebar to immutable saved bytes and rehearse target PDF support; use the [consumer fixture](../agents/tests/fixtures/reviewed_sheet.README.md), never the current canvas. |
 | S5 UI findings 12–16 | Mission selection guards, complete-track playback, dateline/antipodal handling and authenticated media/downloads | Shared track/storyboard revision token remains a backend dependency; see [delivery evidence](KORI_UI_DELIVERY.md). |
 
 The following numbered phases retain their historical overnight IDs and implementation history. They are not the
-current work queue. Current gaps and assignments are in the master plan.
+current work queue. Current gaps and assignments are in the master plan; the [Bixler handoff](../docs/BIXLER_IMPLEMENTATION.md) describes the merged A3/A8/A11 consumer contracts.
 
 How we turn the drone-simulator in this folder into the mooring assistant UI, as a reusable shell that other
 applications can plug into. Goals, structure and conventions are in [README.md](README.md). The repo-wide plan is
@@ -43,7 +43,7 @@ from mocks"), and the frontend demo contribution is part of **G2** (approved saf
 | 4 Canvas editing, 2D/3D | Implemented | Two-axis ship drag, fitting drag/create/reconnect, cancellation, click/numeric/keyboard alternatives, recommend and saved scenarios. Ships are generated hulls with per-class deck profiles. |
 | 5 Live dashboard | Done | Env streams (live, replay, storm ramp), alerts, forecast, wind limits, gust risk. |
 | 6 Agent plan | Done | SSE steps, proposal preview, apply with undo, tugs on canvas, line sequence, follow-ups. |
-| 7 Safety sheet | Implemented; R1 graphic pending | Service-rendered sheet, margins, rationale links, approvals and print. A layout frozen to the reviewed plan remains A11/U13; a current canvas capture is not an assessed layout. |
+| 7 Safety sheet | HTML assessed graphic implemented; U13 sidebar pending | A11 freezes the reviewed layout and renders saved SVG in the sheet HTML. Sidebar integration and target PDF support remain; a current canvas capture is not an assessed layout. |
 | 8 Demo hardening | Done for the mock stack | Error and retry states, accessibility fixes, production build checked, [DEMO.md](DEMO.md). |
 | 9 Motion view, 2D (overnight U2) | Done | SVG plan view in `src/apps/mooring/motion/`: legacy and `rm0-v1` frames, live session and recording replay, badges, commands. S1 now publishes live `rm0-v1`, scene and lifecycle data; #18 integrates speed, reconnect and recordings. |
 | 10 Data-source honesty (U3) | Done | Status panel, capability list, standing seed-data banner. |

@@ -2,7 +2,8 @@
 
 Owner: **Michael Kori (UI)**. Implemented by Snyder's parallel UI agents in `ui/kori-one-hour`, with separate
 canvas, missions, forecast and evidence-panel worktrees and independent cross-review. The integration includes
-`dev` through **`962d6b6`**: D1/D2/D4 (#13), the exercise application (#21), and S2/S3/P5/P6/S4/S8 (#22).
+`dev` through **`a5a8b2f`**: D1/D2/D4 (#13), exercise (#21), S2/S3/P5/P6/S4/S8 (#22), Bixler’s
+A3/A8/A11 (#23), tab UI (#26), filename compatibility (#24) and documentation (#20).
 The [master plan](../docs/MASTER_PLAN.md#5-kori-ui) remains the source of priorities and engineering gates.
 This UI packet adds no physical coefficients or API schemas. It consumes the newly merged contracts and preserves
 seed-data and synthetic/limited labels. Backend implementation is not vessel qualification.
@@ -33,10 +34,13 @@ visibly unavailable or limited. This packet does not add a forcing-authoring wor
 
 ## Validation
 
-- Final integrated Python suite: **2,534 passed**, no skips or xfails.
+The final integration includes `dev` through `a5a8b2f`, including the landing page and tabbed workspace. The
+browser checks navigate those tabs; switching applications cancels active pointer gestures and capture.
+
+- Python suite: **2,634 passed**, no skips or xfails.
 - `make contract-check`: passed. Published backend contracts are consumed through generated types, never hand-edited.
 - Frontend typecheck, ESLint and production build: passed.
-- Frontend Vitest: **1,035 passed in 69 files**, no skips or xfails.
+- Frontend Vitest: **1,039 passed in 69 files**, no skips or xfails.
   CI uses Node 22. Local Node 26 JSDOM runs require `NODE_OPTIONS=--no-experimental-webstorage` so Node's experimental
   global storage does not mask the browser test environment.
 - [Canvas browser check](browser_checks/canvas_drag.py): **7 groups passed** in Chromium with real pointer events,
@@ -45,11 +49,10 @@ visibly unavailable or limited. This packet does not add a forcing-authoring wor
   edits themselves use mouse/keyboard controls.
 - [Authenticated mission browser smoke](browser_checks/mission_auth.py): **11 passed**, no failures/skips; actual image decoding and GeoJSON download
   with bearer headers, unauthenticated 401s, object-URL cleanup and no token in URLs or off-service requests.
-- Baseline `demo_check.py`: **33 passed, 0 failed, 5 declared readiness skips**. It exercises four API planning chains, independent
-  review/sheet/browser flows, motion and supplied synthetic advance planning. The five existing declared readiness
-  checks are not promoted to passing; Bixler still owns reconciling their coverage with the integrated release gate.
-  This run included the final motion display; the subsequent session-creation race guard was independently reviewed
-  and covered by deferred-response tests in the final frontend run.
+- Baseline `demo_check.py`: **38 passed, 0 failed, 3 declared readiness skips**. It exercises four API planning chains,
+  independent review/sheet/browser flows, supplied synthetic advance planning and Bixler's forecast-binding, saved
+  graphic and runtime checks. The remaining component-startup, all-four-case browser and changing-forcing checks are
+  not promoted to passing; Bixler owns their integrated release evidence.
 - GitHub CI is intentionally skipped for the time-boxed packet at Snyder's request. Local checks were retained.
 
 Browser artifacts/logs were written under `/tmp`, not committed. Tests run offline against loopback services, with
@@ -60,12 +63,16 @@ network rehearsal. Chromium software rendering is not a real-GPU or multi-browse
 
 | Dependency | Lead | Next executable handoff |
 | --- | --- | --- |
-| A11 → U13 reviewed sheet graphic | Bixler → Kori; Snyder reviews | PR #23 remains open; do not treat its changes as landed. Freeze assessed geometry/reference revisions with sheet, plan, review and result IDs; publish immutable fixtures and rendered HTML/PDF contract. Kori then renders that snapshot. Never substitute the current canvas. |
+| A11 → U13 reviewed sheet graphic | Bixler → Kori; Snyder reviews | A11 merged in #23: saved SVG and immutable identity already render in the existing HTML preview. Connect the U13 sidebar to those saved bytes; rehearse target PDF support. Use the [consumer fixture](../agents/tests/fixtures/reviewed_sheet.README.md), never the current canvas. |
 | P6/A9 → U10 ultimate gust | Snyder + Bixler → Kori | Backend assessment merged in #22. Supply an approved capacity/material basis, connect the UI basis-selection workflow and carry the immutable result into Safety. Current working limits/advisories remain separate. |
 | P7 → U12 strain | Snyder; Bixler asset inputs → Kori | Supply reviewed structural formulation, asset properties, validity and result schema before displaying strain. |
-| A8 → U9 additional classes | Bixler + Snyder → Kori | Approved class/loading-specific fitting/chock/SWL/lead/inventory data plus a backend capability contract. CG-47, LHD-1 and CVN-68 stay hull/load-input references. A bitt gate does not prove template or engineering support. |
+| A8 → U9 additional classes | Bixler + Snyder → Kori | A8 capability routes and geometry-based template support merged in #23. Integrate their UI display and obtain approved class/loading-specific fitting/chock/SWL/lead/inventory data. CG-47, LHD-1 and CVN-68 stay hull/load-input references. A bitt gate does not prove template or engineering support. |
 | S8 sequence proposals | Snyder → Kori | Bounded static search merged in #22; connect its proposal workflow to the UI. Current UI presents existing sequence evidence. Static search does not establish transient handling feasibility. |
-| Public-source rehearsal; A3 revision propagation | Cruz + Bixler → Kori | D1/D2 merged and public acquisition UI is connected. Rehearse actual providers and propagate the same immutable forecast binding through Intake/Planner/Safety; this is not established by the local fixtures. |
+| Public-source rehearsal; A3 revision propagation | Cruz + Bixler → Kori | A3 canonical forecast binding through Intake/Planner/Safety/sheet and source-bound watch merged in #23. Connect explicit public revision acquisition/selection to that agent workflow and rehearse actual providers; source IDs are not lookup endpoints. |
 | S7/D8 camera extensions | Snyder + Cruz → Kori | Qualified engine/state/forcing integration, own-ship input, coastline and uncertainty evidence. Existing limited transit overlay is retained. |
 | Atomic mission evidence revision | Snyder M-SIM → Kori | Supply a shared track/storyboard revision token. Current ID/count/time-bound/retained-vertex checks detect contradictions but cannot prove an atomic shared revision. Incomplete evidence withholds playback. |
 | A10 integrated acceptance | Bixler + Kori + Snyder | Record target-host/GPU/browser performance, authenticated streaming/gateway behavior, reviewed source evidence and engineering acceptance. Passing local UI checks is not operational approval. |
+
+Merged A3/A8/A11 are Bixler’s work, not new implementation in this UI packet. See the
+[Bixler handoff](../docs/BIXLER_IMPLEMENTATION.md#implemented-software-and-consumer-handoff) and
+[forecast/layout contract notes](../contract/README.md#optional-forecast-binding-layout-and-prediction-consumers).

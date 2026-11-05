@@ -17,10 +17,11 @@ cd frontend/packages/web && npm install && npm run dev      # http://localhost:4
 
 ## Current acceptance scope
 
-This script covers Kori's UI integration through `dev` at `962d6b6`: D1/D2/D4 (#13), the exercise application (#21),
-and S2/S3/P5/P6/S4/S8 (#22) are merged. The UI includes U1 (Intake and independent review selection, four demo cases), U2
+This script covers Kori's UI integration through `dev` at `a5a8b2f`: D1/D2/D4 (#13), the exercise application (#21),
+S2/S3/P5/P6/S4/S8 (#22), A3/A8/A11 (#23), tab UI (#26), compatibility (#24) and docs (#20) are merged. The UI includes U1 (Intake and independent review selection, four demo cases), U2
 (live rm0-v1 session protocol), U3 (per-component availability), U4 (advance planning) and U5 (simulation time).
-`make demo-check` drives the U1 and U4 browser steps and the existing motion steps headlessly.
+`make demo-check` drives the U1 and U4 browser steps and the existing motion steps headlessly. The combined
+rerun passed with the tabbed workspace; exact counts and remaining gates are in [delivery evidence](KORI_UI_DELIVERY.md).
 
 What stays limited or open, and what to say about it:
 
@@ -58,7 +59,8 @@ identity and authored motion replay. Use them with their qualification labels vi
    (*ready for signature*), each check, and the review id. Back in *Demo cases*, the **final** outcome now shows the
    Planner status and the review verdict next to the initial one.
 5. **Safety sheet (40 s).** **Create safety sheet**. The sheet names the review it was built from (review id and plan
-   id). Press **Print**, approve as pilot; the sheet locks.
+   id). When assessed layout evidence is available, its HTML includes the frozen SVG; unavailable evidence stays
+   unavailable. Press **Print**, approve as pilot; the sheet locks. U13 sidebar integration and target PDF support remain.
 6. **Advance planning (60 s).** *Advance planning (24 h+)*: as-of now, arrivals 24–30 h ahead, 2 h docking, 6 h
    holding. For this offline walkthrough press **Use training scenario** explicitly. The coverage line says the
    series covers every arrival through holding. **Assess arrivals**: the alternatives table shows each arrival's
@@ -77,7 +79,9 @@ For a separate public-source rehearsal, enter the source's exact current depth i
 then **Fetch public forecast**. Inspect component issuance (including unknown times), retrieval, coverage and the
 manifest revision before assessing. The horizon must cover the latest arrival plus docking and holding. Data retrieved
 after the chosen as-of cutoff can be unavailable; change that cutoff deliberately rather than assuming issuance.
-Source or revision changes require reassessment. Offline fixture success does not establish public-network availability.
+Source or revision changes require reassessment. A3 canonical binding through the agents is merged; connecting the
+explicit public acquisition selection to that workflow still needs integration. See the [Bixler handoff](../docs/BIXLER_IMPLEMENTATION.md).
+Offline fixture success does not establish public-network availability.
 
 ## Canvas and evidence walkthrough
 
@@ -94,7 +98,8 @@ Source or revision changes require reassessment. Offline fixture success does no
   exists, but an approved capacity basis and UI basis-selection workflow are still required; no breaking threshold is
   inferred. **Gust risk** reports scenario statistics and does not turn missing MBS evidence into zero risk.
 - S8's bounded static sequence search is merged; its proposal UI is not connected yet. Existing sequence checks do
-  not establish transient line-handling feasibility. A11/U13 (open PR #23) and P7 strain remain dependencies.
+  not establish transient line-handling feasibility. A11 saved sheet graphics merged in #23; U13 sidebar integration
+  and P7 strain remain dependencies. See the [saved-sheet fixture](../agents/tests/fixtures/reviewed_sheet.README.md).
 
 The reproducible pointer check is `frontend/browser_checks/canvas_drag.py`; run it against a Vite development server
 as described in its docstring. [Delivery evidence and remaining dependencies](KORI_UI_DELIVERY.md) distinguish the

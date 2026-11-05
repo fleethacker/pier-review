@@ -362,11 +362,11 @@ Kori also owns `frontend/DEMO.md` and the UI half of `make demo-check` (browser 
 
 The 5 November [Kori UI delivery record](../frontend/KORI_UI_DELIVERY.md) records U3 component-source integration,
 U4 public forecast acquisition and immutable planning bindings, U9 canvas/class gates, U10 working-limit display,
-U11 sequence evidence and S5 UI review fixes, with test/browser evidence. It incorporates the interfaces merged in
-#13 and #22; the earlier status-board snapshot above is historical. P6's endpoint and S8's bounded static search now
-exist, but their UI workflows and approved capacity inputs remain separate work. U12 strain and U13 frozen sheet
-graphics still depend on P7 and A11. Bixler should use this evidence when updating the integrated status board and
-acceptance ledger; UI implementation does not close physical qualification requirements.
+U11 sequence evidence and S5 UI review fixes, with test/browser evidence. It incorporates #13/#22 and the late
+#23 reviewed-sheet/forecast-binding interfaces and #26 tabbed workspace. P6's endpoint and S8's bounded static search
+exist, but their UI workflows and approved capacity inputs remain separate work. U12 strain still depends on P7;
+A11's frozen graphic is now supplied by the reviewed sheet renderer. Bixler should use this evidence when updating
+the integrated status board and acceptance ledger; UI implementation does not close physical qualification requirements.
 
 ## 6. Cruz: data connections
 

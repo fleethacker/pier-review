@@ -10,6 +10,7 @@ vi.mock('./api', () => ({
 }));
 
 import { MooringController } from './controller';
+import { modeling } from './api';
 import type { Berth, Environment, ShipClass } from './types';
 
 const berth = {
@@ -171,4 +172,51 @@ it('saves the displayed weather and tugs rather than switching to the live mock 
   expect(post.mock.calls[1][1].body.env_source).toMatchObject({ mode: 'scenario', env_scenario_id: 'weather-snapshot' });
   expect(post.mock.calls[1][1].body.tugs).toEqual([]);
   c.dispose();
+});
+
+
+it('loads the saved scenario through its canonical environment resolver', async () => {
+  const { c } = setup();
+  const resolved = { ...env, wind_speed_kt: 7, wind_gust_kt: 9 };
+  const scenario = { scenario_id: 'saved', berth_id: berth.berth_id, ship_class_id: ship.class_id,
+    loading: 'full_load', side_to: 'starboard', env_source: { mode: 'mock' },
+    config: { side_to: 'starboard', ship_x_ft: 500, lines: [] }, tugs: [] };
+  const get = vi.mocked(modeling.GET);
+  get.mockImplementation(async (path) => {
+    const data = path === '/api/v1/scenarios/{scenario_id}' ? scenario
+      : path === '/api/v1/scenarios/{scenario_id}/environment' ? resolved
+      : path === '/api/v1/berths/{berth_id}' ? berth
+      : path === '/api/v1/ships/{class_id}' ? ship
+      : path === '/api/v1/env/now' ? { ...env, source: 'live', wind_speed_kt: 60 } : undefined;
+    if (!data) throw new Error(`Unexpected request: ${path}`);
+    return { data } as never;
+  });
+  try {
+    await c.loadScenario('saved');
+    expect(c.state.get().env).toEqual(resolved);
+    expect(c.state.get().scenarioId).toBe('saved');
+    expect(get).toHaveBeenCalledWith('/api/v1/scenarios/{scenario_id}/environment', {
+      params: { path: { scenario_id: 'saved' } },
+    });
+    expect(get).not.toHaveBeenCalledWith('/api/v1/env/now', expect.anything());
+  } finally { c.dispose(); get.mockReset(); }
+});
+
+it('does not substitute another source when saved environment resolution fails', async () => {
+  const { c } = setup();
+  const previous = c.state.get().env;
+  const get = vi.mocked(modeling.GET);
+  get.mockImplementation(async (path) => {
+    if (path === '/api/v1/scenarios/{scenario_id}') {
+      return { data: { scenario_id: 'failed', berth_id: 'B1', env_source: { mode: 'live' } } } as never;
+    }
+    throw new Error('Selected source unavailable');
+  });
+  try {
+    await c.loadScenario('failed');
+    expect(c.state.get().env).toBe(previous);
+    expect(c.state.get().scenarioId).not.toBe('failed');
+    expect(c.state.get().notice).toContain('Selected source unavailable');
+    expect(get).not.toHaveBeenCalledWith('/api/v1/env/now', expect.anything());
+  } finally { c.dispose(); get.mockReset(); }
 });

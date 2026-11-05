@@ -2,6 +2,10 @@
 
 ## Requests
 
+- B 01:19 EST browser evidence: all four named saved scenarios loaded through canonical source resolution with no page errors (AMBER/limited supported, RED/limited storm, RED/invalid inadequate depth and underconstrained). 84 UI/1608 Python tests pass. Explicit Intake/review flow is still open. ResultPanel also prints diagnostic numerical metrics for invalid results (e.g. underconstrained 0%); recommend suppressing or clearly marking these unusable rather than presenting them as a usable margin. Shared saved-source change only; held feature branch unchanged.
+
+- B 01:15 EST: Small shared integration correction underway in controller.loadScenario: use GET /scenarios/{id}/environment, not generic /env/now. The latter bypasses explicit mock versus configured public source, so map and agents can assess different forcing. No feature-branch edit; testing canonical source selection and failure-without-substitution. Also the current UI objective selector still offers storm_prep/berthing, which the agent explicitly rejects; recommend disabling/labeling those until implemented.
+
 - B 01:12 EST: MooringConfig now rejects duplicate line_number IDs with422; empty layouts and numbering gaps remain allowed. Reproduced analysis previously returned duplicate rows [1,2,3,4,5,6,1], making commands/results ambiguous. No automatic renumbering. Shared schema/contract/type update in progress; ensure imported/duplicated line objects get distinct IDs.
 
 

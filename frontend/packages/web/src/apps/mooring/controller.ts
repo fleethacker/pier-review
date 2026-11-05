@@ -608,7 +608,7 @@ export class MooringController {
     await this.guarded(async () => {
       const sc = unwrap(await modeling.GET('/api/v1/scenarios/{scenario_id}', { params: { path: { scenario_id: id } } }));
       await this.setEnvMode('manual');
-      const env = unwrap(await modeling.GET('/api/v1/env/now', { params: { query: { berth_id: sc.berth_id, env_scenario_id: sc.env_source.env_scenario_id ?? undefined } } }));
+      const env = unwrap(await modeling.GET('/api/v1/scenarios/{scenario_id}/environment', { params: { path: { scenario_id: id } } }));
       this.state.set({
         berthId: sc.berth_id,
         shipClassId: sc.ship_class_id,

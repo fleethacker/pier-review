@@ -83,3 +83,5 @@ On macOS with installed Homebrew Pango libraries, the verified stack launch is `
 Berth registration now rejects changed data under an existing ID with HTTP409; identical retries remain accepted. Preserve the saved reference and request a new draft/revision ID for edits. Do not retry a conflicting overwrite or imply that an existing scenario automatically uses edited geometry. Vision's first confirmation is unchanged; a revised confirmed draft requires a new vision job.
 
 Keep `line_number` unique when adding, duplicating or importing lines. Duplicate IDs now return422 rather than producing ambiguous result/sequence references. Gaps are allowed, and the backend does not silently renumber user lines.
+
+The agent currently implements only `objective=moor_for_forecast` with empty constraints. The existing selector also lists storm preparation and berthing; disable or mark those unavailable until their execution paths exist. A forecast-only plan does not establish MST storm-design compliance or approve the approach/contact maneuver. Do not relabel an unsupported objective as a forecast plan silently.

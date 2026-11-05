@@ -4,7 +4,9 @@ import { Button, inputClass } from '../../shell/ui';
 import { useClockSecond, useController, useExercise } from './context';
 import { PLAYBACK_RATES } from './controller';
 import { formatClock } from './geo';
+import { reportClientError } from './clientErrors';
 import { getMapboxToken, saveMapboxToken } from './mapStyles';
+import { fetchConfig } from './serverApi';
 import type { ExerciseMapView, MapProblem } from './mapView';
 
 function TokenPrompt({ onSave, message }: { onSave: (token: string) => void; message?: string | null }) {
@@ -23,8 +25,8 @@ function TokenPrompt({ onSave, message }: { onSave: (token: string) => void; mes
         {message && <p className="text-xs text-mil-red">{message}</p>}
         <p className="text-xs text-mil-text">
           The exercise map is drawn by Mapbox, which needs a public access token (starts with <code>pk.</code>). Create one
-          at account.mapbox.com. It stays in this browser. To set it for everyone, build the app with{' '}
-          <code>VITE_MAPBOX_TOKEN</code>.
+          at account.mapbox.com. It stays in this browser. To set it for everyone, give the app a <code>MAPBOX_TOKEN</code>{' '}
+          environment variable and restart it (or build with <code>VITE_MAPBOX_TOKEN</code>).
         </p>
         <input
           className={inputClass}
@@ -179,6 +181,7 @@ export function MapCanvas() {
   const [problem, setProblem] = useState<MapProblem | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const askedServer = useRef(false);
   const presenting = useExercise((s) => s.presenting);
 
   useEffect(() => {
@@ -187,6 +190,20 @@ export function MapCanvas() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [presenting, c]);
+
+  // No token in the build or this browser: the server may have one (MAPBOX_TOKEN in the app's environment). Ask once.
+  useEffect(() => {
+    if (token || askedServer.current || problem?.kind === 'token') return;
+    askedServer.current = true;
+    let cancelled = false;
+    fetchConfig().then(
+      (cfg) => !cancelled && cfg.mapboxToken && setToken(cfg.mapboxToken),
+      () => undefined, // No server to ask: the prompt below is the way forward.
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [token, problem]);
 
   useEffect(() => {
     if (!token || !host.current) return;
@@ -200,12 +217,18 @@ export function MapCanvas() {
         if (cancelled) return;
         view = new View(container, mapbox.default, token, c, (p) => {
           setProblem(p);
+          reportClientError(p.kind, p.message);
           if (p.kind === 'token') setToken('');
         });
         setLoading(false);
         if (import.meta.env.DEV) (window as unknown as { __exerciseMap: unknown }).__exerciseMap = view.map;
       })
-      .catch((e: unknown) => !cancelled && setLoadError(e instanceof Error ? e.message : String(e)));
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const text = e instanceof Error ? e.message : String(e);
+        setLoadError(text);
+        reportClientError('load', text, e instanceof Error ? e.stack : undefined);
+      });
     return () => {
       cancelled = true;
       view?.dispose();

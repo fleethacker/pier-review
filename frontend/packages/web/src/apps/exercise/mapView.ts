@@ -9,8 +9,8 @@ import { statesAt } from './sim';
 type MapboxModule = typeof import('mapbox-gl').default;
 
 export interface MapProblem {
-  /** 'token' means nothing will load until the token changes; 'quota' means Mapbox is refusing some requests. */
-  kind: 'token' | 'quota';
+  /** 'token' means nothing will load until the token changes; 'quota' means Mapbox is refusing some requests; 'webgl' means the browser took the graphics context away. */
+  kind: 'token' | 'quota' | 'webgl';
   message: string;
 }
 
@@ -58,6 +58,7 @@ export class ExerciseMapView {
     this.map.on('click', this.onClick);
     this.map.on('mousemove', this.onMouseMove);
     this.map.on('error', this.onError);
+    this.map.getCanvas().addEventListener('webglcontextlost', this.onContextLost);
     if (typeof ResizeObserver !== 'undefined') {
       this.resizer = new ResizeObserver(() => this.map.resize());
       this.resizer.observe(container);
@@ -71,6 +72,7 @@ export class ExerciseMapView {
     this.offClock();
     cancelAnimationFrame(this.orbiting);
     this.resizer?.disconnect();
+    this.map.getCanvas()?.removeEventListener('webglcontextlost', this.onContextLost);
     this.map.remove();
   }
 
@@ -95,6 +97,12 @@ export class ExerciseMapView {
       // Open high and tilted down, then glide in to the main group so the ships are big enough to see in 3D.
       this.fitAll(true, { pitch: START_PITCH, bearing: START_BEARING, duration: INTRO_MS, group: true });
     }
+  };
+
+  private onContextLost = (e: Event) => {
+    // Let the browser restore it if it can; say so in the meantime.
+    e.preventDefault();
+    this.onProblem({ kind: 'webgl', message: 'The browser took the graphics context away from the map (often because of memory or a GPU reset). It may come back by itself; if not, reload the page.' });
   };
 
   private quotaReported = false;

@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type { AppDefinition, AppInstance } from '../../scene/app';
 import { Banner } from './Banner';
 import { Bottom } from './Bottom';
+import { installErrorReporting } from './clientErrors';
 import { ExerciseController } from './controller';
 import { ControllerContext } from './context';
 import { MapCanvas } from './MapCanvas';
@@ -27,6 +28,7 @@ export const exerciseApp: AppDefinition = {
   start(host): AppInstance {
     const controller = new ExerciseController(host);
     controller.startLoop();
+    const stopReporting = installErrorReporting();
     return {
       Canvas: withController(controller, MapCanvas),
       Sidebar: withController(controller, Sidebar),
@@ -34,7 +36,10 @@ export const exerciseApp: AppDefinition = {
       Bottom: withController(controller, Bottom),
       Banner: withController(controller, Banner),
       Overlay: withController(controller, RedTeamPanel),
-      dispose: () => controller.dispose(),
+      dispose: () => {
+        stopReporting();
+        controller.dispose();
+      },
     };
   },
 };

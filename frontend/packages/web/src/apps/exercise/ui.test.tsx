@@ -42,9 +42,12 @@ function withController(ui: ReactNode, controller = new ExerciseController(undef
 beforeEach(() => {
   view.created.length = 0;
   localStorage.clear();
+  // There is no server in these tests: anything that asks one gets a refusal.
+  vi.stubGlobal('fetch', () => Promise.reject(new TypeError('no server')));
 });
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
@@ -321,6 +324,48 @@ describe('MapCanvas', () => {
     expect(view.created[0].container.getAttribute('data-testid')).toBe('exercise-map');
     unmount();
     expect(view.created[0].disposed).toBe(true);
+  });
+
+  it('asks the server for a token when neither the build nor this browser has one', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', '');
+    const asked: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      asked.push(url.replace(/^https?:\/\/[^/]+/, ''));
+      return new Response(JSON.stringify({ mapboxToken: VALID }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
+    withController(<MapCanvas />);
+    await waitFor(() => expect(view.created[0]?.token).toBe(VALID));
+    expect(asked).toEqual(['/api/modeling/api/v1/exercise/config']);
+    expect(localStorage.getItem('exercise.mapboxToken')).toBeNull();
+  });
+
+  it('shows the prompt when the server has no token, asking only once', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', '');
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ mapboxToken: null }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchSpy);
+    withController(<MapCanvas />);
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    expect(screen.getByLabelText('Mapbox access token')).toBeTruthy();
+    expect(screen.getAllByText('MAPBOX_TOKEN').length).toBe(1);
+    expect(view.created).toHaveLength(0);
+  });
+
+  it('does not ask the server again after Mapbox rejects the token it gave, and tells the server', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', '');
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      urls.push(`${init?.method ?? 'GET'} ${url.replace(/^https?:\/\/[^/]+/, '')}`);
+      return url.endsWith('/config') ? new Response(JSON.stringify({ mapboxToken: 'pk.server.token' })) : new Response(null, { status: 204 });
+    });
+    withController(<MapCanvas />);
+    await waitFor(() => expect(view.created).toHaveLength(1));
+    act(() => view.created[0].onProblem({ kind: 'token', message: 'Mapbox rejected the access token pk.server.token.' }));
+    await waitFor(() => expect(screen.getByLabelText('Mapbox access token')).toBeTruthy());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(urls.filter((u) => u.endsWith('/config'))).toHaveLength(1);
+    const report = urls.find((u) => u.startsWith('POST'));
+    expect(report).toContain('/exercise/client-errors');
+    expect(view.created).toHaveLength(1);
   });
 
   it('falls back to the token saved in this browser', async () => {

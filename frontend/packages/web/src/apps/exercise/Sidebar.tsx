@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { cn } from '../../lib/cn';
 import { Button, Field, Panel, Select, inputClass } from '../../shell/ui';
 import { useController, useExercise } from './context';
+import { Library } from './Library';
 import { NumField } from './NumField';
 import { PRESET_SCENARIOS } from './scenarios';
 import { seaStateFromWind } from './sim';
@@ -139,6 +140,7 @@ function ScenarioPanel() {
         </label>
       </fieldset>
       <JsonEditor />
+      <Library />
     </Panel>
   );
 }

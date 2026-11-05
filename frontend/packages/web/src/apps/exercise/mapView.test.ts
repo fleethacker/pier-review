@@ -23,7 +23,12 @@ class FakeMap {
   fits: { bounds: unknown; options: Record<string, unknown> }[] = [];
   styleUrls: string[] = [];
   hits: { properties: Record<string, unknown> }[] = [];
-  canvas = { style: { cursor: '' } };
+  listeners: Record<string, ((e: Event) => void)[]> = {};
+  canvas = {
+    style: { cursor: '' },
+    addEventListener: (type: string, fn: (e: Event) => void) => (this.listeners[type] ??= []).push(fn),
+    removeEventListener: (type: string, fn: (e: Event) => void) => (this.listeners[type] = (this.listeners[type] ?? []).filter((f) => f !== fn)),
+  };
   removed = false;
   resizes = 0;
 
@@ -367,6 +372,18 @@ describe('ExerciseMapView', () => {
     map.fire('error', { error: { status: 429 } });
     map.fire('error', { error: { status: 404 } });
     expect(problems.map((p) => p.kind)).toEqual(['token', 'quota']);
+  });
+
+  it('reports a lost graphics context, lets the browser restore it, and stops listening on dispose', () => {
+    const { map, problems, view } = setup();
+    let prevented = false;
+    map.listeners.webglcontextlost.forEach((fn) => fn({ preventDefault: () => (prevented = true) } as unknown as Event));
+    expect(prevented).toBe(true);
+    expect(problems).toHaveLength(1);
+    expect(problems[0].kind).toBe('webgl');
+    expect(problems[0].message).toContain('reload');
+    view.dispose();
+    expect(map.listeners.webglcontextlost).toEqual([]);
   });
 
   it('stops listening and removes the map on dispose', () => {

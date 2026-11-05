@@ -7,6 +7,7 @@ from mooring.core.envelopes import resolved_inputs_hash
 from mooring.core.geometry import standoff_ft
 from mooring.mechanics.pose import Pose, ShipFrame
 
+from ..shared.layout import review_geometry_matches
 from .schemas import SheetLayout
 
 
@@ -31,6 +32,8 @@ def build_layout(rec, sheet, review=None) -> SheetLayout:
         return unavailable("No geometry was captured with this plan; a current map cannot establish its assessed layout.")
     if snapshot.unavailable_reason:
         return unavailable(snapshot.unavailable_reason)
+    if not review_geometry_matches(snapshot, [rec.analysis]):
+        return unavailable("Captured immutable reference revisions are missing or differ from the original analysis.")
     if review is not None and getattr(review, "plan_id", None) != sheet.plan_id:
         return unavailable("The independent review belongs to a different plan.")
     if review is not None and getattr(review, "geometry_snapshot_verified", None) is not True:
@@ -40,7 +43,8 @@ def build_layout(rec, sheet, review=None) -> SheetLayout:
     if (resolved_inputs_hash(snapshot.ship) != snapshot.ship_revision or
             resolved_inputs_hash(snapshot.berth) != snapshot.berth_revision):
         return unavailable("Captured reference geometry changed after assessment.")
-    if sheet.validity is None or sheet.validity.state not in ("valid", "limited"):
+    if (rec.analysis.validity is None or rec.analysis.validity.state not in ("valid", "limited") or
+            sheet.validity is None or sheet.validity.state not in ("valid", "limited")):
         return unavailable("Assessment validity does not establish a usable solved layout.")
     ship, berth, cfg = snapshot.ship, snapshot.berth, snapshot.config
     if rec.plan.config is None or ship.class_id != sheet.header.ship_class_id or berth.berth_id != sheet.header.berth_id:

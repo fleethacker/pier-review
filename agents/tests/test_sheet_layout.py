@@ -6,15 +6,15 @@ import pytest
 from mooring import refdata
 from mooring.core import store
 from mooring.core.envelopes import new_id
-from mooring.core.schemas import Scenario, Validity
+from mooring.core.schemas import Scenario, TugAssignment, Validity
 from mooring.demo_cases import docking_cases
 from mooring.examples import T0
 from mooring.moored.solver import analyze
 from mooring_agents.planner.agent import PLANS, PlanRecord
 from mooring_agents.planner.schemas import AgentPlan, RationaleItem
-from mooring_agents.safety.schemas import ApprovalCreate, SafetyReview, SafetySheet
+from mooring_agents.safety.schemas import ApprovalCreate, SafetyReview, SafetySheet, Thresholds
 from mooring_agents.safety.sheet import SHEETS, approve, build, render_html, render_pdf
-from mooring_agents.shared.layout import capture_geometry, review_geometry_matches
+from mooring_agents.shared.layout import PlanGeometrySnapshot, capture_geometry, review_geometry_matches
 
 
 @pytest.fixture
@@ -118,6 +118,71 @@ def test_invalid_or_unknown_geometry_is_unavailable(record, state):
     assert "No current map is substituted" in render_html(sheet)
 
 
+@pytest.mark.parametrize("state", ["invalid", "unknown", None])
+def test_later_usable_review_cannot_establish_the_original_unusable_pose(record, state):
+    usable = record.analysis.validity.model_copy(deep=True)
+    record.analysis.validity = Validity(state=state, reasons=[{"code": "TEST", "message": "Unusable original pose"}]) if state else None
+    review = SafetyReview(review_id="later-review", plan_id=record.plan.plan_id, created_at_utc=T0,
+        verdict="revise", status="AMBER", checks=[], validity=usable, geometry_snapshot_verified=True,
+        thresholds=Thresholds(wind_rel_deg=None, governing_element=None, limit_wll_gust_kt=None,
+            limit_breaking_gust_kt=None, forecast_max_gust_kt=5, cites=[]),
+        summary="Later calculation was usable; the original pose was not.", backend="real")
+    sheet = build(record, review)
+    assert sheet.validity.state == "limited"
+    assert sheet.layout.state == "unavailable" and sheet.layout.svg is None
+    assert "<svg" not in render_html(sheet)
+
+
+@pytest.mark.parametrize("kind", ["line_spec", "tug"])
+def test_review_cannot_reuse_layout_after_real_material_or_tug_revision_change(monkeypatch, kind):
+    request = docking_cases()[0].analysis_request.model_copy(deep=True)
+    ship, berth = refdata.ship(request.ship_class_id), refdata.berth(request.berth_id)
+    fleet = refdata.tugs()
+    request.tugs = [TugAssignment(tug_id=fleet[0].tug_id, push_point_id=ship.push_points[0].push_point_id,
+        mode="push", force_lbf=1000)]
+    original = analyze(request)
+    request.config = original.result.resolved_config.model_copy(deep=True)
+    snapshot = capture_geometry(ship, berth, original, request.config, request.environment)
+    assert review_geometry_matches(snapshot, [original])
+    if kind == "line_spec":
+        lookup = refdata.line
+        changed_id = request.config.lines[0].spec_id
+        def revised_line(spec_id):
+            spec = lookup(spec_id).model_copy(deep=True)
+            if spec_id == changed_id:
+                spec.mbs_lbf *= 2
+            return spec
+        monkeypatch.setattr(refdata, "line", revised_line)
+    else:
+        fleet[0].bollard_pull_ahead_lbf *= 2
+        monkeypatch.setattr(refdata, "tugs", lambda: fleet)
+    reassessed = analyze(request)
+    assert not review_geometry_matches(snapshot, [reassessed])
+    assert review_geometry_matches(snapshot, [original])  # Saved identities did not follow catalog changes.
+    if kind == "line_spec":
+        assert reassessed.result.offset != original.result.offset
+
+
+@pytest.mark.parametrize("change", ["legacy", "missing", "unversioned", "duplicate", "changed"])
+def test_missing_or_changed_reference_snapshot_never_becomes_a_usable_layout(record, change):
+    snapshot = record.geometry_snapshot
+    if change == "legacy":
+        payload = snapshot.model_dump(mode="json")
+        payload.pop("reference_records")
+        record.geometry_snapshot = PlanGeometrySnapshot.model_validate(payload)
+    elif change == "missing":
+        snapshot.reference_records = [r for r in snapshot.reference_records if r.kind != "line_spec"]
+    elif change == "unversioned":
+        snapshot.reference_records[-1].revision = None
+    elif change == "duplicate":
+        snapshot.reference_records.append(snapshot.reference_records[-1].model_copy(deep=True))
+    else:
+        snapshot.reference_records[-1].revision = "another-revision"
+    assert not review_geometry_matches(record.geometry_snapshot, [record.analysis])
+    sheet = build(record)
+    assert sheet.layout.state == "unavailable" and sheet.layout.svg is None
+
+
 def test_unknown_fitting_is_unavailable_instead_of_a_partial_diagram(record):
     record.plan.config.lines[0].chock_id = "missing-chock"
     record.geometry_snapshot.config = record.plan.config.model_copy(deep=True)
@@ -214,7 +279,8 @@ def test_pdf_consumes_the_same_saved_graphic(record, monkeypatch):
     assert sheet.layout.svg in captured["html"]
 
 
-@pytest.mark.parametrize("model,fields", [(SafetySheet, ("layout", "forecast_manifest", "forecast_result_id")),
+@pytest.mark.parametrize("model,fields", [(PlanGeometrySnapshot, ("reference_records",)),
+    (SafetySheet, ("layout", "forecast_manifest", "forecast_result_id")),
     (SafetyReview, ("geometry_snapshot_verified", "forecast_manifest", "forecast_result_id"))])
 def test_additive_document_fields_remain_optional_for_generated_clients(model, fields):
     schema = model.model_json_schema(mode="serialization")

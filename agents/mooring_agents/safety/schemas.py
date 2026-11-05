@@ -77,7 +77,7 @@ class SafetyReview(Model):
     forecast_result_id: str | None = Field(default=None, json_schema_extra=_optional_wire_schema)
     geometry_snapshot_verified: bool | None = Field(default=None,
         json_schema_extra=_optional_wire_schema,
-        description="True only when independent-review result manifests match the captured plan ship/berth revisions; null means unverified.")
+        description="True only when independent-review result manifests match all captured immutable reference revisions; null means unverified.")
     review_id: str
     plan_id: str
     created_at_utc: datetime

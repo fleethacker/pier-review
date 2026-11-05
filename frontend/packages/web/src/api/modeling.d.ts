@@ -1854,7 +1854,10 @@ export interface components {
             /** @description Basis, timing, averaging and datum. Absent means undocumented (legacy). */
             metadata?: components["schemas"]["EnvironmentMetadata"] | null;
         };
-        /** ExceedanceRequest */
+        /**
+         * ExceedanceRequest
+         * @description At most 25,000 combined baseline, instantaneous and trajectory equilibrium solves per job.
+         */
         ExceedanceRequest: {
             /**
              * Scenario Id
@@ -4730,7 +4733,10 @@ export interface components {
              */
             latest_utc: string;
         };
-        /** TimelineRequest */
+        /**
+         * TimelineRequest
+         * @description At most 25,000 baseline, per-knot and Monte Carlo equilibrium solves per job.
+         */
         TimelineRequest: {
             /**
              * Scenario Id

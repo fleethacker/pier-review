@@ -1,6 +1,7 @@
 """Risk engine schemas (module M5): Monte Carlo exceedance, forecast timeline, live alerts."""
 
 from datetime import UTC, datetime, timedelta
+from math import ceil
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -10,7 +11,19 @@ from .environment import EnvironmentSnapshot, UncertaintyModel
 from .mooring import AnalyzeRequest
 
 
+MAX_RISK_SOLVES = 25_000  # Application work policy, not a physical coefficient or accuracy guarantee.
+
+
+def _check_work(solves):
+    if solves > MAX_RISK_SOLVES:
+        raise ValueError(f"Risk solve budget exceeded: up to {solves:,} solves exceeds {MAX_RISK_SOLVES:,}; "
+                         "reduce samples, trajectories, horizon or supplied knots, or increase the time step. "
+                         "No work is silently truncated.")
+
+
 class ExceedanceRequest(AnalyzeRequest):
+    """At most 25,000 combined baseline, instantaneous and trajectory equilibrium solves per job."""
+
     wire_omitted_defaults = {**AnalyzeRequest.wire_omitted_defaults, **AnalyzeRequest.wire_omitted_defaults, "uncertainty_model_id": None, "include_horizon": False, "n_trajectories": 200, "horizon_step_min": 30}
 
     horizon_hours: float = Field(default=6, gt=0, le=72)
@@ -24,6 +37,15 @@ class ExceedanceRequest(AnalyzeRequest):
     include_horizon: bool = Field(default=False, description="Also simulate time-correlated trajectories over horizon_hours.")
     n_trajectories: int = Field(default=200, ge=10, le=2000)
     horizon_step_min: int = Field(default=30, ge=6, le=180)
+
+    @model_validator(mode="after")
+    def work_budget(self):
+        solves = 1 + self.n_samples
+        if self.include_horizon:
+            intervals = max(1, ceil(self.horizon_hours * 60 / self.horizon_step_min))
+            solves += self.n_trajectories * (intervals + 1)
+        _check_work(solves)
+        return self
 
 
 class ElementRisk(Model):
@@ -78,6 +100,8 @@ class ExceedanceResponse(Envelope[ExceedanceResult]):
 
 
 class TimelineRequest(AnalyzeRequest):
+    """At most 25,000 baseline, per-knot and Monte Carlo equilibrium solves per job."""
+
     wire_omitted_defaults = {**AnalyzeRequest.wire_omitted_defaults, "start_utc": None, "n_samples_per_step": 0, "forecast": None}
 
     forecast_hours: int = Field(default=48, ge=1, le=120)
@@ -111,6 +135,17 @@ class TimelineRequest(AnalyzeRequest):
         selected = [t for t in times if self.start_utc <= t <= end]
         if any(b - a > timedelta(minutes=60) for a, b in zip(selected, selected[1:])):
             raise ValueError("Supplied forecast has a gap greater than 60 minutes")
+        return self
+
+
+    @model_validator(mode="after")
+    def work_budget(self):
+        if self.forecast is None:
+            knots = ceil(self.forecast_hours * 60 / self.step_min) + 1
+        else:
+            end = self.start_utc + timedelta(hours=self.forecast_hours)
+            knots = sum(self.start_utc <= sample.valid_at_utc <= end for sample in self.forecast)
+        _check_work(1 + knots * (1 + self.n_samples_per_step))
         return self
 
 

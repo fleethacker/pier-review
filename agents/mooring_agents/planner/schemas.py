@@ -87,5 +87,8 @@ class AgentMessageEvent(Model):
 class AgentDoneEvent(Model):
     """`event: done`"""
 
+    wire_omitted_defaults = {"state": None, "error": None}
     plan_id: str
     status: Status
+    state: JobState | None = None
+    error: str | None = None

@@ -13,6 +13,7 @@ from importlib.resources import files
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
+from mooring.core import access
 from mooring.core.envelopes import new_id, utcnow
 from mooring.core.schemas import LimitEnvelopePoint, Validity
 
@@ -25,8 +26,10 @@ from ..shared.narration import GuardrailError, format_fact, render
 from . import checks
 from .schemas import (DirectionalThreshold, GustWarning, SafetyReview, SafetyReviewRequest, Thresholds)
 
-REVIEWS: dict[str, SafetyReview] = {}
-ENVELOPES: dict[str, list[LimitEnvelopePoint]] = {}
+from ..shared.storage import AgentStore
+
+REVIEWS = AgentStore("agent_review", SafetyReview)
+ENVELOPES = AgentStore("agent_envelope", list[LimitEnvelopePoint], owner_kind="agent_review")
 LLM_TIMEOUT_S = 30
 logger = logging.getLogger(__name__)
 
@@ -40,7 +43,7 @@ class BriefProposal(_ProposalModel):
 
 
 def plan_record(plan_id: str) -> PlanRecord:
-    if plan_id not in PLANS:
+    if not access.allowed("agent_plan", plan_id) or plan_id not in PLANS:
         raise ModelingError(404, f"Plan '{plan_id}' not found")
     return PLANS[plan_id]
 
@@ -127,11 +130,14 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
     cites = sorted({cite for item in plan.rationale for cite in item.cites})
     results = [await checks.cites_resolve(tk, cites), checks.cites_in_ledger(req.plan_id, cites)]
 
-    intake_id = req.intake_report_id or getattr(plan, "intake_report_id", None)
-    report = REPORTS.get(intake_id) if intake_id else None
-    if intake_id and report is None:
-        raise ModelingError(404, f"Intake report '{intake_id}' not found")
-    if report is not None:
+    original_id = getattr(plan, "intake_report_id", None)
+    intake_id = req.intake_report_id or original_id
+    report_ids = list(dict.fromkeys(value for value in (original_id, intake_id) if value))
+    reports = []
+    for report_id in report_ids:
+        report = REPORTS.get(report_id) if access.allowed("agent_report", report_id) else None
+        if report is None:
+            raise ModelingError(404, f"Intake report '{report_id}' not found")
         for name, expected in (("berth_id", rec.scenario.berth_id),
                                ("ship_class_id", rec.scenario.ship_class_id),
                                ("side_to", getattr(rec.scenario, "side_to", None))):
@@ -139,34 +145,37 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
                 raise ModelingError(422, "Intake report does not match the plan ship, berth or side")
         if not report.planning_conditions:
             raise ModelingError(422, "Intake report has no planning conditions")
+        reports.append(report)
     if plan.config is None:
         raise ModelingError(422, "Plan has no configuration to review")
-    # Independent re-analysis at every intake planning condition (at least as thorough as the Planner),
-    # with the same holding-tug assistance the plan relies on. The worst condition governs the checks.
-    environments = [condition.environment for condition in report.planning_conditions] if report else [rec.env]
+    # A supplemental intake adds conditions; it cannot erase the plan's original design conditions.
+    environments = [condition.environment for report in reports for condition in report.planning_conditions] or [rec.env]
+    environments = list({json.dumps(env.model_dump(mode="json"), sort_keys=True): env for env in environments}.values())
     holding = getattr(rec, "holding_tugs", None) or []
     reanalyses = [await tk.analyze(_analyze_body(rec.scenario, plan.config, condition, rec.mst, holding))
                   for condition in environments]
     rank = {"GREEN": 0, "INFO": 0, "AMBER": 1, "RED": 2}
-    worst_index = max(range(len(reanalyses)),
-                      key=lambda i: (rank[reanalyses[i].status], reanalyses[i].result.min_margin.pct_wll))
-    reanalysis, env = reanalyses[worst_index], environments[worst_index]
-    body = _analyze_body(rec.scenario, plan.config, env, rec.mst, holding)
-    reanalysis_checks = [checks.reanalysis_not_red(reanalysis, env),
-                         checks.margin(reanalysis, req.target_margin_pct_wll), checks.no_red_findings(reanalysis)]
-    for check in reanalysis_checks:
-        check.cites = [r.result_id for r in reanalyses]
+    reanalysis_checks = [
+        checks.all_conditions([checks.reanalysis_not_red(result, condition) for result, condition in zip(reanalyses, environments)]),
+        checks.all_conditions([checks.margin(result, req.target_margin_pct_wll) for result in reanalyses]),
+        checks.all_conditions([checks.no_red_findings(result) for result in reanalyses]),
+    ]
     results.extend(reanalysis_checks)
 
-    envelope = await tk.envelope({**body, "step_deg": 15})
-    worst = envelope.result.worst
+    envelopes = [await tk.envelope({**_analyze_body(rec.scenario, plan.config, condition, rec.mst, holding), "step_deg": 15})
+                 for condition in environments]
+    points = _conservative_points(envelopes)
+    worst = min(points, key=lambda point: (0, 0) if _gust_limit(point) is None else (1, _gust_limit(point)))
     factor = 1.0  # Legacy helper parameter; breaking estimates are deliberately unavailable.
     limit_wll = _gust_limit(worst)
     estimate = None
-    forecast_gust = max([condition.environment.wind_gust_kt for condition in report.planning_conditions]
-                        if report else [env.wind_gust_kt])
-    results.extend([checks.gust_threshold(forecast_gust, limit_wll, envelope.result_id),
-                    checks.tugs_feasible(plan.tug_plan), checks.mst_within_ship(report), checks.forecast_coverage(report)])
+    forecast_gust = max(condition.wind_gust_kt for condition in environments)
+    gust_check = checks.gust_threshold(forecast_gust, limit_wll, envelopes[0].result_id)
+    gust_check.cites = [item.result_id for item in envelopes]
+    results.extend([gust_check, checks.tugs_feasible(plan.tug_plan),
+                    checks.all_conditions([checks.mst_within_ship(report) for report in reports or [None]]),
+                    checks.all_conditions([checks.forecast_coverage(report) for report in reports or [None]]),
+                    checks.plan_not_red(plan)])
     checks.validate_check_set(results)
 
     failed = [result for result in results if not result.passed]
@@ -174,14 +183,15 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
     verdict = "reject" if not mst_check.passed and mst_check.severity == "RED" else ("revise" if failed else "ready_for_signature")
     status = "RED" if any(result.severity == "RED" for result in failed) else "AMBER" if failed else "GREEN"
     # A review must not erase the validity floor imposed by the physics results.
-    status = max([status, *(r.status for r in reanalyses), getattr(envelope, "status", "GREEN")], key=rank.get)
+    status = max([status, *(r.status for r in reanalyses), *(getattr(item, "status", "GREEN") for item in envelopes),
+                  getattr(plan, "status", None) or "AMBER"], key=rank.get)
     threshold = Thresholds(
         wind_rel_deg=worst.wind_rel_deg, governing_element=worst.first_failure_element,
         limit_wll_gust_kt=limit_wll, forecast_max_gust_kt=forecast_gust,
-        limit_breaking_gust_kt=round(estimate, 1) if estimate else None, cites=[envelope.result_id],
-        directions=_directional(envelope.result.points, factor),
+        limit_breaking_gust_kt=round(estimate, 1) if estimate else None, cites=[item.result_id for item in envelopes],
+        directions=_directional(points, factor),
     )
-    validities = [v for item in [*reanalyses, envelope] if (v := getattr(item, "validity", None)) is not None]
+    validities = [v for item in [*reanalyses, *envelopes] if (v := getattr(item, "validity", None)) is not None]
     review_validity = None
     if validities:
         state_rank = {"valid": 0, "limited": 1, "unknown": 2, "invalid": 3}
@@ -194,9 +204,25 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
         validity=review_validity, summary=headline, summary_source="deterministic", narration_note=None, backend="real",
     )
     result = await _narrate(result)
+    access.claim("agent_review", result.review_id)
     REVIEWS[result.review_id] = result
-    ENVELOPES[result.review_id] = envelope.result.points
+    ENVELOPES[result.review_id] = points
     return result
+
+
+def _conservative_points(envelopes):
+    """Choose the least established/lowest solver limit in each direction across conditions."""
+    angles = sorted({point.wind_rel_deg for item in envelopes for point in item.result.points})
+    if not angles:
+        raise ModelingError(502, "Modeling returned an empty limit envelope")
+    out = []
+    for angle in angles:
+        candidates = [next((point for point in item.result.points if point.wind_rel_deg == angle), None)
+                      for item in envelopes]
+        if any(point is None for point in candidates):
+            raise ModelingError(502, "Modeling returned inconsistent limit-envelope directions")
+        out.append(min(candidates, key=lambda point: (0, 0) if _gust_limit(point) is None else (1, _gust_limit(point))))
+    return out
 
 
 def _gust_limit(point):

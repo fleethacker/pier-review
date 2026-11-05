@@ -58,6 +58,9 @@ class FakeToolkit:
         self.requests.append("now")
         return self.current
 
+    async def environment_scenario(self, scenario_id):
+        return SimpleNamespace(kind="steady")
+
     async def forecast(self, bid, hours, step):
         self.requests.append("forecast")
         return ForecastSeries(berth_id=bid, step_min=step, series=self.series)
@@ -482,3 +485,41 @@ def test_forecast_outage_is_not_silently_replaced_with_calm_forecast():
     assert any(q.issue == 'missing' and q.severity == 'RED' for q in result.data_quality)
     assert 'current snapshot only' in result.mst.reason
     assert {c.environment.valid_at_utc for c in result.planning_conditions} == {NOW}
+
+
+@pytest.mark.parametrize('kind', ['ramp', 'replay'])
+def test_nonsteady_scenario_is_not_extrapolated_as_a_constant(kind):
+    tk = FakeToolkit(calm=True)
+    async def environment_scenario(_): return SimpleNamespace(kind=kind)
+    tk.environment_scenario = environment_scenario
+    result = run(request(env_scenario_id='variable'), tk)
+    assert {c.environment.valid_at_utc for c in result.planning_conditions} == {NOW}
+    assert any(q.issue == 'missing' and q.severity == 'RED' and kind in q.detail for q in result.data_quality)
+    assert 'Forecast assessment incomplete' in result.summary
+    assert 'future exceedance is unknown' in result.summary
+
+
+@pytest.mark.parametrize('problem', ['short', 'late_start', 'unordered', 'duplicate', 'naive', 'gap'])
+def test_incomplete_or_malformed_forecast_does_not_claim_full_horizon(problem):
+    tk = FakeToolkit(calm=True)
+    if problem == 'short': tk.series = tk.series[:1]
+    elif problem == 'late_start': tk.series = tk.series[1:]
+    elif problem == 'unordered': tk.series = list(reversed(tk.series))
+    elif problem == 'duplicate': tk.series[1] = tk.series[0]
+    elif problem == 'naive': tk.series[1] = tk.series[1].model_copy(update={'valid_at_utc': NOW.replace(tzinfo=None)})
+    else: tk.series = [tk.series[0], tk.series[-1]]
+    result = run(tk=tk)
+    assert any(q.issue == 'missing' and q.severity == 'RED' for q in result.data_quality)
+    assert 'Forecast assessment incomplete' in result.summary
+    assert 'future exceedance is unknown' in result.summary
+
+
+def test_forecast_only_quality_flags_and_metadata_are_not_ignored():
+    tk = FakeToolkit(calm=True)
+    tk.series[1] = EnvironmentSnapshot.model_validate({**tk.series[1].model_dump(),
+        'quality': [{'station_id': 'current', 'age_s': 0, 'flags': ['unavailable']}],
+        'metadata': {'basis': 'prediction', 'source': 'forecast-grid', 'quality': 'suspect'}})
+    result = run(tk=tk)
+    assert any(q.station_id == 'current' and q.issue == 'missing' and q.severity == 'RED' for q in result.data_quality)
+    assert any(q.station_id == 'forecast-grid' and q.issue == 'flagged' for q in result.data_quality)
+    assert 'Forecast assessment incomplete' in result.summary

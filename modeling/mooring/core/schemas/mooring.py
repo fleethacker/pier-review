@@ -1,9 +1,9 @@
 """Static mooring analysis schemas (module M4) and the NSTM 582 rule registry."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .common import Envelope, Finding, Model, MooringServiceType, Severity, Status
 from .environment import EnvironmentSnapshot
@@ -145,12 +145,34 @@ class TendingInput(Model):
 
 
 class TideSweepRequest(AnalyzeRequest):
-    wire_omitted_defaults = {**AnalyzeRequest.wire_omitted_defaults, **AnalyzeRequest.wire_omitted_defaults, "tending": []}
+    wire_omitted_defaults = {**AnalyzeRequest.wire_omitted_defaults, "tending": [], "water_level_forecast": None}
 
     from_utc: datetime
     to_utc: datetime
     step_min: int = Field(default=30, ge=5, le=180)
     tending: list[TendingInput] = Field(default_factory=list, description="Explicit tending applied in time order. Nothing is retensioned silently.")
+    water_level_forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=2000,
+        description="Optional supplied snapshots covering the whole sweep; only MLLW water levels vary. Linear interpolation is explicitly limited. Absent uses a labeled synthetic training tide.")
+
+    @model_validator(mode="after")
+    def time_coverage(self):
+        if any(t.tzinfo is None or t.utcoffset() is None for t in (self.from_utc, self.to_utc)):
+            raise ValueError("Tide sweep times require explicit timezones")
+        if not self.from_utc < self.to_utc <= self.from_utc + timedelta(hours=120):
+            raise ValueError("Tide sweep duration must be positive and no longer than 120 hours")
+        for action in self.tending:
+            if action.at_utc.tzinfo is None or not self.from_utc <= action.at_utc <= self.to_utc:
+                raise ValueError("Tending timestamps must lie within the sweep and include a timezone")
+        if self.water_level_forecast is not None:
+            times = [sample.valid_at_utc for sample in self.water_level_forecast]
+            if any(t.tzinfo is None or t.utcoffset() is None for t in times):
+                raise ValueError("Water-level sample times require explicit timezones")
+            if any(b <= a for a, b in zip(times, times[1:])):
+                raise ValueError("Water-level sample times must be strictly increasing")
+            if times[0] > self.from_utc or times[-1] < self.to_utc:
+                raise ValueError("Water-level samples must cover the entire sweep; no extrapolation")
+        return self
+
 
 
 class LineTension(Model):

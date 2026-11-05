@@ -18,6 +18,7 @@ from mooring.core.schemas import (
     BerthCreated,
     BerthingWindowsResponse,
     EnvironmentSnapshot,
+    EnvScenario,
     ExceedanceResponse,
     ForecastSeries,
     LimitEnvelopeResponse,
@@ -60,6 +61,7 @@ class PhysicsToolkit:
         # Anonymous callers share no plan; each toolkit still gets its own budget.
         self._scope_id = new_id("scope")
         self.last_call: ToolCall | None = None
+        self.checkpoint = lambda: None
 
     def _finish(self, call: ToolCall, start: float, *, output: Any = None, error: str | None = None) -> None:
         result_id = output.get("result_id") if isinstance(output, dict) else None
@@ -89,6 +91,7 @@ class PhysicsToolkit:
         The timeout covers the complete request, including async-job polling.
         Modeling HTTP failures retain their existing ModelingError behavior.
         """
+        self.checkpoint()
         start = time.perf_counter()
         call = ToolCall(call_id=new_id("call"), at_utc=utcnow(), caller=self.caller, plan_id=self.plan_id,
                         tool=name, request_hash=_request_hash(input), result_id=None, status=None, duration_ms=0)
@@ -141,6 +144,7 @@ class PhysicsToolkit:
             self._finish(call, start, error=str(exc))
             raise
         self._finish(call, start, output=output)
+        self.checkpoint()
         return output
 
     async def _typed(self, name: str, request: dict, response_type):
@@ -171,6 +175,9 @@ class PhysicsToolkit:
     async def env_now(self, berth_id: str, env_scenario_id: str | None = None) -> EnvironmentSnapshot:
         req = {"berth_id": berth_id, "env_scenario_id": env_scenario_id}
         return await self._typed("get_environment", req, EnvironmentSnapshot)
+
+    async def environment_scenario(self, env_scenario_id: str) -> EnvScenario:
+        return await self._typed("get_environment_scenario", {"env_scenario_id": env_scenario_id}, EnvScenario)
 
     async def forecast(self, berth_id: str, hours: int = 24, step_min: int = 30) -> ForecastSeries:
         req = {"berth_id": berth_id, "hours": hours, "step_min": step_min}

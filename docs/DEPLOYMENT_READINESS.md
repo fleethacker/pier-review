@@ -22,9 +22,36 @@
 
 **Unset credentials mean open local-demo mode**, not a secure deployment. Bind that mode to loopback. For a fail-closed configuration, set `MOORING_AUTH_REQUIRED=1` and supply `MOORING_API_KEYS` through a secret manager or protected environment (never commit keys). Required-but-missing or malformed key configuration returns 503; missing/incorrect bearer credentials return 401. `/api/v1/health` remains public. Production keys should be randomly generated with sufficient entropy; the length check does not establish entropy.
 
-Clients use `Authorization: Bearer <key>` on HTTP and WebSocket handshakes. Native browser WebSocket clients cannot set arbitrary headers; a trusted gateway or a future secure session-cookie design is needed before enabling this mode for the current browser UI. The agents service also needs credential forwarding before an authenticated end-to-end deployment. The old telemetry key, if configured, is an additional check. No query-string credentials are accepted.
+Clients use `Authorization: Bearer <key>` on HTTP and WebSocket handshakes. Native browser WebSocket clients cannot set arbitrary headers; a trusted gateway or a future secure session-cookie design is needed before enabling this mode for the current browser UI. The agents service forwards the validated caller bearer credential to modeling; configure matching principal/key mappings. Browser credential UX and trusted gateway integration remain unimplemented. The old telemetry key, if configured, is an additional check. No query-string credentials are accepted.
 
-HTTP controls apply to the modeling application, not the separate agents server. Existing `/ws/env`, `/ws/alerts` and `/ws/telemetry` handlers are unchanged; middleware authenticates their handshakes and carries ownership context, but their traffic limits/lifecycle have not been hardened here. Only `/ws/sim` has the new command-rate/size and backpressure controls. Authorized principals can see aggregate metrics; deployment policy must decide whether that is appropriate.
+The agents application now has its own HTTP body/rate controls and resource ownership checks, described below. Existing `/ws/env`, `/ws/alerts` and `/ws/telemetry` handlers are unchanged; middleware authenticates their handshakes and carries ownership context, but their traffic limits/lifecycle have not been hardened here. Only `/ws/sim` has the new command-rate/size and backpressure controls. Authorized principals can see aggregate metrics; deployment policy must decide whether that is appropriate.
+
+## Agent job controls
+
+The separate agents service now uses bounded real background jobs (`AGENTS_WORKERS=2`, `AGENTS_QUEUE=16`,
+`AGENTS_JOB_TIMEOUT_S=300`), cancellation, terminal failure events and resumable SSE. Steps reflect actual
+work. It still lacks persistent plan/report/sheet storage in this packet; modeling SQLite durability does not
+cover those objects. Restart loses agent records. This is not operational
+readiness or a distributed worker system.
+
+### Agents authentication and ownership
+
+`AGENTS_API_KEYS` and `AGENTS_AUTH_REQUIRED` override the corresponding `MOORING_*` settings; absent overrides
+inherit them. Unset keys/required flags keep open local-demo mode. Set required=1 for fail-closed deployment;
+missing/malformed configuration returns 503, invalid/missing credentials 401. Health is public. Keys use
+constant-time comparison. The validated incoming bearer credential is forwarded to modeling, including from
+background workers; no shared service credential collapses caller identity.
+
+Agent jobs, plans, intake reports, reviews, sheets, vision-job confirmation and tool-ledger reads are owner-scoped.
+Cross-owner identifiers return 404; foreign intake reports cannot be attached to an owned plan. Legacy unowned
+records are inaccessible with enforcement enabled. `AGENTS_MAX_BODY_BYTES=9000000` bounds the complete upload
+before parsing, including chunked requests; the image limit remains 8 MB. `AGENTS_RATE_PER_MINUTE` defaults to
+600 with authentication and 0 in local-demo mode; rejection is 429 plus Retry-After. Both controls are single-process.
+
+Confirmed berth records join the shared modeling reference catalog; that catalog still needs an administrator
+policy before deployment. Approval role/name fields are declarations, not verified organizational authority.
+TLS, browser credential handling, role policy, key rotation and an independent security review remain blockers.
+Ownership rows use the modeling core store; persistent ownership does not itself persist agent work objects.
 
 ## Backup and restoration rehearsal
 
@@ -32,9 +59,22 @@ Run the backup helper against the configured SQLite file; it uses SQLite's backu
 
 ## Still missing before live use
 
-* TLS, trusted reverse proxy configuration, identity lifecycle/rotation, frontend and agents authentication integration, role/admin policy, audit retention and independent security review.
+* TLS, trusted reverse proxy configuration, identity lifecycle/rotation, frontend authentication UX and gateway integration, role/admin policy, audit retention and independent security review.
 * Multi-process/multi-host coordination, distributed jobs/sessions/rate limits and deployment load/abuse testing. CPU work shares the GIL; simulation may lag elapsed time under load.
 * Production concurrency, upload time, idle connection, forecast freshness and numerical-work budgets measured against real workloads; per-principal job concurrency quotas.
 * Provider freshness/error dashboards, solver-specific latency distributions, durable metrics/log export and alerts.
 * Automated retention and backup scheduling, encryption/off-host copies and operational recovery rehearsal. `JobStore.purge` is manual; results and ownership rows are not automatically removed.
 * Vessel/berth/rope/tug data qualification, supported operating envelopes, independent contact benchmarks and accountable human acceptance. Real implementation and passing tests supply none of these.
+
+### Agent restart durability (overnight M3)
+
+Opt-in `AGENTS_PERSIST=1` requires file-backed `MOORING_DB` and saves agent documents, approvals, completed job results,
+terminal event history and ownership. Its audit ledger defaults to that database. Database migration 4 scopes job
+recovery/retention by service, so restarting agents does not interrupt modeling jobs. Interrupted agent work fails
+explicitly and must be resubmitted; active event history is not journaled. Completed plans contain no transport or
+credential objects. Tests reopen a real SQLite file, retrieve the completed authenticated chain, preserve event ids
+and tool-call audit, reject a different principal, and append concurrent approvals without losing entries.
+
+One process per service/database is supported. No distributed jobs, automatic retention, verified approval roles,
+freshness revalidation of archived sheets, or durable user-confirmed reference catalog is claimed. Existing local-demo
+mode stays in memory. Back up an explicitly separate AGENTS_LEDGER_DB along with MOORING_DB if configured.

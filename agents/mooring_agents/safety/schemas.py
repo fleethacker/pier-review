@@ -27,7 +27,7 @@ from ..planner.schemas import RationaleItem
 
 class SafetyReviewRequest(Model):
     plan_id: str
-    intake_report_id: str | None = Field(default=None, description="Re-check against this report's conditions.")
+    intake_report_id: str | None = Field(default=None, description="Add this report's conditions to the original intake conditions; neither report is discarded.")
     target_margin_pct_wll: float = Field(default=80, gt=0, le=100)
 
 

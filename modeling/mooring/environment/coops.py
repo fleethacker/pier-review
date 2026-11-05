@@ -263,7 +263,11 @@ class Fetcher:
 
     def get(self, params: dict) -> Fetched:
         payload = self.client.get(self.base_url, {str(k): str(v) for k, v in params.items()})
-        doc = payload.json()
+        try:
+            doc = payload.json()
+        except ProviderError:
+            self.client.invalidate(self.base_url, {str(k): str(v) for k, v in params.items()})
+            raise
         if not isinstance(doc, dict):
             self.client.invalidate(self.base_url, {str(k): str(v) for k, v in params.items()})
             raise ProviderError("malformed", "response JSON is not an object")

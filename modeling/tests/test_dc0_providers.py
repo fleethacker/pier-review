@@ -138,3 +138,37 @@ def test_provider_configuration_has_enable_flag_and_base_url(monkeypatch):
     monkeypatch.setenv("MOORING_PROVIDER_NWS_ENABLED", "maybe")
     with pytest.raises(ValueError, match="must be true or false"):
         provider_config("nws")
+
+
+@pytest.mark.parametrize('max_stale,available', [(20, False), (100, True)])
+def test_retry_time_counts_toward_stale_age_and_cutoff(max_stale, available):
+    c, clock, calls = client([OK, TimeoutError('down')], retries=1, backoff_s=10,
+                            min_interval_s=0, cache_ttl_s=5, max_stale_s=max_stale)
+    c.get('https://provider.invalid/data')
+    clock.value += timedelta(seconds=15)
+    if available:
+        stale = c.get('https://provider.invalid/data')
+        assert stale.stale and stale.age_s == 25
+    else:
+        with pytest.raises(ProviderError): c.get('https://provider.invalid/data')
+    assert len(calls) == 3
+
+
+def test_open_breaker_can_serve_only_explicitly_stale_cache_inside_its_age_bound():
+    c, clock, calls = client([OK, TimeoutError('down')], retries=0, min_interval_s=0,
+        cache_ttl_s=5, max_stale_s=30, breaker_failures=1, breaker_reset_s=500)
+    c.get('https://provider.invalid/data')
+    clock.value += timedelta(seconds=10)
+    assert c.get('https://provider.invalid/data').stale
+    clock.value += timedelta(seconds=1)
+    cached = c.get('https://provider.invalid/data')
+    assert cached.stale and cached.age_s == 11 and len(calls) == 2
+    clock.value += timedelta(seconds=20)
+    with pytest.raises(ProviderError): c.get('https://provider.invalid/data')
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize('options', [{'timeout_s': 0}, {'timeout_s': float('nan')},
+    {'backoff_s': float('inf')}, {'retries': 1.5}, {'breaker_failures': 1.5}])
+def test_provider_policy_rejects_nonfinite_or_noninteger_limits(options):
+    with pytest.raises(ValueError): HttpPolicy(**options)

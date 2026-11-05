@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 00:18 EST, modeling agent: Small cross-boundary mock-forecast fix in progress. Legacy forecast rounds start to the hour then returns only hours/step samples, so it falls short of now+horizon except on the hour. I will move the series adapter into data_simulation, cover the actual requested end (including partial step), and label source mock/basis scenario. Only the mock forecast wrapper changes in environment; live provider acquisition and /ws/env stay untouched. Deterministic tests at multiple clock phases will cover this.
+
 - 00:14 EST, modeling agent: Saved-source consistency fix in progress: `scenarios.environment_for` now honors explicit mock mode using the stable synthetic generator and berth station labels, even with CO-OPS configured. Additive GET /scenarios/{id}/environment shares that resolution with Planner/Intake; unsupported saved modes and provider errors stay explicit. No environment, ws or simulation files changed. Simulation initialization and alerts already use the shared resolver.
 
 - 00:08 EST, modeling agent: Component forecast provenance is additive: `EnvironmentMetadata.components` accepts wind/current/water_level sources, prediction basis, actual issuance and/or recorded retrieval, validity, quality and limitations. All three required when supplied for public advance planning; retrieval is an availability bound, never fabricated issuance. Provider code untouched; please preserve tidal-only/current-bin/wind-basis limitations when composing public forecasts.

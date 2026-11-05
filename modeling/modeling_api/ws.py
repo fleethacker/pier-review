@@ -59,12 +59,12 @@ async def ws_env(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", mode: st
     try:
         while limit == 0 or sent < limit:
             if mode == "scenario" and env_scenario_id:
-                snap = env.scenario_snapshot(env_scenario_id, datetime.now().astimezone(), berth_id)
+                snap = await asyncio.to_thread(env.scenario_snapshot, env_scenario_id, datetime.now().astimezone(), berth_id)
             elif mode == "replay":
                 elapsed = (datetime.now().astimezone() - started) * speed
-                snap = env.replay_snapshot(berth_id, replay_start + elapsed)
+                snap = await asyncio.to_thread(env.replay_snapshot, berth_id, replay_start + elapsed)
             else:
-                snap = env.live_snapshot(berth_id)
+                snap = await asyncio.to_thread(env.live_snapshot, berth_id)
             await ws.send_json(snap.model_dump(mode="json"))
             sent += 1
             await asyncio.sleep(interval_s)

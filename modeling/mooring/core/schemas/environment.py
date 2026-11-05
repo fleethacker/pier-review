@@ -14,6 +14,9 @@ EnvSourceMode = Literal["mock", "coops", "replay", "auto"]
 EnvironmentComponentKind = Literal["wind", "current", "water_level", "forecast", "waves"]
 EnvironmentComponentState = Literal["live", "replay", "prediction", "mock", "unavailable"]
 
+# Five days at native six-minute CO-OPS cadence, including both endpoints.
+MAX_FORECAST_SNAPSHOTS = 1201
+
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -213,8 +216,9 @@ class EnvironmentAvailability(Model):
         if set(by_component) != expected or len(by_component) != len(self.components):
             raise ValueError("availability needs exactly one row for wind, current, water_level, forecast and waves")
         complete = all(by_component[name].state != "unavailable" for name in ("wind", "current", "water_level"))
-        if self.complete_snapshot_available != complete:
-            raise ValueError("complete_snapshot_available must match wind/current/water-level availability")
+        # Individually usable components may have no mutually aligned sample.
+        if self.complete_snapshot_available and not complete:
+            raise ValueError("complete_snapshot_available requires wind/current/water-level availability")
         return self
 
 
@@ -319,7 +323,7 @@ class ForecastComponentSeries(Model):
         pattern=r"^[0-9a-f]{64}$",
         description="SHA-256 of the canonical component availability and decoded point content.",
     )
-    points: list[ForecastComponentPoint] = Field(default_factory=list, max_length=1201)
+    points: list[ForecastComponentPoint] = Field(default_factory=list, max_length=MAX_FORECAST_SNAPSHOTS)
 
     @model_validator(mode="after")
     def _component_and_state(self):
@@ -424,7 +428,7 @@ class ComposedForecast(Model):
     """Public/scenario component series plus only the snapshots safe for existing load consumers."""
 
     manifest: ComposedForecastManifest
-    snapshots: list[EnvironmentSnapshot] = Field(default_factory=list, max_length=1201)
+    snapshots: list[EnvironmentSnapshot] = Field(default_factory=list, max_length=MAX_FORECAST_SNAPSHOTS)
 
     @model_validator(mode="after")
     def _snapshots_match_status(self):
@@ -638,7 +642,8 @@ class OffshoreWaveSeries(Model):
     load_ready: Literal[False] = False
     representation_policy: Literal["choose_total_or_partitions_or_spectrum"] = "choose_total_or_partitions_or_spectrum"
     content_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
-    points: list[OffshoreWavePoint] = Field(default_factory=list, max_length=2401)
+    # Forty-five days of twice-hourly summaries and separately timed spectra.
+    points: list[OffshoreWavePoint] = Field(default_factory=list, max_length=4321)
 
     @model_validator(mode="after")
     def _availability_and_content(self):

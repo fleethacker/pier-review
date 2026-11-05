@@ -106,6 +106,11 @@ keeps wind unavailable; a current station/bin is not a qualified pier-wide or dr
 limitations and the manifest revision when handing snapshots to planning consumers. Public raw responses stay outside
 the repository; a bounded CBOFS acquisition process publishes only a verified decoded cache artifact.
 
+Composition and planning share a 1,201-snapshot bound (120 hours at six-minute cadence, inclusive endpoints).
+Supplied forecasts retain their native samples; the planner does not discard peaks to fit a smaller series.
+The resolve, plan and recheck HTTP routes have a default 4 MiB body cap for this metadata-bearing series;
+see `MOORING_MAX_FORECAST_BODY_BYTES` in `DEPLOYMENT_READINESS.md` when configuring tighter deployment limits.
+
 A temporary composed-data smoke on 5 November used 72 hourly snapshots (05 Nov 05:00Z through 08 Nov 04:00Z), NWS actual issue 04 Nov 23:38:07Z and separate CO-OPS retrieval times around 05 Nov 04:41Z. Seven arrivals 24–30 hours after as-of produced 63 static assessments. The unchanged example line plan was overloaded for every arrival (maximum utilizations 119.0–216.0% WLL); the result stayed RED/limited and selected no arrival. This verifies ingestion/provenance and an honest rejection, not a qualified forecast, optimal-plan search or operational readiness. Request/result and raw source manifests are temporary artifacts outside git; air/water densities remain schema assumptions rather than measured inputs.
 
 Tide sweeps also preserve water-component quality, unknown issuance and source limitations after interpolation. Poor/suspect water quality, contradictory aggregate quality, missing water provenance in a composed snapshot, or a contributing sample outside its declared validity interval returns 422. Only samples contributing to the sweep are checked; unused wind/current components in the supplied tide series do not replace or govern the fixed request forcing. This remains a conditional tide sweep, not the as-of availability gate of advance arrival planning.

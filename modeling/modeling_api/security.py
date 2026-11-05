@@ -52,6 +52,11 @@ RATE = RateLimit()
 
 
 UPLOAD_PATH=re.compile(r"^/api/v1/missions/[^/]+/(media|track|track/file)$")
+FORECAST_PATHS = {
+    "/api/v1/mooring/forecast/resolve",
+    "/api/v1/mooring/forecast-plan",
+    "/api/v1/mooring/forecast-plan/recheck",
+}
 
 
 class Controls:
@@ -86,6 +91,11 @@ class Controls:
         try:
             maximum=int(os.environ.get("MOORING_RATE_PER_MINUTE","600" if enabled else "0"))
             limit=int(os.environ.get("MOORING_MAX_BODY_BYTES","1048576"))
+            if scope.get("method") == "POST" and scope["path"] in FORECAST_PATHS:
+                # Native six-minute forecasts retain every knot and its provenance.
+                # Respect an explicitly configured global cap unless separately overridden.
+                limit=int(os.environ.get("MOORING_MAX_FORECAST_BODY_BYTES",
+                    os.environ.get("MOORING_MAX_BODY_BYTES", str(4*1024*1024))))
             if scope.get("method")=="POST" and UPLOAD_PATH.match(scope["path"]):
                 # S5 uploads (images <= 8 MB, track files <= 20 MB, JSON tracks) get their own, still bounded, limit;
                 # the routes enforce their per-item limits after this.

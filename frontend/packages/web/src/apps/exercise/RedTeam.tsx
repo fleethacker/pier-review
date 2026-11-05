@@ -669,6 +669,21 @@ function Detail({ group, groupIndex, outcome, durationS, target }: { group: McGr
         <p className="mt-1 text-[9px] leading-snug text-mil-dim">Red to the right: higher values make it more likely. Green to the left: higher values make it less likely.</p>
       </div>
       <div className="space-y-1">
+        <p className="mil-label">Compare runs</p>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!(group.hitRuns[outcome.id]?.length || group.missRuns[outcome.id]?.length)}
+          onClick={() => {
+            void c.showRunOverlay(groupIndex, outcome.id, outcome.label);
+            c.toggleRedTeam(false);
+          }}
+        >
+          Show their paths together on the map
+        </Button>
+        <p className="text-[10px] leading-snug text-mil-dim">Draws up to six runs where it happened (red) and six where it did not (green), so the difference can be seen.</p>
+      </div>
+      <div className="space-y-1">
         <p className="mil-label">Watch a run</p>
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] text-mil-dim">Where it happened:</span>

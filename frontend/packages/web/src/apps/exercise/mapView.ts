@@ -1,6 +1,6 @@
 import type { Map as MapboxMap, MapMouseEvent } from 'mapbox-gl';
 import type { ExerciseController, ExerciseState } from './controller';
-import { installAtmosphere, installLayers, PICK_LAYERS, setFrameData, setLabelsVisible, setLightLevel, setStaticData } from './mapLayers';
+import { HANDLE_LAYER, installAtmosphere, installLayers, PICK_LAYERS, setDragGhost, setFrameData, setLabelsVisible, setLightLevel, setRunTracks, setStaticData, WAYPOINT_LAYER } from './mapLayers';
 import { styleById } from './mapStyles';
 import { boundsOf, buildFrameData, buildStaticData, groupStates } from './scene';
 import type { FollowMode } from './controller';
@@ -18,6 +18,19 @@ const START_PITCH = 62;
 const START_BEARING = -25;
 const INTRO_MS = 3800;
 const ORBIT_DEG_PER_S = 5;
+/** How far the pointer has to travel, in pixels, before a press on a ship or handle becomes a drag rather than a click. */
+const DRAG_THRESHOLD_PX = 4;
+
+type DragKind = 'unit' | 'waypoint' | 'insert';
+interface Drag {
+  kind: DragKind;
+  id: string;
+  /** Waypoint number (from 0), or where the new waypoint goes. */
+  index: number;
+  from: [number, number];
+  startPx: { x: number; y: number };
+  moved: boolean;
+}
 
 /** Draws the running exercise on a Mapbox map and turns map clicks into controller actions. No React in here. */
 export class ExerciseMapView {
@@ -57,7 +70,14 @@ export class ExerciseMapView {
     this.map.on('style.load', this.onStyleLoad);
     this.map.on('click', this.onClick);
     this.map.on('mousemove', this.onMouseMove);
+    this.map.on('mousedown', this.onMouseDown);
+    this.map.on('mouseup', this.onMouseUp);
+    this.map.on('contextmenu', this.onContextMenu);
     this.map.on('error', this.onError);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('mouseup', this.onWindowUp);
+      window.addEventListener('keydown', this.onKey);
+    }
     this.map.getCanvas().addEventListener('webglcontextlost', this.onContextLost);
     if (typeof ResizeObserver !== 'undefined') {
       this.resizer = new ResizeObserver(() => this.map.resize());
@@ -73,6 +93,10 @@ export class ExerciseMapView {
     cancelAnimationFrame(this.orbiting);
     this.resizer?.disconnect();
     this.map.getCanvas()?.removeEventListener('webglcontextlost', this.onContextLost);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('mouseup', this.onWindowUp);
+      window.removeEventListener('keydown', this.onKey);
+    }
     this.map.remove();
   }
 
@@ -91,6 +115,7 @@ export class ExerciseMapView {
     setLightLevel(this.map, state.active.scenario.lightPreset);
     setLabelsVisible(this.map, state.view.showLabels);
     this.refreshStatic();
+    setRunTracks(this.map, state.runOverlay?.tracks ?? []);
     this.draw();
     if (!this.framed) {
       this.framed = true;
@@ -142,10 +167,11 @@ export class ExerciseMapView {
     ) {
       this.refreshStatic();
     }
+    if (now.runOverlay !== was.runOverlay) setRunTracks(this.map, now.runOverlay?.tracks ?? []);
     if (now.scenarioRevision !== was.scenarioRevision) this.fitAll(true, { group: true });
     else if (now.fitRevision !== was.fitRevision) this.fitAll(true);
     if (now.follow !== was.follow) this.setOrbiting(now.follow);
-    this.map.getCanvas().style.cursor = now.placing ? 'crosshair' : '';
+    if (!this.drag) this.map.getCanvas().style.cursor = now.placing ? 'crosshair' : '';
     // State the map does not show (a Monte Carlo batch reporting progress, say) must not make it rebuild every ship.
     const changed =
       now.active !== was.active ||
@@ -217,7 +243,14 @@ export class ExerciseMapView {
     });
   }
 
+  private suppressClick = false;
+
   private onClick = (e: MapMouseEvent) => {
+    if (this.suppressClick) {
+      // The click that ends a drag is not a selection.
+      this.suppressClick = false;
+      return;
+    }
     const s = this.controller.state.get();
     if (s.placing && s.selectedId) {
       this.controller.addWaypoint(s.selectedId, { lon: e.lngLat.lng, lat: e.lngLat.lat });
@@ -226,10 +259,102 @@ export class ExerciseMapView {
     this.controller.select(this.shipAt(e.point));
   };
 
-  private onMouseMove = (e: MapMouseEvent) => {
-    if (this.controller.state.get().placing) return;
-    this.map.getCanvas().style.cursor = this.shipAt(e.point) ? 'pointer' : '';
+  /** Dragging edits the scenario, so it is off while placing waypoints, while a replayed run is on screen, and for ships once the clock has moved. */
+  private canEdit(): boolean {
+    const s = this.controller.state.get();
+    return this.styleReady && !s.placing && !s.replay;
+  }
+
+  private drag: Drag | null = null;
+
+  private onMouseDown = (e: MapMouseEvent) => {
+    if (!this.canEdit() || (e.originalEvent as MouseEvent | undefined)?.button) return;
+    const s = this.controller.state.get();
+    let drag: Omit<Drag, 'startPx' | 'moved'> | null = null;
+    const wp = this.featureAt(e.point, WAYPOINT_LAYER);
+    const mid = wp ? null : this.featureAt(e.point, HANDLE_LAYER);
+    if (wp && wp.selected === true && typeof wp.id === 'string' && typeof wp.n === 'number') {
+      const u = s.scenario.units.find((x) => x.id === wp.id);
+      const p = u?.behavior.type === 'route' ? u.behavior.waypoints[wp.n] : undefined;
+      if (p) drag = { kind: 'waypoint', id: wp.id, index: wp.n, from: [p.lon, p.lat] };
+    } else if (mid && typeof mid.id === 'string' && typeof mid.insertAt === 'number') {
+      drag = { kind: 'insert', id: mid.id, index: mid.insertAt, from: [e.lngLat.lng, e.lngLat.lat] };
+    } else if (this.controller.clock.timeS === 0) {
+      const id = this.shipAt(e.point);
+      const u = id ? s.scenario.units.find((x) => x.id === id) : undefined;
+      if (u && !u.launch) drag = { kind: 'unit', id: u.id, index: 0, from: [u.start.lon, u.start.lat] };
+    }
+    if (!drag) return;
+    this.drag = { ...drag, startPx: { x: e.point.x, y: e.point.y }, moved: false };
+    // Without this the map would pan along with the drag.
+    e.preventDefault();
   };
+
+  private onMouseUp = (e: MapMouseEvent) => this.endDrag([e.lngLat.lng, e.lngLat.lat]);
+  /** A release outside the map still ends the drag, without moving anything. */
+  private onWindowUp = () => this.endDrag(null);
+
+  private onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && this.drag) {
+      this.drag = null;
+      setDragGhost(this.map, null);
+      this.map.getCanvas().style.cursor = '';
+    }
+  };
+
+  private endDrag(at: [number, number] | null): void {
+    const d = this.drag;
+    if (!d) return;
+    this.drag = null;
+    setDragGhost(this.map, null);
+    this.map.getCanvas().style.cursor = '';
+    if (!d.moved || !at) return;
+    this.suppressClick = true;
+    const to = { lon: at[0], lat: at[1] };
+    if (d.kind === 'unit') {
+      this.controller.patchUnit(d.id, { start: to });
+      this.controller.select(d.id);
+    } else if (d.kind === 'waypoint') this.controller.patchWaypoint(d.id, d.index, to);
+    else this.controller.insertWaypoint(d.id, d.index, to);
+  }
+
+  /** Right-click a waypoint of the selected route to remove it. */
+  private onContextMenu = (e: MapMouseEvent) => {
+    if (!this.canEdit()) return;
+    const wp = this.featureAt(e.point, WAYPOINT_LAYER);
+    if (!wp || wp.selected !== true || typeof wp.id !== 'string' || typeof wp.n !== 'number') return;
+    e.preventDefault();
+    const u = this.controller.state.get().scenario.units.find((x) => x.id === wp.id);
+    if (u?.behavior.type === 'route' && u.behavior.waypoints.length > 1) this.controller.removeWaypoint(wp.id, wp.n);
+    else this.controller.notify('A route needs at least one waypoint.');
+  };
+
+  private onMouseMove = (e: MapMouseEvent) => {
+    const d = this.drag;
+    if (d) {
+      if (!d.moved && Math.hypot(e.point.x - d.startPx.x, e.point.y - d.startPx.y) < DRAG_THRESHOLD_PX) return;
+      d.moved = true;
+      this.map.getCanvas().style.cursor = 'grabbing';
+      setDragGhost(this.map, { from: d.from, to: [e.lngLat.lng, e.lngLat.lat] });
+      return;
+    }
+    if (this.controller.state.get().placing) return;
+    const canEdit = this.canEdit();
+    const wp = canEdit ? this.featureAt(e.point, WAYPOINT_LAYER) : null;
+    if (wp?.selected === true) this.map.getCanvas().style.cursor = 'grab';
+    else if (canEdit && this.featureAt(e.point, HANDLE_LAYER)) this.map.getCanvas().style.cursor = 'copy';
+    else {
+      const id = this.shipAt(e.point);
+      const draggable = canEdit && this.controller.clock.timeS === 0 && !!this.controller.state.get().scenario.units.find((u) => u.id === id && !u.launch);
+      this.map.getCanvas().style.cursor = id ? (draggable ? 'grab' : 'pointer') : '';
+    }
+  };
+
+  private featureAt(point: MapMouseEvent['point'], layer: string): Record<string, unknown> | null {
+    if (!this.map.getLayer(layer)) return null;
+    const hit = this.map.queryRenderedFeatures(point, { layers: [layer] })[0] as { properties?: Record<string, unknown> } | undefined;
+    return hit?.properties ?? null;
+  }
 
   private shipAt(point: MapMouseEvent['point']): string | null {
     const layers = PICK_LAYERS.filter((l) => this.map.getLayer(l));

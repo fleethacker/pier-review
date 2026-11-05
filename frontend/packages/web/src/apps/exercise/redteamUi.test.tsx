@@ -151,3 +151,55 @@ describe('red-team panel: results, baseline and export', () => {
     expect(screen.getByRole('alert').textContent).toContain('blocked the report window');
   });
 });
+
+describe('comparing runs on the map', () => {
+  it('draws the paths of runs where it happened and where it did not, and closes the panel', async () => {
+    const u = open(16);
+    fireEvent.click(dialog().getByRole('button', { name: /^Run / }));
+    await waitFor(() => expect(u.c.state.get().mc.status).toBe('done'));
+    fireEvent.click(dialog().getByRole('button', { name: 'Show their paths together on the map' }));
+    expect(u.c.state.get().redTeamOpen).toBe(false);
+    await waitFor(() => expect(u.c.state.get().runOverlay?.working).toBe(false));
+    const o = u.c.state.get().runOverlay!;
+    expect(o.hitRuns + o.missRuns).toBeGreaterThan(0);
+    expect(o.tracks.length).toBeGreaterThan(o.hitRuns + o.missRuns);
+    expect(new Set(o.tracks.map((t) => t.hit)).size).toBe(o.hitRuns > 0 && o.missRuns > 0 ? 2 : 1);
+  });
+
+  it('leaves a running overlay alone if another is asked for, keeping only the newest', async () => {
+    const u = open(16);
+    fireEvent.click(dialog().getByRole('button', { name: /^Run / }));
+    await waitFor(() => expect(u.c.state.get().mc.status).toBe('done'));
+    const first = u.c.showRunOverlay(0, u.c.state.get().mc.result!.groups[0].outcomes[0].id, 'first');
+    await u.c.showRunOverlay(0, u.c.state.get().mc.result!.groups[0].outcomes[1].id, 'second');
+    await first;
+    expect(u.c.state.get().runOverlay!.label).toBe('second');
+    expect(u.c.state.get().runOverlay!.working).toBe(false);
+  });
+
+  it('is cleared when another scenario is loaded', async () => {
+    const u = open(10);
+    fireEvent.click(dialog().getByRole('button', { name: /^Run / }));
+    await waitFor(() => expect(u.c.state.get().mc.status).toBe('done'));
+    await u.c.showRunOverlay(0, u.c.state.get().mc.result!.groups[0].outcomes[0].id, 'x');
+    expect(u.c.state.get().runOverlay).not.toBeNull();
+    act(() => u.c.loadPreset('csg-transit'));
+    expect(u.c.state.get().runOverlay).toBeNull();
+  });
+
+  it('inserts a waypoint where asked, clamped to the route', () => {
+    const u = open(10);
+    const route = () => {
+      const b = u.c.state.get().scenario.units.find((x) => x.id === 'cvn1')!.behavior;
+      return b.type === 'route' ? b.waypoints : [];
+    };
+    const n = route().length;
+    act(() => u.c.insertWaypoint('cvn1', 0, { lon: -61, lat: 33 }));
+    act(() => u.c.insertWaypoint('cvn1', 99, { lon: -60, lat: 33 }));
+    expect(route()).toHaveLength(n + 2);
+    expect(route()[0]).toMatchObject({ lon: -61, lat: 33 });
+    expect(route().at(-1)).toMatchObject({ lon: -60, lat: 33 });
+    act(() => u.c.insertWaypoint('ddg1', 0, { lon: -61, lat: 33 })); // an escort has no route: nothing happens
+    expect(u.c.state.get().errors).toEqual([]);
+  });
+});

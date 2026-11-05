@@ -431,6 +431,9 @@ function ForcesPanel() {
           </li>
         ))}
       </ul>
+      <p className="text-[10px] leading-snug text-mil-dim">
+        On the map: drag a ship to move where it starts (with the clock at the start). Select a ship, then drag its waypoints, or drag a dot between two to add one. Right-click a waypoint to remove it.
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="secondary" onClick={() => c.addUnit()}>
           + Add ship

@@ -5,15 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The map loads through dynamic imports, which are slow when the whole suite runs at once.
 configure({ asyncUtilTimeout: 8000 });
+vi.setConfig({ testTimeout: 60_000 });
 
 const view = vi.hoisted(() => ({
+  canvas: {} as { captureStream?: unknown },
   created: [] as { container: HTMLElement; token: string; onProblem: (p: { kind: 'token' | 'quota'; message: string }) => void; disposed: boolean }[],
 }));
 
 vi.mock('mapbox-gl', () => ({ default: { fake: true } }));
 vi.mock('./mapView', () => ({
   ExerciseMapView: class {
-    map = {};
+    map = { getCanvas: () => view.canvas };
     record: (typeof view.created)[number];
     constructor(container: HTMLElement, _mapbox: unknown, token: string, _c: unknown, onProblem: (p: { kind: 'token' | 'quota'; message: string }) => void) {
       this.record = { container, token, onProblem, disposed: false };
@@ -41,6 +43,7 @@ function withController(ui: ReactNode, controller = new ExerciseController(undef
 
 beforeEach(() => {
   view.created.length = 0;
+  view.canvas = {};
   localStorage.clear();
   // There is no server in these tests: anything that asks one gets a refusal.
   vi.stubGlobal('fetch', () => Promise.reject(new TypeError('no server')));
@@ -999,5 +1002,92 @@ describe('RedTeamPanel', () => {
     withController(<RedTeamPanel />, c);
     act(() => c.setRedTeam({ ...c.state.get().scenario.redTeam!, perturbations: [{ id: 'bad', target: { kind: 'environment', field: 'windKt' }, mode: 'add', dist: { type: 'uniform', min: 5, max: 1 } }] }));
     expect(dialog().getByRole('alert').textContent).toContain('minimum is above the maximum');
+  });
+});
+
+describe('MapCanvas recording and run paths', () => {
+  class FakeRecorder {
+    static isTypeSupported = () => true;
+    static last: FakeRecorder | null = null;
+    state = 'inactive';
+    ondataavailable: ((e: { data: Blob }) => void) | null = null;
+    onstop: ((e: Event) => void) | null = null;
+    onerror: (() => void) | null = null;
+    constructor() {
+      FakeRecorder.last = this;
+    }
+    start() {
+      this.state = 'recording';
+    }
+    stop() {
+      this.ondataavailable?.({ data: new Blob(['x']) });
+      this.state = 'inactive';
+      this.onstop?.(new Event('stop'));
+    }
+  }
+  const download = () => {
+    const names: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      names.push(this.download);
+    });
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
+    return names;
+  };
+
+  it('records from the start, saves a video named for the scenario when stopped by hand', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
+    vi.stubGlobal('MediaRecorder', FakeRecorder);
+    view.canvas = { captureStream: () => ({ getTracks: () => [] }) };
+    const names = download();
+    const { controller } = withController(<MapCanvas />);
+    await waitFor(() => expect(view.created).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    expect(controller.state.get().playing).toBe(true);
+    expect(screen.getByText(/Recording/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '● Stop' }));
+    await waitFor(() => expect(names).toHaveLength(1));
+    expect(names[0]).toMatch(/^open-ocean-transit.*-\d{8}-\d{6}\.webm$|^[a-z0-9-]+-\d{8}-\d{6}\.webm$/);
+    expect(screen.queryByText(/Recording/)).toBeNull();
+  });
+
+  it('stops by itself a moment after the run ends', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
+    vi.stubGlobal('MediaRecorder', FakeRecorder);
+    view.canvas = { captureStream: () => ({ getTracks: () => [] }) };
+    const names = download();
+    const { controller } = withController(<MapCanvas />);
+    await waitFor(() => expect(view.created).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    act(() => controller.clock.seek(controller.clock.durationS));
+    await waitFor(() => expect(names).toHaveLength(1), { timeout: 3000 });
+    expect(screen.queryByText(/Recording/)).toBeNull();
+  });
+
+  it('says so when the browser cannot record', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
+    vi.stubGlobal('MediaRecorder', undefined);
+    withController(<MapCanvas />);
+    await waitFor(() => expect(view.created).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    expect(screen.getByRole('alert').textContent).toContain('cannot record the map');
+  });
+
+  it('shows the compared runs banner with its counts, and clears them', async () => {
+    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
+    const c = salvoController();
+    c.setRedTeam({ ...c.redTeamSpec(), runs: 8, sweep: undefined });
+    await c.runRedTeam();
+    withController(<MapCanvas />, c);
+    await waitFor(() => expect(view.created).toHaveLength(1));
+    const outcome = c.state.get().mc.result!.groups[0].outcomes[0];
+    await act(async () => {
+      await c.showRunOverlay(0, outcome.id, outcome.label);
+    });
+    const banner = screen.getByRole('status');
+    expect(banner.textContent).toContain(`for “${outcome.label}”`);
+    expect(banner.textContent).toMatch(/red where it happened \(\d+\)/);
+    fireEvent.click(screen.getByRole('button', { name: 'Clear paths' }));
+    expect(c.state.get().runOverlay).toBeNull();
+    expect(screen.queryByText(/Paths from/)).toBeNull();
   });
 });

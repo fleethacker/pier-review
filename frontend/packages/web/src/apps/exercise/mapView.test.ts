@@ -6,6 +6,9 @@ import { ExerciseMapView } from './mapView';
 import type { MapProblem } from './mapView';
 import { PRESET_SCENARIOS } from './scenarios';
 
+// Running a red-team batch inside a test is slow when the whole suite runs at once.
+vi.setConfig({ testTimeout: 60_000 });
+
 type Handler = (e?: unknown) => void;
 
 const glow = (level: number) => ['max', ['get', 'minGlow'], level];
@@ -86,8 +89,11 @@ class FakeMap {
   getCanvas() {
     return this.canvas;
   }
-  queryRenderedFeatures() {
-    return this.hits;
+  /** What a query over the waypoint or handle layers finds, by layer. Ships are `hits`. */
+  layerHits: Record<string, { properties: Record<string, unknown> }[]> = {};
+  queryRenderedFeatures(_point: unknown, options?: { layers?: string[] }) {
+    const layers = options?.layers ?? [];
+    return layers.every((l) => PICK_LAYERS.includes(l)) ? this.hits : layers.flatMap((l) => this.layerHits[l] ?? []);
   }
   resize() {
     this.resizes++;
@@ -149,7 +155,7 @@ describe('ExerciseMapView', () => {
     const { map, data } = setup();
     expect(map.layers.size).toBe(0);
     map.fire('style.load');
-    expect(map.sources.size).toBe(12);
+    expect(map.sources.size).toBe(15);
     expect(map.layers.size).toBeGreaterThanOrEqual(10);
     for (const id of PICK_LAYERS) expect(map.getLayer(id), id).toBeDefined();
     expect(data('ex-hulls')).toHaveLength(15);
@@ -346,7 +352,10 @@ describe('ExerciseMapView', () => {
     map.fire('style.load');
     map.hits = [{ properties: { id: 'cvn1' } }];
     map.fire('mousemove', { point: { x: 1, y: 1 } });
-    expect(map.canvas.style.cursor).toBe('pointer');
+    expect(map.canvas.style.cursor).toBe('grab'); // at the start a ship can be dragged
+    controller.seek(120);
+    map.fire('mousemove', { point: { x: 1, y: 1 } });
+    expect(map.canvas.style.cursor).toBe('pointer'); // later it cannot
     map.hits = [];
     map.fire('mousemove', { point: { x: 1, y: 1 } });
     expect(map.canvas.style.cursor).toBe('');
@@ -355,6 +364,176 @@ describe('ExerciseMapView', () => {
     map.hits = [{ properties: { id: 'cvn1' } }];
     map.fire('mousemove', { point: { x: 1, y: 1 } });
     expect(map.canvas.style.cursor).toBe('crosshair');
+  });
+
+  describe('dragging', () => {
+    const at = (x: number, y: number, lng = -62, lat = 33) => ({ point: { x, y }, lngLat: { lng, lat }, originalEvent: { button: 0 }, preventDefault: vi.fn() });
+    const cvnRoute = (c: ExerciseController) => {
+      const b = c.state.get().scenario.units.find((u) => u.id === 'cvn1')!.behavior;
+      return b.type === 'route' ? b.waypoints : [];
+    };
+    const start = (c: ExerciseController, id: string) => c.state.get().scenario.units.find((u) => u.id === id)!.start;
+
+    it('moves a ship to where it is dropped, and does not select what was only dragged over', () => {
+      const { map, controller } = setup();
+      map.fire('style.load');
+      map.hits = [{ properties: { id: 'cvn1' } }];
+      const down = at(10, 10, -62, 33);
+      map.fire('mousedown', down);
+      expect(down.preventDefault).toHaveBeenCalled();
+      map.fire('mousemove', at(40, 40, -61.9, 33.1));
+      expect(map.canvas.style.cursor).toBe('grabbing');
+      const ghost = (map.getSource('ex-drag')!.data as { features: { geometry: { type: string; coordinates: unknown } }[] }).features;
+      expect(ghost.map((f) => f.geometry.type)).toEqual(['LineString', 'Point']);
+      expect(ghost[1].geometry.coordinates).toEqual([-61.9, 33.1]);
+      expect(start(controller, 'cvn1')).not.toMatchObject({ lon: -61.9 }); // nothing changes until it is dropped
+      map.fire('mouseup', at(40, 40, -61.9, 33.1));
+      expect(start(controller, 'cvn1')).toEqual({ lon: -61.9, lat: 33.1 });
+      expect(controller.state.get().selectedId).toBe('cvn1');
+      expect((map.getSource('ex-drag')!.data as { features: unknown[] }).features).toEqual([]);
+      expect(map.canvas.style.cursor).toBe('');
+      // The click that follows the drop does not change the selection.
+      map.hits = [];
+      map.fire('click', at(40, 40, -61.9, 33.1));
+      expect(controller.state.get().selectedId).toBe('cvn1');
+      map.fire('click', at(40, 40, -61.9, 33.1));
+      expect(controller.state.get().selectedId).toBeNull();
+    });
+
+    it('treats a press that barely moves as a click', () => {
+      const { map, controller } = setup();
+      map.fire('style.load');
+      map.hits = [{ properties: { id: 'cvn1' } }];
+      const before = start(controller, 'cvn1');
+      map.fire('mousedown', at(10, 10));
+      map.fire('mousemove', at(12, 11, -61.99, 33.01));
+      map.fire('mouseup', at(12, 11, -61.99, 33.01));
+      expect(start(controller, 'cvn1')).toEqual(before);
+      map.fire('click', at(12, 11));
+      expect(controller.state.get().selectedId).toBe('cvn1');
+    });
+
+    it('does not move ships once the clock has moved, or launched units, or while a run is replayed or waypoints are being placed', () => {
+      const { map, controller } = setup(PRESET_SCENARIOS.find((p) => p.id === 'salvo-defense')!);
+      map.fire('style.load');
+      const tryDrag = (id: string) => {
+        map.hits = [{ properties: { id } }];
+        const down = at(10, 10);
+        map.fire('mousedown', down);
+        map.fire('mousemove', at(60, 60, -61.5, 33.5));
+        map.fire('mouseup', at(60, 60, -61.5, 33.5));
+        return down.preventDefault.mock.calls.length > 0;
+      };
+      expect(tryDrag('m1')).toBe(false); // a missile is launched, not placed
+      controller.seek(30);
+      expect(tryDrag('cvn1')).toBe(false);
+      controller.seek(0);
+      controller.select('cvn1');
+      controller.setPlacing(true);
+      expect(controller.state.get().placing).toBe(true);
+      expect(tryDrag('cvn1')).toBe(false);
+      controller.setPlacing(false);
+      expect(tryDrag('cvn1')).toBe(true);
+      controller.state.set({ replay: { run: 1, groupLabel: 'All runs', outcomeLabel: null, values: [] } });
+      expect(tryDrag('cvn1')).toBe(false);
+    });
+
+    it('drags a waypoint of the selected route, and leaves other routes alone', () => {
+      const { map, controller } = setup();
+      map.fire('style.load');
+      controller.select('cvn1');
+      const wp0 = cvnRoute(controller)[0];
+      map.layerHits['waypoint-dots'] = [{ properties: { id: 'cvn1', n: 0, selected: true } }];
+      map.fire('mousemove', at(5, 5));
+      expect(map.canvas.style.cursor).toBe('grab');
+      map.fire('mousedown', at(5, 5, wp0.lon, wp0.lat));
+      map.fire('mousemove', at(50, 5, -61.8, 33.2));
+      map.fire('mouseup', at(50, 5, -61.8, 33.2));
+      expect(cvnRoute(controller)[0]).toMatchObject({ lon: -61.8, lat: 33.2 });
+      expect(cvnRoute(controller)).toHaveLength(1 + (cvnRoute(controller).length - 1));
+      // A waypoint that belongs to a route that is not selected is not draggable.
+      map.layerHits['waypoint-dots'] = [{ properties: { id: 'ddg1', n: 0, selected: false } }];
+      const down = at(5, 5);
+      map.fire('mousedown', down);
+      expect(down.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it('adds a waypoint by dragging the middle of a leg out', () => {
+      const { map, controller } = setup();
+      map.fire('style.load');
+      controller.select('cvn1');
+      const n = cvnRoute(controller).length;
+      map.layerHits['handle-dots'] = [{ properties: { id: 'cvn1', insertAt: 0 } }];
+      map.fire('mousemove', at(5, 5));
+      expect(map.canvas.style.cursor).toBe('copy');
+      map.fire('mousedown', at(5, 5, -62, 33));
+      map.fire('mousemove', at(60, 5, -61.7, 33.3));
+      map.fire('mouseup', at(60, 5, -61.7, 33.3));
+      expect(cvnRoute(controller)).toHaveLength(n + 1);
+      expect(cvnRoute(controller)[0]).toMatchObject({ lon: -61.7, lat: 33.3 });
+    });
+
+    it('drops nothing when Escape is pressed, or the button is let go outside the map', () => {
+      const { map, controller } = setup();
+      map.fire('style.load');
+      map.hits = [{ properties: { id: 'cvn1' } }];
+      const before = start(controller, 'cvn1');
+      map.fire('mousedown', at(10, 10));
+      map.fire('mousemove', at(60, 60, -61.5, 33.5));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      map.fire('mouseup', at(60, 60, -61.5, 33.5));
+      expect(start(controller, 'cvn1')).toEqual(before);
+      map.fire('mousedown', at(10, 10));
+      map.fire('mousemove', at(60, 60, -61.5, 33.5));
+      window.dispatchEvent(new MouseEvent('mouseup'));
+      expect(start(controller, 'cvn1')).toEqual(before);
+      expect((map.getSource('ex-drag')!.data as { features: unknown[] }).features).toEqual([]);
+    });
+
+    it('removes a waypoint on right-click, but never the last one', () => {
+      const { map, controller } = setup();
+      map.fire('style.load');
+      controller.select('cvn1');
+      controller.addWaypoint('cvn1', { lon: -61.5, lat: 33.2 });
+      const n = cvnRoute(controller).length;
+      map.layerHits['waypoint-dots'] = [{ properties: { id: 'cvn1', n: 0, selected: true } }];
+      const ev = at(5, 5);
+      map.fire('contextmenu', ev);
+      expect(ev.preventDefault).toHaveBeenCalled();
+      expect(cvnRoute(controller)).toHaveLength(n - 1);
+      for (let i = cvnRoute(controller).length; i > 1; i--) map.fire('contextmenu', at(5, 5));
+      expect(cvnRoute(controller)).toHaveLength(1);
+      map.fire('contextmenu', at(5, 5));
+      expect(cvnRoute(controller)).toHaveLength(1);
+      expect(controller.state.get().notice).toContain('at least one waypoint');
+    });
+
+    it('stops listening to the window when the view is disposed', () => {
+      const { map, controller, view } = setup();
+      map.fire('style.load');
+      view.dispose();
+      map.hits = [{ properties: { id: 'cvn1' } }];
+      const spy = vi.spyOn(controller, 'select');
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      window.dispatchEvent(new MouseEvent('mouseup'));
+      expect(spy).not.toHaveBeenCalled();
+    });
+  });
+
+  it('draws the paths of compared runs, and clears them', async () => {
+    const { map, controller, data } = setup(PRESET_SCENARIOS.find((p) => p.id === 'salvo-defense')!);
+    map.fire('style.load');
+    expect(data('ex-runs')).toEqual([]);
+    controller.setRedTeam({ ...controller.redTeamSpec(), runs: 6, sweep: undefined });
+    await controller.runRedTeam();
+    const outcome = controller.state.get().mc.result!.groups[0].outcomes[0];
+    await controller.showRunOverlay(0, outcome.id, outcome.label);
+    const features = data('ex-runs');
+    expect(features.length).toBeGreaterThan(10);
+    expect(features.some((f) => f.properties.weapon === true)).toBe(true);
+    expect(features.every((f) => typeof f.properties.hit === 'boolean')).toBe(true);
+    controller.clearRunOverlay();
+    expect(data('ex-runs')).toEqual([]);
   });
 
   it('hides ship names on request', () => {

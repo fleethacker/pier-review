@@ -1,11 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn } from '../../lib/cn';
 import { Button, inputClass } from '../../shell/ui';
 import { useClockSecond, useController, useExercise } from './context';
 import { PLAYBACK_RATES } from './controller';
 import { formatClock } from './geo';
 import { reportClientError } from './clientErrors';
+import { downloadBlob } from './exportResults';
+import { slugify } from './library';
 import { getMapboxToken, saveMapboxToken } from './mapStyles';
+import { canRecord, startRecording } from './recorder';
+import type { Recording } from './recorder';
 import { fetchConfig } from './serverApi';
 import type { ExerciseMapView, MapProblem } from './mapView';
 
@@ -61,13 +65,14 @@ function ToolButton({ pressed, onClick, children, title }: { pressed?: boolean; 
   );
 }
 
-function Toolbar() {
+function Toolbar({ recording, onRecord }: { recording: boolean; onRecord: () => void }) {
   const c = useController();
   const follow = useExercise((s) => s.follow);
   const placing = useExercise((s) => s.placing);
   const redTeamOpen = useExercise((s) => s.redTeamOpen);
   const replay = useExercise((s) => s.replay);
   const selectedId = useExercise((s) => s.selectedId);
+  const runOverlay = useExercise((s) => s.runOverlay);
   const name = useExercise((s) => s.scenario.units.find((u) => u.id === s.selectedId)?.name ?? null);
 
   useEffect(() => {
@@ -101,7 +106,26 @@ function Toolbar() {
         <ToolButton title="Click the map to add waypoints to the selected ship" pressed={placing} onClick={() => c.setPlacing(!placing)}>
           Add waypoints
         </ToolButton>
+        <ToolButton title={recording ? 'Stop recording and save the video' : 'Play the scenario from here and record the map as a video'} pressed={recording} onClick={onRecord}>
+          {recording ? '● Stop' : 'Record'}
+        </ToolButton>
       </div>
+      {runOverlay && (
+        <div role="status" className="pointer-events-auto max-w-[44rem] space-y-1 border border-mil-border bg-mil-panel/95 px-3 py-2 text-xs text-mil-text">
+          <p>
+            {runOverlay.working ? 'Working out the paths…' : `Paths from ${runOverlay.hitRuns + runOverlay.missRuns} runs for “${runOverlay.label}”:`}{' '}
+            <span className="text-[#ff5a4a]">red where it happened ({runOverlay.hitRuns})</span>, <span className="text-[#4adf9a]">green where it did not ({runOverlay.missRuns})</span>. Thick lines are ships and aircraft, thin ones missiles and torpedoes.
+          </p>
+          <div className="flex gap-3 text-[10px] uppercase tracking-wider">
+            <button className="text-mil-cyan hover:text-white" onClick={() => c.toggleRedTeam(true)}>
+              Back to red team
+            </button>
+            <button className="text-mil-cyan hover:text-white" onClick={() => c.clearRunOverlay()}>
+              Clear paths
+            </button>
+          </div>
+        </div>
+      )}
       {replay && (
         <div role="status" className="pointer-events-auto max-w-[44rem] space-y-1 border border-mil-amber/60 bg-mil-panel/95 px-3 py-2 text-xs text-mil-amber">
           <p>
@@ -182,6 +206,9 @@ export function MapCanvas() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const askedServer = useRef(false);
+  const viewRef = useRef<ExerciseMapView | null>(null);
+  const [recording, setRecording] = useState<Recording | null>(null);
+  const [recordError, setRecordError] = useState<string | null>(null);
   const presenting = useExercise((s) => s.presenting);
 
   useEffect(() => {
@@ -220,6 +247,7 @@ export function MapCanvas() {
           reportClientError(p.kind, p.message);
           if (p.kind === 'token') setToken('');
         });
+        viewRef.current = view;
         setLoading(false);
         if (import.meta.env.DEV) (window as unknown as { __exerciseMap: unknown }).__exerciseMap = view.map;
       })
@@ -231,9 +259,58 @@ export function MapCanvas() {
       });
     return () => {
       cancelled = true;
+      viewRef.current = null;
       view?.dispose();
     };
   }, [token, c]);
+
+  const finishRecording = useCallback(
+    async (rec: Recording) => {
+      setRecording(null);
+      try {
+        const blob = await rec.stop();
+        const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*$/, '').replace('T', '-');
+        downloadBlob(`${slugify(c.state.get().scenario.name)}-${stamp}.webm`, blob);
+      } catch (e) {
+        setRecordError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [c],
+  );
+
+  const toggleRecord = () => {
+    if (recording) {
+      void finishRecording(recording);
+      return;
+    }
+    setRecordError(null);
+    const canvas = viewRef.current?.map.getCanvas();
+    if (!canvas || !canRecord(canvas)) {
+      setRecordError('This browser cannot record the map. Try a recent Chrome, Edge or Firefox.');
+      return;
+    }
+    try {
+      setRecording(startRecording(canvas));
+      c.play();
+    } catch (e) {
+      setRecordError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  // The recording ends by itself when the run does, a moment later so the last frames are in it.
+  useEffect(() => {
+    if (!recording) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = c.clock.subscribe(() => {
+      if (!timer && c.clock.timeS >= c.clock.durationS) timer = setTimeout(() => void finishRecording(recording), 800);
+    });
+    return () => {
+      off();
+      clearTimeout(timer);
+    };
+  }, [recording, c, finishRecording]);
+  // Leaving the tab ends it too, and keeps what was recorded.
+  useEffect(() => () => void recording?.stop().catch(() => undefined), [recording]);
 
   if (!token) {
     return (
@@ -252,12 +329,13 @@ export function MapCanvas() {
       {/* Inline size: Mapbox's stylesheet sets position: relative on its container and would otherwise win over a class. */}
       <div ref={host} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} data-testid="exercise-map" />
       {loading && !loadError && <p className="absolute left-1/2 top-1/2 -translate-x-1/2 text-xs text-mil-cyan">Loading map…</p>}
-      {(loadError || problem) && (
+      {recording && <p className="absolute right-4 top-14 z-20 font-mono text-[11px] uppercase tracking-wider text-mil-red">● Recording</p>}
+      {(loadError || problem || recordError) && (
         <p role="alert" className="absolute left-1/2 top-16 z-20 max-w-[34rem] -translate-x-1/2 border border-mil-amber/60 bg-mil-panel px-4 py-2 text-xs text-mil-amber">
-          {loadError ?? problem?.message}
+          {loadError ?? problem?.message ?? recordError}
         </p>
       )}
-      <Toolbar />
+      <Toolbar recording={!!recording} onRecord={toggleRecord} />
       {presenting && <PresentHud />}
     </div>
   );

@@ -1,11 +1,14 @@
 import type { AnyLayer as Layer, AnySourceData as Source, GeoJSONSource, Map as MapboxMap } from 'mapbox-gl';
-import type { FrameData, StaticData } from './scene';
+import type { FrameData, RunTrack, StaticData } from './scene';
 import type { LightPreset } from './types';
 
 const empty = { type: 'FeatureCollection', features: [] } as const;
 
 /** Layers a click can pick a ship from, topmost first. */
 export const PICK_LAYERS = ['ship-markers', 'ship-parts', 'ship-hulls', 'ship-halos'];
+/** Layers of the selected route's editing handles: its waypoints, and the midpoints of its legs. */
+export const WAYPOINT_LAYER = 'waypoint-dots';
+export const HANDLE_LAYER = 'handle-dots';
 
 /** Source id to the data it carries. Every source starts empty and is filled by `setFrameData` and `setStaticData`. */
 const SOURCES: Record<string, Source> = {
@@ -21,6 +24,9 @@ const SOURCES: Record<string, Source> = {
   'ex-parts': { type: 'geojson', data: empty },
   'ex-overlays': { type: 'geojson', data: empty },
   'ex-markers': { type: 'geojson', data: empty },
+  'ex-handles': { type: 'geojson', data: empty },
+  'ex-runs': { type: 'geojson', data: empty },
+  'ex-drag': { type: 'geojson', data: empty },
 };
 
 /** How much of the lighting shows at each time of day. Lights are barely there at noon and blaze at night. */
@@ -74,6 +80,19 @@ function layers(): Layer[] {
         'line-width': ['case', get('selected'), 2.5, 1.5],
         'line-opacity': ['case', get('selected'), 0.9, 0.45],
         'line-dasharray': [2, 2],
+        'line-emissive-strength': 1,
+      },
+    },
+    {
+      id: 'run-tracks',
+      type: 'line',
+      source: 'ex-runs',
+      ...slot,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ['case', get('hit'), '#ff5a4a', '#4adf9a'],
+        'line-width': ['case', get('weapon'), 1, 2],
+        'line-opacity': ['case', get('weapon'), 0.4, 0.55],
         'line-emissive-strength': 1,
       },
     },
@@ -233,6 +252,37 @@ function layers(): Layer[] {
       },
     },
     {
+      id: 'handle-dots',
+      type: 'circle',
+      source: 'ex-handles',
+      ...slot,
+      paint: {
+        'circle-color': '#0a1628',
+        'circle-radius': 4.5,
+        'circle-stroke-color': get('color'),
+        'circle-stroke-width': 1.2,
+        'circle-opacity': 0.7,
+        'circle-stroke-opacity': 0.9,
+        'circle-emissive-strength': 1,
+      },
+    },
+    {
+      id: 'drag-line',
+      type: 'line',
+      source: 'ex-drag',
+      ...slot,
+      filter: ['==', ['geometry-type'], 'LineString'],
+      paint: { 'line-color': '#ffffff', 'line-width': 1.5, 'line-opacity': 0.8, 'line-dasharray': [2, 2], 'line-emissive-strength': 1 },
+    },
+    {
+      id: 'drag-dot',
+      type: 'circle',
+      source: 'ex-drag',
+      ...slot,
+      filter: ['==', ['geometry-type'], 'Point'],
+      paint: { 'circle-color': '#ffffff', 'circle-radius': 7, 'circle-opacity': 0.35, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2, 'circle-emissive-strength': 1 },
+    },
+    {
       id: 'waypoint-numbers',
       type: 'symbol',
       source: 'ex-waypoints',
@@ -316,6 +366,32 @@ export function setFrameData(map: MapboxMap, f: FrameData): void {
 export function setStaticData(map: MapboxMap, d: StaticData): void {
   setData(map, 'ex-routes', d.routes);
   setData(map, 'ex-waypoints', d.waypoints);
+  setData(map, 'ex-handles', d.handles);
+}
+
+/** The preview while something is being dragged: a dashed line from where it was to the cursor, and a ring at the cursor. Null clears it. */
+export function setDragGhost(map: MapboxMap, ghost: { from: [number, number]; to: [number, number] } | null): void {
+  setData(
+    map,
+    'ex-drag',
+    ghost
+      ? {
+          type: 'FeatureCollection',
+          features: [
+            { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [ghost.from, ghost.to] } },
+            { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: ghost.to } },
+          ],
+        }
+      : empty,
+  );
+}
+
+/** Paths of several runs of a red-team batch, to compare them on the map. */
+export function setRunTracks(map: MapboxMap, tracks: RunTrack[]): void {
+  setData(map, 'ex-runs', {
+    type: 'FeatureCollection',
+    features: tracks.map((t) => ({ type: 'Feature', properties: { hit: t.hit, weapon: t.weapon }, geometry: { type: 'LineString', coordinates: t.coords } })),
+  });
 }
 
 export function setLabelsVisible(map: MapboxMap, visible: boolean): void {

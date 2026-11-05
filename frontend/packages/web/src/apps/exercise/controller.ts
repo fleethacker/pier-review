@@ -3,12 +3,13 @@ import type { AppHost } from '../../scene/app';
 import { destination, offsetM } from './geo';
 import type { MapStyleId } from './mapStyles';
 import { DEFAULT_VIEW } from './scene';
-import type { ViewOptions } from './scene';
+import type { RunTrack, ViewOptions } from './scene';
 import { PRESET_SCENARIOS, blankScenario, clone } from './scenarios';
 import { exportScenario, parseScenario } from './scenarioJson';
 import { SHIP_CLASSES, isMissile, isPlatform } from './ships';
 import { defaultRedTeam, prepareRun, runMonteCarlo, validateRedTeam } from './montecarlo';
 import type { McResult } from './montecarlo';
+import { runTracks } from './scene';
 import { runScenario, statesAt, validateScenario } from './sim';
 import type { Trajectory } from './sim';
 import type { Behavior, ClassId, Environment, LonLat, RedTeamSpec, ScenarioConfig, UnitConfig, UnitState, Waypoint } from './types';
@@ -69,6 +70,15 @@ export interface McUi {
   base: ScenarioConfig | null;
 }
 
+/** Paths from several runs of a batch drawn together on the map, red where the outcome happened and green where it did not. */
+export interface RunOverlay {
+  label: string;
+  working: boolean;
+  hitRuns: number;
+  missRuns: number;
+  tracks: RunTrack[];
+}
+
 export interface Baseline {
   label: string;
   result: McResult;
@@ -104,6 +114,7 @@ export interface ExerciseState {
   mc: McUi;
   /** A finished batch kept to compare the next one against. */
   baseline: Baseline | null;
+  runOverlay: RunOverlay | null;
   replay: ReplayInfo | null;
   /** Bumps when a different scenario is loaded, so the map re-frames it. */
   scenarioRevision: number;
@@ -142,6 +153,7 @@ export class ExerciseController {
       redTeamOpen: false,
       mc: MC_IDLE,
       baseline: null,
+      runOverlay: null,
       replay: null,
       scenarioRevision: 0,
       fitRevision: 0,
@@ -273,6 +285,7 @@ export class ExerciseController {
       follow: loaded ? 'off' : s.follow,
       placing: loaded ? false : s.placing,
       replay: null,
+      runOverlay: loaded ? null : s.runOverlay,
       mc: loaded && s.mc.status !== 'running' ? MC_IDLE : s.mc,
     }));
   }
@@ -482,6 +495,14 @@ export class ExerciseController {
     });
   }
 
+  /** Add a waypoint so that it becomes number `index` (counting from 0) of the route. */
+  insertWaypoint(id: string, index: number, at: LonLat): void {
+    this.edit((d) => {
+      const u = d.units.find((x) => x.id === id);
+      if (u?.behavior.type === 'route') u.behavior.waypoints.splice(Math.max(0, Math.min(index, u.behavior.waypoints.length)), 0, { lon: at.lon, lat: at.lat });
+    });
+  }
+
   removeWaypoint(id: string, index: number): void {
     this.edit((d) => {
       const u = d.units.find((x) => x.id === id);
@@ -576,6 +597,38 @@ export class ExerciseController {
           .map((p) => ({ label: p.label ?? p.id, value: prepared.values[p.id] })),
       },
     }));
+  }
+
+  private overlayToken = 0;
+
+  /**
+   * Draw the paths of a few runs where the outcome happened and a few where it did not, on the map together, to see what the
+   * difference looks like. Each run is the same one a replay would show.
+   */
+  async showRunOverlay(groupIndex: number, outcomeId: string, label: string, perSide = 6): Promise<void> {
+    const { mc } = this.state.get();
+    const group = mc.result?.groups[groupIndex];
+    if (!group || !mc.spec || !mc.base) return;
+    const token = ++this.overlayToken;
+    const picks = [
+      ...(group.hitRuns[outcomeId] ?? []).slice(0, perSide).map((k) => ({ k, hit: true })),
+      ...(group.missRuns[outcomeId] ?? []).slice(0, perSide).map((k) => ({ k, hit: false })),
+    ];
+    const counts = { hitRuns: picks.filter((p) => p.hit).length, missRuns: picks.filter((p) => !p.hit).length };
+    this.state.set({ runOverlay: { label, working: true, ...counts, tracks: [] } });
+    const tracks: RunTrack[] = [];
+    for (const { k, hit } of picks) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      if (token !== this.overlayToken || this.disposed) return;
+      const run = prepareRun(mc.base, mc.spec, k, group.sweepValue);
+      tracks.push(...runTracks(run.scenario, runScenario(run.scenario, { seed: run.seed }), hit));
+    }
+    this.state.set({ runOverlay: { label, working: false, ...counts, tracks } });
+  }
+
+  clearRunOverlay(): void {
+    this.overlayToken++;
+    this.state.set({ runOverlay: null });
   }
 
   /** Go back from a replayed run to the scenario as edited. */

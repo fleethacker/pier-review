@@ -1,6 +1,6 @@
 import { bearingTo, circleRing, destination, distanceM, stationFrom } from './geo';
 import { SHIP_CLASSES, SIDE_COLORS, isMine, isMissile, mix, shipShape } from './ships';
-import { statesAt, trailOf, unitHp as unitMaxHp } from './sim';
+import { readSample, statesAt, trailOf, unitHp as unitMaxHp } from './sim';
 import type { EventType, Trajectory } from './sim';
 import type { LonLat, ScenarioConfig, UnitConfig, UnitState } from './types';
 
@@ -59,6 +59,16 @@ export interface FrameData {
 export interface StaticData {
   routes: FeatureCollection<Line>;
   waypoints: FeatureCollection<Pt>;
+  /** Midpoints of the selected route's legs: grab one to add a waypoint there. */
+  handles: FeatureCollection<Pt>;
+}
+
+/** One run of a red-team batch, drawn as the paths of its units. */
+export interface RunTrack {
+  /** The run happened to have the outcome being looked at (or did not). */
+  hit: boolean;
+  weapon: boolean;
+  coords: [number, number][];
 }
 
 /** A point in a ship's own frame (+x forward, +y to port, meters) to [lon, lat]. */
@@ -314,6 +324,7 @@ function routeOf(unit: UnitConfig): { points: LonLat[]; loop: boolean } | null {
 export function buildStaticData(scenario: ScenarioConfig, view: ViewOptions, selectedId: string | null): StaticData {
   const routes: Feature<Line>[] = [];
   const waypoints: Feature<Pt>[] = [];
+  const handles: Feature<Pt>[] = [];
   if (view.showRoutes) {
     for (const unit of scenario.units) {
       const route = routeOf(unit);
@@ -327,16 +338,50 @@ export function buildStaticData(scenario: ScenarioConfig, view: ViewOptions, sel
         properties: { id: unit.id, color, selected },
         geometry: { type: 'LineString', coordinates: coords },
       });
+      if (selected) {
+        const legs = [unit.start, ...route.points];
+        for (let n = 0; n + 1 < legs.length; n++) {
+          handles.push({
+            type: 'Feature',
+            properties: { id: unit.id, insertAt: n, color },
+            geometry: { type: 'Point', coordinates: [(legs[n].lon + legs[n + 1].lon) / 2, (legs[n].lat + legs[n + 1].lat) / 2] },
+          });
+        }
+      }
       route.points.forEach((p, n) => {
         waypoints.push({
           type: 'Feature',
-          properties: { id: unit.id, index: n + 1, color, selected },
+          properties: { id: unit.id, index: n + 1, n, color, selected },
           geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
         });
       });
     }
   }
-  return { routes: collection(routes), waypoints: collection(waypoints) };
+  return { routes: collection(routes), waypoints: collection(waypoints), handles: collection(handles) };
+}
+
+/** Paths of every unit that moves, for a few runs of a batch, thinned to about `maxPoints` per unit. */
+export function runTracks(scenario: ScenarioConfig, trajectory: Trajectory, hit: boolean, maxPoints = 90): RunTrack[] {
+  const out: RunTrack[] = [];
+  const stride = Math.max(1, Math.ceil(trajectory.count / maxPoints));
+  scenario.units.forEach((unit, i) => {
+    const cls = SHIP_CLASSES[unit.classId];
+    if (cls.domain === 'static') return;
+    let coords: [number, number][] = [];
+    const flush = () => {
+      if (coords.length >= 2) out.push({ hit, weapon: !!cls.weapon, coords });
+      coords = [];
+    };
+    for (let k = 0; k < trajectory.count; k += stride) {
+      const st = readSample(trajectory, k, i);
+      if (st.active) coords.push([st.lon, st.lat]);
+      else flush();
+    }
+    const last = readSample(trajectory, trajectory.count - 1, i);
+    if (last.active) coords.push([last.lon, last.lat]);
+    flush();
+  });
+  return out;
 }
 
 /** The units within `radiusM` of the one at `anchor` (counting it): the main group, for the opening camera shot. */

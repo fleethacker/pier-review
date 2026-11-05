@@ -14,9 +14,12 @@ from mooring import refdata
 from mooring.core.jobs import JobQueueFull
 from mooring.core.schemas import (
     Alert,
+    ApproachSimResponse,
+    BerthingSimResponse,
     EnvironmentSnapshot,
     JobDoneEvent,
     JobProgressEvent,
+    RecommendResponse,
     SimControlMessage,
     SimFrame,
     SimLineEventMessage,
@@ -70,7 +73,9 @@ WEBSOCKETS = {
                              "server_messages": "SimFrame (latest state; nominal 10 Hz at default dt)"},
     "/ws/telemetry": {"client_messages": "TelemetryRecord", "server_messages": "TelemetryAccepted"},
 }
-STREAM_MODELS = [ForecastDockingResponse, ExceedanceResponse, TimelineResponse, EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, SimLineEventMessage, SimControlMessage,
+JOB_RESULT_MODELS = [ForecastDockingResponse, ExceedanceResponse, TimelineResponse, RecommendResponse,
+                     BerthingSimResponse, ApproachSimResponse]
+STREAM_MODELS = [*JOB_RESULT_MODELS, EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, SimLineEventMessage, SimControlMessage,
                  TelemetryRecord, TelemetryAccepted, JobProgressEvent, JobDoneEvent, SimScene, SimLifecycle,
                  SimRecording]
 

@@ -2,6 +2,8 @@
 
 ## Log
 
+- 22:28 EST: risk hardening full suite 1349 passed, no skips/xfails; 22 focused risk/contract tests pass. OpenAPI audit also exposed omitted asynchronous recommendation and simulation result models; all documented job response models are now explicitly published and consumer types regenerated.
+
 - 22:26 EST: DC7 integration PR #50 published: 1342 Python and 81 UI tests pass. Risk review found failed-solve cancellation bypass, omitted ship-fitting checks, endpoint omission and failed trajectories counted implicitly as safe. Added cancellation checks, rated ship fittings, endpoint-inclusive sampling, explicit horizon bounds/widened confidence interval and invalid all-failed state; 21 focused tests pass.
 
 - 22:23 EST: selected forecast installation PR #49 merged after green CI (1310 Python, 81 UI). DC7 reviewed locally: measured-mode/coordinate guards and HTTP/WebSocket malformed-input regressions added; focused telemetry suite 68 passed. Optional ingest key remains local-demo-only when unset, and arbitration is not connected to environment selection.

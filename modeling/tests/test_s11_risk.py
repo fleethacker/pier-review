@@ -160,10 +160,18 @@ def test_all_failed_risk_calculations_are_invalid(monkeypatch, horizon_inputs):
 
 
 def test_async_risk_result_schemas_are_published_for_consumers():
+    import re
     from modeling_api.main import openapi_schema
-    schemas = openapi_schema()["components"]["schemas"]
+    contract = openapi_schema()
+    schemas = contract["components"]["schemas"]
     assert {"ExceedanceResponse", "TimelineResponse", "HorizonRisk"} <= schemas.keys()
     assert {"p_event_bounds", "effective_step_min"} <= schemas["HorizonRisk"]["properties"].keys()
+    # Every result promised in a job endpoint's public summary must be usable by consumers.
+    for path, methods in contract["paths"].items():
+        for operation in methods.values():
+            match = re.search(r"(?:result is an? |job result: )(\w+Response)", operation.get("summary", ""))
+            if match:
+                assert match[1] in schemas, (path, match[1])
 
 
 def test_sample_evaluator_includes_loaded_ship_fittings(horizon_inputs):

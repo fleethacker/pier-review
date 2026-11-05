@@ -26,6 +26,14 @@ Clients use `Authorization: Bearer <key>` on HTTP and WebSocket handshakes. Nati
 
 HTTP controls apply to the modeling application, not the separate agents server. Existing `/ws/env`, `/ws/alerts` and `/ws/telemetry` handlers are unchanged; middleware authenticates their handshakes and carries ownership context, but their traffic limits/lifecycle have not been hardened here. Only `/ws/sim` has the new command-rate/size and backpressure controls. Authorized principals can see aggregate metrics; deployment policy must decide whether that is appropriate.
 
+## Agent job controls
+
+The separate agents service now uses bounded real background jobs (`AGENTS_WORKERS=2`, `AGENTS_QUEUE=16`,
+`AGENTS_JOB_TIMEOUT_S=300`), cancellation, terminal failure events and resumable SSE. Steps reflect actual
+work. It still lacks persistent plan/report/sheet storage and authenticated resource ownership in this packet;
+modeling SQLite durability does not cover those objects. Restart loses agent records. This is not operational
+readiness or a distributed worker system.
+
 ## Backup and restoration rehearsal
 
 Run the backup helper against the configured SQLite file; it uses SQLite's backup API, not a raw copy of a live WAL database. Choose an unused backup path. To recover, stop the service, restore into a **new** path, check the restored database and restart with `MOORING_DB` pointing to that path. Never overwrite the live file. Restrict access to backup files and directories; the helper does not encrypt, rotate, upload or automatically schedule backups. The CLI opens the source with the current database implementation; use a matching service version when taking backups. Test restoration in the deployment environment before relying on it.

@@ -130,7 +130,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** SSE: step (AgentStepEvent), proposal (AgentProposalEvent), message (AgentMessageEvent), done (AgentDoneEvent). follow=true keeps the stream open for follow-up answers. */
+        /** SSE computed step/proposal events and terminal done; follow=true includes subsequent answers. */
         get: operations["plan_events_api_v1_agent_plans__plan_id__events_get"];
         put?: never;
         post?: never;
@@ -149,7 +149,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Ask a follow-up; the answer streams as a `message` event */
+        /** Ask a follow-up; the answer streams as a message event */
         post: operations["plan_message_api_v1_agent_plans__plan_id__messages_post"];
         delete?: never;
         options?: never;
@@ -321,7 +321,8 @@ export interface paths {
         get: operations["job_status_api_v1_jobs__job_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Cancel Job */
+        delete: operations["cancel_job_api_v1_jobs__job_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1907,6 +1908,16 @@ export interface components {
              * @enum {string}
              */
             status: "GREEN" | "AMBER" | "RED";
+            /**
+             * State
+             * @default null
+             */
+            state: ("queued" | "running" | "succeeded" | "failed" | "cancelled") | null;
+            /**
+             * Error
+             * @default null
+             */
+            error: string | null;
         };
         /**
          * AgentMessageEvent
@@ -2464,7 +2475,9 @@ export interface operations {
             query?: {
                 follow?: boolean;
             };
-            header?: never;
+            header?: {
+                "last-event-id"?: number | null;
+            };
             path: {
                 plan_id: string;
             };
@@ -2857,10 +2870,43 @@ export interface operations {
             };
         };
     };
-    job_events_api_v1_jobs__job_id__events_get: {
+    cancel_job_api_v1_jobs__job_id__delete: {
         parameters: {
             query?: never;
             header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_events_api_v1_jobs__job_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "last-event-id"?: number | null;
+            };
             path: {
                 job_id: string;
             };

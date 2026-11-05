@@ -9,9 +9,9 @@ comes from the modeling service through the Physics agent's logged toolkit and i
 | --- | --- | --- | --- |
 | [`intake/`](mooring_agents/intake/README.md) | Environment/Intake | Environment data → windows of concern, MST assessment, conditions to design for | real core + optional LLM summary |
 | [`physics/`](mooring_agents/physics/README.md) | Physics/Load | Logged tool gateway to modeling: forces, line geometry, bollard strain. No LLM, no math | real gateway |
-| [`planner/`](mooring_agents/planner/README.md) | Planner | Proposes tugs, lines and sequence; runs physics; iterates to acceptable margins | mock |
-| [`safety/`](mooring_agents/safety/README.md) | Safety/Brief | Independent review, gust warnings vs working-load and breaking limits, Safety Sheet | mock review, real sheet |
-| [`vision/`](mooring_agents/vision/README.md) | Berth Map | Berth image → draft berth and line placement, human-confirmed | mock |
+| [`planner/`](mooring_agents/planner/README.md) | Planner | Proposes tugs, lines and sequence; runs physics; iterates to acceptable margins | real deterministic core; optional guarded LLM |
+| [`safety/`](mooring_agents/safety/README.md) | Safety/Brief | Independent review, gust warnings vs working-load and breaking limits, Safety Sheet | real review and sheet; guarded optional narration |
+| [`vision/`](mooring_agents/vision/README.md) | Berth Map | Berth image → draft berth and line placement, human-confirmed | real deterministic core; optional guarded LLM |
 
 Each folder's README is that agent's plan and spec. Each folder holds `schemas.py` (its API types), `mock.py` (the
 placeholder where still needed) and the real agent beside it. Intake's mock is only a compatibility import.
@@ -69,3 +69,17 @@ Protocol references: [Messages](https://platform.claude.com/docs/en/api/http/mes
 [versioning](https://platform.claude.com/docs/en/api/versioning). The adapter pins API version `2026-10-21`
 and omits sampling parameters, which that version removes. The handoff's `claude-api` skill was not installed;
 implementation was checked against these primary docs instead.
+
+### Agent jobs and progress
+
+Intake, planner, safety review and vision uploads acknowledge work with `202`, then run on a bounded
+worker pool. Poll the returned job URL until terminal; a `202` is not a completed result. Planner SSE
+steps/proposals are emitted when computed. Terminal `done` includes optional `state`/`error`; failed or
+cancelled plans cannot be reviewed or turned into a safety sheet. Both SSE endpoints accept `Last-Event-ID`.
+
+`AGENTS_WORKERS=2`, `AGENTS_QUEUE=16`, and `AGENTS_JOB_TIMEOUT_S=300` bound work. Saturation returns
+`429` with `Retry-After`. `DELETE /api/v1/jobs/{job_id}` cancels; late results are discarded. Toolkit
+checkpoints and async deadlines are cooperative: a cancelled worker retains capacity until it exits.
+The legacy `MOCK_JOB_DELAY_S` does not control agent jobs. Shutdown fails unfinished work. Agent job,
+plan/report/sheet stores remain process-local in this packet; a restart loses them. Modeling result
+persistence and the optional tool ledger do not make those agent objects durable.

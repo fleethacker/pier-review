@@ -19,6 +19,7 @@ from ...safety.schemas import (
     SafetySheetCreated,
 )
 from ..state import JOBS, Client, SafetyTools
+from ..execution import submit_async
 from .planner import plan_record
 
 router = APIRouter(tags=["Safety agent"])
@@ -31,7 +32,7 @@ async def create_review(tk: SafetyTools, req: Annotated[SafetyReviewRequest, Bod
     _, job = plan_record(req.plan_id)
     if job.state != "succeeded":
         return JSONResponse(status_code=409, content={"detail": "Plan is still running"})
-    return JOBS.submit("safety.review", await safety.review(req, tk))
+    return submit_async(JOBS, "safety.review", tk, lambda ctx: safety.review(req, tk))
 
 
 @router.get("/safety/reviews/{review_id}", response_model=SafetyReview)

@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
 
 from mooring.core.schemas import (
     AnalyzeResponse,
@@ -34,6 +35,14 @@ class ModelingError(Exception):
         self.status, self.detail = status, detail
 
 
+def _validate_response(model, payload):
+    """Keep upstream schema failures on the same explicit error path as HTTP failures."""
+    try:
+        return model.model_validate(payload)
+    except ValidationError as exc:
+        raise ModelingError(502, f"Modeling returned an invalid {model.__name__} response") from exc
+
+
 class ModelingClient:
     def __init__(self, base_url: str | None = None, transport: httpx.AsyncBaseTransport | None = None, *, authorization: str | None = None):
         self.base_url = (base_url or os.environ.get("MODELING_API_URL", DEFAULT_URL)).rstrip("/")
@@ -50,11 +59,15 @@ class ModelingClient:
             r = await c.request(method, path, **kw)
         if r.status_code >= 400:
             try:
-                detail = r.json().get("detail", r.text)
+                payload = r.json()
+                detail = payload.get("detail", r.text) if isinstance(payload, dict) else r.text
             except ValueError:
                 detail = r.text
             raise ModelingError(r.status_code, f"modeling {method} {path}: {detail}")
-        return r.json()
+        try:
+            return r.json()
+        except ValueError as exc:
+            raise ModelingError(502, f"Modeling returned invalid JSON for {method} {path}") from exc
 
     async def _job(self, path: str, body: dict, poll_s: float = 0.25, timeout_s: float = 120) -> dict:
         deadline = asyncio.get_running_loop().time() + timeout_s
@@ -76,7 +89,11 @@ class ModelingClient:
                 while True:
                     self.checkpoint()
                     st = await self._req("GET", status_path)
+                    if not isinstance(st, dict) or not isinstance(st.get("state"), str):
+                        raise ModelingError(502, "Modeling returned an invalid job status")
                     if st["state"] == "succeeded":
+                        if not isinstance(st.get("result"), dict):
+                            raise ModelingError(502, "Modeling returned an invalid job result")
                         terminal = True
                         return st["result"]
                     if st["state"] in ("failed", "cancelled"):
@@ -100,13 +117,13 @@ class ModelingClient:
 
     # ---- Reference data ----
     async def scenario(self, scenario_id: str) -> Scenario:
-        return Scenario.model_validate(await self._req("GET", f"/scenarios/{scenario_id}"))
+        return _validate_response(Scenario, await self._req("GET", f"/scenarios/{scenario_id}"))
 
     async def ship(self, class_id: str) -> ShipClass:
-        return ShipClass.model_validate(await self._req("GET", f"/ships/{class_id}"))
+        return _validate_response(ShipClass, await self._req("GET", f"/ships/{class_id}"))
 
     async def berth(self, berth_id: str) -> Berth:
-        return Berth.model_validate(await self._req("GET", f"/berths/{berth_id}"))
+        return _validate_response(Berth, await self._req("GET", f"/berths/{berth_id}"))
 
     async def save_berth(self, berth: Berth) -> str:
         return (await self._req("POST", "/berths", json=berth.model_dump(mode="json")))["berth_id"]
@@ -116,7 +133,7 @@ class ModelingClient:
 
     # ---- Environment ----
     async def scenario_environment(self, scenario_id: str) -> EnvironmentSnapshot:
-        return EnvironmentSnapshot.model_validate(await self._req("GET", f"/scenarios/{scenario_id}/environment"))
+        return _validate_response(EnvironmentSnapshot, await self._req("GET", f"/scenarios/{scenario_id}/environment"))
 
     async def env_now(self, berth_id: str, heading_true_deg: float | None = None,
                       env_scenario_id: str | None = None) -> EnvironmentSnapshot:
@@ -125,11 +142,11 @@ class ModelingClient:
             params["heading_true_deg"] = heading_true_deg
         if env_scenario_id:
             params["env_scenario_id"] = env_scenario_id
-        return EnvironmentSnapshot.model_validate(await self._req("GET", "/env/now", params=params))
+        return _validate_response(EnvironmentSnapshot, await self._req("GET", "/env/now", params=params))
 
     async def forecast(self, berth_id: str, hours: int = 24, step_min: int = 30) -> ForecastSeries:
         params = {"berth_id": berth_id, "hours": hours, "step_min": step_min}
-        return ForecastSeries.model_validate(await self._req("GET", "/env/forecast", params=params))
+        return _validate_response(ForecastSeries, await self._req("GET", "/env/forecast", params=params))
 
     # ---- Generic access (used by the tool gateway) ----
     async def request(self, method: str, path: str, **kw) -> Any:
@@ -139,26 +156,26 @@ class ModelingClient:
         return await self._job(path, body)
 
     async def windows(self, body: dict) -> BerthingWindowsResponse:
-        return BerthingWindowsResponse.model_validate(await self._req("POST", "/windows/berthing", json=body))
+        return _validate_response(BerthingWindowsResponse, await self._req("POST", "/windows/berthing", json=body))
 
     # ---- Physics tools ----
     async def analyze(self, body: dict) -> AnalyzeResponse:
-        return AnalyzeResponse.model_validate(await self._req("POST", "/mooring/analyze", json=body))
+        return _validate_response(AnalyzeResponse, await self._req("POST", "/mooring/analyze", json=body))
 
     async def envelope(self, body: dict) -> LimitEnvelopeResponse:
-        return LimitEnvelopeResponse.model_validate(await self._req("POST", "/mooring/envelope", json=body))
+        return _validate_response(LimitEnvelopeResponse, await self._req("POST", "/mooring/envelope", json=body))
 
     async def recommend(self, body: dict) -> RecommendResponse:
-        return RecommendResponse.model_validate(await self._job("/mooring/recommend", body))
+        return _validate_response(RecommendResponse, await self._job("/mooring/recommend", body))
 
     async def sequence(self, body: dict) -> SequenceResponse:
-        return SequenceResponse.model_validate(await self._req("POST", "/mooring/sequence", json=body))
+        return _validate_response(SequenceResponse, await self._req("POST", "/mooring/sequence", json=body))
 
     async def berthing_tugs(self, body: dict) -> TugPlanResponse:
-        return TugPlanResponse.model_validate(await self._req("POST", "/tugs/berthing-plan", json=body))
+        return _validate_response(TugPlanResponse, await self._req("POST", "/tugs/berthing-plan", json=body))
 
     async def hold_tugs(self, body: dict) -> TugPlanResponse:
-        return TugPlanResponse.model_validate(await self._req("POST", "/tugs/hold-plan", json=body))
+        return _validate_response(TugPlanResponse, await self._req("POST", "/tugs/hold-plan", json=body))
 
     async def exceedance(self, body: dict) -> ExceedanceResponse:
-        return ExceedanceResponse.model_validate(await self._job("/risk/exceedance", body))
+        return _validate_response(ExceedanceResponse, await self._job("/risk/exceedance", body))

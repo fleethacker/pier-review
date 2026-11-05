@@ -21,7 +21,7 @@ from ..safety.schemas import GustWarning, SafetyWatchUnavailable
 from ..vision.schemas import VisionMetadata, VisionResponse
 from ..intake.schemas import IntakeReport
 from ..safety.schemas import SafetyReview
-from .routers import intake, physics, planner, safety, system, vision
+from .routers import intake, physics, planner, prediction, safety, system, vision
 from .security import Controls
 from .state import API_PREFIX, JOBS, get_client  # noqa: F401  (tests override get_client)
 
@@ -31,6 +31,7 @@ TAGS = [
     {"name": "Planner agent", "description": "Plan, evaluate, adjust loop over physics tools; streams progress."},
     {"name": "Safety agent", "description": "Independent review, live gust warnings, Mooring Evolution Safety Sheet."},
     {"name": "Berth map agent", "description": "Image of a berth -> draft berth and line placement, human-confirmed."},
+    {"name": "Prediction agent", "description": "Cited narration of immutable modeling predictions; no new physics or hazard decisions."},
     {"name": "System", "description": "Jobs, health."},
 ]
 DESCRIPTION = """
@@ -78,7 +79,7 @@ async def not_found(_: Request, exc: refdata.NotFound):
     return JSONResponse(status_code=404, content={"detail": str(exc)})
 
 
-for r in (intake, physics, planner, safety, vision, system):
+for r in (intake, physics, planner, prediction, safety, vision, system):
     app.include_router(r.router, prefix=API_PREFIX)
 
 # Job results and SSE payloads that no endpoint references directly; added so clients get their types.

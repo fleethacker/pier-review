@@ -41,6 +41,31 @@ Pydantic schemas or endpoints, run `make contract` from the repo root, and commi
    `GET /safety/watch/{plan_id}` (SSE `warning` events).
 7. Agents: `GET /physics/calls?plan_id=` shows every physics call behind a plan (audit trail).
 
+### Optional forecast binding, layout and prediction consumers
+
+`IntakeRequest.forecast_request` accepts the modeling `ForecastResolveRequest`: a supplied series or a scenario
+binding, berth, availability cutoff and interval. Its interval must match `horizon_hours`. Intake, Planner and Safety
+each log a canonical resolve and preserve the same `forecast_manifest` (source, revision, content/binding hashes).
+Their `forecast_result_id` values identify those independent resolves. A changed selection requires new assessment;
+it cannot inherit approvals from an earlier plan. Safety watch uses that selected source within its assessed interval.
+Public latest-revision acquisition/watch integration against the merged D2 composer remains; a supplied `source_id`
+is not a provider lookup.
+
+New `SafetySheet.layout` records contain a self-contained SVG or an explicit unavailable reason, bound to sheet ID,
+version, plan, review and analysis plus reference/geometry hashes. Render this saved SVG; never capture a later canvas
+for an older sheet. Printable HTML embeds it. Legacy or invalid layouts stay unavailable. `forecast_manifest` and
+`forecast_result_id` on the sheet retain the independent review's binding. The existing sheet HTML iframe works;
+the U13 sidebar consumer remains separate work.
+
+`GET /predictions/{result_id}/brief` on agents explains a saved, caller-owned prediction with immutable citations,
+model warnings and explicit hazard/uncertainty limitations. The `predict_trajectory`, `get_prediction` and
+`resolve_forecast` physics tools expose logged access to their modeling interfaces. See the
+[narration contract notes](../agents/mooring_agents/prediction/README.md).
+
+Modeling `GET /ships/{class_id}/capabilities` and `POST /ships/validate` return `AssetQualification`, including
+side-specific template gates and an aggregate draft-sequence capability. Validation accepts an unsaved `ShipClass`; it neither installs it nor
+grants engineering approval. Missing CG-47, LHD-1 and CVN-68 fitting data still prevents their automatic mooring plans.
+
 ## Where the contract differs from docs/PLAN.md
 
 The plan's examples were a first draft; this folder is authoritative. Changes made while building:

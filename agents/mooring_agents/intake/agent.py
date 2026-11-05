@@ -138,7 +138,7 @@ async def assess(req: IntakeRequest, tk: PhysicsToolkit) -> IntakeReport:
         return report
 
     facts = _facts(report.model_dump(exclude={"summary"}))
-    payload = {"report": report.model_dump(mode="json"), "facts": facts,
+    payload = {"report": report.model_dump(mode="json", exclude={"forecast_request"}), "facts": facts,
                "forecast": [s.model_dump(mode="json") for s in series],
                "response_schema": NarrativeProposal.model_json_schema()}
     messages = [llm.Message(role="system", content=files(__package__).joinpath("prompts/summary.txt").read_text()),

@@ -23,6 +23,36 @@ EXPECTED_CASES = {
 }
 
 
+def prediction_brief_check(ui: str, examples: Path, http) -> str:
+    """Exercise the real S7 tool and cited explanation with explicitly synthetic local forcing."""
+    modeling, agents = ui + "/api/modeling/api/v1", ui + "/api/agents/api/v1"
+    body = json.loads((examples / "predict_trajectory_request.json").read_text())
+    _, env = http("GET", modeling + "/env/now?berth_id=NAVSTA-NORFOLK-P12-N")
+    assert env["source"] == "mock", "camera demo check requires explicitly mock forcing"
+    body.update(environment=env, as_of_utc=env["valid_at_utc"], horizon_s=30, tick_s=5)
+    body["vessel"].update(observed_utc=env["valid_at_utc"], source="synthetic:demo-check")
+    body["uncertainty"]["samples"] = 0
+    _, tool = http("POST", agents + "/physics/tools/predict_trajectory", {"input": body, "caller": "demo-check"})
+    prediction = tool["output"]
+    assert "error" not in prediction, prediction
+    rid = prediction["result_id"]
+    assert tool["call"]["result_id"] == rid
+    assert prediction["validity"]["state"] == "limited"
+    _, brief = http("GET", agents + f"/predictions/{rid}/brief")
+    _, repeated = http("GET", agents + f"/predictions/{rid}/brief")
+    _, saved = http("GET", modeling + f"/results/{rid}")
+    assert saved == prediction and repeated == brief, "explaining a prediction changed its immutable evidence"
+    assert brief["cites"] == [rid] and brief["validity"] == prediction["validity"]
+    assert brief["warnings"] == prediction["warnings"] and brief["assumptions"] == prediction["assumptions"]
+    assert "shoal/under-keel clearance" in brief["hazards_unavailable"]
+    for actual, narrated in zip(prediction["result"]["alternatives"], brief["alternatives"], strict=True):
+        assert narrated["first_breach"] == actual.get("first_breach")
+        assert narrated["closest_approach"] == actual.get("closest_approach")
+        assert narrated["cites"] == [rid]
+        assert not narrated["corridor_available"] and "unavailable" in narrated["uncertainty_note"]
+    return f"S7 {rid}; immutable cited alternatives/warnings, synthetic forcing, uncertainty and uncovered hazards explicit"
+
+
 def finish(http, api: str, accepted: dict, timeout: float = 120.0):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -64,6 +94,56 @@ def plan_events(url: str, timeout: float = 120.0) -> int:
 
 def outcome(result: dict) -> tuple[str, str]:
     return result["status"], result["validity"]["state"]
+
+
+def saved_layout_check(sheet: dict, html: bytes) -> None:
+    layout = sheet["layout"]
+    for field in ("sheet_id", "plan_id", "review_id", "analysis_result_id"):
+        assert layout[field] == sheet[field], f"layout {field} detached from sheet"
+    assert layout["sheet_version"] == sheet["version"]
+    if sheet["validity"]["state"] in ("invalid", "unknown"):
+        assert layout["state"] == "unavailable" and layout["svg"] is None and layout["unavailable_reason"]
+    else:
+        assert layout["state"] == "available", layout
+        assert "<svg" in layout["svg"] and sheet["sheet_id"] in layout["svg"]
+        assert layout["svg"].encode() in html, "printable sheet omitted its saved diagram"
+        assert all(layout[key].startswith("sha256:") for key in ("geometry_hash", "sheet_binding_hash", "ship_revision", "berth_revision"))
+
+
+def forecast_binding_check(ui: str, examples: Path, http, scenario_id: str, stream=plan_events) -> str:
+    agents = ui + "/api/agents/api/v1"
+    request = json.loads((examples / "mooring_forecast_resolve.json").read_text())
+    request["from_utc"] = request["as_of_utc"]
+    request["to_utc"] = (datetime.fromisoformat(request["as_of_utc"].replace("Z", "+00:00")) + timedelta(hours=2)).isoformat()
+    request["forecast"] = request["forecast"][:3]
+    request["forecast_binding"] = {"source": "supplied", "source_id": "explicit-training", "revision": "v1"}
+    _, accepted = http("POST", agents + "/intake/reports", {
+        "scenario_id": scenario_id, "horizon_hours": 2, "forecast_request": request,
+    })
+    intake = finish(http, agents, accepted)
+    _, accepted = http("POST", agents + "/agent/plans", {
+        "scenario_id": scenario_id, "intake_report_id": intake["report_id"], "max_iterations": 1,
+    })
+    stream(ui + "/api/agents" + accepted["events_url"])
+    _, plan = http("GET", agents + "/agent/plans/" + accepted["plan_id"])
+    assert plan["state"] == "succeeded", plan
+    _, accepted = http("POST", agents + "/safety/reviews", {"plan_id": plan["plan_id"]})
+    review = finish(http, agents, accepted)
+    assert review["geometry_snapshot_verified"], "review did not verify frozen references"
+    _, created = http("POST", agents + "/safety-sheets", {"plan_id": plan["plan_id"], "review_id": review["review_id"]})
+    sheet_url = agents + "/safety-sheets/" + created["sheet_id"]
+    _, sheet = http("GET", sheet_url)
+    manifest = intake["forecast_manifest"]
+    assert all(item["forecast_manifest"] == manifest for item in (plan, review, sheet)), "forecast identity changed during handoff"
+    assert manifest["source_id"] == "explicit-training" and manifest["revision"] == "v1"
+    assert len({item["forecast_result_id"] for item in (intake, plan, review)}) == 3, "each stage must log its independent canonical resolve"
+    assert sheet["forecast_result_id"] == review["forecast_result_id"]
+    _, html = http("GET", sheet_url + "/render?format=html")
+    assert manifest["content_hash"].encode() in html and manifest["binding_hash"].encode() in html and b"explicit-training" in html
+    saved_layout_check(sheet, html)
+    _, repeated = http("GET", sheet_url + "/render?format=html")
+    assert html == repeated, "saved sheet render changed without a new sheet version"
+    return "same source/revision/hash across Intake, Planner, independent Safety and immutable illustrated sheet"
 
 
 def four_case_checks(ui: str, http, check, stream=plan_events) -> dict:
@@ -119,6 +199,7 @@ def four_case_checks(ui: str, http, check, stream=plan_events) -> dict:
             _, html = http("GET", sheet_url + "/render?format=html")
             assert len(html) > 500 and f"Validity: {expected[3]}".encode() in html, "sheet omitted validity"
             assert review["review_id"].encode() in html, "sheet omitted independent review identity"
+            saved_layout_check(sheet, html)
             if expected[3] == "invalid":
                 assert b"<td>Unavailable</td><td>Unavailable</td><td>Unavailable</td>" in html, "invalid sheet must withhold line loads and statuses"
             decision = "approve" if review["verdict"] == "ready_for_signature" else "reject"

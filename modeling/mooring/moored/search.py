@@ -27,7 +27,7 @@ from mooring.core.schemas import (
     RecommendRequest, RecommendResponse, RecommendResult, SearchDiagnostics, ShipClass, Validity, ValidityReason,
 )
 from mooring.rules.nstm582 import MST_LIMITS, design_factor
-from mooring.templates import TEMPLATE
+from mooring.templates import TEMPLATE, ship_template_slots
 
 from mooring.mechanics import equilibrium as eq
 from . import solver
@@ -47,7 +47,9 @@ class Slot:
     lead_ft: float
 
 
-def template_slots() -> list[Slot]:
+def template_slots(ship: ShipClass | None = None, side_to: str = "starboard") -> list[Slot]:
+    if ship is not None:
+        return [Slot(s.line_number, s.ship_fitting_id, s.role, s.lead_ft) for s in ship_template_slots(ship, side_to)]
     return [Slot(n, f"BITT-{bitt}@", role, lead) for n, bitt, role, lead in TEMPLATE]
 
 
@@ -84,7 +86,9 @@ def design_cases(berth: Berth, side_to: str, mst: str, forecast: list[Environmen
 def _slot_options(ship: ShipClass, berth: Berth, slot: Slot, side_to: str, ship_x: float, excluded: set[str], neighbors: int, side_tag: str):
     from mooring.core.geometry import ship_to_berth
     cfg0 = MooringConfig(side_to=side_to, ship_x_ft=ship_x, lines=[])
-    bitt = next((f for f in ship.fittings if f.fitting_id == slot.ship_fitting_id.replace("@", side_tag)), None)
+    bitt = next((f for f in ship.fittings if f.fitting_id == slot.ship_fitting_id), None)
+    if bitt is None:
+        bitt = next((f for f in ship.fittings if f.fitting_id == slot.ship_fitting_id.replace("@", side_tag)), None)
     if bitt is None:
         return None, []
     chock = next((f for f in ship.fittings if f.fitting_id == bitt.paired_chock_id), bitt)
@@ -295,7 +299,7 @@ def recommend(req: RecommendRequest, ctx=None) -> RecommendResponse:
     if errors:
         raise refdata.InvalidReference("; ".join(errors))
     side_tag = "S" if req.side_to == "starboard" else "P"
-    out = search_plans(ship, berth, specs, template_slots(), cases, side_to=req.side_to, ship_x_ft=ship_x, loading=req.loading, mst=req.design_mst,
+    out = search_plans(ship, berth, specs, template_slots(ship, req.side_to), cases, side_to=req.side_to, ship_x_ft=ship_x, loading=req.loading, mst=req.design_mst,
                        inventory=inventory, locked=req.locked_lines, excluded=set(req.excluded_fitting_ids), neighbors=req.neighbors_per_line,
                        max_evals=req.max_evaluations, install_level_ft=req.tide_levels_ft[0], side_tag=side_tag, standoff_ft=req.standoff_ft, tugs=req.tugs, ctx=ctx)
     design_env = cases[0][1]

@@ -10,8 +10,11 @@ reviewers and dependencies. This documentation pass ran no tests or CI; previous
 P1's canonical resolver is implemented and merged in #4; it is not a 501 stub. P2 rechecks (#8), initial P3 analytic
 benchmarks (#5), S1 rich runtime/recordings (#6), S7/U8's initial transit-based camera (#14), and U1–U7 UI (#18) are
 merged. #14 addresses several S6 defects but not the full #10 review; see the disposition below. D1–D4 composition,
-source selection, replay and waves remain in open #13 under separate review; A3 agent-wide revision binding remains
-work to do after the available P1/P2 interfaces. No combined release or physical qualification is asserted.
+source selection, replay and waves subsequently merged in #13, followed here by integration of `dev` at `684db99`.
+The Bixler implementation branch now provides supplied/scenario
+agent binding, saved sheet diagrams, prediction narration and ship-input capability gates; see the
+[branch implementation/evidence record](BIXLER_IMPLEMENTATION.md). Public revision discovery and combined release or
+physical qualification are not established by those additions.
 
 Earlier rehearsal evidence (1,769 Python / 227 UI tests and 27 local API/browser checks, with six uncovered readiness
 requirements) belongs to #7's integration branch; see [LOCAL_REHEARSAL.md](LOCAL_REHEARSAL.md). The 1,734/191 morning
@@ -38,7 +41,7 @@ current ownership/order; this ledger records implementation and remaining techni
 | S11 risk | implemented | line and rated ship/pier/fender sampling (fender energy comparison, reaction-force percentiles); combined solve budget; endpoint-inclusive horizon with failed-solve bounds; supplied-snapshot or explicitly synthetic timeline; validity-aware alerts preserving installation tide | Probabilities are scenario outputs until a model is qualified. Sub-sample events remain unresolved; all-failed calculations are invalid. |
 | S12 search | implemented | constrained bounded/exhaustive search; optional candidate resolved_config preserves the assessed installation for later tide rechecks | Fixed holding-tug assistance is evaluated across every case; tug selection is not optimized. Ranking does not use unqualified risk. |
 | S13 sequence | implemented | generation/validation with loading/MST and explicit installation tide, staged parts and tug-release checks, quality/depth/rating guards, nonrecursive timing, cited printable intermediate states | Rule table unverified; durations unreviewed; static only. `draft_unreviewed` always. |
-| F24 advance docking / master P1–P2 | implemented; resolver/recheck merged (#4/#8), supplied-series static scope | Canonical immutable supplied/scenario resolution with content/binding hashes; explicit revision comparison and reassessment without mutating old results. Default at-least-24h lead with explicit short-lead reassessment, candidate arrivals through operation/holding, coverage/issue/replay gates, bounded optional search, retained installation lengths, invalid-snapshot isolation and immutable result references. | A composed public forecast contract now exists, but A3 must still bind agents/watch to one manifest and consumers still require complete component coverage and engineering review. No transient approach/contact/line-handling clearance; separate sequence review required. Synthetic generators are training inputs, not forecasts. |
+| F24 advance docking / master P1–P2 | implemented; resolver/recheck merged (#4/#8), supplied-series static scope | Canonical immutable supplied/scenario resolution with content/binding hashes; explicit revision comparison and reassessment without mutating old results. Default at-least-24h lead with explicit short-lead reassessment, candidate arrivals through operation/holding, coverage/issue/replay gates, bounded optional search, retained installation lengths, invalid-snapshot isolation and immutable result references. | A composed public forecast contract now exists, and A3 binds supplied/scenario agent assessments to one manifest. Agent public-revision acquisition, complete component coverage and engineering review remain. No transient approach/contact/line-handling clearance; separate sequence review required. Synthetic generators are training inputs, not forecasts. |
 | S14 Phase 1 gate | **partial** | `test_s14_phase1_chain.py` (supported, overload, invalid, undetermined); local supported intake→plan→review→approved HTML chain: five runs, median 3.09 s (3.06–3.31 s), Python 3.12.13/macOS arm64, no LLM or external network, synthetic steady input. Actual TCP smoke also passed; PDF returned explicit 501 without native-library discovery; a subsequent full supported chain returned HTTP 200/26,175-byte PDF with the documented macOS library path. | **No subject-matter review.** Four named API chains also complete in 3.10–4.35 s locally; the initially underconstrained arrangement is repairable by search. No performance budget sign-off. Not a release gate pass. |
 | S15 dynamics | synthetic integrator and wiring implemented | RK4 3-DOF; shared batch/interactive adapter; independent P3 analytical benchmarks merged (#5) | **No qualified vessel coefficients**, relative-flow derivatives or operational envelope. |
 | S16 contact/batch | implemented (synthetic scope); physical gate open | Shared integrator; unilateral fenders; line activation/take-up; bounded persisted frames and validity; energy diagnostics; cooperative jobs | No independently sourced contact benchmark, qualified hull coefficients or rupture/snatch law. Not a Phase 2 gate pass. |
@@ -56,6 +59,7 @@ current ownership/order; this ledger records implementation and remaining techni
 | S7/U8 camera | Snyder service; Kori overlay | `/predict/trajectory`, presets and initial missions/Transit overlay (#14) | Berthing engine, complete initial state, changing forcing/live own-ship integration, coastline and calibrated uncertainty; see [PREDICTION.md](PREDICTION.md) |
 | U1–U7 | Kori; Bixler integration | UI and browser-check additions merged (#18) | Combined integration/target evidence; conditional roll/pitch/water displays do not implement missing S2/S3 physics |
 | R1–R9 | Leads in [master plan §11](MASTER_PLAN.md#11-requirements-audit-remediation-prompts) | Executable specifications merged (#12) | Implementation and source evidence still required; use the [ownership table](MASTER_PLAN.md#execution-ownership) |
+| A3/A7/A11, incremental A8/A10 | Bixler | Branch implementation: canonical supplied/scenario identity through agents, cited prediction explanations, frozen illustrated sheets, unsaved ship validation and geometry-based templates | Public provider discovery, U13/U9 consumption, actual additional-class records, loading-specific heights/review metadata and R4–R8 evidence remain; [current tests and handoff](BIXLER_IMPLEMENTATION.md) |
 
 ## PR #10 review disposition
 
@@ -85,6 +89,8 @@ or independently reviewed.
 
 Use the exact implementation PR and CI run for test counts, skips and xfails. This documentation reconciliation
 intentionally skipped tests/CI at Snyder's request; it does not produce new runtime or release evidence.
+The later Bixler branch has a separate [local acceptance record](BIXLER_IMPLEMENTATION.md), including the observed
+status of the conditional shallow-current benchmark. Keep those results separate from the historical counts above.
 
 ## Measured performance (one machine, macOS arm64, Python 3.12, single runs; not a budget sign-off)
 

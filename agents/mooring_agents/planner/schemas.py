@@ -8,6 +8,8 @@ from mooring.core.schemas import JobState, Model, Status
 from mooring.core.schemas import MooringConfig
 from mooring.core.schemas import SequenceResult
 from mooring.core.schemas import TugPlanResult, TugAssignment
+from mooring.core.schemas.forecast_planning import ForecastResolveRequest, ForecastResolutionManifest
+from ..shared.forecast import optional_wire_schema
 
 
 class AgentPlanRequest(Model):
@@ -31,7 +33,11 @@ class RationaleItem(Model):
 
 
 class AgentPlan(Model):
-    wire_omitted_defaults = {"sequence_result_id": None, "installed_at_water_level_mllw_ft": None}
+    wire_omitted_defaults = {"sequence_result_id": None, "installed_at_water_level_mllw_ft": None,
+                            "forecast_manifest": None, "forecast_result_id": None, "forecast_request": None}
+    forecast_manifest: ForecastResolutionManifest | None = Field(default=None, json_schema_extra=optional_wire_schema)
+    forecast_result_id: str | None = Field(default=None, json_schema_extra=optional_wire_schema)
+    forecast_request: ForecastResolveRequest | None = Field(default=None, json_schema_extra=optional_wire_schema)
     plan_id: str
     scenario_id: str
     intake_report_id: str | None = None

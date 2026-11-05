@@ -110,3 +110,10 @@ never zero. Synthetic training records cannot qualify an asset. Numeric or confi
 affected recommendations and require fresh independent review.
 
 Current seed inventory limitation (5 November 2026): CG-47, LHD-1 and CVN-68 have hull/load inputs but no vessel fitting layouts. The template service refuses to construct their line plans. DDG-51-FIIA has a seed layout for limited demonstrations. Prioritize approved fitting coordinates and ratings for any additional class before promising mooring/sequence support; do not borrow the DDG layout.
+
+A8 now provides `POST /api/v1/ships/validate` for an unsaved `ShipClass` and
+`GET /api/v1/ships/{class_id}/capabilities` for installed records. Both return capability states and named missing-input
+reasons. Validation checks IDs, coordinates/side, paired chocks, ratings, inventory and source metadata; it does not
+register records or grant qualification. Template selection uses actual fitting geometry rather than DDG-specific
+IDs. Synthetic non-DDG tests demonstrate software support only. Approved additional-class records, loading-specific
+fitting heights, review metadata and the controlled registration workflow remain outstanding.

@@ -40,6 +40,13 @@ THRUSTER_SLEW_S = 5.0
 TUG_SLEW_S = 10.0
 EPOCH_UTC = "2000-01-01T00:00:00Z"
 
+# Twin-screw / twin-rudder public configuration of the four catalog classes (DDG-51 and CG-47: twin shafts, twin rudders;
+# LHD-1: twin shafts, twin rudders; CVN-68: four shafts, TWO rudders). Labeled; a class not listed has one rudder.
+RUDDER_COUNT = {"DDG-51-FIIA": 2, "CG-47": 2, "LHD-1": 2, "CVN-68": 2}
+CB_INCONSISTENT_FRACTION = 0.20  # catalog Cb replaced by displacement-derived Cb when they differ by more than this
+
+DECEL_PLAN_FRACTION = 0.7       # arrival planner assumes this fraction of the astern-thrust deceleration (resistance help ignored)
+
 DEFAULT_MAX_SPEED_KT = {  # public nominal maximum speeds, NOT trial results
     "DDG-51-FIIA": 30.0, "CG-47": 30.0, "LHD-1": 22.0, "CVN-68": 30.0,
 }
@@ -74,7 +81,10 @@ COEFFICIENT_TABLE: list[Coef] = [
     Coef("Wake fraction w", f"{WAKE_W}", "typical 0.1-0.3", "ASSUMED"),
     Coef("Propeller diameter D", f"{PROP_D_OVER_T} T", "typical 0.5-0.7 T", "ASSUMED"),
     Coef("Race fraction at rudder", f"{RACE_FRACTION}", "between disk (0.5) and fully contracted slipstream (1.0) of momentum theory", "ASSUMED"),
-    Coef("Rudder area A_R", "(T L/100)(1 + 25 (B/L)^2)", "DNV rule guidance for rudder area", "PUBLISHED guidance, used as a size estimate"),
+    Coef("Rudder area A_R (per rudder)", "(T L/100)(1 + 25 (B/L)^2)", "DNV rule guidance for rudder area", "PUBLISHED guidance, used as a size estimate"),
+    Coef("Arrival planning deceleration", f"{DECEL_PLAN_FRACTION} x astern_fraction x T_max / m11 (the arrival ramp is lengthened when the linear ramp would need more)", "autopilot design choice (planning margin), not ship data", "ASSUMED"),
+    Coef("Rudder count", "2 for DDG-51, CG-47, LHD-1, CVN-68; equivalent rudder = count x area, each in its own propeller race (thrust T/count per race)", "public configuration, area per rudder from DNV guidance", "ASSUMED (public configuration); one rudder for any other class"),
+    Coef("Block coefficient for the Clarke terms", "catalog Cb, or m/(rho L B T) when the two differ by more than 20 %", "displacement consistency check with the catalog draft (which may include the sonar dome; the catalog cannot distinguish)", "DERIVED; DDG-51 0.51 -> 0.35, CG-47 0.47 -> 0.36, LHD-1 and CVN-68 keep catalog values"),
     Coef("Rudder aspect ratio", f"{RUDDER_ASPECT}", "typical", "ASSUMED"),
     Coef("Rudder lift slope", "f_a = 6.13 L/(2.25 + L)", "Fujii (1960) as used in the MMG standard method (Yasukawa & Yoshimura 2015)", "PUBLISHED"),
     Coef("Rudder stall angle", f"{RUDDER_STALL_DEG} deg clamp on effective angle", "typical", "ASSUMED"),

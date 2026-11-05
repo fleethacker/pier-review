@@ -34,3 +34,10 @@ export type JobAccepted = S['JobAccepted'];
 
 export type TrackFormat = 'csv' | 'gpx' | 'nmea' | 'geojson';
 export const TRACK_FORMATS: TrackFormat[] = ['csv', 'gpx', 'nmea', 'geojson'];
+
+export type PredictionRequest = S['PredictionRequest'];
+export type PredictionResponse = S['PredictionResponse'];
+export type PredictionPreset = S['PredictionPreset'];
+export type PredictionAlternative = S['PredictionAlternative'];
+export type ObservedShipState = S['ObservedShipState'];
+export type WhatIf = S['WhatIf'];

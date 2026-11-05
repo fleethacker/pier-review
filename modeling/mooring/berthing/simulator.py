@@ -30,6 +30,10 @@ MAX_TRANSITIONS = 10_000
 SERIES = DocStore("simulation_series", SimSeries)
 
 
+class _AdvanceYield(Exception):
+    """Internal cooperative yield after completed work; never a physical/numerical failure."""
+
+
 class BerthingModel:
     def __init__(self, sc, initial, env, *, dt=0.1, duration=900, params=PARAMS):
         self.sc, self.initial, self.env = sc.model_copy(deep=True), initial.model_copy(deep=True), env.model_copy(deep=True)
@@ -136,9 +140,12 @@ class BerthingModel:
         self.pending.append((t, self.sequence, msg))
         self.pending.sort(key=lambda item: item[:2])
 
-    def apply_pending(self):
-        while self.pending and self.pending[0][0] <= self.t+1e-9:
+    def apply_pending(self, *, max_commands=None):
+        applied = 0
+        while (self.pending and self.pending[0][0] <= self.t+1e-9
+               and (max_commands is None or applied < max_commands)):
             _, _, msg = self.pending.pop(0)
+            applied += 1
             if msg.type == "tug_command":
                 force = -msg.force_lbf if msg.direction_rel_deg == 90 else msg.force_lbf
                 self.ramps[msg.tug_id] = (self.t, self.tug_force(msg.tug_id, self.t), force)
@@ -158,6 +165,7 @@ class BerthingModel:
                 # 'tensioned' activates the installed rest length, never resets pretension.
                 self.event_energy += self.body.energy(self.integrator.state)-before
                 self.transitions.append(SimulationTransition(t_s=self.t, kind=msg.event, element_id=f"line-{msg.line_number}"))
+        return applied
 
     def powers(self, t, s):
         w = self.system.env_wrench(self.body.pose(s))
@@ -167,9 +175,19 @@ class BerthingModel:
         damp = sum(d*v*v+q*abs(v)**3 for d,q,v in zip(self.params.damping_lin, self.params.damping_quad, s[3:]))
         return power, damp
 
-    def advance(self, end, *, check=lambda: None, observe=lambda *args: None):
+    def advance(self, end, *, check=lambda: None, observe=lambda *args: None, max_work=None):
+        """Advance on the existing grid/command boundaries, optionally yielding after bounded work.
+
+        One work unit is an accepted integrator step (including a contact subdivision) or one command.
+        A yield preserves pending commands and crossings; the next call continues the same trajectory.
+        """
         if end < self.t or end > self.duration+1e-9:
             raise ValueError("invalid integration target")
+        if max_work is not None and (type(max_work) is not int or max_work < 1):
+            raise ValueError("max_work must be a positive integer")
+        start_steps, applied = self.integrator.steps, 0
+        def remaining():
+            return None if max_work is None else max(0, max_work-(self.integrator.steps-start_steps)-applied)
         def observe_step(t0, s0, t1, s1):
             p0,d0 = self.powers(t0,s0); p1,d1 = self.powers(t1,s1)
             self.work += (t1-t0)*(p0+p1)/2
@@ -191,11 +209,21 @@ class BerthingModel:
             check()
             if self.integrator.steps >= MAX_STEPS:
                 raise ValueError("integration work budget exceeded")
+            if remaining() == 0:
+                raise _AdvanceYield()
         while self.t < end-1e-10:
-            self.apply_pending()
+            applied += self.apply_pending(max_commands=remaining())
+            if remaining() == 0:
+                return
             boundary = min(end, (math.floor((self.t+1e-9)/self.dt)+1)*self.dt,
                            self.pending[0][0] if self.pending else end)
-            self.integrator.advance(boundary, check=bounded_check, observe=observe_step)
+            yielded = False
+            try:
+                self.integrator.advance(boundary, check=bounded_check, observe=observe_step)
+            except _AdvanceYield:
+                yielded = True
+            # A contact subdivision can yield before the requested boundary. Drain all already accepted
+            # crossings now, in their original order; none may be duplicated or lost on the next chunk.
             for t, name, positive in self.integrator.crossings:
                 typ, eid = name.split(":",1)
                 kind = ("contact_start" if positive else "contact_end") if typ=="contact" else ("line_taut" if positive else "line_slack")
@@ -205,7 +233,9 @@ class BerthingModel:
             self.integrator.crossings.clear()
             if len(self.transitions) > MAX_TRANSITIONS:
                 raise ValueError("transition output budget exceeded")
-        self.apply_pending()
+            if yielded:
+                return
+        self.apply_pending(max_commands=remaining())
 
     def validity(self):
         pose = self.body.pose(self.integrator.state)

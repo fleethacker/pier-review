@@ -279,12 +279,14 @@ class MotionEnvironment(Model):
 
 
 class MotionLineState(MotionEvidence):
+    wire_omitted_defaults = {"chock_id": None}
     measurement_fields = ("tension_lbf", "status", "ship_end", "pier_end", "polyline")
 
     line_number: int = Field(ge=1)
     tension_lbf: float | None = Field(default=None, ge=0)
     status: Literal["slack", "taut", "overloaded", "unknown"] = "unknown"
     ship_fitting_id: str | None = None
+    chock_id: str | None = Field(default=None, description="Intermediate ship lead fitting, when the line routes through a chock.")
     pier_fitting_id: str | None = None
     ship_end: BerthPosition | None = None
     pier_end: BerthPosition | None = None
@@ -433,7 +435,9 @@ class SimSamplingPolicy(Model):
 
 
 class SimLifecycle(Model):
-    """Server lifecycle metadata; defining this schema does not enable a new runtime protocol."""
+    """Server lifecycle metadata for the rm0-v1 session stream."""
+
+    wire_omitted_defaults = {"speed": None}
 
     type: Literal["session_lifecycle"] = "session_lifecycle"
     schema_version: Literal["rm0-v1"] = "rm0-v1"
@@ -447,6 +451,7 @@ class SimLifecycle(Model):
     message: str | None = None
     validity: Validity | None = None
     provenance: MotionProvenance | None = None
+    speed: float | None = Field(default=None, gt=0, description="Current simulated seconds per wall second.")
 
     @model_validator(mode="after")
     def error_needs_message(self):

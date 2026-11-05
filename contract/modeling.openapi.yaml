@@ -1851,6 +1851,466 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/missions:
+    get:
+      tags:
+      - S5 Missions
+      summary: Missions visible to the caller
+      operationId: list_missions_api_v1_missions_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Mission'
+                type: array
+                title: Response List Missions Api V1 Missions Get
+    post:
+      tags:
+      - S5 Missions
+      summary: Create a mission
+      operationId: create_mission_api_v1_missions_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MissionCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Mission'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/missions/{mission_id}:
+    get:
+      tags:
+      - S5 Missions
+      summary: One mission
+      operationId: get_mission_api_v1_missions__mission_id__get
+      parameters:
+      - name: mission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mission Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Mission'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/missions/{mission_id}/track:
+    post:
+      tags:
+      - S5 Missions
+      summary: Add recorded fixes (JSON)
+      operationId: ingest_track_api_v1_missions__mission_id__track_post
+      parameters:
+      - name: mission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mission Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackIngest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackIngestResult'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - S5 Missions
+      summary: Recorded track, optionally decimated
+      operationId: get_track_api_v1_missions__mission_id__track_get
+      parameters:
+      - name: mission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mission Id
+      - name: max_points
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200000
+          minimum: 2
+          default: 5000
+          title: Max Points
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionTrack'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/missions/{mission_id}/track/file:
+    post:
+      tags:
+      - S5 Missions
+      summary: Add recorded fixes from a CSV, GPX, NMEA 0183 (RMC/GGA) or GeoJSON file
+      operationId: ingest_track_file_api_v1_missions__mission_id__track_file_post
+      parameters:
+      - name: mission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mission Id
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_ingest_track_file_api_v1_missions__mission_id__track_file_post'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackIngestResult'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/missions/{mission_id}/media:
+    post:
+      tags:
+      - S5 Missions
+      summary: Upload an image (JPEG, PNG or WebP, at most 8 MB) with optional time/offset metadata
+      operationId: upload_media_api_v1_missions__mission_id__media_post
+      parameters:
+      - name: mission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mission Id
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_upload_media_api_v1_missions__mission_id__media_post'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaItem'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - S5 Missions
+      summary: Images for a mission
+      operationId: list_media_api_v1_missions__mission_id__media_get
+      parameters:
+      - name: mission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mission Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MediaItem'
+                title: Response List Media Api V1 Missions  Mission Id  Media Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/missions/{mission_id}/media/{media_id}:
+    get:
+      tags:
+      - S5 Missions
+      summary: Image bytes
+      operationId: get_media_api_v1_missions__mission_id__media__media_id__get
+      parameters:
+      - name: mission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mission Id
+      - name: media_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Media Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            image/jpeg: {}
+            image/png: {}
+            image/webp: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/missions/{mission_id}/reports:
+    post:
+      tags:
+      - S5 Missions
+      summary: Add a timestamped report
+      operationId: add_report_api_v1_missions__mission_id__reports_post
+      parameters:
+      - name: mission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mission Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - S5 Missions
+      summary: Reports for a mission
+      operationId: list_reports_api_v1_missions__mission_id__reports_get
+      parameters:
+      - name: mission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mission Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Report'
+                title: Response List Reports Api V1 Missions  Mission Id  Reports Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/missions/{mission_id}/storyboard:
+    get:
+      tags:
+      - S5 Missions
+      summary: Track plus images and reports located on it by time
+      operationId: storyboard_api_v1_missions__mission_id__storyboard_get
+      parameters:
+      - name: mission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mission Id
+      - name: max_interp_gap_s
+        in: query
+        required: false
+        schema:
+          type: number
+          maximum: 86400
+          exclusiveMinimum: 0
+          default: 300.0
+          title: Max Interp Gap S
+      - name: max_points
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 50000
+          minimum: 2
+          default: 2000
+          title: Max Points
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Storyboard'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/missions/{mission_id}/storyboard.geojson:
+    get:
+      tags:
+      - S5 Missions
+      summary: Storyboard as a GeoJSON FeatureCollection (track LineString, event Points)
+      operationId: storyboard_geojson_api_v1_missions__mission_id__storyboard_geojson_get
+      parameters:
+      - name: mission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Mission Id
+      - name: max_interp_gap_s
+        in: query
+        required: false
+        schema:
+          type: number
+          maximum: 86400
+          exclusiveMinimum: 0
+          default: 300.0
+          title: Max Interp Gap S
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/geo+json: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/transit/simulate:
+    post:
+      tags:
+      - S6 Port transit
+      summary: Simulate vessels entering or leaving port (job; result is a TransitResponse)
+      operationId: simulate_api_v1_transit_simulate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransitRequest'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/transit/simulations/{job_id}/series:
+    get:
+      tags:
+      - S6 Port transit
+      summary: Sampled frames for every vessel from a completed transit run
+      operationId: series_api_v1_transit_simulations__job_id__series_get
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransitSeries'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/transit/presets:
+    get:
+      tags:
+      - S6 Port transit
+      summary: Ready-made inbound/outbound transit requests (labeled demonstration routes)
+      operationId: presets_api_v1_transit_presets_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TransitPreset'
+                type: array
+                title: Response Presets Api V1 Transit Presets Get
   /api/v1/jobs/{job_id}:
     get:
       tags:
@@ -2293,6 +2753,32 @@ components:
         vision or unverified data; usable for demos, results are limited. `unqualified`: required data missing or
 
         inconsistent; a real analysis must not proceed.'
+    AutopilotSettings:
+      properties:
+        lookahead_ship_lengths:
+          type: number
+          maximum: 10.0
+          exclusiveMinimum: 0.0
+          title: Lookahead Ship Lengths
+          description: Line-of-sight lookahead distance.
+          default: 2.0
+        arrival_slowdown_nm:
+          type: number
+          maximum: 5.0
+          minimum: 0.0
+          title: Arrival Slowdown Nm
+          description: Ramp speed down over this distance before the final waypoint.
+          default: 0.5
+        arrival_speed_kt:
+          type: number
+          maximum: 10.0
+          minimum: 0.0
+          title: Arrival Speed Kt
+          description: Target speed at the final waypoint.
+          default: 0.0
+      additionalProperties: false
+      type: object
+      title: AutopilotSettings
     Berth:
       properties:
         berth_id:
@@ -2947,6 +3433,69 @@ components:
       required:
       - windows
       title: BerthingWindowsResult
+    BodyWrench:
+      properties:
+        surge_lbf:
+          type: number
+          title: Surge Lbf
+        sway_lbf:
+          type: number
+          title: Sway Lbf
+        yaw_ftlbf:
+          type: number
+          title: Yaw Ftlbf
+      additionalProperties: false
+      type: object
+      required:
+      - surge_lbf
+      - sway_lbf
+      - yaw_ftlbf
+      title: BodyWrench
+      description: Force and yaw moment on the ship in BODY axes (surge forward, sway port, yaw counterclockwise).
+    Body_ingest_track_file_api_v1_missions__mission_id__track_file_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+          description: Track file, at most 20 MB
+        format:
+          type: string
+          title: Format
+          description: csv | gpx | nmea | geojson
+        utc_offset_min:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Utc Offset Min
+          description: Offset of naive timestamps, minutes east of UTC
+        nmea_date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Nmea Date
+          description: YYYY-MM-DD for NMEA files with GGA only
+      type: object
+      required:
+      - file
+      - format
+      title: Body_ingest_track_file_api_v1_missions__mission_id__track_file_post
+    Body_upload_media_api_v1_missions__mission_id__media_post:
+      properties:
+        image:
+          type: string
+          contentMediaType: application/octet-stream
+          title: Image
+        metadata:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Metadata
+          description: MediaMetadata as JSON
+      type: object
+      required:
+      - image
+      title: Body_upload_media_api_v1_missions__mission_id__media_post
     CapabilityRow:
       properties:
         capability:
@@ -4046,6 +4595,24 @@ components:
       - step_min
       - series
       title: ForecastSeries
+    GeoPoint:
+      properties:
+        lat:
+          type: number
+          maximum: 90.0
+          minimum: -90.0
+          title: Lat
+        lon:
+          type: number
+          maximum: 180.0
+          minimum: -180.0
+          title: Lon
+      additionalProperties: false
+      type: object
+      required:
+      - lat
+      - lon
+      title: GeoPoint
     GustModel:
       properties:
         station_id:
@@ -5014,6 +5581,111 @@ components:
       - wind_rel_ship_deg
       - current_rel_ship_deg
       title: LoadsResult
+    LocatedAt:
+      properties:
+        method:
+          type: string
+          enum:
+          - exact_fix
+          - interpolated
+          - gap
+          - before_track
+          - after_track
+          - no_track
+          - no_time
+          title: Method
+        lat:
+          anyOf:
+          - type: number
+            maximum: 90.0
+            minimum: -90.0
+          - type: 'null'
+          title: Lat
+        lon:
+          anyOf:
+          - type: number
+            maximum: 180.0
+            minimum: -180.0
+          - type: 'null'
+          title: Lon
+        fix_before_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Fix Before Utc
+        fix_after_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Fix After Utc
+        gap_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Gap S
+          description: Span between the bracketing fixes.
+        distance_along_track_nm:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Distance Along Track Nm
+        sog_kt:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Sog Kt
+          description: Speed over ground between the bracketing fixes.
+        heading_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: Heading True Deg
+        stated_lat:
+          anyOf:
+          - type: number
+            maximum: 90.0
+            minimum: -90.0
+          - type: 'null'
+          title: Stated Lat
+          description: Position from EXIF or the report.
+        stated_lon:
+          anyOf:
+          - type: number
+            maximum: 180.0
+            minimum: -180.0
+          - type: 'null'
+          title: Stated Lon
+        stated_source:
+          anyOf:
+          - type: string
+            enum:
+            - exif
+            - report
+          - type: 'null'
+          title: Stated Source
+        discrepancy_m:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Discrepancy M
+          description: Track position vs stated position.
+        validity:
+          $ref: '#/components/schemas/Validity'
+      additionalProperties: false
+      type: object
+      required:
+      - method
+      - validity
+      title: LocatedAt
+      description: Where the ship was at an event time, and how that was established. Null position means not established.
     ManifestRecord:
       properties:
         kind:
@@ -5040,6 +5712,95 @@ components:
       - id
       title: ManifestRecord
       description: A resolved reference record that went into a result.
+    MediaItem:
+      properties:
+        media_id:
+          type: string
+          title: Media Id
+        mission_id:
+          type: string
+          title: Mission Id
+        filename:
+          type: string
+          title: Filename
+        content_type:
+          type: string
+          enum:
+          - image/jpeg
+          - image/png
+          - image/webp
+          title: Content Type
+        bytes:
+          type: integer
+          minimum: 1.0
+          title: Bytes
+        sha256:
+          type: string
+          title: Sha256
+        captured_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Captured Utc
+          description: True time after offsets; null if unknown.
+        time_source:
+          anyOf:
+          - type: string
+            enum:
+            - exif
+            - supplied
+          - type: 'null'
+          title: Time Source
+        time_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Time Note
+          description: How the time was derived, or why it is unknown.
+        camera_clock_offset_s:
+          type: number
+          title: Camera Clock Offset S
+          default: 0.0
+        exif_lat:
+          anyOf:
+          - type: number
+            maximum: 90.0
+            minimum: -90.0
+          - type: 'null'
+          title: Exif Lat
+        exif_lon:
+          anyOf:
+          - type: number
+            maximum: 180.0
+            minimum: -180.0
+          - type: 'null'
+          title: Exif Lon
+        caption:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Caption
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        url:
+          type: string
+          title: Url
+          description: GET path for the image bytes.
+      additionalProperties: false
+      type: object
+      required:
+      - media_id
+      - mission_id
+      - filename
+      - content_type
+      - bytes
+      - sha256
+      - url
+      title: MediaItem
     MinMargin:
       properties:
         element_id:
@@ -5057,6 +5818,131 @@ components:
       - element_id
       - pct_wll
       title: MinMargin
+    Mission:
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        vessel_id:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Vessel Id
+          description: Hull number, MMSI or local identifier.
+        ship_class_id:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Ship Class Id
+        description:
+          anyOf:
+          - type: string
+            maxLength: 4000
+          - type: 'null'
+          title: Description
+        mission_id:
+          type: string
+          title: Mission Id
+        created_at_utc:
+          type: string
+          format: date-time
+          title: Created At Utc
+        fix_count:
+          type: integer
+          minimum: 0.0
+          title: Fix Count
+        media_count:
+          type: integer
+          minimum: 0.0
+          title: Media Count
+        report_count:
+          type: integer
+          minimum: 0.0
+          title: Report Count
+        start_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Start Utc
+        end_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: End Utc
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - vessel_id
+      - mission_id
+      - created_at_utc
+      - fix_count
+      - media_count
+      - report_count
+      title: Mission
+    MissionCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        vessel_id:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Vessel Id
+          description: Hull number, MMSI or local identifier.
+        ship_class_id:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Ship Class Id
+        description:
+          anyOf:
+          - type: string
+            maxLength: 4000
+          - type: 'null'
+          title: Description
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - vessel_id
+      title: MissionCreate
+    MissionTrack:
+      properties:
+        mission_id:
+          type: string
+          title: Mission Id
+        fix_count:
+          type: integer
+          minimum: 0.0
+          title: Fix Count
+          description: Stored fixes, before any display decimation.
+        decimated:
+          type: boolean
+          title: Decimated
+          description: True when fewer fixes are returned than stored (shape-preserving).
+        fixes:
+          items:
+            $ref: '#/components/schemas/TrackFix'
+          type: array
+          title: Fixes
+      additionalProperties: false
+      type: object
+      required:
+      - mission_id
+      - fix_count
+      - decimated
+      - fixes
+      title: MissionTrack
     MooringConfig:
       properties:
         config_id:
@@ -6296,6 +7182,54 @@ components:
       required:
       - points
       title: PolarResult
+    PropulsionAssumptions:
+      properties:
+        max_speed_kt:
+          anyOf:
+          - type: number
+            maximum: 40.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Max Speed Kt
+          description: Calm deep-water speed at full ahead. Null uses the class's labeled default, if any; else invalid.
+        astern_thrust_fraction:
+          type: number
+          maximum: 1.0
+          exclusiveMinimum: 0.0
+          title: Astern Thrust Fraction
+          description: Full-astern thrust / full-ahead thrust.
+          default: 0.6
+        engine_time_constant_s:
+          type: number
+          maximum: 300.0
+          exclusiveMinimum: 0.0
+          title: Engine Time Constant S
+          description: First-order lag of delivered thrust.
+          default: 20.0
+        max_rudder_deg:
+          type: number
+          maximum: 45.0
+          exclusiveMinimum: 0.0
+          title: Max Rudder Deg
+          default: 35.0
+        rudder_rate_degps:
+          type: number
+          maximum: 20.0
+          exclusiveMinimum: 0.0
+          title: Rudder Rate Degps
+          description: Default from the common 35-to-30-degrees-in-28-seconds steering-gear criterion.
+          default: 2.33
+        bow_thruster_lbf:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Bow Thruster Lbf
+          description: Null means no bow thruster.
+      additionalProperties: false
+      type: object
+      title: PropulsionAssumptions
+      description: Reference data has no propulsion or rudder data; these are explicit, labeled assumptions.
     Provenance:
       properties:
         source:
@@ -6521,6 +7455,112 @@ components:
       - berth_id
       - side_to
       title: RecommendRequest
+    Report:
+      properties:
+        t_utc:
+          type: string
+          format: date-time
+          title: T Utc
+        title:
+          type: string
+          maxLength: 300
+          minLength: 1
+          title: Title
+        body:
+          type: string
+          maxLength: 20000
+          title: Body
+          default: ''
+        author:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Author
+        lat:
+          anyOf:
+          - type: number
+            maximum: 90.0
+            minimum: -90.0
+          - type: 'null'
+          title: Lat
+          description: Position stated in the report, if any.
+        lon:
+          anyOf:
+          - type: number
+            maximum: 180.0
+            minimum: -180.0
+          - type: 'null'
+          title: Lon
+        tags:
+          items:
+            type: string
+          type: array
+          maxItems: 32
+          title: Tags
+        report_id:
+          type: string
+          title: Report Id
+        mission_id:
+          type: string
+          title: Mission Id
+      additionalProperties: false
+      type: object
+      required:
+      - t_utc
+      - title
+      - report_id
+      - mission_id
+      title: Report
+    ReportCreate:
+      properties:
+        t_utc:
+          type: string
+          format: date-time
+          title: T Utc
+        title:
+          type: string
+          maxLength: 300
+          minLength: 1
+          title: Title
+        body:
+          type: string
+          maxLength: 20000
+          title: Body
+          default: ''
+        author:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Author
+        lat:
+          anyOf:
+          - type: number
+            maximum: 90.0
+            minimum: -90.0
+          - type: 'null'
+          title: Lat
+          description: Position stated in the report, if any.
+        lon:
+          anyOf:
+          - type: number
+            maximum: 180.0
+            minimum: -180.0
+          - type: 'null'
+          title: Lon
+        tags:
+          items:
+            type: string
+          type: array
+          maxItems: 32
+          title: Tags
+      additionalProperties: false
+      type: object
+      required:
+      - t_utc
+      - title
+      title: ReportCreate
     ResultManifest:
       properties:
         resolved_inputs_hash:
@@ -7927,6 +8967,86 @@ components:
       - station_id
       - age_s
       title: StationQuality
+    Storyboard:
+      properties:
+        mission:
+          $ref: '#/components/schemas/Mission'
+        max_interp_gap_s:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Max Interp Gap S
+        stats:
+          $ref: '#/components/schemas/TrackStats'
+        track:
+          items:
+            $ref: '#/components/schemas/TrackFix'
+          type: array
+          title: Track
+          description: Shape-preserving decimated track for display.
+        events:
+          items:
+            $ref: '#/components/schemas/StoryboardEvent'
+          type: array
+          title: Events
+          description: Time order; events without a time come last.
+        validity:
+          $ref: '#/components/schemas/Validity'
+      additionalProperties: false
+      type: object
+      required:
+      - mission
+      - max_interp_gap_s
+      - stats
+      - track
+      - events
+      - validity
+      title: Storyboard
+    StoryboardEvent:
+      properties:
+        kind:
+          type: string
+          enum:
+          - image
+          - report
+          title: Kind
+        event_id:
+          type: string
+          title: Event Id
+          description: media_id or report_id.
+        t_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: T Utc
+        title:
+          type: string
+          title: Title
+        body:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Body
+        media_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Media Url
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        located:
+          $ref: '#/components/schemas/LocatedAt'
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - event_id
+      - title
+      - located
+      title: StoryboardEvent
     SyntheticForecastRequest:
       properties:
         berth_id:
@@ -8541,6 +9661,156 @@ components:
       - environment
       title: TimelineRequest
       description: At most 25,000 baseline, per-knot and Monte Carlo equilibrium solves per job.
+    TrackFix:
+      properties:
+        t_utc:
+          type: string
+          format: date-time
+          title: T Utc
+        lat:
+          type: number
+          maximum: 90.0
+          minimum: -90.0
+          title: Lat
+        lon:
+          type: number
+          maximum: 180.0
+          minimum: -180.0
+          title: Lon
+        heading_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: Heading True Deg
+          description: Bow heading, if recorded.
+        cog_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: Cog True Deg
+          description: Course over ground, if recorded.
+        sog_kt:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Sog Kt
+          description: Speed over ground, if recorded.
+        hdop:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Hdop
+        quality:
+          type: string
+          enum:
+          - good
+          - degraded
+          - unknown
+          title: Quality
+          default: unknown
+        source:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Source
+          description: e.g. gps, ais, nmea, simulated:<job_id>.
+      additionalProperties: false
+      type: object
+      required:
+      - t_utc
+      - lat
+      - lon
+      title: TrackFix
+      description: One recorded (or simulated) position. Shared by S5 ingestion and S6 simulated tracks.
+    TrackIngest:
+      properties:
+        fixes:
+          items:
+            $ref: '#/components/schemas/TrackFix'
+          type: array
+          maxItems: 200000
+          minItems: 1
+          title: Fixes
+      additionalProperties: false
+      type: object
+      required:
+      - fixes
+      title: TrackIngest
+      description: JSON track ingestion. Fixes are merged with any existing track for the mission.
+    TrackIngestResult:
+      properties:
+        mission_id:
+          type: string
+          title: Mission Id
+        format:
+          type: string
+          enum:
+          - csv
+          - gpx
+          - nmea
+          - geojson
+          - json
+          title: Format
+        accepted:
+          type: integer
+          minimum: 0.0
+          title: Accepted
+        rejected:
+          type: integer
+          minimum: 0.0
+          title: Rejected
+        duplicates:
+          type: integer
+          minimum: 0.0
+          title: Duplicates
+          description: Fixes with a timestamp already present; the first one is kept.
+        reordered:
+          type: integer
+          minimum: 0.0
+          title: Reordered
+          description: Fixes received out of time order (stored sorted).
+        errors:
+          items:
+            type: string
+          type: array
+          maxItems: 50
+          title: Errors
+          description: First errors, with line/record numbers.
+        fix_count:
+          type: integer
+          minimum: 0.0
+          title: Fix Count
+          description: Total fixes now stored for the mission.
+        start_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Start Utc
+        end_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: End Utc
+      additionalProperties: false
+      type: object
+      required:
+      - mission_id
+      - format
+      - accepted
+      - rejected
+      - duplicates
+      - reordered
+      - fix_count
+      title: TrackIngestResult
     TrackPoint:
       properties:
         lat:
@@ -8575,6 +9845,492 @@ components:
       - cross_track_ft
       - ukc_ft
       title: TrackPoint
+    TrackStats:
+      properties:
+        fix_count:
+          type: integer
+          minimum: 0.0
+          title: Fix Count
+        start_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Start Utc
+        end_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: End Utc
+        duration_s:
+          type: number
+          minimum: 0.0
+          title: Duration S
+        distance_nm:
+          type: number
+          minimum: 0.0
+          title: Distance Nm
+        max_gap_s:
+          type: number
+          minimum: 0.0
+          title: Max Gap S
+        gaps_over_limit:
+          type: integer
+          minimum: 0.0
+          title: Gaps Over Limit
+          description: Gaps longer than max_interp_gap_s.
+      additionalProperties: false
+      type: object
+      required:
+      - fix_count
+      - duration_s
+      - distance_nm
+      - max_gap_s
+      - gaps_over_limit
+      title: TrackStats
+    TransitForces:
+      properties:
+        hull:
+          $ref: '#/components/schemas/BodyWrench'
+        propeller:
+          $ref: '#/components/schemas/BodyWrench'
+        rudder:
+          $ref: '#/components/schemas/BodyWrench'
+        wind:
+          $ref: '#/components/schemas/BodyWrench'
+        tugs:
+          $ref: '#/components/schemas/BodyWrench'
+        bow_thruster:
+          $ref: '#/components/schemas/BodyWrench'
+      additionalProperties: false
+      type: object
+      required:
+      - hull
+      - propeller
+      - rudder
+      - wind
+      - tugs
+      - bow_thruster
+      title: TransitForces
+    TransitFrame:
+      properties:
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+        t_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: T Utc
+        vessels:
+          items:
+            $ref: '#/components/schemas/TransitVesselState'
+          type: array
+          title: Vessels
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - vessels
+      title: TransitFrame
+    TransitHelmCommand:
+      properties:
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+        rudder_deg:
+          anyOf:
+          - type: number
+            maximum: 45.0
+            minimum: -45.0
+          - type: 'null'
+          title: Rudder Deg
+        engine_order:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: -1.0
+          - type: 'null'
+          title: Engine Order
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      title: TransitHelmCommand
+      description: Scripted helm/engine order at a simulation time. A null field leaves that control to the autopilot.
+    TransitPreset:
+      properties:
+        preset_id:
+          type: string
+          title: Preset Id
+        title:
+          type: string
+          title: Title
+        description:
+          type: string
+          title: Description
+        request:
+          $ref: '#/components/schemas/TransitRequest'
+        validity:
+          $ref: '#/components/schemas/Validity'
+      additionalProperties: false
+      type: object
+      required:
+      - preset_id
+      - title
+      - description
+      - request
+      - validity
+      title: TransitPreset
+    TransitRequest:
+      properties:
+        vessels:
+          items:
+            $ref: '#/components/schemas/VesselTransit'
+          type: array
+          maxItems: 8
+          minItems: 1
+          title: Vessels
+        environment:
+          anyOf:
+          - $ref: '#/components/schemas/EnvironmentSnapshot'
+          - type: 'null'
+          description: Steady wind/current for the whole run. Null means explicitly calm (labeled), not unknown.
+        start_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Start Utc
+          description: Optional UTC epoch for track timestamps.
+        origin:
+          anyOf:
+          - $ref: '#/components/schemas/GeoPoint'
+          - type: 'null'
+          description: Local plane origin; default the first vessel's start.
+        duration_s:
+          type: number
+          maximum: 14400.0
+          exclusiveMinimum: 0.0
+          title: Duration S
+          default: 3600
+        dt_s:
+          type: number
+          maximum: 1.0
+          minimum: 0.05
+          title: Dt S
+          default: 0.2
+        sample_interval_s:
+          anyOf:
+          - type: number
+            minimum: 0.5
+          - type: 'null'
+          title: Sample Interval S
+          description: Output frame spacing; default 2 s.
+      additionalProperties: false
+      type: object
+      required:
+      - vessels
+      title: TransitRequest
+    TransitSeries:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+        frames:
+          items:
+            $ref: '#/components/schemas/TransitFrame'
+          type: array
+          title: Frames
+      additionalProperties: false
+      type: object
+      required:
+      - job_id
+      - frames
+      title: TransitSeries
+    TransitStart:
+      properties:
+        lat:
+          type: number
+          maximum: 90.0
+          minimum: -90.0
+          title: Lat
+        lon:
+          type: number
+          maximum: 180.0
+          minimum: -180.0
+          title: Lon
+        heading_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Heading True Deg
+        speed_kt:
+          type: number
+          maximum: 35.0
+          minimum: 0.0
+          title: Speed Kt
+          description: Initial surge speed through the water.
+          default: 0
+      additionalProperties: false
+      type: object
+      required:
+      - lat
+      - lon
+      - heading_true_deg
+      title: TransitStart
+    TransitTugCommand:
+      properties:
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+        tug_id:
+          type: string
+          title: Tug Id
+        point:
+          type: string
+          enum:
+          - bow
+          - stern
+          - port_shoulder
+          - starboard_shoulder
+          - port_quarter
+          - starboard_quarter
+          title: Point
+        force_lbf:
+          type: number
+          minimum: 0.0
+          title: Force Lbf
+        direction_rel_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Direction Rel Deg
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - tug_id
+      - point
+      - force_lbf
+      - direction_rel_deg
+      title: TransitTugCommand
+      description: 'Timed tug force on the hull at a named point. Direction is relative to the bow, clockwise: 0 = ahead
+
+        (towing forward), 90 = toward starboard, 180 = astern (braking), 270 = toward port.'
+    TransitTugState:
+      properties:
+        tug_id:
+          type: string
+          title: Tug Id
+        point:
+          type: string
+          enum:
+          - bow
+          - stern
+          - port_shoulder
+          - starboard_shoulder
+          - port_quarter
+          - starboard_quarter
+          title: Point
+        force_lbf:
+          type: number
+          minimum: 0.0
+          title: Force Lbf
+        direction_rel_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Direction Rel Deg
+        lat:
+          type: number
+          maximum: 90.0
+          minimum: -90.0
+          title: Lat
+          description: Hull contact point; tug hull kinematics are not modeled.
+        lon:
+          type: number
+          maximum: 180.0
+          minimum: -180.0
+          title: Lon
+        source:
+          type: string
+          enum:
+          - command
+          - auto_assist
+          title: Source
+      additionalProperties: false
+      type: object
+      required:
+      - tug_id
+      - point
+      - force_lbf
+      - direction_rel_deg
+      - lat
+      - lon
+      - source
+      title: TransitTugState
+    TransitVesselState:
+      properties:
+        vessel_id:
+          type: string
+          title: Vessel Id
+        lat:
+          type: number
+          maximum: 90.0
+          minimum: -90.0
+          title: Lat
+        lon:
+          type: number
+          maximum: 180.0
+          minimum: -180.0
+          title: Lon
+        x_east_ft:
+          type: number
+          title: X East Ft
+        y_north_ft:
+          type: number
+          title: Y North Ft
+        heading_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Heading True Deg
+        cog_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: Cog True Deg
+          description: Null when nearly stopped.
+        sog_kt:
+          type: number
+          minimum: 0.0
+          title: Sog Kt
+        stw_kt:
+          type: number
+          title: Stw Kt
+          description: Surge speed through the water, + ahead.
+        u_kt:
+          type: number
+          title: U Kt
+        v_kt:
+          type: number
+          title: V Kt
+          description: Sway through the water, + to port.
+        r_degps:
+          type: number
+          title: R Degps
+          description: Yaw rate, + counterclockwise (to port).
+        rudder_deg:
+          type: number
+          title: Rudder Deg
+        engine_order:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Engine Order
+          description: Commanded order.
+        thrust_lbf:
+          type: number
+          title: Thrust Lbf
+          description: Delivered thrust after engine lag, + ahead.
+        leg_index:
+          type: integer
+          minimum: 0.0
+          title: Leg Index
+          description: Index of the waypoint being steered for.
+        cross_track_ft:
+          type: number
+          title: Cross Track Ft
+          description: Signed distance from the current leg, + to port of track.
+        distance_to_go_nm:
+          type: number
+          minimum: 0.0
+          title: Distance To Go Nm
+        status:
+          type: string
+          enum:
+          - underway
+          - arrived
+          - stopped_short
+          - invalid
+          title: Status
+        tugs:
+          items:
+            $ref: '#/components/schemas/TransitTugState'
+          type: array
+          title: Tugs
+        forces:
+          $ref: '#/components/schemas/TransitForces'
+      additionalProperties: false
+      type: object
+      required:
+      - vessel_id
+      - lat
+      - lon
+      - x_east_ft
+      - y_north_ft
+      - heading_true_deg
+      - sog_kt
+      - stw_kt
+      - u_kt
+      - v_kt
+      - r_degps
+      - rudder_deg
+      - engine_order
+      - thrust_lbf
+      - leg_index
+      - cross_track_ft
+      - distance_to_go_nm
+      - status
+      - forces
+      title: TransitVesselState
+    TransitWaypoint:
+      properties:
+        lat:
+          type: number
+          maximum: 90.0
+          minimum: -90.0
+          title: Lat
+        lon:
+          type: number
+          maximum: 180.0
+          minimum: -180.0
+          title: Lon
+        name:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Name
+        speed_kt:
+          type: number
+          maximum: 35.0
+          minimum: 0.0
+          title: Speed Kt
+          description: Target speed through the water on the leg ending here.
+        acceptance_radius_ft:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Acceptance Radius Ft
+          description: Switch to the next leg inside this radius; default two ship lengths. The final waypoint is the arrival
+            point.
+      additionalProperties: false
+      type: object
+      required:
+      - lat
+      - lon
+      - speed_kt
+      title: TransitWaypoint
     TugAssignment:
       properties:
         tug_id:
@@ -8609,6 +10365,33 @@ components:
       - mode
       - force_lbf
       title: TugAssignment
+    TugAssistSettings:
+      properties:
+        policy:
+          type: string
+          enum:
+          - manual
+          - auto
+          title: Policy
+          default: auto
+        tug_ids:
+          items:
+            type: string
+          type: array
+          maxItems: 4
+          title: Tug Ids
+          description: Tugs available; empty uses the catalog's first two.
+        assist_below_kt:
+          type: number
+          maximum: 12.0
+          minimum: 0.0
+          title: Assist Below Kt
+          description: Automatic assist applies below this speed.
+          default: 5.0
+      additionalProperties: false
+      type: object
+      title: TugAssistSettings
+      description: 'Automatic low-speed assist: tugs supply the yaw moment the rudder cannot and brake on arrival.'
     TugCommand:
       properties:
         t_s:
@@ -9098,6 +10881,64 @@ components:
       - api_version
       - modules
       title: VersionInfo
+    VesselTransit:
+      properties:
+        vessel_id:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Vessel Id
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        start:
+          $ref: '#/components/schemas/TransitStart'
+        route:
+          items:
+            $ref: '#/components/schemas/TransitWaypoint'
+          type: array
+          maxItems: 200
+          minItems: 1
+          title: Route
+        mode:
+          type: string
+          enum:
+          - own_thrust
+          - tug_assisted
+          title: Mode
+          default: own_thrust
+        propulsion:
+          $ref: '#/components/schemas/PropulsionAssumptions'
+        autopilot:
+          $ref: '#/components/schemas/AutopilotSettings'
+        helm_commands:
+          items:
+            $ref: '#/components/schemas/TransitHelmCommand'
+          type: array
+          maxItems: 2000
+          title: Helm Commands
+        tug_commands:
+          items:
+            $ref: '#/components/schemas/TransitTugCommand'
+          type: array
+          maxItems: 2000
+          title: Tug Commands
+        tug_assist:
+          anyOf:
+          - $ref: '#/components/schemas/TugAssistSettings'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - vessel_id
+      - ship_class_id
+      - start
+      - route
+      title: VesselTransit
     Waypoint:
       properties:
         lat:
@@ -11141,6 +12982,194 @@ components:
       - governing_element
       title: TimelineStep
       type: object
+    TransitEvent:
+      additionalProperties: false
+      properties:
+        t_s:
+          minimum: 0
+          title: T S
+          type: number
+        vessel_id:
+          title: Vessel Id
+          type: string
+        kind:
+          enum:
+          - waypoint_reached
+          - arrived
+          - rudder_saturated
+          - tug_saturated
+          - large_cross_track
+          - stopped_short
+          - integration_failed
+          title: Kind
+          type: string
+        detail:
+          title: Detail
+          type: string
+      required:
+      - t_s
+      - vessel_id
+      - kind
+      - detail
+      title: TransitEvent
+      type: object
+    TransitResponse:
+      additionalProperties: false
+      properties:
+        result_id:
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+          title: Result Id
+          type: string
+        model:
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+          title: Model
+          type: string
+        model_version:
+          title: Model Version
+          type: string
+        backend:
+          description: '''mock'' until the workstream''s real module lands.'
+          enum:
+          - mock
+          - real
+          title: Backend
+          type: string
+        inputs_hash:
+          description: sha256 of the canonical request JSON.
+          title: Inputs Hash
+          type: string
+        computed_at_utc:
+          format: date-time
+          title: Computed At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        assumptions:
+          items:
+            type: string
+          title: Assumptions
+          type: array
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          title: Warnings
+          type: array
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          default: null
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/TransitResult'
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: TransitResponse
+      type: object
+    TransitResult:
+      additionalProperties: false
+      properties:
+        series_url:
+          title: Series Url
+          type: string
+        vessels:
+          items:
+            $ref: '#/components/schemas/TransitVesselSummary'
+          title: Vessels
+          type: array
+        events:
+          items:
+            $ref: '#/components/schemas/TransitEvent'
+          title: Events
+          type: array
+      required:
+      - series_url
+      - vessels
+      - events
+      title: TransitResult
+      type: object
+    TransitVesselSummary:
+      additionalProperties: false
+      properties:
+        vessel_id:
+          title: Vessel Id
+          type: string
+        ship_class_id:
+          title: Ship Class Id
+          type: string
+        mode:
+          enum:
+          - own_thrust
+          - tug_assisted
+          title: Mode
+          type: string
+        arrived:
+          title: Arrived
+          type: boolean
+        arrival_t_s:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          title: Arrival T S
+        distance_nm:
+          minimum: 0
+          title: Distance Nm
+          type: number
+        max_cross_track_ft:
+          minimum: 0
+          title: Max Cross Track Ft
+          type: number
+        max_rudder_deg:
+          minimum: 0
+          title: Max Rudder Deg
+          type: number
+        max_tug_force_lbf:
+          minimum: 0
+          title: Max Tug Force Lbf
+          type: number
+        max_speed_assumed_kt:
+          exclusiveMinimum: 0
+          title: Max Speed Assumed Kt
+          type: number
+        track:
+          description: Sampled positions in the S5 fix format, for storyboard replay.
+          items:
+            $ref: '#/components/schemas/TrackFix'
+          title: Track
+          type: array
+      required:
+      - vessel_id
+      - ship_class_id
+      - mode
+      - arrived
+      - distance_nm
+      - max_cross_track_ft
+      - max_rudder_deg
+      - max_tug_force_lbf
+      - max_speed_assumed_kt
+      - track
+      title: TransitVesselSummary
+      type: object
     UncertaintyModel:
       additionalProperties: false
       description: 'A versioned description of what is random in the environment and how it was obtained.
@@ -11318,6 +13347,10 @@ tags:
   description: 'Phase 3: route, under-keel clearance, approach simulation.'
 - name: M13 Telemetry
   description: Ship sensor ingest for deployment.
+- name: S5 Missions
+  description: 'Mission storyboarding: recorded tracks with images and reports located by time.'
+- name: S6 Port transit
+  description: Ships entering or leaving port on own thrust or with tugs (surrogate maneuvering).
 - name: System
   description: Jobs, stored results, health.
 servers:

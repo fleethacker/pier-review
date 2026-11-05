@@ -108,7 +108,7 @@ file, and use each as the other's independent reviewer.
 
 | Session | Lane | Files (exclusive) |
 | --- | --- | --- |
-| **Claude (M-SIM)** | Simulation runtime: S1 → S2 → S3 | `berthing/`, `sim_sessions.py`, `ws.py`, `routers/berthing.py`, `schemas/motion.py`, `schemas/dynamics.py` |
+| **Claude (M-SIM)** | Simulation runtime: S1 → S2 → **S5 + S6** → S3 | `berthing/`, `sim_sessions.py`, `ws.py`, `routers/berthing.py`, `schemas/motion.py`, `schemas/dynamics.py`; new `missions/`, `transit/`, `routers/{missions,transit}.py`, `schemas/{missions,transit}.py` |
 | **GPT (M-PLAN)** | Static modeling and the forecast consumer side: P1 → P2 → S4 → P3, then benchmarks for S1–S3 | `moored/`, `loads/`, `mechanics/`, `tugs/`, `rules/`, `data_simulation/`, `routers/{moored,loads}.py`, `schemas/{forecast_planning,planning,mooring,risk}.py` |
 
 Rules for the two sessions:
@@ -138,6 +138,31 @@ motion schemas; reset/reconnect/slow-client/flood tests; batch/WS equivalence an
 current without double-counting damping; water level updates depth and line geometry without changing paid-out lengths.
 Uncovered forcing stops or invalidates per a documented policy. Synthetic series come from `data_simulation/` (GPT lane)
 or Cruz's series contract; use fixtures until those land.
+
+**S5 (P0, added 5 Nov). Mission storyboarding.** After a mission, rebuild the ship's path from its recorded lat/lon
+fixes and tie timestamped images and reports to positions on that path. Ingest tracks (JSON, CSV, GPX, NMEA RMC/GGA),
+images (timestamp and position from EXIF, with a supplied camera clock offset and UTC offset, or an explicit timestamp)
+and reports (timestamp, text, optional reported position). Locate every event on the track by time with an explicit
+method: exact fix, interpolated between fixes, in a gap longer than the allowed interpolation span, or before/after the
+track; never extrapolate. Compare the interpolated position with EXIF/reported positions and report the discrepancy.
+Outputs: storyboard (time-ordered events with positions, distance along track, speed), decimated track, GeoJSON export.
+Naive timestamps are rejected unless an offset is supplied; duplicates and out-of-order fixes are reported, not hidden.
+UI: a storyboard view (track on the map, event markers, timeline scrubber that moves the ship along the path, image and
+report panels). Acceptance: parser fixtures for each format, interpolation/gap/extrapolation tests, EXIF timezone and
+clock-offset tests, round-trip GeoJSON, bounded upload sizes, ownership checks.
+
+**S6 (P0, added 5 Nov). Port transit simulation: own thrust and tug-assisted, multiple ships.** Simulate ships entering
+or leaving port along lat/lon routes under their own propulsion, or with tugs. 3-DOF maneuvering (surge, sway, yaw) in a
+local tangent plane tied to lat/lon; hull forces from published main-dimension regressions (Clarke et al. 1983 linear
+derivatives, Mumford wetted surface), propeller thrust with engine lag, rudder with rate limit and propeller wash,
+apparent wind through the existing UFC loads, current as moving water. Line-of-sight autopilot with leg speeds and an
+arrival slowdown; tugs by timed commands or an automatic low-speed turning/braking assist within bollard pull and slew.
+Several vessels on one clock (no ship–ship interaction, stated). Propulsion data are explicit labeled assumptions (no
+ship speed/power in reference data). Validity always limited with reasons (surrogate maneuvering, assumed propulsion,
+deep water: no squat/bank/UKC, tug kinematics not modeled). Simulated tracks use the S5 fix format so they replay in the
+storyboard. Acceptance: analytic and sanity benchmarks (steady speed, zero-rudder straight line, turning-circle
+symmetry and range, rudder step response, drift with current, pure tug sway force, deceleration), multi-vessel
+independence, determinism, inbound and outbound Norfolk presets that reach their final waypoint.
 
 **S3 (P2). Tug geometry and vertical motion.** Packet 5. Tugs bound to permitted push points, capacity and slew; moments from
 contact geometry; tug positions only where a kinematic model exists. Tide-following heave first; quasi-static heel only
@@ -235,6 +260,7 @@ Times are relative to the start of work after the remote move (**T0**). Adjust t
 | T0 + 1 h | Default branch/CI confirmed on the new remote, everyone re-cloned (A0). Contract-only PRs opened for S1 (frames/scene/recording routes) and D1 (availability shape) | Bixler, Snyder (Claude), Cruz |
 | T0 + 3 h | U1 merged; S1 live frames merged; D1 merged; demo-check extended to the planning chain | Kori, Snyder, Cruz, Bixler |
 | T0 + 5 h | U2 live rm0 motion in the UI; D2 series contract + fixtures published; P1 resolver against fixtures. **Release to `main` #1** | Kori, Cruz, Snyder (GPT), Bixler |
+| T0 + 6 h | S5 storyboarding and S6 port transit merged (added 5 Nov; executed in parallel with sub-agents) | Snyder (Claude) |
 | T0 + 8 h | S2 sim-time forcing; D2 composed forecast; U3/U4; A3 agents on forecast revision. **Release to `main` #2** | all |
 | Then | P2 items: S3, S4/D4, U5–U7, D5, A5. Release after each green milestone | all |
 | Freeze (end − 3 h) | Features stop. Only fixes, docs, demo-check | all |

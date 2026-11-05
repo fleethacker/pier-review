@@ -41,7 +41,7 @@ The gust-model endpoint now projects the committed fitted artifact and reports i
 
 Risk timeline can consume exact supplied `forecast` snapshots with explicit `start_utc`, endpoint coverage and <=60-minute gaps. Show each step’s environment/validity and the result’s `forcing_source`. Omitted forecast is always labeled synthetic training; never call it NOAA output merely because a provider is enabled. Supplied knots are all evaluated, independent of the legacy display interval.
 
-Live `/ws/alerts` messages now carry optional `validity`. Invalid environmental or plan inputs produce RED with no usable utilization; seed-data assessments remain explicitly limited. Observation-only messages do not establish mooring adequacy. Alerts preserve the plan’s original installation tide as conditions change; they do not retension lines at each new tide. Show validity reasons alongside severity and stale state.
+Live `/ws/alerts` messages now carry optional `validity`. Invalid environmental or plan inputs produce RED with no usable utilization; seed-data assessments remain explicitly limited. Observation-only messages do not establish mooring adequacy. Within one connection, alerts preserve the initial assessed installation tide as conditions change; explicit paid-out lengths remain authoritative. Reconnecting a scenario without explicit lengths establishes a new connection-time installation assumption, not a persisted plan installation. They do not retension lines at each new tide within that connection. Show validity reasons alongside severity and stale state.
 
 ## Integration checklist for the UI agent
 
@@ -57,3 +57,7 @@ Live `/ws/alerts` messages now carry optional `validity`. Invalid environmental 
 The isolated review of `ui/frontend-updates` is recorded in [UI_COMPATIBILITY_REVIEW.md](overnight/UI_COMPATIBILITY_REVIEW.md). Its owner-directed no-merge hold remains respected; the review lists concrete compatibility and browser blockers.
 
 Use the shared inbox protocol in [team_agent_instructions/README.md](../team_agent_instructions/README.md). Watch `origin/dev`, active UI/data/modeling branches and the three `docs/overnight/` files at each integration point. Publish endpoint changes, fixtures, assumptions and test status before consumers depend on them. Never auto-merge unchecked work or edit another agent's worktree.
+
+`/ws/alerts` resolves the same scenario source for every frame. Terminal close 1013 means the source is unavailable (no replacement snapshot); 4404 means unknown/unowned scenario or reference; 4400 means invalid timing/reference. Show unavailable rather than retaining an apparently live utilization. Reconnect with backoff after a transient provider failure.
+
+Direct saved-scenario `replay`/`forecast` modes are not implemented by the shared snapshot resolver and are rejected. For recorded playback use an explicit environment scenario; advance planning uses the supplied-series forecast endpoint. Saving a mode name does not establish a data feed.

@@ -68,22 +68,39 @@ async def ws_env(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", mode: st
 @router.websocket("/ws/alerts")
 async def ws_alerts(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", scenario_id: str | None = None,
                     interval_s: float = 5.0, limit: int = 0):
+    import math
+    from mooring import refdata
+
     await ws.accept()
+    if not math.isfinite(interval_s) or interval_s < 0 or limit < 0 or (limit == 0 and interval_s == 0):
+        await ws.close(code=4400, reason="Invalid alert interval/limit; an unbounded stream needs a positive interval")
+        return
     analyze_req = None
-    if scenario_id:
-        sc = scenarios.get(scenario_id)
-        berth_id = sc.berth_id
-        if sc.config:
-            analyze_req = AnalyzeRequest(ship_class_id=sc.ship_class_id, loading=sc.loading, berth_id=sc.berth_id,
-                                         config=sc.config, environment=scenarios.environment_for(sc), tugs=sc.tugs)
     sent = 0
     try:
+        sc = scenarios.get(scenario_id) if scenario_id else None
         while limit == 0 or sent < limit:
-            alert = risk.alert_for(env.now(berth_id), analyze_req)
+            # Resolve the same saved source for every frame; never swap a scenario for live/mock data.
+            snapshot = scenarios.environment_for(sc) if sc else env.now(berth_id)
+            if sc and sc.config and analyze_req is None:
+                analyze_req = AnalyzeRequest(ship_class_id=sc.ship_class_id, loading=sc.loading, berth_id=sc.berth_id,
+                    config=sc.config, environment=snapshot, tugs=sc.tugs)
+            alert = risk.alert_for(snapshot, analyze_req)
             await ws.send_json(alert.model_dump(mode="json"))
             sent += 1
-            await asyncio.sleep(interval_s)
+            if limit == 0 or sent < limit:
+                await asyncio.sleep(interval_s)
     except WebSocketDisconnect:
+        return
+    except ProviderError as exc:
+        # No invented Alert/environment payload; the terminal close carries the provider state.
+        await ws.close(code=1013, reason=f"Environment source unavailable ({exc.kind})")
+        return
+    except refdata.NotFound:
+        await ws.close(code=4404, reason="Scenario, environment source or reference not found")
+        return
+    except refdata.InvalidReference:
+        await ws.close(code=4400, reason="Invalid scenario or environment reference")
         return
     await ws.close()
 

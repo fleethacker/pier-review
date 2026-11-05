@@ -2,6 +2,8 @@
 
 ## Log
 
+- 23:54 EST: alert WebSocket preserves saved scenario source and initial connection installation basis; provider failure closes 1013 without substitute measurements; bad timing/reference closes 4400 and unknown/unowned references 4404. Shared resolver rejects unsupported direct replay/forecast modes instead of live fallback. 14 focused and 1486 full Python tests pass, no skips/xfails; UI 81/typecheck/lint/build and contract checks pass. Isolated capture experiment removes Cesium failure (19 browser/proxy passes, one incorrect vision-label expectation remains); UI branch still held. Watcher restarted as PID 59632 and now snapshots all three handoff files.
+
 - 23:43 EST: public 72h probes succeed for configured CO-OPS tide station 8638610 and cb0402/bin4 at 21 ft (73 hourly points each); NWS supplies 48 complete wind/gust intervals across 72h. Raw CO-OPS/URL/retrieval/SHA256 saved outside git, no new runtime composition or qualification claimed. C inbox documents per-component issuance versus retrieval and bin applicability blockers.
 
 - 23:41 EST: holding assistance audit fixes planner replacement of existing tugs (endpoint returns additions), and makes fresh assessment govern feasibility and utilization including fenders. 73 focused and 1472 full Python tests pass, no skips/xfails; UI 81/typecheck/lint/build pass, contract regenerated unchanged. Additional peer notification delivered to UI commit discussion (208234027); no acknowledgment assumed.

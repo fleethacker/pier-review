@@ -43,3 +43,11 @@ This is an integration review, not an approval of the UI branch.
 
 Current interface suggestions are in [MODELING_UI_RECOMMENDATIONS.md](../MODELING_UI_RECOMMENDATIONS.md).
 Findings were sent to the UI Requests inbox and directly to the UI branch's commit discussion. No acknowledgment is claimed.
+
+## Follow-up capture experiment (23:48 EST)
+
+In the isolated review checkout, removing the synchronous `viewer.render()` call from `store.capture` and reading the existing preserved canvas (with a zero-size guard) removed the reproducible render error. The browser/proxy run then reports **19 passed, 1 failed, 0 skipped**, with no browser errors. Sheet approval, motion and replay pass. This demonstrates a small mitigation; it does not establish every internal Cesium timing cause.
+
+The remaining vision failure is the final harness expectation `BERTH DATA: VISION`: the backend returns a deterministic catalog draft with estimated provenance, and the banner correctly shows `ESTIMATED`. The screenshot shows the berth saved, selected and rendered. Align that assertion with returned provenance, and expose `extraction_source`/`extraction_note` rather than hard-coding the saved message as vision extraction. Detection confidence is a heuristic score, not calibrated probability; avoid “percent sure” wording.
+
+The UI branch remains held. The experiment and earlier null-box/fixture corrections are local review changes, not merged UI features. Log: `/tmp/psp-ui-capture-experiment-browser.log`. A preliminary run without Playwright skipped the browser and is not counted as browser evidence.

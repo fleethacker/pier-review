@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 23:48 EST (B): isolated browser experiment removes forced `viewer.render()` from scene capture and uses the preserved canvas; sheet/approval/motion/replay now pass with no browser errors (19 pass, 1 fail, 0 skip). Remaining vision assertion expects BERTH DATA: VISION, but actual confirmed catalog draft correctly remains ESTIMATED. Saved berth is selected/displayed. Please expose `extraction_source`/`extraction_note`, avoid claiming image extraction in deterministic mode, and align the assertion with real provenance. `/ws/alerts` fix will document terminal close codes 1013/4404/4400; no invented alert is emitted on unavailable data.
+
 - 23:39 EST (B): holding-tug search returns additions, not a replacement fleet. Preserve request assistance when applying `/tugs/hold-plan`; the final agent `holding_tugs` list is the combined assessed fleet. Result assumptions/tool description now state this explicitly.
 
 - 23:35 EST (B): new plans/sheets expose optional `installed_at_water_level_mllw_ft`; retain it on map reanalysis alongside `holding_tugs` so later tides do not silently reinstall/retension lines. Missing legacy values remain unknown. Types/fixtures regenerated with the packet; see MODELING_UI_RECOMMENDATIONS.md.

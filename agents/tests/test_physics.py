@@ -229,7 +229,7 @@ def test_timeout_covers_request_and_job_polling(monkeypatch, job):
     assert output["error"]["code"] == "timeout" and output["error"]["timeout_s"] == 0.02
     entry, = calls_for("timeout")
     assert json.loads(entry.error) == output["error"]
-    assert [r.method for r in requests] == (["POST", "GET"] if job else ["GET"])
+    assert [r.method for r in requests] == (["POST", "GET", "DELETE"] if job else ["GET"])
     assert job or cancelled == [True]
 
 

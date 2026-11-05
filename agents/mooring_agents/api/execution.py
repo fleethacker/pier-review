@@ -26,6 +26,7 @@ def submit_async(store: JobStore, kind: str, tk: PhysicsToolkit,
 
     def task(ctx: JobContext):
         tk.checkpoint = ctx.check_cancelled
+        tk.client.checkpoint = ctx.check_cancelled
 
         async def execute():
             ctx.check_cancelled()

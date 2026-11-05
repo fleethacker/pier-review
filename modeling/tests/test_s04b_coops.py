@@ -13,6 +13,7 @@ from modeling_api.main import app
 from mooring.environment import coops, live
 from mooring.environment.coops import Fetcher, ProviderError
 from mooring.environment.replay import ReplaySource
+from mooring.environment.providers import BreakerState
 
 FX = Path(__file__).parents[1] / "mooring" / "environment" / "fixtures" / "coops"
 T0 = datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
@@ -121,6 +122,7 @@ def test_wind_averaging_duration_is_not_inferred_from_the_reporting_interval():
     snap = ReplaySource(recs, source_kind="live").at(T0 + timedelta(minutes=12), now=T0 + timedelta(minutes=12))
     assert snap.metadata.wind_averaging_s is None and snap.metadata.gust_duration_s is None and snap.source == "live"
     assert snap.metadata.current_bin == "4" and snap.metadata.current_depth_ft == 20.6 and snap.metadata.vertical_datum == "MLLW"
+    assert snap.metadata.original["wind_s"] == "9.52" and snap.metadata.original["current_b"] == "4"
 
 
 # ---------- fetcher: retries, rate limit, cache, stale policy ----------
@@ -198,6 +200,19 @@ def test_non_json_response_is_malformed():
     assert e.value.kind == "malformed"
 
 
+def test_coops_fetcher_uses_shared_circuit_breaker():
+    f, clock, calls = fetcher([TimeoutError("down"), OK], retries=0, min_interval_s=0.0,
+                              breaker_failures=1, breaker_reset_s=30)
+    with pytest.raises(ProviderError):
+        f.get(P)
+    assert f.breaker.state == BreakerState.OPEN
+    with pytest.raises(ProviderError, match="circuit breaker"):
+        f.get(P)
+    assert len(calls) == 1
+    clock.t += timedelta(seconds=30)
+    assert f.get(P).doc == {"data": []} and f.breaker.state == BreakerState.CLOSED
+
+
 # ---------- service wiring ----------
 
 client = TestClient(app)
@@ -266,6 +281,21 @@ def test_ws_env_reports_provider_failure_and_does_not_synthesize(coops_mode):
     with client.websocket_connect("/ws/env?berth_id=NAVSTA-NORFOLK-P12-N&interval_s=0&limit=1") as ws:
         msg = ws.receive_json()
     assert msg["error"] == "unavailable" and "unavailable" in msg["detail"]
+
+
+def test_ws_replay_uses_recorded_provider_data_not_synthetic(monkeypatch):
+    monkeypatch.delenv("MOORING_ENV_SOURCE", raising=False)
+    with client.websocket_connect(
+        "/ws/env?berth_id=NAVSTA-NORFOLK-P12-N&mode=replay&replay_start_utc=2026-03-01T12:00:00Z&interval_s=0&limit=1"
+    ) as ws:
+        msg = ws.receive_json()
+    assert msg["source"] == "replay" and msg["metadata"]["source"] == "recorded_fixture"
+
+
+def test_version_reports_provider_modes(coops_mode):
+    modules = client.get("/api/v1/version").json()["modules"]
+    assert modules["Provider NOAA CO-OPS"] == "live"
+    assert modules["Provider NWS"].startswith("unavailable")
 
 
 def test_default_mode_stays_offline_and_deterministic():

@@ -6,13 +6,15 @@ Run with `make demo-check` (or `uv run --all-packages python scripts/demo_check.
 What it does
   1. Starts modeling and agents on free ports and builds/serves the UI the way app.sh does (`vite preview` with both
      services proxied).
-  2. Checks, through the UI proxy: the page, the bundled motion fixtures, health/version/capabilities, the Phase 1
-     chain (scenario, agent plan over SSE, safety sheet, approval) and a motion session over a WebSocket (resume,
-     tug command, pause, reset), asserting the honesty rules (limited validity, no invented values).
+  2. Checks through the UI proxy: the four full planning chains (Intake, Planner SSE, independent review, sheet,
+     approve/reject), synthetic advance planning, and the current live WebSocket motion protocol.
   3. Optionally drives the built UI in headless Chromium and saves screenshots to docs/overnight/screens/. That part
-     needs Playwright. Without it the API and proxy part still runs and the browser part is reported as SKIPPED.
+     needs Playwright. Missing Playwright fails unless --no-browser is explicitly selected.
 
-Everything runs offline: no LLM key, no provider network. Exit status is non-zero if any check fails.
+The local stack runs offline: no LLM key, no provider network. --base-url instead exercises an existing target and
+creates demonstration scenarios, reports, plans, sheets, signatures and a berth there; configure that target for
+offline demonstration before running. Exit status is non-zero if any check fails. Baseline success is not release
+readiness: --profile readiness also fails for build requirements whose interfaces/checks have not landed.
 """
 
 from __future__ import annotations
@@ -31,6 +33,13 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
+from urllib.parse import urlsplit, urlunsplit
+
+if __package__:
+    from .demo_check_planning import advance_planning_check, four_case_checks
+else:
+    from demo_check_planning import advance_planning_check, four_case_checks
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "frontend" / "packages" / "web"
@@ -38,6 +47,50 @@ EXAMPLES = ROOT / "contract" / "examples" / "modeling"
 SCREENS = Path(os.environ.get("DEMO_CHECK_SCREEN_DIR", str(ROOT / "docs" / "overnight" / "screens")))
 
 RESULTS: list[tuple[str, str, str]] = []  # (status, name, detail)
+
+
+def websocket_url(base_url: str, session_id: str) -> str:
+    parts = urlsplit(base_url)
+    return urlunsplit(("wss" if parts.scheme == "https" else "ws", parts.netloc,
+                      parts.path.rstrip("/") + f"/api/modeling/ws/sim/{session_id}", "", ""))
+
+
+async def motion_frame(ws, timeout: float = 10.0) -> dict:
+    """Read an actual motion frame, not a lifecycle message with the same time."""
+    deadline = time.monotonic() + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("motion frame did not arrive before the deadline")
+        message = json.loads(await asyncio.wait_for(ws.recv(), remaining))
+        if message.get("type") == "error":
+            raise AssertionError(f"simulation protocol error: {message}")
+        if "t_s" in message and "pose" in message:
+            return message
+
+
+def readiness_checks(ctx: dict, profile: str) -> None:
+    """Never promote a passing baseline smoke to the master plan's full acceptance.
+
+    These are explicit coverage blockers, not guessed downstream wire contracts.
+    Replace each blocker with end-to-end assertions when its owner's interface lands.
+    """
+    frame = ctx.get("motion_frame", {})
+    if frame.get("schema_version") == "rm0-v1":
+        from mooring.core.schemas.dynamics import SimFrame
+        check("Live frame validates as rm0-v1 (S1/Snyder)", lambda: SimFrame.model_validate(frame) and "runtime frame validated")
+    else:
+        record("FAIL" if profile == "readiness" else "SKIP", "Live rm0-v1 frames (S1/Snyder)",
+               "live session emitted a legacy frame or no frame; authored replay fixtures do not satisfy S1")
+    blockers = (
+        ("S1/Snyder + U2/Kori", "runtime scene/recordings, speed and reconnect coverage awaits S1 integration"),
+        ("D1/Cruz + U3/Kori", "component availability and startup rejection checks await D1's published interface"),
+        ("P1/Snyder + A3/Bixler", "forecast revision handoff to Intake/Planner/Safety is not covered by the supplied-series check"),
+        ("U1/U4/Kori", "browser four-case review selection and advance-planning story are not covered by the current browser helper"),
+        ("S2/Snyder + U5/Kori", "simulation-time forcing and source labels over changing forcing are not covered"),
+    )
+    for owner, detail in blockers:
+        record("FAIL" if profile == "readiness" else "SKIP", f"Build readiness ({owner})", detail)
 
 
 def record(status: str, name: str, detail: str = "") -> None:
@@ -255,76 +308,21 @@ def api_checks(stack: Stack) -> dict:
         _, snapshot = http("GET", f"{modeling}/env/now?{query}")
         return verify_recorded_replay(snapshot, scenario)
 
-    def finish(accepted):
-        deadline = time.monotonic() + 120
-        while time.monotonic() < deadline:
-            _, job = http("GET", agents + "/jobs/" + accepted["job_id"])
-            if job["state"] == "succeeded":
-                return job["result"]
-            assert job["state"] in ("queued", "running"), job.get("error")
-            time.sleep(0.1)
-        raise AssertionError("agent job exceeded demo-check deadline")
-
-    def scenario():
-        _, cases = http("GET", modeling + "/demo/docking-cases")
-        case = next(c for c in cases if c["case_id"] == "ddg-supported-limited")
-        _, weather = http("POST", modeling + "/env/scenarios", case["environment_request"])
-        body = case["scenario_request"]
-        body["name"] = "demo-check supported-limited"
-        body["env_source"] = {"mode": "scenario", "env_scenario_id": weather["env_scenario_id"]}
-        _, sc = http("POST", modeling + "/scenarios", body)
-        ctx["scenario_id"] = sc["scenario_id"]
-        ctx["tugs"] = [t["tug_id"] for t in (sc.get("tugs") or [])]
-        _, accepted = http("POST", agents + "/intake/reports", {"scenario_id": sc["scenario_id"], "horizon_hours": 48})
-        ctx["intake"] = finish(accepted)
-        return f"supported scenario {sc['scenario_id']}; explicit Intake completed"
-
-    def plan():
-        _, accepted = http("POST", agents + "/agent/plans", {"scenario_id": ctx["scenario_id"], "intake_report_id": ctx["intake"]["report_id"], "objective": "moor_for_forecast", "target_margin_pct_wll": 60, "max_iterations": 8})
-        ctx["plan_id"] = accepted["plan_id"]
-        events = []
-        req = urllib.request.Request(f"{ui}/api/agents{accepted['events_url']}")
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            name = None
-            for raw in resp:
-                line = raw.decode().rstrip("\n")
-                if line.startswith("event:"):
-                    name = line.split(":", 1)[1].strip()
-                    events.append(name)
-                if name == "done":
-                    break
-        assert "step" in events and events[-1] == "done", f"SSE events: {events}"
-        _, p = http("GET", f"{agents}/agent/plans/{ctx['plan_id']}")
-        _, analysis = http("GET", modeling + "/results/" + p["analysis_result_id"])
-        assert p["status"] == "AMBER" and analysis["validity"]["state"] == "limited", p
-        ctx["plan"] = p
-        return f"SSE: {events.count('step')} steps then done; plan state={p['state']}, status={p.get('status')}"
-
-    def sheet_and_approval():
-        _, accepted = http("POST", agents + "/safety/reviews", {"plan_id": ctx["plan_id"]})
-        review = finish(accepted)
-        assert review["verdict"] == "ready_for_signature" and review["validity"]["state"] == "limited", review
-        _, sheet = http("POST", agents + "/safety-sheets", {"plan_id": ctx["plan_id"], "review_id": review["review_id"]})
-        sid = sheet["sheet_id"]
-        status, html = http("GET", f"{agents}/safety-sheets/{sid}/render?format=html")
-        assert status == 200 and len(html) > 500, "sheet did not render"
-        _, approval = http("POST", f"{agents}/safety-sheets/{sid}/approvals", {"role": "co", "name": "Demo Check", "decision": "approve", "comment": "automated check"})
-        return f"sheet {sid} rendered ({len(html)} bytes), approval recorded"
-
     def motion_session():
         import websockets  # in the repo venv: uvicorn[standard] depends on it
 
         body = json.loads((EXAMPLES / "berthing_session.json").read_text())
         body["scenario_id"] = ctx["scenario_id"]
         _, created = http("POST", modeling + "/berthing/sessions", body)
-        url = f"ws://127.0.0.1:{stack.ui_port}/api/modeling/ws/sim/{created['session_id']}"
+        url = websocket_url(ui, created["session_id"])
 
         async def run():
             notes = []
             async with websockets.connect(url) as ws:
-                first = json.loads(await asyncio.wait_for(ws.recv(), 10))
+                first = await motion_frame(ws)
                 assert first["t_s"] == 0, "a session starts at time zero"
-                notes.append("connected paused at t=0")
+                ctx["motion_frame"] = first
+                notes.append("connected at t=0")
                 await ws.send(json.dumps({"type": "resume"}))
                 t0, last, n = time.time(), first, 0
                 while time.time() - t0 < 3.0:
@@ -343,17 +341,27 @@ def api_checks(stack: Stack) -> dict:
                     notes.append("tug command sent")
                 await ws.send(json.dumps({"type": "pause"}))
                 await asyncio.sleep(0.5)
-                while True:  # drain, then time must hold still
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:  # drain queued frames, with an overall deadline
                     try:
                         paused = json.loads(await asyncio.wait_for(ws.recv(), 0.6))
                     except asyncio.TimeoutError:
                         break
                     if "t_s" in paused:
                         last = paused
+                else:
+                    raise AssertionError("pause did not stop the frame stream within 5 seconds")
+                held_time = last["t_s"]
+                try:
+                    held = json.loads(await asyncio.wait_for(ws.recv(), 0.6))
+                    assert "t_s" not in held or held["t_s"] == held_time, "simulation time advanced while paused"
+                except asyncio.TimeoutError:
+                    pass  # This runtime sends only changed frames; silence after draining means it held still.
+                notes.append(f"pause held t={held_time:g}")
                 await ws.send(json.dumps({"type": "reset"}))
                 for _ in range(40):
-                    msg = json.loads(await asyncio.wait_for(ws.recv(), 5))
-                    if "t_s" in msg and msg["t_s"] == 0:
+                    msg = await motion_frame(ws, timeout=5)
+                    if msg["t_s"] == 0:
                         notes.append("reset returned to t=0")
                         break
                 else:
@@ -421,9 +429,14 @@ def api_checks(stack: Stack) -> dict:
     check("Recorded-real NOAA package is served as an offline replay", recorded_real_replay)
     check("Intake agent: environment assessment, mock data flagged", intake)
     check("Berth vision: image to draft berth, flagged items, confirmed and saved", berth_vision)
-    if check("Phase 1: save scenario", scenario):
-        if check("Phase 1: agent plan streams over SSE through the proxy", plan):
-            check("Phase 1: safety sheet renders and can be approved", sheet_and_approval)
+    def planning():
+        ctx.update(four_case_checks(ui, http, check))
+        return "four-case catalog checked"
+
+    check("Planning case catalog (A1)", planning)
+    check("Advance planning: synthetic coverage, alternatives and installation (A1)",
+          lambda: advance_planning_check(ui, EXAMPLES, http))
+    if ctx.get("scenario_id"):
         check("Motion: session over WebSocket through the proxy (resume, command, pause, reset)", motion_session)
     return ctx
 
@@ -474,7 +487,11 @@ def browser_checks(stack: Stack, browser_python: str | None, browser_timeout: fl
 
 
 def main() -> int:
+    RESULTS.clear()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--profile", choices=("baseline", "readiness"), default="baseline",
+                    help="baseline checks implemented flows; readiness also fails on uncovered build requirements")
+    ap.add_argument("--base-url", help="exercise an existing target, creating demo records there; preserve any proxy path prefix")
     ap.add_argument("--skip-build", action="store_true", help="reuse frontend/packages/web/dist")
     ap.add_argument("--no-browser", action="store_true", help="API and proxy checks only")
     ap.add_argument("--browser-python", help="interpreter that has Playwright (default: DEMO_CHECK_BROWSER_PYTHON or this one)")
@@ -484,30 +501,41 @@ def main() -> int:
     args = ap.parse_args()
 
     check("Recorded-real replay package is deterministic and intact", recorded_package_integrity)
-    if not shutil.which("node"):
+    if args.base_url:
+        parsed = urlsplit(args.base_url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.query or parsed.fragment or parsed.username or parsed.password:
+            ap.error("--base-url must be an HTTP(S) URL without credentials, query or fragment")
+        stack = SimpleNamespace(ui=args.base_url.rstrip("/"))
+        print(f"demo-check: existing target {stack.ui}; creates demonstration records; profile={args.profile}", flush=True)
+    elif not shutil.which("node"):
         print("node is required to build and serve the UI", file=sys.stderr)
         return 2
-    stack = Stack(Path(args.logs), args.tool_timeout)
-    print(f"demo-check: modeling :{stack.modeling_port}, agents :{stack.agents_port}, ui :{stack.ui_port}, agent tool timeout {args.tool_timeout:g} s", flush=True)
+    else:
+        stack = Stack(Path(args.logs), args.tool_timeout)
+        print(f"demo-check: modeling :{stack.modeling_port}, agents :{stack.agents_port}, ui :{stack.ui_port}, agent tool timeout {args.tool_timeout:g} s; profile={args.profile}", flush=True)
+    ctx = {}
     try:
-        stack.start_services()
-        stack.build_and_serve_ui(args.skip_build)
-        api_checks(stack)
+        if not args.base_url:
+            stack.start_services()
+            stack.build_and_serve_ui(args.skip_build)
+        ctx = api_checks(stack)
         if args.no_browser:
             record("SKIP", "Browser flow (headless Chromium)", "--no-browser")
         else:
             browser_checks(stack, args.browser_python, args.browser_timeout)
     except Exception as exc:  # noqa: BLE001
-        record("FAIL", "Stack start-up", f"{type(exc).__name__}: {exc}"[:300])
+        record("FAIL", "Demonstration stack/check execution", f"{type(exc).__name__}: {exc}"[:300])
     finally:
-        stack.stop()
+        if not args.base_url:
+            stack.stop()
+    readiness_checks(ctx, args.profile)
 
     failed = [r for r in RESULTS if r[0] == "FAIL"]
     skipped = [r for r in RESULTS if r[0] == "SKIP"]
     print(f"\ndemo-check: {len(RESULTS) - len(failed) - len(skipped)} passed, {len(failed)} failed, {len(skipped)} skipped")
     for _, name, detail in skipped:
         print(f"  not covered: {name} ({detail})")
-    print("Coverage limit: browser Intake is bound to Planner; four-case checks cover initial analysis, not every subsequent planning path. Independent review is checked through the API; separate review-selection UI remains unimplemented.")
+    print("Coverage: four complete API planning chains and supplied synthetic advance planning; baseline success is not full build readiness. The owner-tagged requirements above remain uncovered.")
     return 1 if failed else 0
 
 

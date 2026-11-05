@@ -4,6 +4,7 @@ import type { SceneEdit, SceneState } from '../../scene/types';
 import { awaitJob, modeling, MODELING_BASE, unwrap, wsUrl } from './api';
 import { AgentSession } from './agent';
 import { MotionController } from './motion/controller';
+import type { Capability } from './status/sources';
 import { openJsonStream } from './streams';
 import type { StreamHandle, StreamStatus } from './streams';
 import {
@@ -130,6 +131,12 @@ export interface MooringState {
   notice: string | null;
   backend: string | null;
   envMode: { kind: EnvMode; status: StreamStatus | 'idle'; detail: string | null };
+  /** What the service says each capability is qualified for, and its module status; null until loaded or if unreachable. */
+  capabilities: Capability[] | null;
+  modules: Record<string, string> | null;
+  apiVersion: string | null;
+  catalogOk: { ok: boolean; problems: string[] } | null;
+  statusError: string | null;
   windHistory: WindSample[];
   alerts: AlertItem[];
   alertsStatus: StreamStatus | 'idle';
@@ -170,6 +177,11 @@ const INITIAL: MooringState = {
   notice: null,
   backend: null,
   envMode: { kind: 'manual', status: 'idle', detail: null },
+  capabilities: null,
+  modules: null,
+  apiVersion: null,
+  catalogOk: null,
+  statusError: null,
   windHistory: [],
   alerts: [],
   alertsStatus: 'idle',
@@ -244,6 +256,27 @@ export class MooringController {
 
   // ---- startup -------------------------------------------------------------------------------------------
 
+  /** Capabilities, module status and catalog audit. Failures are shown in the status panel, never fatal. */
+  async loadStatus(): Promise<void> {
+    try {
+      const [caps, version, audit] = await Promise.all([
+        modeling.GET('/api/v1/capabilities').then(unwrap),
+        modeling.GET('/api/v1/version').then(unwrap),
+        modeling.GET('/api/v1/qualification').then(unwrap),
+      ]);
+      if (this.disposed) return;
+      this.state.set({
+        capabilities: caps as unknown as Capability[],
+        modules: (version as { modules?: Record<string, string> }).modules ?? null,
+        apiVersion: (version as { api_version?: string }).api_version ?? null,
+        catalogOk: { ok: audit.ok, problems: (audit.problems ?? []).map(String) },
+        statusError: null,
+      });
+    } catch (e) {
+      if (!this.disposed) this.state.set({ statusError: message(e) });
+    }
+  }
+
   async init(): Promise<void> {
     this.state.set({ phase: 'loading', error: null });
     try {
@@ -268,6 +301,7 @@ export class MooringController {
       await this.loadSelection({ recommend: true });
       void this.loadBerthSites(berths.map((b) => b.berth_id));
       this.refreshScenarioList().catch(() => undefined);
+      void this.loadStatus();
       this.startAlerts();
       this.state.set({ phase: 'ready' });
     } catch (e) {

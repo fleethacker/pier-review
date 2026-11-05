@@ -62,14 +62,14 @@ export class SimClock {
 /** Forcing time, revision and training status from the frame, read only from what it supplies. */
 export function forcingOf(frame: SimFrame): Pick<SimClockView, 'forcingTS' | 'forcingRevision' | 'training'> {
   const env = (frame.environment ?? null) as (Record<string, unknown> & { t_s?: number | null }) | null;
-  // A forcing revision is not in rm0-v1 yet (simulation-time forcing, S2); read it only if the simulator sends one.
-  const rev = env?.['forcing_revision'] ?? env?.['revision'];
+  // S2 publishes the revision on the frame; retain older environment-local metadata compatibility.
+  const rev = frame.forcing_revision ?? env?.['forcing_revision'] ?? env?.['revision'];
   const kinds = [
     frame.motion?.provenance?.kind,
     ...(['wind', 'current', 'water'] as const).map((k) => (env?.[k] as { provenance?: { kind?: string } } | null | undefined)?.provenance?.kind),
   ];
   return {
-    forcingTS: typeof env?.t_s === 'number' ? env.t_s : null,
+    forcingTS: typeof env?.t_s === 'number' ? env.t_s : frame.forcing_revision ? frame.t_s : null,
     forcingRevision: typeof rev === 'string' ? rev : null,
     training: kinds.some((k) => k === 'mock'),
   };

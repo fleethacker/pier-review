@@ -294,10 +294,10 @@ export function EnvironmentGlyph({ frame, faceBearingDeg }: { frame: ViewFrame |
       {env && (
         <ul className="space-y-0.5">
           <li style={{ color: FORCE_COLOR.wind }}>
-            Wind: {env.wind.available && env.wind.speedKt != null ? `${env.wind.speedKt.toFixed(0)} kt${env.wind.gustKt != null ? `, gust ${env.wind.gustKt.toFixed(0)}` : ''}, from ${Math.round(env.wind.fromTrueDeg ?? 0)}°` : 'unavailable'}
+            Wind: {env.wind.available && env.wind.speedKt != null ? `${env.wind.speedKt.toFixed(0)} kt, gust ${env.wind.gustKt != null ? `${env.wind.gustKt.toFixed(0)} kt` : 'unavailable'}, from ${env.wind.fromTrueDeg != null ? `${Math.round(env.wind.fromTrueDeg)}°` : 'unavailable'}` : 'unavailable'}
           </li>
           <li style={{ color: FORCE_COLOR.current }}>
-            Current: {env.current.available && env.current.speedKt != null ? `${env.current.speedKt.toFixed(1)} kt toward ${Math.round(env.current.setTrueDeg ?? 0)}°` : 'unavailable'}
+            Current: {env.current.available && env.current.speedKt != null ? `${env.current.speedKt.toFixed(1)} kt toward ${env.current.setTrueDeg != null ? `${Math.round(env.current.setTrueDeg)}°` : 'unavailable'}` : 'unavailable'}
           </li>
           <li>Water: {env.water.available && env.water.levelMllwFt != null ? `${fmt.ft(env.water.levelMllwFt, 1)} MLLW` : 'unavailable'}</li>
           {env.waves.map((w) => (

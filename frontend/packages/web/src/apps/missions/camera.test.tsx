@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SceneStore } from '../../scene/store';
 import { Banner, Sidebar } from './Chrome';
+import { CameraBanner, CameraStatus } from './CameraPanels';
 import { ControllerContext } from './context';
 import { MissionsController } from './controller';
 import {
@@ -203,4 +204,22 @@ describe('camera tab', () => {
     expect(c.state.camWhatIf).toBe('rudder-port-15');
     c.dispose();
   });
+});
+
+it('shows unavailable uncertainty and hazard limitations instead of an all-clear', () => {
+  const c = new MissionsController({ store: new SceneStore() });
+  const res = structuredClone(samplePrediction);
+  res.result.alternatives.forEach((a) => { a.corridor = null; });
+  res.validity = { state: 'limited', reasons: [
+    { code: 'HAZARD_COVERAGE_UNKNOWN', message: 'Hazards were not supplied.' },
+    { code: 'OTHER_VESSEL_PATH_SHORT', message: 'Other vessel path ends early.' },
+    { code: 'UNCERTAINTY_UNAVAILABLE', message: 'No calibrated corridor supplied.' },
+  ] };
+  c.store.setState({ camResult: res, camSample: false });
+  render(<ControllerContext.Provider value={c}><CameraBanner /><CameraStatus /></ControllerContext.Provider>);
+  expect(screen.getAllByText(/Uncertainty unavailable/i).length).toBeGreaterThan(0);
+  expect(screen.getByText(/no all-clear/i)).toBeTruthy();
+  expect(screen.getByText(/OTHER_VESSEL_PATH_SHORT/)).toBeTruthy();
+  c.dispose();
+  cleanup();
 });

@@ -55,12 +55,13 @@ export function Badges({ frame, state }: { frame: ViewFrame | null; state: Motio
       <Pill color={env ? '#8ba4c4' : STATUS_COLOR.NONE}>
         environment: {env ? `${sourceText ?? 'source not stated'}${ageS != null ? `, ${ageS.toFixed(0)} s old` : ', age not stated'}` : 'not in frame'}
       </Pill>
-      {state.clock?.training && (
+      {(state.forcingSynthetic || state.clock?.training) && (
         <Pill color={STATUS_COLOR.AMBER} title="The forcing in this session is synthetic training data, not an observation or forecast.">
           training · synthetic forcing
         </Pill>
       )}
       <Pill color={state.source === 'live' ? '#00e5ff' : '#a78bfa'}>{state.source === 'live' ? 'live session' : state.source === 'recording' ? 'replay' : 'idle'}</Pill>
+      {state.forcingRevision && <Pill color="#8ba4c4">forcing revision: {state.forcingRevision}</Pill>}
       {frame?.assumedFaceBearing && <Pill color={STATUS_COLOR.AMBER} title="This frame carries no scene, so the berth orientation was assumed.">berth orientation assumed</Pill>}
     </div>
   );
@@ -182,6 +183,7 @@ function Readouts({ frame }: { frame: ViewFrame | null }) {
                 </span>
                 <div className="text-mil-dim">
                   {t.actualForce ? `push ${fmt.lbf(Math.hypot(t.actualForce.x, t.actualForce.y))}` : t.legacyForceLbf != null ? `force ${fmt.lbf(t.legacyForceLbf)} (position not supplied)` : 'force unavailable'}
+                  {!t.position && ' · tug position/kinematics not modeled'}
                 </div>
               </li>
             ))}
@@ -251,7 +253,7 @@ function LiveControls({ c, s, tugIds, lineNumbers }: { c: MotionController; s: M
           <ChipText tone={s.clock.forcingTS == null ? 'warn' : undefined}>
             {s.clock.forcingTS == null
               ? 'forcing time: not reported by this simulator'
-              : `forcing at t=${s.clock.forcingTS.toFixed(1)} s${s.clock.forcingRevision ? ` · revision ${s.clock.forcingRevision}` : ' · no forcing revision'}`}
+              : `forcing at t=${s.clock.forcingTS.toFixed(1)} s${s.clock.forcingRevision || s.forcingRevision ? ` · revision ${s.clock.forcingRevision ?? s.forcingRevision}` : ' · no forcing revision'}`}
           </ChipText>
         </div>
       )}
@@ -431,12 +433,15 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
 
       <div className={cn('border-b border-mil-border px-3 py-2', map ? 'pointer-events-auto bg-mil-panel/95' : '')}><Badges frame={s.frame} state={s} /></div>
 
-      {(s.error || s.notice || s.sceneError || s.lifecycleMessage) && (
+      {(s.error || s.notice || s.sceneError || s.lifecycleMessage || s.lifecycleReasons.length > 0) && (
         <div className={cn('space-y-1 border-b border-mil-border px-3 py-1 text-[11px]', map ? 'pointer-events-auto bg-mil-panel/95' : '')}>
           {s.error && <p role="alert" className="text-mil-red">{s.error}</p>}
           {s.notice && <p role="status" className="text-mil-amber">{s.notice}</p>}
           {s.sceneError && <p role="status" className="text-mil-dim">{s.sceneError}</p>}
           {s.lifecycleMessage && <p role="status" className="text-mil-dim">Session: {s.lifecycleMessage}</p>}
+          {s.lifecycleReasons.length > 0 && <ul role={s.lifecycleInvalid ? 'alert' : 'status'} className={s.lifecycleInvalid ? 'text-mil-red' : 'text-mil-amber'}>
+            {s.lifecycleReasons.map((reason) => <li key={reason}>{reason}</li>)}
+          </ul>}
         </div>
       )}
 

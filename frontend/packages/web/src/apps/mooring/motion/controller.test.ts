@@ -455,3 +455,17 @@ describe('rm0-v1 session protocol (S1)', () => {
     m.dispose();
   });
 });
+
+it('retains synthetic forcing metadata and surfaces uncovered validity through lifecycle messages', async () => {
+  vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's1', ws_url: '/ws/sim/s1', forcing_revision: 'rev-a', forcing_synthetic: true } } as never);
+  const m = make();
+  await m.startSession();
+  expect(m.s).toMatchObject({ forcingRevision: 'rev-a', forcingSynthetic: true });
+  stream.handlers!.onMessage({ ...legacy(2, 1), forcing_revision: 'rev-a' });
+  flush();
+  expect(m.s).toMatchObject({ forcingRevision: 'rev-a', forcingSynthetic: true });
+  stream.handlers!.onMessage({ type: 'session_lifecycle', schema_version: 'rm0-v1', session_id: 's1', run_id: 'r1', sequence: 2, t_s: 2, state: 'paused', scene_id: 'sc', scene_revision: '1', validity: { state: 'invalid', reasons: [{ code: 'FORCING_UNCOVERED', message: 'Forcing ends before this step.' }] } });
+  expect(m.s.lifecycleInvalid).toBe(true);
+  expect(m.s.lifecycleReasons).toEqual(['FORCING_UNCOVERED: Forcing ends before this step.']);
+  m.dispose();
+});

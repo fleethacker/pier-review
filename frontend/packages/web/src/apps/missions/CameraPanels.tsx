@@ -81,6 +81,7 @@ export function CameraStatus() {
           >
             <span className="text-mil-dim">{a.alt_id === 'hold' ? 'Hold: ' : `${a.label}: `}</span>
             {b.text}
+            {!a.corridor && <span className="block text-mil-amber">Uncertainty unavailable: no corridor supplied.</span>}
           </p>
         );
       })}
@@ -172,8 +173,7 @@ export function CameraSide() {
         <span className="text-orange-400">Orange</span>: selected what-if. Grey: other alternatives.
       </p>
       <p>
-        Hull outlines every 30 s (+30s, +60s...). Translucent area: corridor enclosing 90% of
-        sampled footprints. Yellow dot: closest approach. Red marker: predicted contact.
+        Hull outlines every 30 s (+30s, +60s...). When supplied, the translucent area shows the reported uncertainty corridor. Yellow dot: closest approach. Red marker: predicted contact.
       </p>
       <p>Samples are a seeded spread, not a calibrated probability.</p>
     </section>
@@ -198,6 +198,8 @@ export function CameraBanner() {
     >
       {sample ? 'Sample prediction: ' : ''}
       {b.text}
+      {res.validity?.reasons?.some((r) => r.code.startsWith('HAZARD_COVERAGE_')) ? ' · Hazard coverage incomplete or unknown; no all-clear.' : ''}
+      {hold && !hold.corridor ? ' · Uncertainty unavailable.' : ''}
     </span>
   );
 }

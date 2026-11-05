@@ -33,7 +33,7 @@ describe('motionSceneParts', () => {
   });
 
   it('follows simulated heave', () => {
-    const heaving = { ...v, ship: { ...v.ship, heaveMllwFt: 2 } };
+    const heaving = { ...v, ship: { ...v.ship, heaveMllwFt: 2, dofs: { ...v.ship.dofs, heave: 'prescribed' as const } } };
     const p = motionSceneParts(heaving, scene, dims);
     expect(p.entities.find((e) => e.id === 'motion-ship')!.pose.z).toBeCloseTo(2 * 0.3048);
     expect(p.notDrawn).not.toContain('heave (not simulated)');
@@ -149,4 +149,10 @@ describe('motionSceneParts', () => {
       expect(noEnv.notDrawn).toContain('water surface');
     });
   });
+});
+
+it('does not draw a numeric heave whose DOF is not simulated', () => {
+  const v = adaptFrame(frame);
+  const p = motionSceneParts({ ...v, ship: { ...v.ship, heaveMllwFt: 2, dofs: { ...v.ship.dofs, heave: 'not_simulated' } } }, scene, dims);
+  expect(p.entities.find((e) => e.id === 'motion-ship')!.pose.z).toBe(0);
 });

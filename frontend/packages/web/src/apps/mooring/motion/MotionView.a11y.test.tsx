@@ -129,3 +129,10 @@ describe('dialog frame', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+it('keeps forcing provenance and invalid lifecycle reasons visible without a frame', () => {
+  open({ frame: null, forcingSynthetic: true, forcingRevision: 'rev-a', lifecycleInvalid: true, lifecycleReasons: ['FORCING_UNCOVERED: forecast coverage ended'] });
+  expect(screen.getByText(/training.*synthetic forcing/i)).toBeTruthy();
+  expect(screen.getByText(/forcing revision: rev-a/i)).toBeTruthy();
+  expect(screen.getByText(/FORCING_UNCOVERED/)).toBeTruthy();
+});

@@ -33,7 +33,7 @@ PUBLISH_MIN_S = 0.05        # display frames at most 20 per wall second; physics
 PERSIST_MIN_S = 2.0         # pause/reset persistence is throttled; detach/end/error always persist
 MIN_TICK_S = 0.005          # scheduler sleep floor, so tiny physics steps cannot spin the event loop
 MAX_STEPS_PER_TICK = 2000   # bounded work per tick; falling behind is reported as lag, never skipped
-RUNTIME_STEPS_PER_TICK = 10 # worker chunks stay short; commands/other sessions get a chance between chunks
+RUNTIME_STEPS_PER_TICK = 10 # actual accepted integration segments plus command applications, not nominal dt intervals
 LAG_ALERT_S = 1.0
 RECORDINGS = DocStore("simulation_recordings", SimRecording)
 SCENES = DocStore("simulation_scenes", SimScene)
@@ -42,6 +42,39 @@ RECORDING_INDEX = DocStore("simulation_recording_index", SimRecordingSummary)
 
 def _compact(model) -> str:
     return json.dumps(model.model_dump(mode="json"), separators=(",", ":"), allow_nan=False)
+
+
+async def session_work(function, *args, **kwargs):
+    """Join a worker before propagating cancellation, even while it waits for the session lock.
+
+    Cancelling a to_thread await does not cancel its thread. Repeated task cancellations
+    must not abandon an attach, command or detach that could later mutate a new controller's state.
+    """
+    work = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+    return await session_wait(work)
+
+
+async def session_wait(work):
+    """Finish owned work before propagating cancellation; cleanup can itself be cancelled repeatedly."""
+    import anyio
+    cancellation = None
+    with anyio.CancelScope(shield=True):
+        while True:
+            try:
+                result = await asyncio.shield(work)
+            except asyncio.CancelledError as exc:
+                if work.cancelled():
+                    raise
+                cancellation = exc
+            except Exception:
+                if cancellation is not None:
+                    raise cancellation from None
+                raise
+            else:
+                break
+    if cancellation is not None:
+        raise cancellation
+    return result
 
 
 def store_recording_json(session_id: str, raw: str) -> None:
@@ -168,7 +201,9 @@ class Session:
         if len(self.lifecycle)==self.lifecycle.maxlen: self.lifecycle_evicted_through=self.lifecycle[0].sequence
         self.lifecycle.append(item)
         if not self.rec_lifecycle_truncated:
-            if len(self.rec_lifecycle)>=RECORDING_LIFECYCLE: self.rec_lifecycle_truncated=True
+            if len(self.rec_lifecycle)>=RECORDING_LIFECYCLE:
+                self.rec_lifecycle_truncated=True
+                self.rec_dirty=True  # truncation changes the persisted recording and its index, without a new event
             else:
                 self.rec_lifecycle.append(_compact(item)); self.rec_dirty=True
                 self.remember_validity(item.validity)
@@ -198,9 +233,10 @@ class Session:
 
     def record_now(self):
         """Record the current state (run start, end) if not already recorded at this time."""
-        if not self.rich: return
+        if not self.rich or (self.model.pending and self.model.pending[0][0]<=self.model.t+1e-9): return
         if self.rec_last_t is None or self.rec_last_t<self.model.t-1e-9:
-            self.record_frame(self.latest if self.latest is not None and abs(self.latest.t_s-self.model.t)<1e-9 else self.make_frame())
+            # Commands can change forces/lines without changing time; a cached display frame can be stale.
+            self.record_frame(self.make_frame())
         self.next_record_t=(math.floor((self.model.t+1e-9)/self.record_interval_s)+1)*self.record_interval_s
 
     def observe(self, t0, s0, t1, s1):
@@ -331,17 +367,27 @@ class Session:
             demand=self.scheduled_time(self.clock())
             wanted=(self.model.duration if demand>=self.model.duration-1e-9
                     else math.floor((demand+1e-9)/dt)*dt)
-            # Bounded work per iteration (contact may subdivide). Incoming messages never call this.
-            # Original step cap, plus twice the wall-time demand of one tick so small dt can keep up; bounded steps.
-            cap_s=min(max_steps*dt,max(max(10,math.ceil(10*self.speed))*dt,2*self.speed*self.tick_period()))
-            target=min(wanted,self.model.t+cap_s)
+            # Keep catch-up targets on the original grid even after a command/contact yield inside a step.
+            # The actual work limit below also counts command applications and contact subdivisions.
+            cap_steps=min(max_steps,max(10,math.ceil(10*self.speed),math.ceil(2*self.speed*self.tick_period()/dt)))
+            # A pause/reconnect can reanchor at an off-grid yield. Drain due work at the current
+            # time even when rounding newly earned clock demand down gives an earlier grid point.
+            target=max(self.model.t,min(wanted,(math.floor((self.model.t+1e-9)/dt)+cap_steps)*dt))
             self.lag_s=max(0.0,wanted-target)/self.speed  # wall seconds the scheduler is behind; never skipped
-            if target<=self.model.t+1e-9: return
-            alerts=[f"Simulation lagging wall clock by {self.lag_s:.1f} s at {self.speed:g}x"] if self.lag_s>LAG_ALERT_S else None
+            due=self.model.pending and self.model.pending[0][0]<=self.model.t+1e-9
+            if target<=self.model.t+1e-9 and not due: return
             try:
-                self.model.advance(target,observe=self.observe if self.rich else (lambda *args: None))
+                self.model.advance(target,observe=self.observe if self.rich else (lambda *args: None), max_work=max_steps)
             except (ValueError,OverflowError) as exc:
                 self.fail("DYNAMICS_INTEGRATION_FAILED","Integration stopped; reset or create a new session.",exc); return
+            self.lag_s=max(0.0,wanted-self.model.t)/self.speed
+            alerts=[f"Simulation lagging wall clock by {self.lag_s:.1f} s at {self.speed:g}x"] if self.lag_s>LAG_ALERT_S else None
+            if self.model.pending and self.model.pending[0][0]<=self.model.t+1e-9:
+                # Never record a time-boundary sample halfway through its ordered commands. Lag still gets
+                # lifecycle notification while command-only chunks finish that boundary.
+                if alerts and alerts!=self.last_alerts:
+                    self.emit(self.state,alerts[0]); self.last_alerts=alerts
+                return
             try:
                 ended=self.model.t>=self.model.duration-1e-9
                 # Alert changes (lag appearing or clearing) are shown at once; otherwise display is wall-time decimated.
@@ -407,17 +453,10 @@ class Session:
         self.event_loop=asyncio.get_running_loop()
         while self.connection is not None:
             try:
-                work=asyncio.create_task(asyncio.to_thread(self.tick, max_steps=RUNTIME_STEPS_PER_TICK))
-                try:
-                    await asyncio.shield(work)
-                except asyncio.CancelledError:
-                    # A cancelled asyncio wrapper cannot stop its thread. Join the short current chunk before
-                    # releasing controller ownership so reconnect/reset can never race a previous ticker.
-                    await asyncio.gather(work, return_exceptions=True)
-                    raise
+                await session_work(self.tick, max_steps=RUNTIME_STEPS_PER_TICK)
             except Exception as exc:  # noqa: BLE001 - the ticker must never die silently
                 log.exception("session scheduler failed for %s",self.session_id)
-                await asyncio.to_thread(self.fail,"SESSION_SCHEDULER_FAILED","Session scheduler failed; reset or create a new session.",exc)
+                await session_work(self.fail,"SESSION_SCHEDULER_FAILED","Session scheduler failed; reset or create a new session.",exc)
             await asyncio.sleep(self.tick_period())
 
 

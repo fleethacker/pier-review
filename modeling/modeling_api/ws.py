@@ -113,6 +113,7 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence:
     import anyio
     from mooring.core import access
     from .security import identity, AccessError
+    from .sim_sessions import session_wait, session_work
     from mooring.core.envelopes import new_id
     try:
         principal, enabled = identity(ws.headers)
@@ -130,8 +131,8 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence:
             return
         session=SESSIONS[session_id]
         try:
-            await asyncio.to_thread(session.attach,connection)
-            await asyncio.to_thread(session.resync,after_sequence)
+            await session_work(session.attach,connection)
+            await session_work(session.resync,after_sequence)
         except ValueError:
             await ws.close(code=4409,reason="Session already controlled")
             return
@@ -150,7 +151,7 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence:
                     return
                 try:
                     msg=SimClientMessage.validate_json(text)
-                    await asyncio.to_thread(session.receive,connection,msg)
+                    await session_work(session.receive,connection,msg)
                 except (ValidationError,ValueError) as exc:
                     # Invalid commands close the controller; no partial application.
                     await ws.close(code=1008,reason=("Invalid command schema" if isinstance(exc,ValidationError) else str(exc))[:120])
@@ -163,7 +164,7 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence:
             sent=0; last_lifecycle=after_sequence; last_frame=-1
             while limit==0 or sent<limit:
                 session.changed.clear()
-                for message in await asyncio.to_thread(session.pending_messages,last_lifecycle,last_frame):
+                for message in await session_work(session.pending_messages,last_lifecycle,last_frame):
                     await asyncio.wait_for(ws.send_json(message.model_dump(mode="json")),timeout=2.0)
                     sent+=1
                     if isinstance(message,SimLifecycle): last_lifecycle=message.sequence
@@ -182,20 +183,22 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence:
         finally:
             for task in (receive_task,send_task): task.cancel()
             with anyio.CancelScope(shield=True):
-                await asyncio.gather(receive_task,send_task,return_exceptions=True)
+                await session_wait(asyncio.gather(receive_task,send_task,return_exceptions=True))
         try: await ws.close()
         except RuntimeError: pass
     except asyncio.CancelledError:
         pass  # ASGI disconnect/server cancellation still performs ownership cleanup.
     finally:
-        if session is not None and session.connection==connection:
-            if ticker:
-                ticker.cancel()
-                with anyio.CancelScope(shield=True):
-                    await asyncio.gather(ticker,return_exceptions=True)
-            with anyio.CancelScope(shield=True):
-                await asyncio.to_thread(session.detach,connection)
-        access.principal.reset(token); access.enforced.reset(enforcement)
+        try:
+            if session is not None and session.connection==connection:
+                async def release_controller():
+                    if ticker:
+                        ticker.cancel()
+                        await asyncio.gather(ticker,return_exceptions=True)
+                    await session_work(session.detach,connection)
+                await session_wait(asyncio.create_task(release_controller()))
+        finally:
+            access.principal.reset(token); access.enforced.reset(enforcement)
 
 
 @router.websocket("/ws/telemetry")

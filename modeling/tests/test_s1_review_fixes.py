@@ -7,15 +7,17 @@ import threading
 import httpx
 import pytest
 
-from modeling_api import sim_sessions, state
+from modeling_api import security, sim_sessions, state
+from modeling_api import ws as route
 from modeling_api.main import app
 from modeling_api.sim_sessions import Session
 from mooring.berthing import simulator
 from mooring.core import access, store
-from mooring.core.schemas import SimControlMessage, SimRecording, SimScene, SimSpeedMessage
+from mooring.core.schemas import SimControlMessage, SimLineEventMessage, SimRecording, SimScene, SimSpeedMessage
 from mooring.examples import EXAMPLES
 
-from test_s1_session_protocol import A, B, P, Clock, client, fake_rich, make, setup  # noqa: F401
+from test_s1_session_protocol import (A, B, P, Clock, Socket, client, command, fake_rich, idle_scheduler,
+                                      make, setup)  # noqa: F401
 
 
 @contextmanager
@@ -134,7 +136,8 @@ def test_busy_tick_does_not_block_another_session_or_http(setup, fake_rich, monk
     asyncio.run(exercise())
 
 
-def test_cancelling_ticker_joins_its_current_worker_before_return(setup, fake_rich, monkeypatch):
+@pytest.mark.parametrize("cancellations", [1, 2])
+def test_cancelling_ticker_joins_its_current_worker_before_return(setup, fake_rich, monkeypatch, cancellations):
     clock = Clock()
     session = make(setup, clock, "review-worker-cancel")
     session.attach("a")
@@ -153,9 +156,10 @@ def test_cancelling_ticker_joins_its_current_worker_before_return(setup, fake_ri
         task = asyncio.create_task(session.run())
         try:
             assert await asyncio.to_thread(entered.wait, 2)
-            task.cancel()
-            await asyncio.sleep(0)
-            assert not task.done()  # returning here would leave a worker mutating a detached/reset session
+            for _ in range(cancellations):
+                task.cancel()
+                await asyncio.sleep(0)
+                assert not task.done()  # returning here would leave a worker mutating a detached/reset session
         finally:
             release.set()
             await asyncio.gather(task, return_exceptions=True)
@@ -183,6 +187,126 @@ def test_runtime_chunk_caps_catchup_work(setup, fake_rich, monkeypatch):
     asyncio.run(session.run())
     assert session.model.t == pytest.approx(.001)
     assert session.lag_s > 0
+
+
+def test_dense_command_chunks_bound_actual_work_and_preserve_trajectory(setup, fake_rich):
+    """A thousand legal sub-dt commands must not turn ten nominal steps into a thousand segments."""
+    clock = Clock()
+    session = Session(simulator.BerthingModel(*setup, dt=.0001, duration=.01),
+                      session_id="review-dense-work-cap", clock=clock)
+    reference = simulator.BerthingModel(*setup, dt=.0001, duration=.01)
+    for i in range(1000):
+        msg = command(t=(i + 1) * 1e-6, force=10000 if i % 2 else 20000)
+        session.model.schedule(msg); reference.schedule(msg)
+    session.attach("a")
+    clock.now = .01
+    reference.advance(.01)
+    chunks = 0
+    while session.state != "ended":
+        steps, queued = session.model.integrator.steps, len(session.model.pending)
+        session.tick(max_steps=sim_sessions.RUNTIME_STEPS_PER_TICK)
+        work = session.model.integrator.steps - steps + queued - len(session.model.pending)
+        assert 0 < work <= sim_sessions.RUNTIME_STEPS_PER_TICK
+        assert session.model.validity().state == "limited" and not session.error
+        chunks += 1
+        assert chunks < 300
+    assert chunks > 100
+    assert session.model.t == pytest.approx(.01)
+    assert session.model.integrator.steps == reference.integrator.steps
+    assert session.model.integrator.state == pytest.approx(reference.integrator.state, abs=1e-12)
+    assert session.model.diagnostics() == reference.diagnostics()
+    assert session.model.ramps == reference.ramps
+    assert session.model.transitions == reference.transitions and not session.model.pending
+
+
+@pytest.mark.parametrize("duration", [.1, .2])
+def test_commands_at_session_end_drain_before_ended_and_recording(setup, fake_rich, duration):
+    """A budget yield at the end must drain same-time commands without another integration step."""
+    clock = Clock()
+    session = make(setup, clock, "review-due-at-end", duration=duration, record_interval_s=.1)
+    reference = make(setup, clock, "review-end-reference", duration=duration, record_interval_s=.1)
+    for i in range(21):
+        msg = SimLineEventMessage(type="line_event", t_s=.1, line_number=1,
+                                  event="secured" if i % 2 == 0 else "released")
+        session.model.schedule(msg); reference.model.schedule(msg)
+    session.attach("a"); reference.attach("b")
+    clock.now = duration
+    reference.tick()
+    session.tick(max_steps=3)
+    assert session.model.t == pytest.approx(.1) and session.model.pending
+    assert session.state == "running" and [f.t_s for f in session.recording().frames] == [0]
+    assert session.latest.t_s == 0  # do not publish a partially applied command group
+    while session.model.pending:
+        before = len(session.model.pending)
+        session.tick(max_steps=3)
+        assert 0 < before - len(session.model.pending) <= 3
+        if session.model.pending:
+            assert session.model.integrator.steps == 1
+    assert session.state == "ended"
+    assert session.model.transitions == reference.model.transitions
+    recorded = session.recording().frames
+    assert [f.t_s for f in recorded] == ([0, .1] if duration == .1 else [0, .1, .2])
+    assert [f.lines for f in recorded] == [f.lines for f in reference.recording().frames]
+    assert len(recorded[1].lines) == 1
+    assert sum(event.state == "ended" for event in session.lifecycle) == 1
+
+
+@pytest.mark.parametrize("control", ["pause", "reconnect"])
+def test_off_grid_command_yield_can_resume_after_reanchoring(setup, fake_rich, control):
+    clock = Clock()
+    session = make(setup, clock, "review-off-grid-" + control)
+    reference = simulator.BerthingModel(*setup)
+    for i in range(21):
+        msg = SimLineEventMessage(type="line_event", t_s=.05, line_number=1,
+                                  event="secured" if i % 2 == 0 else "released")
+        session.model.schedule(msg); reference.schedule(msg)
+    session.attach("a")
+    clock.now = .1
+    session.tick(max_steps=3)
+    assert session.model.t == .05 and session.model.pending
+    if control == "pause":
+        session.receive("a", SimControlMessage(type="pause"))
+    else:
+        session.detach("a")
+        session.attach("a")
+    session.receive("a", SimControlMessage(type="resume"))
+    while session.model.pending:
+        queued = len(session.model.pending)
+        session.tick(max_steps=3)
+        assert 0 < queued - len(session.model.pending) <= 3
+        assert session.model.t == .05 and not session.error and not session.model.invalid
+    clock.now += .05
+    session.tick(max_steps=3)
+    reference.advance(.1)
+    assert session.model.t == pytest.approx(.1)
+    assert session.model.integrator.state == reference.integrator.state
+    assert session.model.transitions == reference.transitions
+    assert session.model.diagnostics() == reference.diagnostics()
+
+
+def test_contact_subdivision_yield_preserves_crossings_and_diagnostics(setup):
+    """Yield inside a nominal step after a real contact crossing, then resume the unchanged grid."""
+    sc, initial, env = setup
+    initial = initial.model_copy(update={"y_ft": 40.00002})
+    reference = simulator.BerthingModel(sc, initial, env, dt=.1, duration=.2)
+    chunked = simulator.BerthingModel(sc, initial, env, dt=.1, duration=.2)
+    observed, reference_observed = [], []
+    reference.advance(.2, observe=lambda *args: reference_observed.append(args))
+    chunked.advance(.2, max_work=1, observe=lambda *args: observed.append(args))
+    assert chunked.integrator.steps == 1 and 0 < chunked.t < .1
+    assert any(event.kind == "contact_start" for event in chunked.transitions)
+    assert any(event.kind == "fender_contact" for event in chunked.events)
+    assert chunked.integrator.crossings == []  # accepted crossings are already drained on yield
+    while chunked.t < .2 - 1e-10:
+        before = chunked.integrator.steps
+        chunked.advance(.2, max_work=1, observe=lambda *args: observed.append(args))
+        assert chunked.integrator.steps - before == 1
+        assert not chunked.integrator.crossings and not chunked.invalid
+    assert observed == reference_observed
+    assert chunked.integrator.state == reference.integrator.state
+    assert chunked.diagnostics() == reference.diagnostics()
+    assert chunked.transitions == reference.transitions
+    assert chunked.events == reference.events
 
 
 def test_scene_and_recording_survive_restart_with_ownership(client, fake_rich, monkeypatch, tmp_path):
@@ -240,3 +364,82 @@ def test_recording_index_is_bounded_and_owner_scoped(client, setup, fake_rich, m
             assert client.get(P + f"/berthing/recordings?limit={limit}", headers=A).status_code == 422
     finally:
         database.close()
+
+
+def test_first_lifecycle_truncation_is_saved_without_another_frame(setup, fake_rich, monkeypatch):
+    monkeypatch.setattr(sim_sessions, "RECORDING_LIFECYCLE", 1)
+    session = make(setup, Clock(), "review-clean-save-then-truncate")
+    session.persist(force=True)
+    assert not session.rec_dirty
+    assert not any(reason.code == "RECORDING_TRUNCATED"
+                   for reason in sim_sessions.RECORDINGS[session.session_id].validity.reasons)
+    session.attach("a")
+    assert session.rec_lifecycle_truncated and session.rec_dirty
+    session.detach("a")
+    assert not session.rec_dirty
+    for saved in (sim_sessions.RECORDINGS[session.session_id], sim_sessions.RECORDING_INDEX[session.session_id]):
+        assert any(reason.code == "RECORDING_TRUNCATED" for reason in saved.validity.reasons)
+
+
+@pytest.mark.parametrize("phase", ["attach", "receive", "detach"])
+@pytest.mark.parametrize("cancellations", [1, 2])
+def test_handler_cancellation_joins_session_operations_before_releasing_owner(
+        setup, fake_rich, idle_scheduler, monkeypatch, phase, cancellations):
+    """No attach/command/detach worker may outlive ownership cleanup, including repeated cancellation."""
+    session = make(setup, Clock(), f"review-cancel-{phase}-{cancellations}")
+    monkeypatch.setattr(route, "SESSIONS", {session.session_id: session})
+    monkeypatch.setattr(security, "identity", lambda _: ("local", False))
+    monkeypatch.setattr(session, "persist", lambda **_: None)
+    entered, release, locked = threading.Event(), threading.Event(), threading.Event()
+    original = getattr(session, phase)
+
+    def gated(*args):
+        entered.set()
+        if phase != "attach":
+            assert release.wait(3)
+        return original(*args)
+
+    monkeypatch.setattr(session, phase, gated)
+
+    def hold_attach_lock():
+        with session.lock:
+            locked.set()
+            assert release.wait(3)
+
+    async def exercise():
+        holder = asyncio.create_task(asyncio.to_thread(hold_attach_lock)) if phase == "attach" else None
+        task = None
+        try:
+            if holder:
+                assert await asyncio.to_thread(locked.wait, 2)
+            socket = Socket()
+            task = asyncio.create_task(route.ws_sim(socket, session.session_id))
+            if phase != "attach":
+                await asyncio.wait_for(socket.sending.wait(), 2)
+                socket.incoming.put_nowait(
+                    SimSpeedMessage(type="set_speed", speed=2).model_dump_json() if phase == "receive" else None)
+            assert await asyncio.to_thread(entered.wait, 2)
+            for _ in range(cancellations):
+                task.cancel()
+                await asyncio.sleep(0)
+                assert not task.done()
+            release.set()
+            if holder:
+                await holder
+            await asyncio.wait_for(asyncio.gather(task, return_exceptions=True), 2)
+            assert session.connection is None and session.paused
+            if phase == "receive":
+                assert session.speed == 2  # queued work completed before detach; nothing can apply after reconnect
+            reconnect = Socket()
+            await asyncio.wait_for(route.ws_sim(reconnect, session.session_id, limit=1), 2)
+            assert not any(code == 4409 for code, _ in reconnect.closed)
+            assert session.connection is None and session.paused
+        finally:
+            release.set()
+            if holder:
+                await asyncio.gather(holder, return_exceptions=True)
+            if task and not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(exercise())

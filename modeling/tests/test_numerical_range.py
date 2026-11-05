@@ -10,6 +10,9 @@ from mooring.examples import EXAMPLES
 
 
 @pytest.mark.parametrize('route,field,value', [
+    ('/loads/environmental', 'water_density_kgm3', 5e-324),
+    ('/mooring/analyze', 'water_density_kgm3', 5e-324),
+    ('/mooring/envelope', 'water_density_kgm3', 5e-324),
     ('/loads/environmental', 'wind_gust_kt', 1e153),
     ('/loads/environmental', 'wind_gust_kt', 1e308),
     ('/loads/environmental', 'current_speed_kt', 1e153),

@@ -132,7 +132,11 @@ def ship_inputs(ship, loading, water_density):
     if lc is None:
         raise refdata.InvalidReference(f"Unknown loading {loading!r} for {ship.class_id}")
     draft = (lc.draft_fwd_ft + lc.draft_aft_ft) / 2
-    volume = lc.displacement_lt * LT_TO_LB / (water_density * KGM3_TO_SLUG_FT3 * G_FPS2)
+    weight_density = water_density * KGM3_TO_SLUG_FT3 * G_FPS2
+    if weight_density == 0:
+        # Positive subnormal input can underflow during unit conversion; never substitute a density.
+        raise OverflowError("Water density conversion exceeds the supported numerical range")
+    volume = lc.displacement_lt * LT_TO_LB / weight_density
     height = getattr(ship, "superstructure_height_ft", None)
     if height is None:
         height = ship.hull_wind_area_lateral_ft2 / ship.lwl_ft + (ship.wind_area_lateral_ft2 - ship.hull_wind_area_lateral_ft2) / (c.SUPERSTRUCTURE_LENGTH_FRACTION * ship.lwl_ft)

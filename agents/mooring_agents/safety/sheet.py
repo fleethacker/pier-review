@@ -194,7 +194,6 @@ td,th{{border:1px solid #999;padding:4px 8px;text-align:left}}.st{{font-weight:7
 {validity_banner}
 <p>Sheet {e(s.sheet_id)} v{s.version} &middot; Status <span class="st">{s.status}</span> &middot;
 {e(s.header.ship_class_id)} {e(s.header.side_to)} side to {e(s.header.berth_id)}</p>
-<p>Independent review: {e(s.review_id) if s.review_id else 'not recorded in this sheet; independent review is not established'}.</p>
 <p>Wind {s.environment.observed.wind_speed_kt:.0f} kt gusting {s.environment.observed.wind_gust_kt:.0f} kt from
 {s.environment.observed.wind_from_true_deg:03.0f}° true; current {s.environment.observed.current_speed_kt:.1f} kt
 flowing toward {s.environment.observed.current_set_true_deg:03.0f}° true; water level

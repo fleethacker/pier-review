@@ -1,6 +1,6 @@
 import * as Cesium from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
-import { constrainMove, entityToFrame, isTilted, resolveAnchor, sceneBounds, tiltedPolygonRing } from '../../scene/geometry';
+import { constrainMove, entityToFrame, resolveAnchor, sceneBounds } from '../../scene/geometry';
 import type { SceneStore } from '../../scene/store';
 import type { SceneEdit, SceneEntity, SceneLink, SceneState, SceneVector } from '../../scene/types';
 import { COLORS, STATUS_COLOR, colorFor } from '../theme';
@@ -280,30 +280,15 @@ export class SceneRenderer {
     const [cx, cy, cz] = entityToFrame(e.pose, 0, 0, 0);
     const options: Cesium.Entity.ConstructorOptions = {};
 
-    if (e.geometry.type === 'polygon' && isTilted(e.pose)) {
-      // Roll or pitch supplied by the frame: tilted top face, flat bottom at the waterline level.
-      const { ring, bottomZ } = tiltedPolygonRing(e.pose, e.geometry.points, e.geometry.heightM, e.geometry.baseM ?? 0);
-      options.polygon = {
-        hierarchy: ring.map(([x, y, z]) => tf.toWorld(x, y, z)),
-        perPositionHeight: true,
-        height: undefined,
-        extrudedHeight: bottomZ,
-        material: fill,
-        outline: !e.noOutline,
-        outlineColor: outline,
-        outlineWidth: 2,
-      };
-    } else if (e.geometry.type === 'polygon') {
-      const base = e.geometry.baseM ?? 0;
+    if (e.geometry.type === 'polygon') {
       const positions = e.geometry.points.map(([px, py]) => {
         const [x, y] = entityToFrame(e.pose, px, py);
-        return tf.toWorld(x, y, e.pose.z + base);
+        return tf.toWorld(x, y, e.pose.z);
       });
       options.polygon = {
         hierarchy: positions,
-        perPositionHeight: false,
-        height: e.pose.z + base,
-        extrudedHeight: e.geometry.heightM > 0 ? e.pose.z + base + e.geometry.heightM : undefined,
+        height: e.pose.z,
+        extrudedHeight: e.geometry.heightM > 0 ? e.pose.z + e.geometry.heightM : undefined,
         material: fill,
         outline: !e.noOutline,
         outlineColor: outline,
@@ -581,7 +566,7 @@ export class SceneRenderer {
   }
 }
 
-const GEOMETRY_FIELDS = new Set(['hierarchy', 'positions', 'height', 'extrudedHeight', 'perPositionHeight']);
+const GEOMETRY_FIELDS = new Set(['hierarchy', 'positions', 'height', 'extrudedHeight']);
 
 /** Cheap fingerprint of everything that decides a shape's coordinates, so unchanged shapes are not rebuilt. */
 function geometrySignature(o: Cesium.Entity.ConstructorOptions): string {

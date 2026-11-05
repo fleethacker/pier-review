@@ -8,39 +8,10 @@ export function rotate(x: number, y: number, headingDeg: number): [number, numbe
   return [x * c - y * s, x * s + y * c];
 }
 
-/** Entity-local point to frame coordinates. Roll and pitch, when present, tilt the entity about its pose origin. */
+/** Entity-local point to frame coordinates. */
 export function entityToFrame(pose: Pose, x: number, y: number, z = 0): [number, number, number] {
-  let lx = x;
-  let ly = y;
-  let lz = z;
-  if (pose.rollDeg || pose.pitchDeg) {
-    // Roll: right-hand about local +x (y toward z). Then pitch: right-hand about local +y (z toward x).
-    const cr = Math.cos((pose.rollDeg ?? 0) * DEG);
-    const sr = Math.sin((pose.rollDeg ?? 0) * DEG);
-    const cp = Math.cos((pose.pitchDeg ?? 0) * DEG);
-    const sp = Math.sin((pose.pitchDeg ?? 0) * DEG);
-    const ry = ly * cr - lz * sr;
-    const rz = ly * sr + lz * cr;
-    lx = x * cp + rz * sp;
-    ly = ry;
-    lz = -x * sp + rz * cp;
-  }
-  const [rx, ry2] = rotate(lx, ly, pose.headingDeg);
-  return [pose.x + rx, pose.y + ry2, pose.z + lz];
-}
-
-export function isTilted(pose: Pose): boolean {
-  return !!(pose.rollDeg || pose.pitchDeg);
-}
-
-/**
- * Top ring of an extruded polygon on a tilted entity, in frame coordinates (z included), plus a flat bottom height.
- * The bottom stays at the pose's base level (the waterline for a hull), but is kept below the lowest top vertex.
- */
-export function tiltedPolygonRing(pose: Pose, points: [number, number][], heightM: number, baseM = 0): { ring: [number, number, number][]; bottomZ: number } {
-  const ring = points.map(([px, py]) => entityToFrame(pose, px, py, baseM + heightM));
-  const lowestTop = Math.min(...ring.map((p) => p[2]));
-  return { ring, bottomZ: Math.min(pose.z + baseM, lowestTop - 0.1) };
+  const [rx, ry] = rotate(x, y, pose.headingDeg);
+  return [pose.x + rx, pose.y + ry, pose.z + z];
 }
 
 /** Resolve an anchor to frame coordinates, following its entity's current pose. */
@@ -129,7 +100,6 @@ export function sceneBounds(entities: SceneEntity[]): Bounds | null {
       : { minX: x, maxX: x, minY: y, maxY: y };
   };
   for (const e of entities) {
-    if (e.excludeFromFit) continue;
     if (e.geometry.type === 'polygon') {
       for (const [px, py] of e.geometry.points) {
         const [x, y] = entityToFrame(e.pose, px, py);

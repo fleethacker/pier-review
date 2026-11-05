@@ -1,12 +1,10 @@
 # Modeling capabilities the UI can expose
 
-> Priorities and owners: [MASTER_PLAN.md](MASTER_PLAN.md) (UI items U1–U7). This file is the wire-level reference for those items.
-
 Living handoff from modeling to UI, 4–5 November 2026. These are suggestions for the UI agent to adopt, adapt or defer against its own plan; they do not require a new screen for every endpoint. Prioritize the existing Phase 1 flow and motion acceptance gate. Wire shapes and runnable fixtures in `contract/` take precedence over this guide. Modeling updates this document when it publishes a capability.
 
 ## Current integration priorities
 
-The backend supports explicit Intake and independent Safety review, but those explicit steps are still missing from the shared dev UI. Prioritize them before adding more result panels. The user-authorized integration of `ui/frontend-updates` supplies motion, source/capability and berth-draft panels, with compatibility fixes; [UI_COMPATIBILITY_REVIEW.md](archive/2026-11-05-overnight/UI_COMPATIBILITY_REVIEW.md) records the review and follow-up. Advance-arrival planning is available through the supplied-series API; a production public forecast composer remains unavailable.
+The backend supports explicit Intake and independent Safety review, but those explicit steps are still missing from the shared dev UI. Prioritize them before adding more result panels. The user-authorized integration of `ui/frontend-updates` supplies motion, source/capability and berth-draft panels, with compatibility fixes; [UI_COMPATIBILITY_REVIEW.md](overnight/UI_COMPATIBILITY_REVIEW.md) records the review and follow-up. Advance-arrival planning is available through the supplied-series API; a production public forecast composer remains unavailable.
 
 Source confidence and qualification are different: a record labeled `published` does not prove its rating was verified. Use the qualification response and its issues, not a provenance label, for capability claims. Static load/holding results evaluate wind and current only; wave/wake loads and maneuvering response remain outside that assessment. A wave-height display is not evidence that wave forces were included.
 
@@ -53,7 +51,7 @@ Live `/ws/alerts` messages now carry optional `validity`. Invalid environmental 
 
 ## Integration checklist for the UI agent
 
-- Regenerate types after merging `dev`; use generated examples as consumer fixtures. Report missing/ambiguous fields to the modeling owner in the PR or team channel (see [MASTER_PLAN.md](MASTER_PLAN.md) §8).
+- Regenerate types after merging `dev`; use generated examples as consumer fixtures. Report missing/ambiguous fields in `docs/overnight/modeling-agents.md` → Requests.
 - Keep seed/synthetic/limited labels visible on map, alternatives and sheet, including when a review is ready for signature.
 - Display partial/stale/missing forecasts without filling values. Future missing coverage is a risk finding, even if present conditions look moderate.
 - Auth is off for the local demo. Optional authenticated HTTP/SSE clients need headers; never place bearer keys in URLs. Do not infer verified approver authority from a typed name.
@@ -62,9 +60,9 @@ Live `/ws/alerts` messages now carry optional `validity`. Invalid environmental 
 
 ## Coordination
 
-The isolated review of `ui/frontend-updates` is recorded in [UI_COMPATIBILITY_REVIEW.md](archive/2026-11-05-overnight/UI_COMPATIBILITY_REVIEW.md). Its owner-directed no-merge hold remains respected; the review lists concrete compatibility and browser blockers.
+The isolated review of `ui/frontend-updates` is recorded in [UI_COMPATIBILITY_REVIEW.md](overnight/UI_COMPATIBILITY_REVIEW.md). Its owner-directed no-merge hold remains respected; the review lists concrete compatibility and browser blockers.
 
-Coordination rules are in [MASTER_PLAN.md](MASTER_PLAN.md) §8; the overnight inbox protocol is retired. Publish endpoint changes, fixtures, assumptions and test status before consumers depend on them. Never auto-merge unchecked work or edit another agent's worktree.
+Use the shared inbox protocol in [team_agent_instructions/README.md](../team_agent_instructions/README.md). Watch `origin/dev`, active UI/data/modeling branches and the three `docs/overnight/` files at each integration point. Publish endpoint changes, fixtures, assumptions and test status before consumers depend on them. Never auto-merge unchecked work or edit another agent's worktree.
 
 `/ws/alerts` resolves the same scenario source for every frame. Terminal close 1013 means the source is unavailable (no replacement snapshot); 4404 means unknown/unowned scenario or reference; 4400 means invalid timing/reference. Show unavailable rather than retaining an apparently live utilization. Reconnect with backoff after a transient provider failure.
 

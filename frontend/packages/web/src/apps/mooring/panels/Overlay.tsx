@@ -6,7 +6,6 @@ import type { Role } from '../agent';
 import { fmt, useUnitSystem } from '../units';
 import { useAgent, useController, useMooring } from './context';
 import { ResultLink } from './ResultLink';
-import { VERDICT_LABEL } from './ReviewSection';
 import { MotionView } from '../motion/MotionView';
 
 export function Overlay() {
@@ -19,19 +18,9 @@ export function Overlay() {
   return overlay.kind === 'result' ? <ResultViewer id={overlay.id} /> : <SheetViewer />;
 }
 
-export function Frame({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => ref.current?.focus(), []);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (e.key === 'Escape' && !e.defaultPrevented && !(t && (t.tagName === 'SELECT' || t.tagName === 'TEXTAREA'))) onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+function Frame({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
-    <div ref={ref} tabIndex={-1} className="pointer-events-auto flex h-full w-full items-start justify-center overflow-auto bg-mil-bg/80 p-6 outline-none" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="pointer-events-auto flex h-full w-full items-start justify-center overflow-auto bg-mil-bg/80 p-6" role="dialog" aria-label={title}>
       <div className={cn('w-full', wide ? 'max-w-6xl' : 'max-w-3xl')}>
         <Panel className="p-0">
           <div className="flex items-center justify-between border-b border-mil-border px-4 py-2">
@@ -125,36 +114,6 @@ const ROLES: { value: Role; label: string }[] = [
   { value: 'co', label: 'Commanding Officer' },
 ];
 
-/** Which independent review this sheet was built from. A sheet without one is flagged, never presented as reviewed. */
-function SheetReviewIdentity({ reviewId, planId }: { reviewId: string | null; planId: string }) {
-  const review = useAgent((a) => (a.review.review?.review_id === reviewId ? a.review.review : null));
-  if (!reviewId) {
-    return (
-      <div role="alert" className="rounded-sm border border-mil-amber/40 bg-mil-amber/10 p-2 text-mil-amber">
-        This sheet records no independent review. Run the review from the planning panel and rebuild the sheet.
-      </div>
-    );
-  }
-  return (
-    <div className="rounded-sm border border-mil-border bg-mil-bg/60 p-2" aria-label="Sheet review identity">
-      <div className="mil-label mb-1">Independent review</div>
-      <p className="text-mil-dim">
-        Review <span className="font-mono text-mil-text">{reviewId}</span> of plan{' '}
-        <span className="font-mono text-mil-text">{planId}</span>
-      </p>
-      {review ? (
-        <p className="mt-1 flex flex-wrap items-center gap-2">
-          <StatusChip status={review.status} label={review.status} />
-          <span className="text-white">{VERDICT_LABEL[review.verdict] ?? review.verdict}</span>
-          <span className="text-mil-dim">{review.created_at_utc}</span>
-        </p>
-      ) : (
-        <p className="mt-1 text-mil-dim">Review details are not loaded in this session; the sheet text records its checks.</p>
-      )}
-    </div>
-  );
-}
-
 function SheetViewer() {
   const c = useController();
   const sheet = useAgent((s) => s.sheet);
@@ -192,7 +151,6 @@ function SheetViewer() {
         </div>
 
         <div className="space-y-3 text-[11px]">
-          <SheetReviewIdentity reviewId={s.review_id ?? null} planId={s.plan_id} />
           {sheet.image ? (
             <div>
               <div className="mil-label mb-1">Layout</div>

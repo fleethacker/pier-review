@@ -13,8 +13,6 @@ const FORCE_COLOR: Record<string, string> = {
   fenders: '#f472b6',
 };
 const DIM = '#4a6a8a';
-/** Text-safe dim colour: 4.96:1 on the panel (the graphic-only DIM is 2.9:1). */
-const DIM_TEXT = '#7390b0';
 const WATER = '#0d2f4d';
 
 interface Bounds {
@@ -165,7 +163,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
           const p = pt(f.position);
           if (!p) return null;
           const live = frame?.fittings.find((x) => x.id === f.fitting_id && x.owner === 'pier');
-          const st = live?.status ?? utilizationStatus(live?.loadLbf ?? null, live?.capacityLbf ?? f.capacity_lbf ?? null);
+          const st = live?.status ?? utilizationStatus(live?.loadLbf ?? null, live?.capacityLbf ?? f.capacity_lbf);
           return <circle key={f.fitting_id} cx={p.x} cy={p.y} r={font * 0.7} fill={st ? STATUS_COLOR[st] : DIM} stroke="#0a1628" strokeWidth={lw} />;
         })}
 
@@ -186,7 +184,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
             {scene?.ship_fittings?.map((f) => {
               const p = shipToBerth(f.position, ship);
               const live = frame?.fittings.find((x) => x.id === f.fitting_id && x.owner === 'ship');
-              const st = live?.status ?? utilizationStatus(live?.loadLbf ?? null, live?.capacityLbf ?? f.capacity_lbf ?? null);
+              const st = live?.status ?? utilizationStatus(live?.loadLbf ?? null, live?.capacityLbf ?? f.capacity_lbf);
               return <circle key={f.fitting_id} cx={p.x} cy={p.y} r={font * 0.7} fill={st ? STATUS_COLOR[st] : DIM} stroke="#0a1628" strokeWidth={lw} />;
             })}
             <circle cx={ship.x_ft} cy={ship.y_ft} r={font * 0.5} fill="#00e5ff" />
@@ -194,7 +192,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
               const at = hull ? { x: Math.min(...hull.map((p) => p.x)), y: Math.max(...hull.map((p) => p.y)) + font * 1.4 } : { x: ship.x_ft, y: ship.y_ft + font * 4 };
               return <Label at={at} text={`ship · hdg ${Math.round(ship.headingTrueDeg)}°`} size={font} color="#00e5ff" />;
             })()}
-            {!hull && <Label at={{ x: ship.x_ft, y: ship.y_ft - font * 4.5 }} text="hull outline not supplied" size={font * 0.85} color={DIM_TEXT} anchor="middle" />}
+            {!hull && <Label at={{ x: ship.x_ft, y: ship.y_ft - font * 4.5 }} text="hull outline not supplied" size={font * 0.85} color={DIM} anchor="middle" />}
           </g>
         )}
 
@@ -251,7 +249,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg }: MotionCanv
       </div>
       <div className="mt-0.5 flex flex-wrap gap-x-3">
         <span style={{ color: STATUS_COLOR.GREEN }}>— taut line</span>
-        <span style={{ color: DIM_TEXT }}>- - slack or unknown</span>
+        <span style={{ color: DIM }}>- - slack or unknown</span>
         <span style={{ color: STATUS_COLOR.RED }}>— overloaded</span>
       </div>
       <p className="mt-0.5 text-mil-dim">

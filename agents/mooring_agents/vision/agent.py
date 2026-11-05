@@ -33,17 +33,6 @@ def image_type(image: bytes):
     return None
 
 
-def _check_proposals(detections: list[ImageFitting], dimensions: tuple[int, int] | None) -> None:
-    """Reject unusable provider output before it becomes a modeling request."""
-    if not detections or len(detections) > 100:
-        raise ValueError('Image extraction must propose between 1 and 100 fittings')
-    if len({d.item_id for d in detections}) != len(detections):
-        raise ValueError('Image fitting identifiers must be unique')
-    if dimensions and any(not 0 <= d.center_px[0] <= dimensions[0]
-                          or not 0 <= d.center_px[1] <= dimensions[1] for d in detections):
-        raise ValueError('Detected pixel center is outside the image')
-
-
 async def analyze(image: bytes, filename: str, meta: VisionMetadata, tk: PhysicsToolkit) -> VisionResponse:
     if not image or len(image) > MAX_IMAGE_BYTES:
         raise ModelingError(422, 'Supply a nonempty image no larger than 8 MB')
@@ -66,7 +55,8 @@ async def analyze(image: bytes, filename: str, meta: VisionMetadata, tk: Physics
     if det is not None:
         try:
             found = [(f, b) for f, b in await det.detect_async(image) if f.kind in {s.kind for s in source.fittings}]
-            _check_proposals([f for f, _ in found], dimensions)
+            if dimensions and any(not 0 <= f.center_px[0] <= dimensions[0] or not 0 <= f.center_px[1] <= dimensions[1] for f, _ in found):
+                raise ValueError('Detected pixel center is outside the image')
             detections, boxes = [f for f, _ in found], {f.item_id: b for f, b in found}
             mode = 'detector'
             note = (f'Trained detector {det.version} proposed {len(detections)} bollards; projected with supplied anchors, '
@@ -90,7 +80,8 @@ async def analyze(image: bytes, filename: str, meta: VisionMetadata, tk: Physics
             if reply.stop_reason not in ('completed', 'stop', 'end_turn') or reply.tool_uses:
                 raise ValueError('Incomplete image proposal')
             detections = ImageProposal.model_validate_json(reply.text).detections
-            _check_proposals(detections, dimensions)
+            if dimensions and any(not 0 <= d.center_px[0] <= dimensions[0] or not 0 <= d.center_px[1] <= dimensions[1] for d in detections):
+                raise ValueError('Detected pixel center is outside the image')
             mode, note = 'llm', 'Unverified image proposals projected with supplied anchors; all require confirmation.'
         except Exception:
             detections, mode, note = [], 'deterministic', 'Image provider or proposal unavailable; retained catalog draft.'

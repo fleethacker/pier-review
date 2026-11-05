@@ -30,9 +30,8 @@ it.each(['invalid', 'unknown', undefined, 'valid', 'limited'])('analysis summari
 
 it.each(['invalid', 'unknown', undefined, 'valid', 'limited'])('sheet margins respect %s validity', (validity) => {
   const state = { overlay: { kind: 'sheet', id: 'S' } };
-  const agent = { review: { state: 'idle', progress: 0, error: null, review: null },
-    sheet: { state: 'ready', image: null, html: '<p>Fixture sheet</p>', error: null,
-    sheet: { sheet_id: 'S', plan_id: 'P', review_id: 'R', version: 1, status: 'RED', sources: [], warnings: [], rationale: [], approvals: [],
+  const agent = { sheet: { state: 'ready', image: null, html: '<p>Fixture sheet</p>', error: null,
+    sheet: { sheet_id: 'S', version: 1, status: 'RED', sources: [], warnings: [], rationale: [], approvals: [],
       validity: validity ? { state: validity } : undefined,
       line_plan: [{ line_number: 1, role: 'bow', pct_wll: 12, status: 'GREEN' }] } } };
   render(<ControllerContext.Provider value={{ state: { use: (sel: (s: typeof state) => unknown) => sel(state) },
@@ -43,19 +42,4 @@ it.each(['invalid', 'unknown', undefined, 'valid', 'limited'])('sheet margins re
     expect(screen.queryByText(/12% of WLL/)).toBeNull();
     expect(screen.getByText('Unavailable')).toBeTruthy();
   }
-});
-
-it.each([
-  ['R', /Review details are not loaded/],
-  [null, /records no independent review/],
-])('sheet shows its review identity (%s)', (reviewId, expected) => {
-  const state = { overlay: { kind: 'sheet', id: 'S' } };
-  const agent = { review: { state: 'idle', progress: 0, error: null, review: null },
-    sheet: { state: 'ready', image: null, html: '<p>Fixture sheet</p>', error: null,
-    sheet: { sheet_id: 'S', plan_id: 'P', review_id: reviewId, version: 1, status: 'AMBER', sources: [], warnings: [],
-      rationale: [], approvals: [], validity: { state: 'limited' }, line_plan: [] } } };
-  render(<ControllerContext.Provider value={{ state: { use: (sel: (s: typeof state) => unknown) => sel(state) },
-    motion: { state: { use: (sel: (s: { open: boolean }) => unknown) => sel({ open: false }) } },
-    agent: { state: { use: (sel: (s: typeof agent) => unknown) => sel(agent) } } } as never}><Overlay /></ControllerContext.Provider>);
-  expect(screen.getByText(expected)).toBeTruthy();
 });

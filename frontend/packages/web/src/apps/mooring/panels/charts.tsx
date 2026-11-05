@@ -131,7 +131,7 @@ export function ProbabilityBars({
   );
 }
 
-/** Polar plot of the wind speed that first overloads the plan, by wind angle. */
+/** Polar plot of reported conservative working/element limits, never an ultimate-capacity boundary. */
 export function PolarEnvelope({
   points,
   currentWindKt,
@@ -190,7 +190,9 @@ export function PolarEnvelope({
       /> : segments.map((segment, i) => segment.length > 1
         ? <polyline key={i} points={segment.map((p) => pt(p.angle, p.limit).join(',')).join(' ')} fill="none" stroke="#00e5ff" strokeWidth="1.5" />
         : <circle key={i} cx={pt(segment[0].angle, segment[0].limit)[0]} cy={pt(segment[0].angle, segment[0].limit)[1]} r="2" fill="#00e5ff" />)}
-      {currentWindKt != null && <circle cx={c} cy={c} r={(currentWindKt / max) * r} fill="none" stroke="#ffc107" strokeDasharray="3 3" />}
+      {currentWindKt != null && <circle cx={c} cy={c} r={(currentWindKt / max) * r} fill="none" stroke="#ffc107" strokeDasharray="3 3">
+        <title>{`Dashed ring: sustained wind ${currentWindKt} kt`}</title>
+      </circle>}
       {worstAngle != null && (() => {
         const w = finite.find((p) => p.angle === worstAngle);
         if (!w) return null;

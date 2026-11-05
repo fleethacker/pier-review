@@ -47,6 +47,9 @@ STALE_S = 300.0
 SAMPLE_DT_S = 1.0            # Monte Carlo runs use at least this step to bound runtime
 FAR_NM = 20.0
 # Illustrative environment spreads (one sigma). Not the S10 model.
+CHECK_S = 2.0                # central-path hazard checks are made at most this far apart and swept in between
+SAMPLE_CHECK_S = 5.0         # same for the Monte Carlo samples (bounds runtime)
+MAX_STATE_KT = 60.0
 WIND_SPEED_FRAC, WIND_DIR_DEG, CURRENT_SPEED_FRAC, CURRENT_DIR_DEG = 0.15, 10.0, 0.20, 15.0
 
 
@@ -75,7 +78,8 @@ def hull_polygon(x: float, y: float, heading_deg: float, loa_m: float, beam_m: f
     return Polygon([(x + fx * s - fy * c, y + fx * c + fy * s) for fx, fy in local])
 
 
-def _transit_request(req: PredictionRequest, helm, tugs, *, dt: float, start_ll, heading, speed_kt, env, plane) -> TransitRequest:
+def _transit_request(req: PredictionRequest, helm, tugs, *, dt: float, start_ll, heading, speed_kt, env, plane,
+                     sample_s: float | None = None) -> TransitRequest:
     v = req.vessel
     h = math.radians(heading)
     far = plane.to_geo(*(FAR_NM * NM * math.sin(h) + plane_xy(plane, start_ll)[0], FAR_NM * NM * math.cos(h) + plane_xy(plane, start_ll)[1]))
@@ -88,7 +92,7 @@ def _transit_request(req: PredictionRequest, helm, tugs, *, dt: float, start_ll,
                        route=[TransitWaypoint(lat=far[0], lon=far[1], speed_kt=max(speed_kt, 1.0))], mode=mode,
                        propulsion=req.propulsion, helm_commands=commands, tug_commands=tug_cmds)
     return TransitRequest(vessels=[vt], environment=env, start_utc=req.as_of_utc, origin=GeoPoint(lat=plane.lat0, lon=plane.lon0),
-                          duration_s=req.horizon_s, dt_s=dt, sample_interval_s=req.tick_s)
+                          duration_s=req.horizon_s, dt_s=dt, sample_interval_s=sample_s or req.tick_s)
 
 
 def plane_xy(plane, ll):
@@ -149,28 +153,65 @@ def _build_hazards(req: PredictionRequest, plane: LocalPlane, t0: datetime) -> H
         for fix in o.path:
             x, y = plane.to_local(fix.lat, fix.lon)
             rows.append(((fix.t_utc - t0).total_seconds(), x, y, fix.heading_true_deg or 0.0))
+        rows.sort(key=lambda r: r[0])
         others.append((o.vessel_id, rows, o.length_ft * FT, o.beam_ft * FT))
     return Hazards(face, bid, fenders, others)
 
 
-def _clearances(track: Track, hz: Hazards, loa: float, beam: float):
-    """Per tick: list of (clearance_m, kind, element_id, closest hull point (x, y))."""
-    out = []
+def _split(tick_s: float, target_s: float) -> tuple[int, float]:
+    """(k, check_s): k check intervals per output tick, check_s = tick_s / k <= target_s."""
+    k = max(1, math.ceil(tick_s / target_s - 1e-9))
+    return k, tick_s / k
+
+
+def _sub(tr: Track, k: int) -> Track:
+    return Track(tr.t[::k], tr.x[::k], tr.y[::k], tr.heading[::k], tr.sog[::k], tr.cog[::k], tr.rudder[::k], tr.order[::k])
+
+
+def _other_hull(rows, t, ol, ob) -> Polygon:
+    """Hull of another vessel at time t: linear interpolation along its supplied path, held at the first/last fix outside it."""
+    if t <= rows[0][0]:
+        r = rows[0]
+        return hull_polygon(r[1], r[2], r[3], ol, ob)
+    if t >= rows[-1][0]:
+        r = rows[-1]
+        return hull_polygon(r[1], r[2], r[3], ol, ob)
+    for r0, r1 in zip(rows, rows[1:]):
+        if r0[0] <= t <= r1[0]:
+            f = 0.0 if r1[0] == r0[0] else (t - r0[0]) / (r1[0] - r0[0])
+            dh = ((r1[3] - r0[3] + 180.0) % 360.0) - 180.0
+            return hull_polygon(r0[1] + f * (r1[1] - r0[1]), r0[2] + f * (r1[2] - r0[2]), (r0[3] + f * dh) % 360.0, ol, ob)
+    r = rows[-1]
+    return hull_polygon(r[1], r[2], r[3], ol, ob)
+
+
+def _iter_clearances(track: Track, hz: Hazards, loa: float, beam: float):
+    """Per check time: list of (clearance_m, kind, element_id, closest hull point). Each entry after the first uses the
+    SWEPT hull (convex hull of the footprints at the previous and this check time), so a hazard falling between two
+    samples is still seen; entry 0 is the initial footprint, so an overlap that exists at the start is reported at t=0.
+    Other vessels are swept over the same interval (conservative: both swept hulls are compared over the whole interval)."""
+    prev = None
     for i in range(len(track.t)):
         hull = hull_polygon(track.x[i], track.y[i], track.heading[i], loa, beam)
+        swept = hull if prev is None else unary_union([prev, hull]).convex_hull
+        prev = hull
         cands = []
         if hz.face is not None:
-            d = hull.distance(hz.face)
-            p = nearest_points(hull, hz.face)[0]
-            cands.append((d, "pier", f"{hz.berth_id}:face", p))
+            cands.append((swept.distance(hz.face), "pier", f"{hz.berth_id}:face", nearest_points(swept, hz.face)[0]))
             for fid, seg in hz.fenders:
-                cands.append((hull.distance(seg), "fender", fid, nearest_points(hull, seg)[0]))
+                cands.append((swept.distance(seg), "fender", fid, nearest_points(swept, seg)[0]))
         for oid, rows, ol, ob in hz.others:
-            row = min(rows, key=lambda r: abs(r[0] - track.t[i]))
-            oh = hull_polygon(row[1], row[2], row[3], ol, ob)
-            cands.append((hull.distance(oh), "vessel", oid, nearest_points(hull, oh)[0]))
-        out.append(cands)
-    return out
+            t1 = track.t[i]
+            t0 = track.t[i - 1] if i else t1
+            hs = [_other_hull(rows, t0, ol, ob), *(hull_polygon(r[1], r[2], r[3], ol, ob) for r in rows if t0 < r[0] < t1),
+                  _other_hull(rows, t1, ol, ob)]
+            oh = unary_union(hs).convex_hull if len(hs) > 1 else hs[0]
+            cands.append((swept.distance(oh), "vessel", oid, nearest_points(swept, oh)[0]))
+        yield cands
+
+
+def _clearances(track: Track, hz: Hazards, loa: float, beam: float):
+    return list(_iter_clearances(track, hz, loa, beam))
 
 
 def _worst(cands):
@@ -183,7 +224,21 @@ def _approach(plane, t, c, prob):
                           position=GeoPoint(lat=lat, lon=lon), probability=prob)
 
 
+def _check_finite(req: PredictionRequest) -> None:
+    v = req.vessel
+    for name, x in (("surge_kt", v.surge_kt), ("sway_kt", v.sway_kt), ("yaw_rate_degps", v.yaw_rate_degps),
+                    ("delivered_thrust_lbf", v.delivered_thrust_lbf if v.delivered_thrust_lbf is not None else 0.0)):
+        if not math.isfinite(x):
+            raise RequestInvalid(f"vessel.{name} must be a finite number")
+    if abs(v.surge_kt) > MAX_STATE_KT or abs(v.sway_kt) > MAX_STATE_KT:
+        raise RequestInvalid(f"vessel speeds beyond {MAX_STATE_KT:g} kt are not plausible for these ships")
+
+
 def predict(req: PredictionRequest) -> PredictionResponse:
+    # The prediction works on a private deep copy: nothing in the caller's request (which may be built from a live
+    # session or replay state) is ever mutated, and nothing here writes to any store.
+    req = req.model_copy(deep=True)
+    _check_finite(req)
     v = req.vessel
     as_of = req.as_of_utc or datetime.now(UTC)
     plane = LocalPlane(v.position.lat, v.position.lon)
@@ -198,16 +253,27 @@ def predict(req: PredictionRequest) -> PredictionResponse:
         hz = _build_hazards(req, plane, as_of)
         sets = [("hold", "Hold current commands", [], [])] + [(a.alt_id, a.label, a.helm_commands, a.tug_commands) for a in req.alternatives]
 
-        def go(helm, tugs, dt, start, heading, speed, env):
-            treq = _transit_request(req, helm, tugs, dt=dt, start_ll=start, heading=heading, speed_kt=speed, env=env, plane=plane)
+        k_c, check_c = _split(req.tick_s, CHECK_S)
+        k_s, check_s = _split(req.tick_s, SAMPLE_CHECK_S)
+
+        def go(helm, tugs, dt, start, heading, speed, env, sample):
+            treq = _transit_request(req, helm, tugs, dt=dt, start_ll=start, heading=heading, speed_kt=speed, env=env, plane=plane,
+                                    sample_s=sample)
             return treq, sim.run(treq, "predict")
         central = {}
         for aid, _, helm, tugs in sets:
-            central[aid] = go(helm, tugs, req.dt_s, start_ll, v.heading_true_deg, speed0, req.environment)
+            central[aid] = go(helm, tugs, req.dt_s, start_ll, v.heading_true_deg, speed0, req.environment, check_c)
     except (sim.RequestInvalid, refdata.NotFound) as exc:
         raise RequestInvalid(str(exc)) from None
 
-    n_s = req.uncertainty.samples
+    n_req = req.uncertainty.samples
+    u = v.uncertainty
+    env0 = req.environment
+    spread = bool((u and (u.position_sd_ft or u.heading_sd_deg or u.speed_sd_kt))
+                  or (env0 and (env0.wind_speed_kt > 0 or env0.current_speed_kt > 0)))
+    # With no spread source (or a single sample) every sample would equal the central path: report the uncertainty as
+    # unavailable (null corridor, spread and probability) instead of a corridor of zero width.
+    n_s = n_req if (n_req >= 2 and spread) else 0
     samples: dict[str, list[Track]] = {aid: [] for aid, *_ in sets}
     if n_s:
         rng = np.random.default_rng(req.uncertainty.seed)
@@ -223,38 +289,40 @@ def predict(req: PredictionRequest) -> PredictionResponse:
         for aid, _, helm, tugs in sets:       # same draws for every alternative (common random numbers)
             for dx, dy, dh, ds, env in draws:
                 ll = plane.to_geo(dx, dy)
-                _, r = go(helm, tugs, dt_s, ll, (v.heading_true_deg + dh) % 360, max(0.0, speed0 + ds), env)
+                _, r = go(helm, tugs, dt_s, ll, (v.heading_true_deg + dh) % 360, max(0.0, speed0 + ds), env, check_s)
                 samples[aid].append(_track(r, plane))
 
     alts = []
     for aid, label, _, _ in sets:
         treq, r = central[aid]
-        tr = _track(r, plane)
+        tr_fine = _track(r, plane)
+        tr = _sub(tr_fine, k_c)
         n = len(tr.t)
-        cl = _clearances(tr, hz, loa, beam)
+        cl = _clearances(tr_fine, hz, loa, beam)
         worst = [(_worst(c), i) for i, c in enumerate(cl) if c]
         closest = first = None
         breach_p = None
         thr = req.hazards.min_clearance_ft * FT
         if worst:
             if n_s:
-                scl = [_clearances(s, hz, loa, beam) for s in samples[aid]]
-                breach_p = sum(any(c and min(x[0] for x in c) < thr for c in sc) for sc in scl) / n_s
+                breach_p = sum(any(c and min(x[0] for x in c) < thr for c in _iter_clearances(s, hz, loa, beam))
+                               for s in samples[aid]) / n_s
             wi = min(worst, key=lambda w: w[0][0])
-            closest = _approach(plane, tr.t[wi[1]], wi[0], breach_p)
+            closest = _approach(plane, tr_fine.t[wi[1]], wi[0], breach_p)
             fb = next((w for w in worst if w[0][0] < thr), None)
             if fb:
-                first = _approach(plane, tr.t[fb[1]], fb[0], breach_p)
+                first = _approach(plane, tr_fine.t[fb[1]], fb[0], breach_p)
         # corridor and spread
         corridor, sd = None, [None] * n
         if n_s:
-            m = min(n, *(len(s.t) for s in samples[aid]))
-            mx = [float(np.median([s.x[i] for s in samples[aid]])) for i in range(m)]
-            my = [float(np.median([s.y[i] for s in samples[aid]])) for i in range(m)]
+            ss = [_sub(s, k_s) for s in samples[aid]]
+            m = min(n, *(len(s.t) for s in ss))
+            mx = [float(np.median([s.x[i] for s in ss])) for i in range(m)]
+            my = [float(np.median([s.y[i] for s in ss])) for i in range(m)]
             for i in range(m):
-                sd[i] = round(math.sqrt(np.var([s.x[i] for s in samples[aid]]) + np.var([s.y[i] for s in samples[aid]])) / FT, 1)
-            dist = [max(math.hypot(s.x[i] - mx[i], s.y[i] - my[i]) for i in range(m)) for s in samples[aid]]
-            keep = [s for _, s in sorted(zip(dist, samples[aid]), key=lambda z: z[0])[:max(1, math.ceil(req.uncertainty.percentile / 100 * n_s))]]
+                sd[i] = round(math.sqrt(np.var([s.x[i] for s in ss]) + np.var([s.y[i] for s in ss])) / FT, 1)
+            dist = [max(math.hypot(s.x[i] - mx[i], s.y[i] - my[i]) for i in range(m)) for s in ss]
+            keep = [s for _, s in sorted(zip(dist, ss), key=lambda z: z[0])[:max(1, math.ceil(req.uncertainty.percentile / 100 * n_s))]]
             polys = [hull_polygon(s.x[i], s.y[i], s.heading[i], loa, beam) for s in [*keep, tr] for i in range(min(m, len(s.t)))]
             u_ = unary_union(polys).buffer(0.5)
             if u_.geom_type != "Polygon":
@@ -283,7 +351,8 @@ def predict(req: PredictionRequest) -> PredictionResponse:
         checked.append("vessel")
     input_age = max(0.0, (as_of - v.observed_utc).total_seconds())
     env_age = req.environment.metadata.age_s if req.environment and req.environment.metadata else None
-    validity = _validity(req, central["hold"], input_age, env_age, n_s, dt_s_used=max(req.dt_s, SAMPLE_DT_S) if n_s else None)
+    validity = _validity(req, central["hold"], input_age, env_age, n_s, dt_s_used=max(req.dt_s, SAMPLE_DT_S) if n_s else None,
+                         checked=checked, n_req=n_req, hz=hz, horizon_s=req.horizon_s)
     breach_hold = alts[0].first_breach is not None
     status = "RED" if (validity.state == "invalid" or breach_hold) else "AMBER"
     result = PredictionResult(vessel_id=v.vessel_id, engine="transit", as_of_utc=as_of, input_age_s=round(input_age, 1),
@@ -302,7 +371,7 @@ def predict(req: PredictionRequest) -> PredictionResponse:
                                                                 "samples": n_s, "seed": req.uncertainty.seed}))
 
 
-def _validity(req, central_hold, input_age, env_age, n_s, dt_s_used) -> Validity:
+def _validity(req, central_hold, input_age, env_age, n_s, dt_s_used, *, checked=(), n_req=0, hz=None, horizon_s=0.0) -> Validity:
     treq, r = central_hold
     inherited = sim.validity_for(treq, r)
     reasons = [x for x in inherited.reasons if x.code != "SYNTHETIC_EPOCH"]
@@ -327,6 +396,30 @@ def _validity(req, central_hold, input_age, env_age, n_s, dt_s_used) -> Validity
                        message="The transit start supports only forward surge from rest actuators: " + "; ".join(notes) + "."))
     if req.hazards.coastline:
         reasons.append(ValidityReason(code="COASTLINE_NOT_CHECKED", message="No coastline data are wired: coastline clearance is not checked, so not clear, just unknown."))
+    kinds = ("pier", "fender", "coastline", "vessel")
+    unchecked = [k for k in kinds if k not in checked]
+    if not checked:
+        reasons.append(ValidityReason(code="HAZARD_COVERAGE_UNKNOWN", message=(
+            "No hazard layer was checked (no berth, no other vessels, no coastline data). The absence of a predicted breach or "
+            "closest approach is NOT an all-clear: coverage is unknown.")))
+    elif unchecked:
+        reasons.append(ValidityReason(code="HAZARD_COVERAGE_INCOMPLETE", message=(
+            f"Hazard kinds not checked: {', '.join(unchecked)}. Checked: {', '.join(checked)}. Unchecked kinds are unknown, not clear.")))
+    if hz is not None:
+        short = [oid for oid, rows, *_ in hz.others if rows[-1][0] < horizon_s or rows[0][0] > 0]
+        if short:
+            reasons.append(ValidityReason(code="OTHER_VESSEL_PATH_SHORT", message=(
+                f"The supplied path of {', '.join(short)} does not cover the whole horizon; the vessel is held at its first/last "
+                "supplied position outside it (not predicted).")))
+    reasons.append(ValidityReason(code="SWEPT_HULL_CHECK", message=(
+        f"Clearance is checked on the swept hull between samples (at most {CHECK_S:g} s apart centrally, {SAMPLE_CHECK_S:g} s for "
+        "samples; the convex hull of consecutive footprints), including the initial footprint. Other vessels are swept over the "
+        "same interval, which is conservative.")))
+    if not n_s:
+        why = ("not requested (samples = 0)" if not n_req else
+               "not computable: it needs at least 2 samples and a spread source (initial-state uncertainty or non-zero wind/current)")
+        reasons.append(ValidityReason(code="UNCERTAINTY_UNAVAILABLE", message=(
+            f"No corridor, position spread or breach probability: {why}. This is unavailable, not zero width.")))
     if n_s:
         reasons.append(ValidityReason(code="UNCERTAINTY_ILLUSTRATIVE", message="Illustrative spread of simple seeded perturbations; the S10 uncertainty model is not yet wired. "
                        "Breach probability is a sample share, not calibrated." + (f" Samples use dt {dt_s_used:g} s." if dt_s_used else "")))

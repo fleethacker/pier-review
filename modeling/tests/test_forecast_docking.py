@@ -162,3 +162,37 @@ def test_validity_interval_may_cover_short_operation_but_not_later_hold():
     assert result.result.selected_arrival_utc is not None
     held = assess(req.model_copy(update={'forecast': series, 'holding_hours':1}))
     assert held.result.selected_arrival_utc is None
+
+
+def test_selected_installation_preserves_rest_lengths_when_rechecked_at_later_tide():
+    from mooring.core.envelopes import RESULTS
+    from mooring.core.schemas import AnalyzeRequest, MooringConfig
+    from mooring.moored import solver
+    req = request()
+    series = [snapshot.model_copy(update={'water_level_mllw_ft': 1.8+(index-24)*0.05})
+              for index,snapshot in enumerate(req.forecast)]
+    req = req.model_copy(update={'forecast':series})
+    response = assess(req)
+    selected = next(window for window in response.result.windows if window.arrival_utc == response.result.selected_arrival_utc)
+    config = MooringConfig.model_validate(response.result.selected_config.model_dump())
+    expected_level = next(s.water_level_mllw_ft for s in series if s.valid_at_utc == selected.arrival_utc)
+    assert response.result.installed_at_water_level_mllw_ft == selected.installed_at_water_level_mllw_ft == expected_level
+    assert all(line.paid_out_unstretched_length_ft > 0 and line.pretension_lbf is None and line.slack_ft is None for line in config.lines)
+    assert all(line.paid_out_unstretched_length_ft is None for line in req.config.lines)  # original request untouched
+    # The selected window's last condition uses a different tide but the same installed line lengths.
+    stored = RESULTS[selected.analysis_result_ids[-1]]
+    last = next(s for s in series if s.valid_at_utc == selected.holding_end_utc)
+    repeated = solver.analyze(AnalyzeRequest(ship_class_id=req.ship_class_id, berth_id=req.berth_id, loading=req.loading,
+        config=config, environment=last, mst=req.mst, tugs=req.tugs))
+    assert [line.tension_lbf for line in repeated.result.lines] == pytest.approx(
+        [line['tension_lbf'] for line in stored['result']['lines']], rel=1e-9)
+    assert all(condition.installed_at_water_level_mllw_ft is not None
+               for condition in response.result.conditions if condition.analysis_result_id)
+
+
+def test_unsupported_arrivals_do_not_publish_a_selected_installation():
+    req = request()
+    result = assess(req.model_copy(update={'forecast':req.forecast[:25]})).result
+    assert result.selected_config is None and result.installed_at_water_level_mllw_ft is None
+    assert 'selected_config' not in result.model_dump(mode='json')
+    assert all(window.installed_at_water_level_mllw_ft is None for window in result.windows)

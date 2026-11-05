@@ -14,6 +14,7 @@ from mooring.core.schemas.forecast_planning import (
     DockingArrivalWindow, DockingConditionResult, ForecastDockingRequest, ForecastDockingResponse, ForecastDockingResult,
 )
 from mooring.tugs.validation import assignment_errors
+from mooring.mechanics import equilibrium as eq
 from . import search, solver
 
 RECHECK = ['New forecast issuance or missing/stale component', 'Arrival or operation duration changes',
@@ -50,7 +51,7 @@ def _input_problem(snapshot, as_of, valid_until=None):
 
 def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
     ship = refdata.ship(req.ship_class_id)
-    refdata.berth(req.berth_id)
+    berth = refdata.berth(req.berth_id)
     refdata.loading(ship, req.loading)
     errors = assignment_errors(ship, req.tugs, refdata.tugs())
     if errors:
@@ -82,6 +83,7 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
         first = bisect_right(dates, arrival) - 1
         last = bisect_right(dates, end) - 1
         reasons, checks = [], []
+        install_level = None
         if first < 0 or dates[-1] < end:
             reasons.append('Forecast does not cover the full arrival, docking and holding interval')
         elif any((dates[i + 1] - dates[i]).total_seconds() > req.max_gap_min * 60
@@ -118,6 +120,7 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
                                    'overloaded' if response.status == 'RED' or response.result.min_margin.pct_wll > req.target_pct_wll else
                                    'within_target')
                         checked = DockingConditionResult(valid_at_utc=snapshot.valid_at_utc,
+                            installed_at_water_level_mllw_ft=install_level,
                             analysis_result_id=response.result_id, outcome=outcome,
                             max_pct_wll=response.result.min_margin.pct_wll if outcome not in ('invalid', 'undetermined') else None,
                             governing_element=response.result.min_margin.element_id, validity=validity,
@@ -133,6 +136,7 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
         if outcome == 'within_target' and any(c.validity.state == 'limited' for c in checks):
             outcome = 'supported_limited'
         windows.append(DockingArrivalWindow(arrival_utc=arrival, operation_end_utc=operation_end, holding_end_utc=end,
+            installed_at_water_level_mllw_ft=install_level,
             outcome=outcome, max_pct_wll=peak.max_pct_wll if peak else None,
             governing_at_utc=peak.valid_at_utc if peak else None, governing_element=peak.governing_element if peak else None,
             analysis_result_ids=[c.analysis_result_id for c in checks if c.analysis_result_id],
@@ -140,6 +144,18 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
         arrival += timedelta(minutes=req.arrival_step_min)
     supported = [w for w in windows if w.outcome in ('within_target', 'supported_limited')]
     selected = min(supported, key=lambda w: (w.max_pct_wll, w.arrival_utc)) if supported else None
+    selected_config = None
+    if selected:
+        # Resolve the same installation assumption without another solve. Explicit paid-out lengths
+        # let a consumer recheck later tides without accidentally reinstalling every line there.
+        initial = req.forecast[bisect_right(dates, selected.arrival_utc)-1]
+        system = eq.build_system(ship, berth, config, {line.spec_id: refdata.line(line.spec_id) for line in config.lines},
+            initial, loading=req.loading, lines_wet=True, tugs=req.tugs,
+            install_water_level_ft=selected.installed_at_water_level_mllw_ft)
+        selected_config = config.model_copy(update={"lines": [line.ln.model_copy(update={
+            "paid_out_unstretched_length_ft": line.model.rest_length_ft, "pretension_lbf": None, "slack_ft": None,
+            "condition": "wet" if line.wet else "dry",
+        }) for line in system.lines]})
     validity = Validity(state='limited', reasons=[ValidityReason(code='FORECAST_DOCKING_STATIC_ONLY',
         message='Forecast sampling and static equilibrium do not qualify a docking maneuver or line-handling evolution.',
         affected_components=['forecast', 'docking'])])
@@ -147,11 +163,15 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
         issued_at_utc=sorted({s.metadata.issued_at_utc for s in req.forecast if s.metadata and s.metadata.issued_at_utc}),
         sources=sorted({s.metadata.source or s.source if s.metadata else s.source for s in req.forecast}),
         config=config, tugs=req.tugs, recommendation_result_id=recommendation_id,
+        selected_config=selected_config,
+        installed_at_water_level_mllw_ft=selected.installed_at_water_level_mllw_ft if selected else None,
         selected_arrival_utc=selected.arrival_utc if selected else None, windows=windows, conditions=conditions,
         evaluations=evaluations, complete=complete, recheck_triggers=RECHECK,
         limitations=LIMITATIONS + (['Input contains synthetic scenario data; this is not a public weather forecast.']
                                   if any(s.source in ('scenario', 'mock') for s in req.forecast) else []))
     snapshot = {'request': req.model_dump(mode='json'), 'config': config.model_dump(mode='json'),
+                'selected_config': selected_config.model_dump(mode='json') if selected_config else None,
+                'installed_at_water_level_mllw_ft': result.installed_at_water_level_mllw_ft,
                 'analysis_result_ids': [c.analysis_result_id for c in conditions if c.analysis_result_id],
                 'recommendation_result_id': recommendation_id}
     digest = resolved_inputs_hash(snapshot)

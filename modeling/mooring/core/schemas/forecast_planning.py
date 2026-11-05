@@ -47,6 +47,8 @@ class ForecastDockingRequest(Model):
 
 
 class DockingConditionResult(Model):
+    wire_omitted_defaults = {"installed_at_water_level_mllw_ft": None}
+    installed_at_water_level_mllw_ft: float | None = None
     valid_at_utc: AwareDatetime
     analysis_result_id: str | None
     outcome: Literal['within_target', 'overloaded', 'invalid', 'undetermined', 'unavailable']
@@ -57,6 +59,8 @@ class DockingConditionResult(Model):
 
 
 class DockingArrivalWindow(Model):
+    wire_omitted_defaults = {"installed_at_water_level_mllw_ft": None}
+    installed_at_water_level_mllw_ft: float | None = None
     arrival_utc: AwareDatetime
     operation_end_utc: AwareDatetime
     holding_end_utc: AwareDatetime
@@ -69,6 +73,11 @@ class DockingArrivalWindow(Model):
 
 
 class ForecastDockingResult(Model):
+    wire_omitted_defaults = {"selected_config": None, "installed_at_water_level_mllw_ft": None}
+    selected_config: MooringConfig | None = Field(default=None,
+        description="Selected arrival's configuration with modeled unstretched paid-out lengths made explicit. Reproduces the static installation assumption; not a deck-handling instruction.")
+    installed_at_water_level_mllw_ft: float | None = Field(default=None,
+        description="Installation water level for selected_config; unknown/absent when no supported arrival was selected.")
     as_of_utc: AwareDatetime
     forecast_start_utc: AwareDatetime
     forecast_end_utc: AwareDatetime

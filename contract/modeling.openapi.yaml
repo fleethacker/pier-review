@@ -9018,6 +9018,12 @@ components:
     DockingArrivalWindow:
       additionalProperties: false
       properties:
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          title: Installed At Water Level Mllw Ft
         arrival_utc:
           format: date-time
           title: Arrival Utc
@@ -9080,6 +9086,12 @@ components:
     DockingConditionResult:
       additionalProperties: false
       properties:
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          title: Installed At Water Level Mllw Ft
         valid_at_utc:
           format: date-time
           title: Valid At Utc
@@ -9201,6 +9213,20 @@ components:
     ForecastDockingResult:
       additionalProperties: false
       properties:
+        selected_config:
+          anyOf:
+          - $ref: '#/components/schemas/MooringConfig'
+          - type: 'null'
+          default: null
+          description: Selected arrival's configuration with modeled unstretched paid-out lengths made explicit. Reproduces
+            the static installation assumption; not a deck-handling instruction.
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          description: Installation water level for selected_config; unknown/absent when no supported arrival was selected.
+          title: Installed At Water Level Mllw Ft
         as_of_utc:
           format: date-time
           title: As Of Utc

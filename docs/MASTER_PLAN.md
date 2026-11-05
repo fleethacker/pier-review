@@ -5,11 +5,21 @@ overnight logs' "next steps" and "tomorrow" sections, the expanded modeling plan
 (all now in [docs/archive/2026-11-05-overnight/](archive/2026-11-05-overnight/)). If a priority or assignment here
 conflicts with another document, this one wins. Detailed packet specifications stay where they are (see [Document map](#document-map)).
 
+**Current next steps — product audit, 5 November 2026:** the adversarial review of `dev` at `ac73e1f` found
+**28 open findings (14 High, 13 Medium, 1 Low)**, eight broader capability/workflow gaps and three test-design gaps.
+[NEXT_STEPS.md](NEXT_STEPS.md) is this plan's detailed remediation ledger: stable F/G/T IDs, reproductions, pinned
+source references, named leads/reviewers and closure requirements. Fix result applicability, forecast continuity,
+physical validity and collision reporting before extending the affected workflows. Security, data-loss and
+persistence fixes can proceed in coordinated parallel lanes. The correction order and assignments in that ledger
+supersede older next-step/status claims below where they conflict; this master plan remains the planning authority.
+Every finding is open until its fix and independent acceptance evidence are recorded. Publishing this plan is not a fix
+or an operational-readiness approval; existing `limited`/synthetic labels remain required.
+
 Originally written 5 November 2026 against `dev` at `e0e0fcf` (legacy PR #106).
 **Integration status updated 5 November 2026** against `dev` at `684db99`: provider PR #13 and exercise/UI PR #21 are merged.
 The Bixler branch retains separate before/after-integration evidence in [BIXLER_IMPLEMENTATION.md](BIXLER_IMPLEMENTATION.md).
-This status does not establish release approval. Use the `dev` version; `main` is
-the release branch and does not yet contain this plan. The repo now lives at
+That integration snapshot is historical and does not establish release approval. Use the `dev` version for active
+planning; `main` is the release branch. The repo now lives at
 [fleethacker/pier-review](https://github.com/fleethacker/pier-review); its default branch is `main`, so **always open PRs
 with `--base dev`**.
 
@@ -98,6 +108,7 @@ Offshore waves remain evidence, not qualified berth forcing.
 
 | Remaining work | Lead and dependency |
 | --- | --- |
+| Product-audit findings F01–F28 and gaps G01–G08 | Start with the [next-steps execution ledger](NEXT_STEPS.md#execution-ledger); all findings open, with separate acceptance gaps T01–T04 |
 | Close remaining S5/S6 findings with independent evidence | Snyder backend/physics; Kori UI; [finding ledger](MODELING_BUILDOUT_STATUS.md#pr-10-review-disposition) |
 | S2/S3 cross-review and merge (PR #22); S7 state fidelity, berthing engine, hazard coverage and uncertainty gates | Snyder; S2/S3 implemented on #22 pending review; S7 engine/forcing handoff, D2/D8 as they land; retain current camera limits |
 | D1–D4 source acceptance and U3/U4 integration with merged provider contracts | Cruz source evidence; Kori/Bixler integration |
@@ -804,6 +815,15 @@ complete on synthetic tests.
 
 Bixler updates this table; everyone else posts in the team channel.
 
+### Product-audit remediation
+
+Reviewed snapshot: `ac73e1f`, 5 November 2026. **F01–F28 are open**; the
+[execution ledger](NEXT_STEPS.md#execution-ledger) records each lead, independent reviewer and required closure evidence.
+The audit reproduced failures in already-merged features, including stale Safety reviews, dropped forecast/camera
+inputs, invalid physics presented as limited, missed contacts, lost drafts and failed persistence. Historical
+implementation rows below do not close those findings. Use [the correction sequence](NEXT_STEPS.md#correction-order-and-ownership)
+and retain G01–G08/T01–T04 as distinct capability and acceptance work.
+
 ### Requirements audit follow-up
 
 Requirements prompts merged in [PR #12](https://github.com/fleethacker/pier-review/pull/12); their audit baseline
@@ -878,6 +898,7 @@ A2 actual hosting and A4 release remain separate gates. This follow-up tests loc
 | Purpose | Document |
 | --- | --- |
 | **Priorities, owners, sequence** | this file |
+| **Current product findings, next changes, repros and closure ledger** | [NEXT_STEPS.md](NEXT_STEPS.md) — F01–F28, G01–G08, T01–T04 |
 | Product roadmap and module list | [PLAN.md](PLAN.md) |
 | Packet definitions S00–S21 (implementation authority for modeling packet scope) | [MODELING_EXECUTION_PLAN.md](MODELING_EXECUTION_PLAN.md) |
 | What is implemented per packet, evidence and blockers | [MODELING_BUILDOUT_STATUS.md](MODELING_BUILDOUT_STATUS.md) |

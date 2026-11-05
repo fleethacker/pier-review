@@ -73,3 +73,9 @@ By default the environment is the frozen scenario snapshot (unchanged behavior, 
 * Frames carry `environment` at `t_s` only when a forcing series is selected. Synthetic series are labeled provenance `mock`; replay is `unknown` (origin not verified). Replay channels the series does not supply are reported `unavailable` with values absent (the physics then uses the scenario base value, stated in the provenance note); missing is never zero.
 
 **Uncovered-forcing policy** (`on_uncovered`). Synthetic series cover `[0, duration_s]`; replay covers its first to last sample time. Time before the first sample always fails (including at creation: 422 for sessions). Time after coverage: `stop` (default) ends the run with an invalid RED result and reason `FORCING_UNCOVERED` (a session stops with an error alert until reset); `invalidate` holds the last covered value, marks the run invalid with `FORCING_UNCOVERED`, and frames report the environment validity as invalid. Neither policy extrapolates.
+
+## S3 wiring (tug geometry and vertical state)
+
+Tug commands are validated and evolved through `s3_tug_geometry` (`bind_push_point`, `TugLimits.from_specs`, `slew_force`, `tug_contact`, `total_wrench`); force and wrench results are numerically identical to the earlier inline ramp (same bounds, same slew rate, same `x_pp * fy` yaw moment). Tug position, velocity and acceleration remain null (not modeled).
+
+Rich rm0-v1 frames fill `pose.heave_mllw_ft` and the heave/roll/pitch DOF flags from `s3_vertical.vertical_state`. Heave is `prescribed` (water level above MLLW from the S2 forcing series, zero waterline offset) only when a forcing series supplying `water_level_mllw_ft` is selected; otherwise heave stays null with DOF `not_simulated`, never zero. Roll and pitch stay `not_simulated`: no GM, displacement or roll/pitch model is supplied or invented.

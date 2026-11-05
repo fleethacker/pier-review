@@ -19,6 +19,8 @@ from mooring.mechanics.dynamics import BodyParams, MooredBody
 from mooring.mechanics.streaming import Integrator
 from mooring.mechanics.equilibrium import build_system
 from mooring.tugs.allocation import _bounds
+from .s3_tug_geometry import (TugCommand, TugGeometryError, TugLimits, bind_push_point, slew_force,
+                              target_signed, tug_contact, total_wrench)
 from .forcing import ForcingSeries, ForcingUncovered, apparent_wind  # noqa: F401
 
 PARAMETER_SET = "synthetic-demonstration-v1"
@@ -63,6 +65,8 @@ class BerthingModel:
         fleet = refdata.tugs()
         for tug, point in zip(fleet, points):
             self.anchors[tug.tug_id] = (tug, point, _bounds(self.ship, tug, point, 1.0))
+        self.tug_limits = {tid: TugLimits.from_specs(tug, pp, slew_s=SLEW_SECONDS)
+                           for tid, (tug, pp, _) in self.anchors.items()}
         self.ramps = {}  # id -> (start time, old signed force, new signed force)
         self.pending = []
         self.sequence = 0
@@ -126,17 +130,14 @@ class BerthingModel:
     def tug_force(self, tug_id, t):
         if tug_id not in self.ramps: return 0.0
         start, old, new = self.ramps[tug_id]
-        tug, pp, bounds = self.anchors[tug_id]
-        rate = max(abs(v) for v in bounds)/SLEW_SECONDS
-        return old + math.copysign(min(abs(new-old), max(0, t-start)*rate), new-old)
+        return slew_force(old, new, self.tug_limits[tug_id], max(0.0, t-start))
 
     def tug_wrench(self, t):
-        fy = mz = 0.0
+        contacts = []
         for tid in self.ramps:
-            force = self.tug_force(tid, t)
-            fy += force
-            mz += self.anchors[tid][1].x_ft*force
-        return (0.0, fy, mz)
+            pp = self.anchors[tid][1]
+            contacts.append(tug_contact(tid, pp, self.tug_force(tid, t), 0.0, self.tug_limits[tid]))
+        return total_wrench(contacts)
 
     def forces(self, t, s):
         self.set_env(t, s)
@@ -154,11 +155,13 @@ class BerthingModel:
         if msg.type == "tug_command":
             if msg.tug_id not in self.anchors:
                 raise ValueError("tug has no unique water-side push-point assignment")
-            if msg.direction_rel_deg not in (90, 270):
-                raise ValueError("only normal hull forces (90 or 270 degrees) are supported by the tug allocation model")
-            signed = -msg.force_lbf if msg.direction_rel_deg == 90 else msg.force_lbf
-            lo, hi = self.anchors[msg.tug_id][2]
-            if not lo <= signed <= hi:
+            tug, pp, (lo, hi) = self.anchors[msg.tug_id]
+            cmd = TugCommand(msg.tug_id, pp.push_point_id, msg.force_lbf, msg.direction_rel_deg)
+            try:
+                bind_push_point(cmd, self.ship.push_points, side_to=self.sc.side_to, allowed_ids=[pp.push_point_id])
+            except TugGeometryError as e:
+                raise ValueError(str(e)) from e
+            if not lo <= target_signed(cmd) <= hi:
                 raise ValueError("tug or hull push-point rating exceeded")
         elif msg.line_number not in self.all_lines:
             raise ValueError("line is not in the scenario configuration")
@@ -173,7 +176,7 @@ class BerthingModel:
             _, _, msg = self.pending.pop(0)
             applied += 1
             if msg.type == "tug_command":
-                force = -msg.force_lbf if msg.direction_rel_deg == 90 else msg.force_lbf
+                force = target_signed(TugCommand(msg.tug_id, self.anchors[msg.tug_id][1].push_point_id, msg.force_lbf, msg.direction_rel_deg))
                 self.ramps[msg.tug_id] = (self.t, self.tug_force(msg.tug_id, self.t), force)
             else:
                 rec = self.all_lines[msg.line_number]

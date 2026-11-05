@@ -51,8 +51,66 @@ class LineEvent(Model):
     event: Literal["secured", "tensioned", "released"]
 
 
+class ForcingSample(Model):
+    """One supplied forcing sample (replay). A channel is either given in every sample or in none."""
+
+    t_s: float = Field(ge=0, description="Simulation time of the sample.")
+    wind_speed_kt: float | None = Field(default=None, ge=0)
+    wind_gust_kt: float | None = Field(default=None, ge=0)
+    wind_from_true_deg: float | None = Field(default=None, ge=0, lt=360)
+    current_speed_kt: float | None = Field(default=None, ge=0)
+    current_set_true_deg: float | None = Field(default=None, ge=0, lt=360)
+    water_level_mllw_ft: float | None = None
+
+
+class ForcingSpec(Model):
+    """Time-varying forcing, resolved at integration-stage time from an immutable series (S2).
+
+    steady: the scenario environment, constant (optionally plus the synthetic tide term).
+    ramp: linear move from the scenario environment at ramp_start_s to `target` at target.t_s, held afterwards.
+    gusts: seeded synthetic wind-speed fluctuation about the scenario environment (a pure function of seed and time).
+    replay: piecewise-linear interpolation of supplied samples; coverage is the sample time range.
+    """
+
+    kind: Literal["steady", "ramp", "gusts", "replay"] = "steady"
+    label: str | None = Field(default=None, max_length=200)
+    ramp_start_s: float = Field(default=0, ge=0)
+    target: ForcingSample | None = Field(default=None, description="ramp end values; t_s is the ramp end time.")
+    seed: int | None = Field(default=None, description="gusts: required; same seed gives the same series.")
+    gust_sigma_kt: float = Field(default=3.0, ge=0, le=100)
+    gust_correlation_s: float = Field(default=10.0, ge=1, le=600, description="Spacing of the random knots (linearly interpolated).")
+    samples: list[ForcingSample] = Field(default_factory=list, max_length=2000)
+    tide_amplitude_ft: float = Field(default=0, ge=0, le=50, description="Synthetic sinusoidal water-level term added to any kind.")
+    tide_period_s: float = Field(default=44712, gt=0, description="Default is the M2 period.")
+    tide_phase_rad: float = 0.0
+    vessel_relative_wind: bool = Field(default=False,
+        description="Subtract ship ground velocity from the wind (apparent wind). Current is never made relative here: "
+        "velocity-dependent water drag stays entirely in the body damping term, so it is not double counted.")
+    on_uncovered: Literal["stop", "invalidate"] = Field(default="stop",
+        description="Time past the series coverage: stop = fail the run (RED); invalidate = hold the last value and mark the run invalid.")
+
+    @model_validator(mode="after")
+    def coherent(self):
+        if self.kind == "gusts" and self.seed is None:
+            raise ValueError("gusts forcing needs an explicit seed")
+        if self.kind == "ramp" and (self.target is None or self.target.t_s <= self.ramp_start_s):
+            raise ValueError("ramp forcing needs a target ending after ramp_start_s")
+        if self.kind == "replay":
+            if len(self.samples) < 2:
+                raise ValueError("replay forcing needs at least two samples")
+            times = [x.t_s for x in self.samples]
+            if any(b <= a for a, b in zip(times, times[1:])):
+                raise ValueError("replay sample times must be strictly increasing")
+            for name in ForcingSample.model_fields:
+                if name != "t_s" and len({getattr(x, name) is None for x in self.samples}) > 1:
+                    raise ValueError(f"replay channel {name} must be supplied in all samples or none")
+        elif self.samples:
+            raise ValueError("samples are only used by replay forcing")
+        return self
+
+
 class BerthingSimRequest(Model):
-    wire_omitted_defaults = {"sample_interval_s": None}
+    wire_omitted_defaults = {"sample_interval_s": None, "forcing": None}
 
     scenario_id: str
     initial_state: ShipState
@@ -62,6 +120,7 @@ class BerthingSimRequest(Model):
     dt_s: float = Field(default=0.1, ge=0.0001, le=1)
     sample_interval_s: float | None = Field(default=None, ge=0.1, description="Output sampling only; defaults to 1 s.")
     env_mode: Literal["steady", "gusting"] = "steady"
+    forcing: ForcingSpec | None = Field(default=None, description="Time-varying forcing series; absent keeps the frozen scenario environment.")
 
     @model_validator(mode="after")
     def bounded_run(self):
@@ -107,7 +166,8 @@ class SimulationDiagnostics(Model):
 
 
 class BerthingSimResult(Model):
-    wire_omitted_defaults = {"transitions": None, "diagnostics": None}
+    wire_omitted_defaults = {"transitions": None, "diagnostics": None, "forcing_revision": None}
+    forcing_revision: str | None = Field(default=None, description="Revision id of the forcing series used; absent for the frozen environment.")
     transitions: list[SimulationTransition] | None = None
     diagnostics: SimulationDiagnostics | None = None
 
@@ -146,9 +206,10 @@ class SimFrame(Model):
     wire_omitted_defaults = dict.fromkeys((
         "schema_version", "sequence", "session_id", "run_id", "scene_id", "scene_revision", "motion",
         "tug_states", "environment", "line_states", "fitting_loads", "fender_states", "forces", "validity",
-        "provenance", "structured_alerts", "diagnostics",
+        "provenance", "structured_alerts", "diagnostics", "forcing_revision",
     ))
     diagnostics: SimulationDiagnostics | None = None
+    forcing_revision: str | None = Field(default=None, description="Revision id of the immutable forcing series; with t_s it identifies the forcing in effect.")
 
     t_s: float
     pose: ShipState
@@ -280,7 +341,8 @@ class SimRecordingList(Model):
 
 
 class SimSessionCreate(Model):
-    wire_omitted_defaults = {"dt_s": None, "duration_s": None, "record_interval_s": None}
+    wire_omitted_defaults = {"dt_s": None, "duration_s": None, "record_interval_s": None, "forcing": None}
+    forcing: ForcingSpec | None = Field(default=None, description="Forcing series; absent keeps the frozen scenario environment.")
     dt_s: float | None = Field(default=None, ge=0.0001, le=1)
     duration_s: float | None = Field(default=None, gt=0, le=7200)
     record_interval_s: float | None = Field(default=None, ge=0.1, description="Simulation-time interval between recorded frames; absent means 1 s.")
@@ -289,7 +351,9 @@ class SimSessionCreate(Model):
 
 
 class SimSessionCreated(Model):
-    wire_omitted_defaults = {"validity": None, "scene_url": None, "protocol": None, "recording_url": None}
+    wire_omitted_defaults = {"validity": None, "scene_url": None, "protocol": None, "recording_url": None, "forcing_revision": None, "forcing_synthetic": None}
+    forcing_revision: str | None = None
+    forcing_synthetic: bool | None = Field(default=None, description="True when the forcing series is generated rather than supplied.")
 
     session_id: str
     ws_url: str

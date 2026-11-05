@@ -9,6 +9,31 @@ Written 5 November 2026 against `dev` at `e0e0fcf` (PR #106). The repo now lives
 [fleethacker/pier-review](https://github.com/fleethacker/pier-review); its default branch is `main`, so **always open PRs
 with `--base dev`**.
 
+## North star: a backup camera for ships
+
+A car's backup camera draws the path the car will take given its steering angle, updated as you turn the wheel. **We are
+building that for a ship.** From the ship's *current* position, heading and speed, the commands in force (rudder, engine,
+tugs, lines) and the *current* conditions in the water (wind and gusts, current, tide, waves where available), predict and
+draw where the ship will be over the next minutes: its path, its hull footprint along that path, how uncertain that is,
+and when it would touch a pier, fender, shoal or another vessel. Refresh it continuously as conditions and commands
+change, and let the crew try "what if" commands (more rudder, a tug push, engine astern) before acting.
+
+Every workstream builds toward that view. Ask of each change: *does it make the prediction more correct, more honest
+about its limits, faster to refresh, or easier to read?*
+
+| Piece | Role in the backup camera |
+| --- | --- |
+| Live inputs (Cruz: D1, D2, D8) | The starting state (own-ship position, heading, speed) and the forcing (wind, current, tide) with source, age and basis. Stale or missing input must show on the camera, never be filled in. |
+| Prediction engines (Snyder: S1–S3, S6, **S7**) | S6 port-transit dynamics predict in open water and the approach; S1–S3 berthing dynamics predict near the pier with lines, fenders and tugs; S2 makes forcing change over the horizon; S10 uncertainty widens the path into a corridor. **S7 is the prediction service itself.** |
+| The camera view (Kori: U8) | Predicted path and hull footprints drawn over the live ship, an uncertainty corridor, time ticks, clearance and contact warnings, and what-if controls. |
+| Explanation and warnings (Bixler: A7) | Agents explain the prediction in plain words, warn when the corridor approaches a hazard, and cite the prediction result. |
+| Storyboarding (S5) | After the mission, compare the recorded track with what was predicted at each moment: the evidence that the camera is right, and where it is not. |
+| Static planning (forecast plan, Intake → Planner → Safety sheet) | Still needed: it answers "is this mooring plan safe for the conditions ahead"; the camera answers "where is the ship going right now". |
+
+**Honesty applies to the camera most of all.** Predictions from surrogate dynamics, assumed propulsion or stale inputs are
+labeled on the view itself (validity, provenance, input age). The camera is decision support for a demonstrator, never
+navigational guidance, and must not look more certain than it is.
+
 ## Who is who
 
 | Name | Workstream | Item prefixes | Section |
@@ -79,12 +104,16 @@ Demo-ready means all of the following, on `main`, from a clean checkout, offline
    recording playback work. Every synthetic component is badged.
 6. **Data honesty:** each environment component shows source, state (live/replay/prediction/mock/unavailable), age and
    basis; misconfiguration fails loudly; missing is never zero.
-7. `make demo-check` covers 3–5 end to end and passes; `frontend/DEMO.md` has the final 5-minute script; README and status
+7. **Backup-camera story (S7/U8):** from a live or replayed ship state and current conditions, the UI draws the
+   predicted path, hull footprints and uncertainty corridor, refreshes it at least once per second, shows clearance
+   warnings, and updates when the user tries a what-if command. Validity and input age are on the view.
+8. `make demo-check` covers 3–5 and 7 end to end and passes; `frontend/DEMO.md` has the final 5-minute script; README and status
    docs are truthful.
 
 **Cut order if time runs short** (cut from the bottom): approach/ENC (D6) → telemetry (D5b) → uncertainty refit (D5a) →
 waves (D4, S4) → tug kinematics and heel (S3) → composed public forecast (D2: fall back to recorded/synthetic series,
-labeled) → sim-time forcing (S2). Never cut: items 1–3, rm0 live frames (S1), source-selection honesty (D1), item 7.
+labeled) → sim-time forcing (S2). Never cut: items 1–3, rm0 live frames (S1), source-selection honesty (D1), the
+backup-camera story (item 7, at least without the uncertainty corridor), item 8.
 
 ## 3. Team and ownership
 
@@ -143,6 +172,20 @@ or Cruz's series contract; use fixtures until those land.
 contact geometry; tug positions only where a kinematic model exists. Tide-following heave first; quasi-static heel only
 with supported loading/stability inputs (else "not simulated"). No invented GM or hydrodynamic coefficients.
 
+**S7 (P0, added 5 Nov). Trajectory prediction service: the backup camera.** Given a vessel's current state (lat/lon or
+berth-frame pose, heading, surge/sway/yaw rates; rudder, engine order, tug forces, lines made fast) and current conditions
+(an environment snapshot or source), predict the next N seconds (default 300, at most 900) with the commands held, plus
+optional what-if command sets, and return per alternative: predicted states at fixed time ticks, hull footprint polygons,
+an uncertainty corridor (percentile envelopes from seeded samples of gusts, current and initial-state error; S10 model,
+labeled unqualified) and the first predicted contact or clearance breach against berth geometry, coastline/shoal data
+where available, and other vessels' predicted paths. Engines: S6 transit dynamics in open water and approach; the S1–S3
+berthing model near the pier, with a documented handoff. API: `POST /predict/trajectory` (synchronous, latency budget
+≤ 300 ms for a 5-minute single-alternative horizon on the demo machine, measured) and a `prediction` field on S1 session
+frames so the live motion view shows the camera without extra calls. Input age and validity propagate into the
+prediction; a prediction from stale inputs says so. Acceptance: reproduces the full simulator's trajectory for the same
+inputs (it is the same dynamics, not a second model), latency measured, corridor coverage checked against seeded
+truth runs, contact detection tested against hand-built geometry, what-if alternatives independent of each other.
+
 ### M-PLAN (GPT session)
 
 **P1 (P0). Forecast-plan consumer of the composed forecast.** Packet 2, modeling side. One canonical resolver binding
@@ -173,6 +216,7 @@ Read [MODELING_UI_RECOMMENDATIONS.md](MODELING_UI_RECOMMENDATIONS.md) (backend c
 | U4 | P1 | **Advance-planning panel**: as-of, arrival ≥24 h, holding duration, coverage and provenance preview, alternatives table, apply `selected_config` (keep paid-out lengths and installation tide), "recheck required" on changed inputs | P1/D2 for public data; works now with supplied series |
 | U5 | P1 | Simulation-time display (sim time vs wall time, forcing revision) and training-scenario controls (seed, source, persistent "training" label) | S2 |
 | U6 | P2 | Upgrade test toolchain to clear the 13 dev-dependency findings (Vitest/Tinypool/Vite); compatibility-tested, no `npm audit fix --force` | none |
+| U8 | P0 | **Backup-camera overlay** (north star): predicted path, hull footprints at time ticks, uncertainty corridor, contact/clearance warnings and what-if controls (rudder, engine, tug push) drawn over the live ship in the motion view and the transit view; refresh ≥1 Hz from S7 (`POST /predict/trajectory` or the session frame `prediction` field); validity and input age on the overlay. Build against S7 fixtures first | S7 interface |
 | U7 | P2 | Cesium-scene motion view with roll/pitch and water surface when frames supply them; accessibility pass (contrast, screen reader); profile React path at 10 Hz | S3 |
 
 Kori also owns `frontend/DEMO.md` and the UI half of `make demo-check` (browser steps for U1, U2, U4).
@@ -189,6 +233,7 @@ packets 1, 2, 6, 7 and 8.
 | D3 | P1 | Recorded-real demo package: a short window of real CO-OPS (and NWS, if archived) data with provenance, served as `replay`, used by the offline demo and `make demo-check`. |
 | D4 | P2 | Waves (packet 6): NDBC 44099 ingestion preserving total vs partition vs spectrum; GFS-Wave if reachable, else forecast `unavailable`; wake `unavailable`. Feeds S4. |
 | D5 | P3 | (a) Uncertainty refit ≥365 days with time/event holdout, still unqualified unless the policy is met. (b) Opt-in telemetry arbitration into env (packet 7). |
+| D8 | P1 | **Live own-ship state for the backup camera:** position, heading, COG/SOG from GPS/NMEA/AIS through the existing telemetry ingest (D5b promoted for this purpose), with age and quality, exposed as the starting state for S7; plus replay of a recorded track (the S5 fix format) as a stand-in feed for demos. Never extrapolate a stale fix silently. |
 | D6 | P3 | ENC → approach/UKC (packet 8) only if everything above is done; otherwise approach stays labeled mock. |
 
 Tests never hit the network; live checks stay opt-in (`make smoke-live`).
@@ -206,6 +251,7 @@ Bixler also picks up any task that has no owner in this plan (tooling, CI breaka
 | A3 | P1 | Agents consume the composed forecast: Intake/Planner/Safety bind to the forecast revision from P1; changed revision → explicit reassessment; Safety watch follows the same source. |
 | A4 | P1 | Release management: merge `dev` → `main` by PR with a merge commit at each milestone (§9), release notes with the qualification limits, tag. |
 | A5 | P2 | Vision: optional real image extraction path checked with a fixture image and fake LLM; keep the no-LLM path honest. |
+| A7 | P1 | **Backup-camera narration and warnings:** an agent tool for S7 predictions; plain-language explanation of the predicted path and corridor with cited prediction results; warnings when the corridor nears a hazard; include the camera in the demo script and `make demo-check` (definition of done item 7). |
 | A6 | P2 | Docs truthfulness pass: README status, `MODELING_BUILDOUT_STATUS.md`, `DEPLOYMENT_READINESS.md`, `frontend/PLAN.md`, `DEMO.md`; presentation narrative and screenshots. |
 
 ## 8. Coordination rules

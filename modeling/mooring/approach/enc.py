@@ -36,6 +36,22 @@ class CorridorDepth:
     reason: str | None = None
 
 
+def _metadata(cell: str, props: dict[str, Any], datum: dict[str, Any]) -> ENCMetadata:
+    fields = {
+        "edition": props.get("EDTN"),
+        "update number": props.get("UPDN"),
+        "issue date": props.get("ISDT"),
+        "horizontal datum": datum.get("HDAT"),
+        "vertical datum": datum.get("VDAT") if datum.get("VDAT") is not None else datum.get("SDAT"),
+    }
+    missing = [name for name, value in fields.items() if value is None or str(value).strip() == ""]
+    if missing:
+        raise ENCError(f"S-57 metadata is missing: {', '.join(missing)}")
+    return ENCMetadata(cell=cell, edition=str(fields["edition"]), update_number=str(fields["update number"]),
+                       issue_date=str(fields["issue date"]), horizontal_datum=str(fields["horizontal datum"]),
+                       vertical_datum=str(fields["vertical datum"]))
+
+
 def read_metadata(path: str | Path) -> ENCMetadata:
     """Read DSID/DSPM identity; GDAL applies adjacent numbered updates by default."""
     path = str(path)
@@ -46,12 +62,7 @@ def read_metadata(path: str | Path) -> ENCMetadata:
         props = dict(next(iter(src))["properties"])
     with fiona.open(path, layer="DSPM", allow_unsupported_drivers=True) as src:
         datum = dict(next(iter(src))["properties"])
-    return ENCMetadata(
-        cell=Path(path).stem, edition=str(props.get("EDTN", "unknown")),
-        update_number=str(props.get("UPDN", "unknown")), issue_date=str(props.get("ISDT", "unknown")),
-        horizontal_datum=str(datum.get("HDAT", "unknown")),
-        vertical_datum=str(datum.get("VDAT", datum.get("SDAT", "unknown"))),
-    )
+    return _metadata(Path(path).stem, props, datum)
 
 
 def read_depth_areas(path: str | Path) -> list[DepthArea]:

@@ -3,7 +3,8 @@
 The reader uses Fiona/GDAL's S-57 driver with updates enabled (GDAL's default).
 It requires DSID/DSPM metadata and records the cell, edition, update number,
 issue date, horizontal datum code and vertical/sounding datum code. Depth areas
-come from `DEPARE.DRVAL1`; missing values are not treated as deep water.
+come from `DEPARE.DRVAL1`; missing identity/datum metadata fails ingestion and
+missing depth values are not treated as deep water.
 
 Route code supplies a swept vessel-corridor polygon in the ENC coordinate
 reference system. Evaluation unions depth-area coverage, rejects any uncovered

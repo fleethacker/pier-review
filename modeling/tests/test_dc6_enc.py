@@ -1,7 +1,14 @@
 import pytest
 from shapely.geometry import box
 
-from mooring.approach.enc import DepthArea, ENCError, evaluate_corridor
+from mooring.approach.enc import DepthArea, ENCError, _metadata, evaluate_corridor
+
+
+def test_chart_identity_and_datums_are_mandatory():
+    parsed = _metadata("US5VA12M", {"EDTN": "8", "UPDN": "12", "ISDT": "20261104"}, {"HDAT": 2, "VDAT": 12})
+    assert (parsed.edition, parsed.update_number, parsed.vertical_datum) == ("8", "12", "12")
+    with pytest.raises(ENCError, match="vertical datum"):
+        _metadata("US5VA12M", {"EDTN": "8", "UPDN": "12", "ISDT": "20261104"}, {"HDAT": 2})
 
 
 def test_shallow_patch_between_deep_endpoints_controls_corridor():

@@ -29,6 +29,9 @@ LIMITATIONS = ['Static line/holding assessment, not a validated docking maneuver
 
 def _input_problem(snapshot, as_of, valid_until=None):
     meta = snapshot.metadata
+    if (snapshot.source == 'replay' and snapshot.valid_at_utc > as_of
+            and (meta is None or meta.basis != 'prediction' or meta.issued_at_utc is None)):
+        return 'Future replay samples require archived forecast basis and issuance time; observations are not advance guidance'
     if snapshot.source == 'forecast' and (meta is None or meta.basis != 'prediction' or meta.issued_at_utc is None):
         return 'Public forecast lacks prediction basis or issuance time'
     if meta and meta.quality in ('poor', 'suspect'):
@@ -47,6 +50,32 @@ def _input_problem(snapshot, as_of, valid_until=None):
     if any(any(word in flag for word in ('missing', 'unavailable', 'stale')) for flag in flags):
         return 'Required environment component is missing, unavailable or stale'
     return None
+
+
+def _assess_condition(req, config, snapshot, install_level):
+    try:
+        response = solver.analyze(AnalyzeRequest(ship_class_id=req.ship_class_id, loading=req.loading,
+            berth_id=req.berth_id, config=config, environment=snapshot, tugs=req.tugs, mst=req.mst,
+            installed_at_water_level_mllw_ft=install_level))
+    except refdata.InvalidReference as exc:
+        reason = ValidityReason(code='FORECAST_CONDITION_INPUT_INVALID', message=str(exc),
+                                affected_components=['forecast', 'mooring'])
+        return DockingConditionResult(valid_at_utc=snapshot.valid_at_utc,
+            installed_at_water_level_mllw_ft=install_level, analysis_result_id=None,
+            outcome='invalid', max_pct_wll=None, governing_element=None,
+            validity=Validity(state='invalid', reasons=[reason]), reasons=[reason.message])
+    validity = response.validity
+    codes = {r.code for r in validity.reasons} if validity else set()
+    outcome = ('undetermined' if 'NO_EQUILIBRIUM_FOUND' in codes else
+               'invalid' if validity is None or validity.state in ('invalid', 'unknown') else
+               'overloaded' if response.status == 'RED' or response.result.min_margin.pct_wll > req.target_pct_wll else
+               'within_target')
+    return DockingConditionResult(valid_at_utc=snapshot.valid_at_utc,
+        installed_at_water_level_mllw_ft=install_level,
+        analysis_result_id=response.result_id, outcome=outcome,
+        max_pct_wll=response.result.min_margin.pct_wll if outcome not in ('invalid', 'undetermined') else None,
+        governing_element=response.result.min_margin.element_id, validity=validity,
+        reasons=[r.message for r in validity.reasons] if validity else ['Unknown validity'])
 
 
 def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
@@ -109,22 +138,8 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
                             analysis_result_id=None, outcome='undetermined', max_pct_wll=None,
                             governing_element=None, validity=None, reasons=['Evaluation budget exhausted'])
                     else:
-                        response = solver.analyze(AnalyzeRequest(ship_class_id=req.ship_class_id, loading=req.loading,
-                            berth_id=req.berth_id, config=config, environment=snapshot, tugs=req.tugs, mst=req.mst,
-                            installed_at_water_level_mllw_ft=install_level))
                         evaluations += 1
-                        validity = response.validity
-                        codes = {r.code for r in validity.reasons} if validity else set()
-                        outcome = ('undetermined' if 'NO_EQUILIBRIUM_FOUND' in codes else
-                                   'invalid' if validity is None or validity.state in ('invalid', 'unknown') else
-                                   'overloaded' if response.status == 'RED' or response.result.min_margin.pct_wll > req.target_pct_wll else
-                                   'within_target')
-                        checked = DockingConditionResult(valid_at_utc=snapshot.valid_at_utc,
-                            installed_at_water_level_mllw_ft=install_level,
-                            analysis_result_id=response.result_id, outcome=outcome,
-                            max_pct_wll=response.result.min_margin.pct_wll if outcome not in ('invalid', 'undetermined') else None,
-                            governing_element=response.result.min_margin.element_id, validity=validity,
-                            reasons=[r.message for r in validity.reasons] if validity else ['Unknown validity'])
+                        checked = _assess_condition(req, config, snapshot, install_level)
                         if ctx is not None:
                             ctx.progress(min(evaluations / req.max_evaluations, .95), 'Assessing forecast docking conditions')
                     cache[key] = checked
@@ -156,9 +171,14 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
             "paid_out_unstretched_length_ft": line.model.rest_length_ft, "pretension_lbf": None, "slack_ft": None,
             "condition": "wet" if line.wet else "dry",
         }) for line in system.lines]})
-    validity = Validity(state='limited', reasons=[ValidityReason(code='FORECAST_DOCKING_STATIC_ONLY',
+    unusable = all(w.outcome in ('invalid', 'unavailable', 'undetermined') for w in windows)
+    validity = Validity(state='invalid' if unusable else 'limited', reasons=[ValidityReason(code='FORECAST_DOCKING_STATIC_ONLY',
         message='Forecast sampling and static equilibrium do not qualify a docking maneuver or line-handling evolution.',
         affected_components=['forecast', 'docking'])])
+    if unusable:
+        validity.reasons.append(ValidityReason(code='NO_USABLE_ARRIVAL_ASSESSMENT',
+            message='No arrival has a complete usable static assessment; inspect unavailable, invalid or undetermined window outcomes. This does not prove physical infeasibility.',
+            affected_components=['forecast', 'docking']))
     result = ForecastDockingResult(as_of_utc=req.as_of_utc, forecast_start_utc=dates[0], forecast_end_utc=dates[-1],
         issued_at_utc=sorted({s.metadata.issued_at_utc for s in req.forecast if s.metadata and s.metadata.issued_at_utc}),
         sources=sorted({s.metadata.source or s.source if s.metadata else s.source for s in req.forecast}),

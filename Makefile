@@ -1,4 +1,4 @@
-.PHONY: install mock modeling agents contract contract-check test check
+.PHONY: install mock modeling agents contract contract-check test check demo-check
 
 install:            ## Install both Python services into one virtualenv
 	uv sync --all-packages
@@ -22,3 +22,6 @@ test:               ## Run all Python tests (includes the contract check)
 	uv run --all-packages pytest -q
 
 check: test
+
+demo-check:         ## Start both services and the built UI on private ports; check Phase 1, motion and honesty (see scripts/demo_check.py)
+	uv run --all-packages python scripts/demo_check.py

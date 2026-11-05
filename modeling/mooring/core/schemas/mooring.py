@@ -109,12 +109,14 @@ LimitOutcome = Literal["limit_found", "fails_at_zero_wind", "no_failure_in_range
 
 
 class LimitEnvelopePoint(Model):
-    wire_omitted_defaults = {"outcome": None, "bracket_kt": None, "search_max_kt": None, "undetermined_at_kt": None, "nonmonotone_in_bracket": None}
+    wire_omitted_defaults = {"outcome": None, "bracket_kt": None, "search_max_kt": None, "undetermined_at_kt": None, "nonmonotone_in_bracket": None, "limit_gust_kt": None, "advisory_gust_kt": None}
 
     wind_rel_deg: float
     limit_wind_kt: float | None = Field(
         description="Highest wind speed verified within limits (conservative end of the bracket). None unless outcome is "
         "'limit_found' or 'fails_at_zero_wind' (then 0).")
+    limit_gust_kt: float | None = Field(default=None, description="Corresponding gust at limit_wind_kt under the request's held gust/sustained ratio; not a breaking limit.")
+    advisory_gust_kt: float | None = Field(default=None, description="Application advisory at 80% of the computed gust limit; not a physical failure threshold.")
     first_failure_element: str | None
     failure_mode: Literal["WLL", "MBS", "fitting", "fender", "none"]
     outcome: LimitOutcome | None = Field(default=None, description="Absent on legacy responses.")

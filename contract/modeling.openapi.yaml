@@ -4023,6 +4023,18 @@ components:
           title: Limit Wind Kt
           description: Highest wind speed verified within limits (conservative end of the bracket). None unless outcome is
             'limit_found' or 'fails_at_zero_wind' (then 0).
+        limit_gust_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Limit Gust Kt
+          description: Corresponding gust at limit_wind_kt under the request's held gust/sustained ratio; not a breaking limit.
+        advisory_gust_kt:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Advisory Gust Kt
+          description: Application advisory at 80% of the computed gust limit; not a physical failure threshold.
         first_failure_element:
           anyOf:
           - type: string

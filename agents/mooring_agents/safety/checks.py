@@ -78,14 +78,26 @@ def tugs_feasible(tug_plan) -> CheckResult:
 
 
 def mst_within_ship(report) -> CheckResult:
-    passed = not (report and report.mst.exceeds_ship_mst)
+    if report is None:
+        return _check("MST-WITHIN-SHIP", "Forecast stays within the ship's Mooring Service Type", False, "AMBER",
+                      "No intake report; forecast MST has not been assessed.")
+    passed = not report.mst.exceeds_ship_mst
     return _check("MST-WITHIN-SHIP", "Forecast stays within the ship's Mooring Service Type", passed, "RED",
                   report.mst.reason if report else "No intake report; MST not assessed against the forecast.")
 
 
+def forecast_coverage(report) -> CheckResult:
+    issues = [q for q in getattr(report, "data_quality", []) if q.severity in ("AMBER", "RED")
+              and q.issue in ("missing", "stale", "out_of_range", "flagged")]
+    return _check("FORECAST-COVERAGE", "Forecast coverage and freshness support the assessment",
+                  report is not None and not issues, "RED" if any(q.severity == "RED" for q in issues) else "AMBER",
+                  "; ".join(q.detail for q in issues) if issues else
+                  "Forecast intake supplied without blocking coverage findings." if report else "No forecast intake supplied.")
+
+
 CHECK_IDS: tuple[str, ...] = (
     "CITES-RESOLVE", "CITES-IN-LEDGER", "REANALYSIS-NOT-RED", "MARGIN",
-    "NO-RED-FINDINGS", "GUST-THRESHOLD", "TUGS-FEASIBLE", "MST-WITHIN-SHIP",
+    "NO-RED-FINDINGS", "GUST-THRESHOLD", "TUGS-FEASIBLE", "MST-WITHIN-SHIP", "FORECAST-COVERAGE",
 )
 
 

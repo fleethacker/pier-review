@@ -2120,6 +2120,10 @@ components:
       title: RationaleItem
     SafetyReview:
       properties:
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
         review_id:
           type: string
           title: Review Id
@@ -2220,6 +2224,10 @@ components:
       title: SafetyReviewRequest
     SafetySheet:
       properties:
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
         sheet_id:
           type: string
           title: Sheet Id
@@ -2657,6 +2665,85 @@ components:
       - pct_wll
       - status
       title: SheetLineRow
+    SolverDiagnostics:
+      properties:
+        converged:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Converged
+          description: Null when no iterative solve was performed.
+        iterations:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Iterations
+        residuals:
+          items:
+            $ref: '#/components/schemas/SolverResidual'
+          type: array
+          title: Residuals
+          description: Independent force and moment balances, each in its own unit.
+        active_constraints:
+          items:
+            type: string
+          type: array
+          title: Active Constraints
+          description: Contacts, slack lines and limits that were active at the solution.
+        rank:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Rank
+          description: Numerical rank of the support (stiffness) matrix.
+        degrees_of_freedom:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Degrees Of Freedom
+          description: Rank is full when rank equals this.
+        notes:
+          items:
+            type: string
+          type: array
+          title: Notes
+      additionalProperties: false
+      type: object
+      title: SolverDiagnostics
+      description: Numerical evidence behind a result. Absent values are `null` (not measured), never 0 or NaN.
+    SolverResidual:
+      properties:
+        name:
+          type: string
+          title: Name
+          examples:
+          - surge_force
+        value:
+          type: number
+          title: Value
+        unit:
+          type: string
+          title: Unit
+          examples:
+          - lbf
+          - ftlbf
+        tolerance:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Tolerance
+          description: Same unit as value.
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - value
+      - unit
+      - tolerance
+      title: SolverResidual
+      description: One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
     StationQuality:
       properties:
         station_id:
@@ -2702,7 +2789,7 @@ components:
           - type: number
           - type: 'null'
           title: Limit Breaking Gust Kt
-          description: 'Estimated gust at line breaking: working-load limit times sqrt(design factor).'
+          description: Unavailable unless a separate validated breaking-limit model establishes it; legacy values were estimates.
         forecast_max_gust_kt:
           type: number
           title: Forecast Max Gust Kt
@@ -2726,7 +2813,7 @@ components:
       - forecast_max_gust_kt
       - cites
       title: Thresholds
-      description: Wind limits for this plan. Breaking is estimated from the working-load limit and the design factor.
+      description: Model-computed gust limits; breaking remains unavailable without a separate validated model.
     ToolCall:
       properties:
         call_id:
@@ -3012,6 +3099,64 @@ components:
       - msg
       - type
       title: ValidationError
+    Validity:
+      properties:
+        state:
+          type: string
+          enum:
+          - valid
+          - limited
+          - invalid
+          - unknown
+          title: State
+        reasons:
+          items:
+            $ref: '#/components/schemas/ValidityReason'
+          type: array
+          title: Reasons
+        diagnostics:
+          anyOf:
+          - $ref: '#/components/schemas/SolverDiagnostics'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - state
+      title: Validity
+      description: 'Whether the numbers can be relied on, independent of the GREEN/AMBER/RED status.
+
+
+        `valid`: inside the model''s qualified domain. `limited`: usable with the stated caveats, so never an
+
+        unconditional GREEN. `invalid`: do not use the numbers; status is RED. `unknown`: not assessed.
+
+        A numerical failure is not proof that no physical solution exists: report it as `invalid` with a reason.'
+    ValidityReason:
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+          examples:
+          - MISSING_FITTING_RATING
+        message:
+          type: string
+          title: Message
+        affected_components:
+          items:
+            type: string
+          type: array
+          title: Affected Components
+          description: Element ids the reason applies to, e.g. 'line-2', 'P12N-B16'.
+          examples:
+          - - line-2
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - message
+      title: ValidityReason
+      description: Why a result is limited or invalid. Codes are stable UPPER_SNAKE identifiers that clients may switch on.
     VersionInfo:
       properties:
         api_version:
@@ -3360,148 +3505,6 @@ components:
           default: null
           title: Rng Model Revision
       title: ResultManifest
-      type: object
-    SolverDiagnostics:
-      additionalProperties: false
-      description: Numerical evidence behind a result. Absent values are `null` (not measured), never 0 or NaN.
-      properties:
-        converged:
-          anyOf:
-          - type: boolean
-          - type: 'null'
-          default: null
-          description: Null when no iterative solve was performed.
-          title: Converged
-        iterations:
-          anyOf:
-          - minimum: 0
-            type: integer
-          - type: 'null'
-          default: null
-          title: Iterations
-        residuals:
-          description: Independent force and moment balances, each in its own unit.
-          items:
-            $ref: '#/components/schemas/SolverResidual'
-          title: Residuals
-          type: array
-        active_constraints:
-          description: Contacts, slack lines and limits that were active at the solution.
-          items:
-            type: string
-          title: Active Constraints
-          type: array
-        rank:
-          anyOf:
-          - minimum: 0
-            type: integer
-          - type: 'null'
-          default: null
-          description: Numerical rank of the support (stiffness) matrix.
-          title: Rank
-        degrees_of_freedom:
-          anyOf:
-          - minimum: 0
-            type: integer
-          - type: 'null'
-          default: null
-          description: Rank is full when rank equals this.
-          title: Degrees Of Freedom
-        notes:
-          items:
-            type: string
-          title: Notes
-          type: array
-      title: SolverDiagnostics
-      type: object
-    SolverResidual:
-      additionalProperties: false
-      description: One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
-      properties:
-        name:
-          examples:
-          - surge_force
-          title: Name
-          type: string
-        value:
-          title: Value
-          type: number
-        unit:
-          examples:
-          - lbf
-          - ftlbf
-          title: Unit
-          type: string
-        tolerance:
-          description: Same unit as value.
-          exclusiveMinimum: 0
-          title: Tolerance
-          type: number
-      required:
-      - name
-      - value
-      - unit
-      - tolerance
-      title: SolverResidual
-      type: object
-    Validity:
-      additionalProperties: false
-      description: 'Whether the numbers can be relied on, independent of the GREEN/AMBER/RED status.
-
-
-        `valid`: inside the model''s qualified domain. `limited`: usable with the stated caveats, so never an
-
-        unconditional GREEN. `invalid`: do not use the numbers; status is RED. `unknown`: not assessed.
-
-        A numerical failure is not proof that no physical solution exists: report it as `invalid` with a reason.'
-      properties:
-        state:
-          enum:
-          - valid
-          - limited
-          - invalid
-          - unknown
-          title: State
-          type: string
-        reasons:
-          items:
-            $ref: '#/components/schemas/ValidityReason'
-          title: Reasons
-          type: array
-        diagnostics:
-          anyOf:
-          - $ref: '#/components/schemas/SolverDiagnostics'
-          - type: 'null'
-          default: null
-      required:
-      - state
-      title: Validity
-      type: object
-    ValidityReason:
-      additionalProperties: false
-      description: Why a result is limited or invalid. Codes are stable UPPER_SNAKE identifiers that clients may switch on.
-      properties:
-        code:
-          examples:
-          - MISSING_FITTING_RATING
-          pattern: ^[A-Z][A-Z0-9_]*$
-          title: Code
-          type: string
-        message:
-          title: Message
-          type: string
-        affected_components:
-          description: Element ids the reason applies to, e.g. 'line-2', 'P12N-B16'.
-          examples:
-          - - line-2
-          items:
-            type: string
-          title: Affected Components
-          type: array
-      required:
-      - code
-      - message
-      title: ValidityReason
       type: object
     VisionMetadata:
       additionalProperties: false

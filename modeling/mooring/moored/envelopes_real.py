@@ -31,6 +31,7 @@ from mooring.mechanics.equilibrium import utilization  # noqa: F401  (shared eva
 from .solver import MODEL, VERSION, solve_request
 
 FINE_STEP_MIN = 5.0
+ADVISORY_GUST_FRACTION = 0.8  # Application warning policy, not a UFC/NSTM physical coefficient.
 
 
 def _evaluate(system: eq.System, start: Pose, df: float):
@@ -112,6 +113,12 @@ def limit_envelope(req: LimitEnvelopeRequest) -> LimitEnvelopeResponse:
             point = LimitEnvelopePoint(wind_rel_deg=rel, limit_wind_kt=None, first_failure_element=None, failure_mode="none",
                                        outcome="no_failure_in_range", search_max_kt=req.max_search_kt)
         points.append(point)
+    for point in points:
+        if point.outcome == "undetermined":
+            point.limit_wind_kt = None
+        if point.limit_wind_kt is not None:
+            point.limit_gust_kt = point.limit_wind_kt * ratio
+            point.advisory_gust_kt = point.limit_gust_kt * ADVISORY_GUST_FRACTION
     found = [p for p in points if p.limit_wind_kt is not None]
     worst = min(found, key=lambda p: p.limit_wind_kt) if found else next(
         (p for p in points if p.outcome == "undetermined"), points[0])
@@ -123,8 +130,8 @@ def limit_envelope(req: LimitEnvelopeRequest) -> LimitEnvelopeResponse:
     validity = _validity(req, base, sol0, specs, load_findings, wind_basis(req.environment, True))
     gust = req.environment.wind_gust_kt
     status = "GREEN"
-    if worst.limit_wind_kt is not None:
-        status = "RED" if worst.limit_wind_kt < gust else "AMBER" if worst.limit_wind_kt < 1.25 * gust else "GREEN"
+    if worst.limit_gust_kt is not None:
+        status = "RED" if worst.limit_gust_kt < gust else "AMBER" if worst.advisory_gust_kt < gust else "GREEN"
     if any(p.outcome in ("undetermined", "fails_at_zero_wind") for p in points):
         status = "RED" if any(p.outcome == "fails_at_zero_wind" for p in points) else max(status, "AMBER", key=["GREEN", "AMBER", "RED"].index)
     if any(p.outcome == "undetermined" for p in points) and validity.state != "invalid":

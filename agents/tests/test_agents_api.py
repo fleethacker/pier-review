@@ -173,12 +173,14 @@ def test_safety_review_and_sheet(planned, intake_report):
     rv = SafetyReview.model_validate(client.get(r.json()["status_url"]).json()["result"])
     by_id = {c.check_id: c for c in rv.checks}
     assert by_id["CITES-RESOLVE"].passed and by_id["CITES-IN-LEDGER"].passed
-    assert rv.thresholds.limit_breaking_gust_kt > rv.thresholds.limit_wll_gust_kt
+    # A WLL envelope with current, pretension and fenders cannot establish a line-breaking speed by square-root scaling.
+    assert rv.thresholds.limit_breaking_gust_kt is None
+    assert rv.thresholds.limit_wll_gust_kt is not None
     sheet_r = client.post(f"{P}/safety-sheets", json={"plan_id": planned, "review_id": rv.review_id})
     assert sheet_r.status_code == 201, sheet_r.text
     sheet = SafetySheet.model_validate(client.get(f"{P}/safety-sheets/{sheet_r.json()['sheet_id']}").json())
     assert sheet.review_id == rv.review_id
-    assert any("breaking" in g.condition for g in sheet.go_no_go)
+    assert not any("estimated line breaking" in g.condition for g in sheet.go_no_go)
 
 
 def test_safety_watch_streams_gust_warnings(planned):
@@ -186,3 +188,35 @@ def test_safety_watch_streams_gust_warnings(planned):
                        params={"interval_s": 0, "limit": 2, "heartbeat_minutes": 0}) as s:
         text = "".join(s.iter_text())
     assert text.count("event: warning") == 2 and "pct_of_wll_limit" in text
+
+
+def test_supported_demo_chain_preserves_limited_validity_and_forecast_review():
+    from mooring.demo_cases import docking_cases
+    case = docking_cases()[0]
+    env_id = modeling.post(f'{P}/env/scenarios', json=case.environment_request.model_dump(mode='json')).json()['env_scenario_id']
+    body = case.scenario_request.model_dump(mode='json')
+    body['env_source']['env_scenario_id'] = env_id
+    sid = modeling.post(f'{P}/scenarios', json=body).json()['scenario_id']
+    intake = client.post(f'{P}/intake/reports', json={'scenario_id':sid,'horizon_hours':48})
+    assert intake.status_code == 202
+    report = client.get(intake.json()['status_url']).json()['result']
+    assert not report['windows']
+    accepted = client.post(f'{P}/agent/plans', json={'scenario_id':sid,'intake_report_id':report['report_id']})
+    assert accepted.status_code == 202, accepted.text
+    plan = client.get(f"{P}/agent/plans/{accepted.json()['plan_id']}").json()
+    assert plan['status'] == 'AMBER'
+    review_job = client.post(f'{P}/safety/reviews', json={'plan_id':plan['plan_id']})
+    assert review_job.status_code == 202
+    review = client.get(review_job.json()['status_url']).json()['result']
+    assert review['intake_report_id'] == report['report_id']
+    assert review['status'] == 'AMBER' and review['validity']['state'] == 'limited'
+    assert review['verdict'] == 'ready_for_signature'
+    created = client.post(f'{P}/safety-sheets',json={'plan_id':plan['plan_id'],'review_id':review['review_id']})
+    assert created.status_code == 201
+    sheet_id=created.json()['sheet_id']
+    saved=client.get(f'{P}/safety-sheets/{sheet_id}').json()
+    assert saved['status']=='AMBER' and saved['validity']['state']=='limited'
+    html=client.get(f'{P}/safety-sheets/{sheet_id}/render').text
+    assert 'Validity: limited' in html and 'not qualified for operational use' in html
+    assert 'Fender-loading direction' not in html
+    assert 'Unavailable; not established' in html

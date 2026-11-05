@@ -14,8 +14,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from mooring.core.envelopes import new_id, utcnow
-from mooring.core.schemas import LimitEnvelopePoint
-from mooring.rules.nstm582 import design_factor
+from mooring.core.schemas import LimitEnvelopePoint, Validity
 
 from ..intake.mock import REPORTS
 from ..physics.client import ModelingClient, ModelingError
@@ -116,9 +115,8 @@ async def _narrate(review: SafetyReview) -> SafetyReview:
 def _directional(points: list[LimitEnvelopePoint], factor: float) -> list[DirectionalThreshold]:
     return [DirectionalThreshold(
         wind_rel_deg=point.wind_rel_deg, governing_element=point.first_failure_element,
-        limit_wll_gust_kt=point.limit_wind_kt,
-        estimated_breaking_gust_kt=round(point.limit_wind_kt * math.sqrt(factor), 1)
-        if point.limit_wind_kt else None,
+        limit_wll_gust_kt=_gust_limit(point),
+        estimated_breaking_gust_kt=None,
     ) for point in points]
 
 
@@ -162,18 +160,18 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
 
     envelope = await tk.envelope({**body, "step_deg": 15})
     worst = envelope.result.worst
-    factor = design_factor(rec.mst)
-    limit_wll = worst.limit_wind_kt
-    estimate = limit_wll * math.sqrt(factor) if limit_wll else None
+    factor = 1.0  # Legacy helper parameter; breaking estimates are deliberately unavailable.
+    limit_wll = _gust_limit(worst)
+    estimate = None
     forecast_gust = max([condition.environment.wind_gust_kt for condition in report.planning_conditions]
                         if report else [env.wind_gust_kt])
     results.extend([checks.gust_threshold(forecast_gust, limit_wll, envelope.result_id),
-                    checks.tugs_feasible(plan.tug_plan), checks.mst_within_ship(report)])
+                    checks.tugs_feasible(plan.tug_plan), checks.mst_within_ship(report), checks.forecast_coverage(report)])
     checks.validate_check_set(results)
 
     failed = [result for result in results if not result.passed]
-    mst_ok = results[-1].passed
-    verdict = "reject" if not mst_ok else ("revise" if failed else "ready_for_signature")
+    mst_check = next(check for check in results if check.check_id == "MST-WITHIN-SHIP")
+    verdict = "reject" if not mst_check.passed and mst_check.severity == "RED" else ("revise" if failed else "ready_for_signature")
     status = "RED" if any(result.severity == "RED" for result in failed) else "AMBER" if failed else "GREEN"
     # A review must not erase the validity floor imposed by the physics results.
     status = max([status, *(r.status for r in reanalyses), getattr(envelope, "status", "GREEN")], key=rank.get)
@@ -183,11 +181,17 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
         limit_breaking_gust_kt=round(estimate, 1) if estimate else None, cites=[envelope.result_id],
         directions=_directional(envelope.result.points, factor),
     )
+    validities = [v for item in [*reanalyses, envelope] if (v := getattr(item, "validity", None)) is not None]
+    review_validity = None
+    if validities:
+        state_rank = {"valid": 0, "limited": 1, "unknown": 2, "invalid": 3}
+        review_validity = Validity(state=max((v.state for v in validities), key=state_rank.get),
+            reasons=list({r.code: r for v in validities for r in v.reasons}.values()))
     headline = _headline(verdict, len(results) - len(failed), len(results), limit_wll)
     result = SafetyReview(
         review_id=new_id("review"), plan_id=req.plan_id, intake_report_id=intake_id,
         created_at_utc=utcnow(), verdict=verdict, status=status, checks=results, thresholds=threshold,
-        summary=headline, summary_source="deterministic", narration_note=None, backend="real",
+        validity=review_validity, summary=headline, summary_source="deterministic", narration_note=None, backend="real",
     )
     result = await _narrate(result)
     REVIEWS[result.review_id] = result
@@ -195,24 +199,34 @@ async def review(req: SafetyReviewRequest, tk: PhysicsToolkit) -> SafetyReview:
     return result
 
 
+def _gust_limit(point):
+    # Legacy fixtures with no explicit search outcome used a gust-labeled limit.
+    # Current modeling responses must provide the explicit gust basis.
+    gust = getattr(point, "limit_gust_kt", None)
+    if gust is not None:
+        return gust
+    return point.limit_wind_kt if getattr(point, "outcome", None) is None else None
+
+
 def _limit_for(points: list[LimitEnvelopePoint], rel_deg: float) -> LimitEnvelopePoint | None:
     if not points:
         return None
     # Do not substitute a distant known sector when the nearest sector is unknown.
     nearest = min(points, key=lambda point: abs((point.wind_rel_deg - rel_deg + 180) % 360 - 180))
-    return nearest if nearest.limit_wind_kt is not None else None
+    return nearest if _gust_limit(nearest) is not None else None
 
 
 def _warning(plan_id: str, env, point: LimitEnvelopePoint | None, factor: float, *, prefix: str = "") -> GustWarning:
-    positive_limit = point is not None and point.limit_wind_kt is not None and point.limit_wind_kt > 0
-    pct_wll = 100 * env.wind_gust_kt / point.limit_wind_kt if positive_limit else None
-    pct_break = 100 * env.wind_gust_kt / (point.limit_wind_kt * math.sqrt(factor)) if positive_limit else None
+    limit = _gust_limit(point) if point is not None else None
+    positive_limit = limit is not None and limit > 0
+    pct_wll = 100 * env.wind_gust_kt / limit if positive_limit else None
+    pct_break = None
     severity = "RED" if pct_wll and pct_wll >= 100 else "AMBER" if pct_wll and pct_wll >= 80 else "INFO"
     if not positive_limit:
-        severity = "RED" if point is not None and point.limit_wind_kt == 0 else "AMBER"
+        severity = "RED" if limit == 0 else "AMBER"
     message = (f"{prefix}Gust {env.wind_gust_kt:.0f} kt from {env.wind_from_true_deg:03.0f}: " +
-               (f"{pct_wll:.0f}% of the {point.limit_wind_kt:.0f} kt working-load limit, "
-                f"{pct_break:.0f}% of estimated breaking ({point.first_failure_element} governs)."
+               (f"{pct_wll:.0f}% of the {limit:.0f} kt working-load gust limit "
+                f"({point.first_failure_element} governs); breaking threshold is unavailable."
                 if positive_limit else "gust threshold is unavailable; do not infer safe conditions."))
     return GustWarning(warning_id=new_id("warn"), plan_id=plan_id, at_utc=env.valid_at_utc, severity=severity,
                        gust_kt=env.wind_gust_kt, wind_from_true_deg=env.wind_from_true_deg,
@@ -232,7 +246,7 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
     berth = await client.berth(rec.scenario.berth_id)
     heading = (berth.face_bearing_true_deg if rec.scenario.side_to == "starboard"
                else (berth.face_bearing_true_deg + 180) % 360)
-    factor = design_factor(rec.mst)
+    factor = 1.0  # Legacy helper parameter; breaking estimates are deliberately unavailable.
     emitted = 0
 
     report = REPORTS.get(safety_review.intake_report_id) if safety_review.intake_report_id else None
@@ -261,7 +275,7 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
         point = _limit_for(points, rel)
         warning = _warning(plan_id, env, point, factor)
         now = time.monotonic()
-        point_limit = point.limit_wind_kt if point and point.limit_wind_kt else math.inf
+        point_limit = _gust_limit(point) if point and _gust_limit(point) is not None else math.inf
         severity_rise = rank[warning.severity] > previous_severity
         element_change = warning.element_id != previous_element
         weaker_sector = point_limit < previous_limit

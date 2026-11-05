@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+import math
 from typing import Any
 
 from .errors import ProviderError
@@ -31,7 +32,10 @@ class WindForecast:
 
 
 def _time(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (AttributeError, ValueError):
+        raise ProviderError("malformed", f"invalid NWS timestamp: {value!r}") from None
     if parsed.tzinfo is None:
         raise ProviderError("malformed", f"NWS timestamp has no offset: {value}")
     return parsed.astimezone(UTC)
@@ -43,6 +47,8 @@ def _interval(value: str) -> tuple[datetime, datetime]:
         if not duration.startswith("PT") or not duration.endswith("H"):
             raise ValueError
         hours = float(duration[2:-1])
+        if not math.isfinite(hours) or hours <= 0:
+            raise ValueError
     except (ValueError, TypeError):
         raise ProviderError("malformed", f"unsupported NWS validTime interval: {value}") from None
     start = _time(start_raw)
@@ -62,6 +68,16 @@ def _at(values: list[dict[str, Any]], when: datetime) -> tuple[Any, str] | None:
         if start <= when < end:
             return item.get("value"), item["validTime"]
     return None
+
+
+def _number(value: Any, name: str, *, nonnegative: bool = False) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        raise ProviderError("malformed", f"NWS {name} is not numeric: {value!r}") from None
+    if not math.isfinite(parsed) or (nonnegative and parsed < 0):
+        raise ProviderError("malformed", f"NWS {name} is outside its valid range: {value!r}")
+    return parsed
 
 
 class NWSGridpoint:
@@ -106,19 +122,20 @@ class NWSGridpoint:
             if direction_item is None or direction_item[0] is None:
                 continue
             gust_item = _at(gust, start)
-            speed_kmh = float(item["value"])
-            gust_kmh = None if gust_item is None or gust_item[0] is None else float(gust_item[0])
+            speed_kmh = _number(item["value"], "wind speed", nonnegative=True)
+            gust_kmh = None if gust_item is None or gust_item[0] is None else _number(gust_item[0], "wind gust", nonnegative=True)
+            direction_deg = _number(direction_item[0], "wind direction")
             result.append(WindForecast(
                 valid_from_utc=start,
                 valid_to_utc=end,
                 issued_at_utc=issued,
                 speed_kt=speed_kmh / 1.852,
                 gust_kt=None if gust_kmh is None else gust_kmh / 1.852,
-                from_true_deg=float(direction_item[0]) % 360,
+                from_true_deg=direction_deg % 360,
                 source=f"NWS {props.get('gridId', 'gridpoint')}",
                 original={
                     "wind_speed_km_h": speed_kmh,
-                    "wind_direction_deg": float(direction_item[0]),
+                    "wind_direction_deg": direction_deg,
                     "wind_gust_km_h": "missing" if gust_kmh is None else gust_kmh,
                     "wind_speed_valid_time": item["validTime"],
                 },

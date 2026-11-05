@@ -57,3 +57,18 @@ def test_unknown_units_are_rejected():
     grid["properties"]["windSpeed"]["uom"] = "wmoUnit:kn"
     with pytest.raises(ProviderError, match="unsupported NWS wind units"):
         adapter(grid).forecast(36.9585, -76.3305, as_of=datetime(2026, 11, 5, tzinfo=UTC))
+
+
+@pytest.mark.parametrize("value", [-1, "NaN", "not-a-number"])
+def test_invalid_wind_values_are_provider_errors(value):
+    grid = json.loads(json.dumps(GRID))
+    grid["properties"]["windSpeed"]["values"][0]["value"] = value
+    with pytest.raises(ProviderError, match="wind speed"):
+        adapter(grid).forecast(36.9585, -76.3305, as_of=datetime(2026, 11, 5, tzinfo=UTC))
+
+
+def test_invalid_issue_time_is_a_provider_error():
+    grid = json.loads(json.dumps(GRID))
+    grid["properties"]["updateTime"] = "not-a-time"
+    with pytest.raises(ProviderError, match="invalid NWS timestamp"):
+        adapter(grid).forecast(36.9585, -76.3305, as_of=datetime(2026, 11, 5, tzinfo=UTC))

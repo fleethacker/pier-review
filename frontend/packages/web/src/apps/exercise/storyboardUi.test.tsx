@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Bottom } from './Bottom';
 import { ControllerContext } from './context';
 import { ExerciseController, PLAYBACK_RATES, presentationRate } from './controller';
@@ -36,8 +36,11 @@ const open = (id = 'salvo-defense') => {
   return u;
 };
 const dialog = () => within(screen.getByRole('dialog', { name: 'Storyboard' }));
+// The map renderer is mocked above; a synthetic token selects the map UI without relying on a developer's .env.
+beforeEach(() => vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.synthetic-storyboard-test'));
 afterEach(() => {
   cleanup();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 

@@ -22,6 +22,14 @@ plan, decisions and status are in [PLAN.md](PLAN.md).
 
 - **Phase 1:** choose a berth on the world map, place the ship, see analyzed colored lines; the planning agent
   streams its steps, then the safety sheet is created, approved and printed.
+- **Canvas editing:** drag a supported ship along or away from the pier; drag between fittings to create a line,
+  or select a line and drag an endpoint to reconnect it. Escape cancels. Numeric placement and keyboard fitting
+  selectors remain available. Edits clear previous margins and trigger a fresh analysis without changing installed lengths.
+- **Class coverage:** the Scenario panel separates hull/load inputs from usable mooring bitts. Classes without
+  bitts on the selected side cannot start planning; catalog presence is not class qualification.
+- **Sequence and gust evidence:** steps distinguish failed, unevaluated and partial-restraint states, retain review
+  status and citations, and flag changed layouts. Wind limits distinguish sustained/gust working limits from
+  unavailable ultimate breaking thresholds; bollard structural strain remains unavailable.
 - **Motion view** (button in the sidebar): a plan view of the berthing simulator. It draws only what a frame
   supplies: hull and pier, fittings and fenders by load, lines by status and tension, tugs with velocity,
   acceleration and push, wind, current and wave glyphs, and the force breakdown. It handles both legacy frames and
@@ -34,8 +42,8 @@ plan, decisions and status are in [PLAN.md](PLAN.md).
 
 The motion view has two modes. **Plan** is an SVG panel. **Map 2D/3D** draws the same frames in the shared Cesium
 scene (ship hull with deckhouse blocks, tugs, lines colored by status) and leaves the map interactive, with camera
-presets (top, bow, port quarter, pier side). The map draws position, heading and heave only when heave is simulated;
-roll, pitch and a water surface are not drawn, and it lists whatever the frame did not supply.
+presets (top, bow, port quarter, pier side). The map draws roll, pitch, heave and water only when the frame supplies
+them, and lists whatever the frame did not supply. Those displays do not qualify the underlying motion model.
 
 - **Environment intake:** assesses the selected saved scenario over 24 hours: MST, windows of concern,
   berthing windows and data quality, with a summary labeled deterministic or model-written. Manual conditions are
@@ -47,6 +55,9 @@ roll, pitch and a water surface are not drawn, and it lists whatever the frame d
   for services run with `MOORING_AUTH_REQUIRED=1`. The token is built into the bundle, so use it for local or trusted
   networks. Browsers cannot attach headers to WebSocket or EventSource, so the live streams, the planner's SSE steps
   and motion sessions still need a trusted gateway in front of an authenticated deployment.
+- **Mission playback:** playback uses a complete recorded track, separately from the thinned display geometry.
+  Gaps and nonunique antipodal paths remain unlocated; dateline crossings use the short arc. Protected images and
+  GeoJSON downloads use authenticated fetches and temporary object URLs, never bearer tokens in URLs.
 
 ## Run it
 

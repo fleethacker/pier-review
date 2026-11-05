@@ -16,7 +16,13 @@ is integrated. A merged panel does not close the full browser, hosting or engine
 | U5/U7 | Simulation/source clock labels; conditional Cesium roll/pitch/water display, accessibility and 10 Hz render checks (#18) | Snyder's S2/S3 determine which changing-forcing and motion fields actually exist. |
 | U6 | Test-toolchain upgrade (#18) | PR reports 365 UI tests, typecheck/lint/build and zero audit findings; these are branch evidence, not a new release rehearsal. |
 | U8 | Missions/transit backup-camera overlay (#14) | S7 limits remain visible; berthing prediction, live own-ship state and calibrated uncertainty are separate work. |
-| U9–U13 | Planned in master-plan §11 | Use the named R1–R9 owners and dependencies; do not reuse the historical phase numbers below. |
+| U9 / R2 | Two-axis placement and fitting drag/reconnect, cancellation, numeric/keyboard alternatives and stale-result guards | See [delivery evidence](KORI_UI_DELIVERY.md); seed layouts remain unqualified. |
+| U9 / R3 | Catalog coverage and selected-side bitt gates; class changes clear old lines and agent results | A8 still owes the backend class capability contract and approved additional-class data. |
+| U10 / R6 | Existing sustained/gust/advisory limits and search outcomes; explicit unavailable ultimate capacity | P6/A9 must publish the supported ultimate-capacity assessment. |
+| U11 / R7 | Review state, intermediate checks/issues/limitations, citations and stale-layout indicators | S8 search, transient handling and forecast revision binding remain open. |
+| U12 / R8 | Structural strain explicitly unavailable; fitting utilization is not strain | P7's reviewed structural model, contract and asset data. |
+| U13 / R1 | Existing immutable-sheet identity and unavailable graphic retained | A11 must publish frozen assessed geometry; the current canvas cannot supply it. |
+| S5 UI findings 12–16 | Mission selection guards, complete-track playback, dateline/antipodal handling and authenticated media/downloads | Shared track/storyboard revision token remains a backend dependency; see [delivery evidence](KORI_UI_DELIVERY.md). |
 
 The following numbered phases retain their historical overnight IDs and implementation history. They are not the
 current work queue. Current gaps and assignments are in the master plan.
@@ -34,7 +40,7 @@ from mocks"), and the frontend demo contribution is part of **G2** (approved saf
 | 1 Strip and rebase | Done | Drone code, models and backends removed; `app.sh` and the dev/preview proxies rewritten. |
 | 2 Scene model and shell | Done | Rotating entities was left out (nothing needs it yet). |
 | 3 Mooring adapter (G0) | Done | DDG 51 at Pier 12 North renders from the mocks with analyzed, colored lines. |
-| 4 Canvas editing, 2D/3D | Done | Ship drag, click-to-add lines, recommend, saved scenarios. Ships are generated hulls with per-class deck profiles. |
+| 4 Canvas editing, 2D/3D | Implemented | Two-axis ship drag, fitting drag/create/reconnect, cancellation, click/numeric/keyboard alternatives, recommend and saved scenarios. Ships are generated hulls with per-class deck profiles. |
 | 5 Live dashboard | Done | Env streams (live, replay, storm ramp), alerts, forecast, wind limits, gust risk. |
 | 6 Agent plan | Done | SSE steps, proposal preview, apply with undo, tugs on canvas, line sequence, follow-ups. |
 | 7 Safety sheet | Implemented; R1 graphic pending | Service-rendered sheet, margins, rationale links, approvals and print. A layout frozen to the reviewed plan remains A11/U13; a current canvas capture is not an assessed layout. |

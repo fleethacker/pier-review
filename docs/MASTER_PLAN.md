@@ -359,6 +359,12 @@ Read [MODELING_UI_RECOMMENDATIONS.md](MODELING_UI_RECOMMENDATIONS.md) (backend c
 
 Kori also owns `frontend/DEMO.md` and the UI half of `make demo-check` (browser steps for U1, U2, U4).
 
+The 5 November [Kori UI delivery record](../frontend/KORI_UI_DELIVERY.md) records the implemented U9 canvas/class
+gates, U10 working-limit display, U11 sequence evidence and S5 UI review fixes, with test/browser evidence.
+U10 ultimate capacity, U12 strain and U13 frozen sheet graphics still depend on P6/A9, P7 and A11 respectively;
+the UI does not close those backend or qualification requirements. Bixler should use this evidence when updating
+the integrated status board and acceptance ledger.
+
 ## 6. Cruz: data connections
 
 Detailed acceptance for D1–D6: [data/simulation review](archive/2026-11-05-overnight/instructions/04-data-simulation-next-steps.md)

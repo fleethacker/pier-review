@@ -26,10 +26,10 @@ What stays limited or open, and what to say about it:
 - **Seed data everywhere.** Every result is AMBER/limited at best; the banner stays on.
 - **Public forecast (D2) is not connected.** Advance planning runs on a seeded *training scenario*, labeled synthetic
   and "not a weather forecast". The panel says the public forecast is unavailable.
-- **Live rm0-v1 frames need S1 merged.** Without it a live session sends legacy frames: the view still works, but
-  tugs, lines and environment read *unavailable*, and speed control and session recordings do not appear.
+- **Live rm0-v1 frames and U2 are merged.** The UI consumes runtime scene/recordings, speed and reconnect state.
+  Vessel dynamics remain synthetic; live authentication and deployment acceptance are separate gates.
 - **Simulation-time forcing (S2) and tug kinematics/heel (S3) are not built.** The motion view says "forcing time:
-  not reported" and lists roll and pitch under *Not drawn*.
+  not reported" when absent and lists any missing roll/pitch under *Not drawn*; supplied fields are drawn conditionally.
 - **Per-component availability (U3)** shows each component's own provider, basis and age only when the service
   supplies component provenance; the offline demo serves the mock, which reads *mock*.
 
@@ -68,6 +68,24 @@ identity and authored motion replay. Use them with their qualification labels vi
 
 Keep these for questions: storm ramp (bottom dashboard, *Storm ramp*, 55 kt), wind limits and gust risk, berth from an
 image, and the Navy/Metric toggle.
+
+## Canvas and evidence walkthrough
+
+- Drag the DDG along and away from the pier. Previous margins clear during the edit; release requests a fresh analysis.
+  Escape restores the previous placement. Toggle side-to and repeat; yaw continues to follow side-to.
+- Choose a line type, then drag a ship bitt to a pier fitting. Select the numbered line and drag one endpoint to
+  another valid fitting. The line number, type, parts and installed-length fields are preserved. Invalid drops do
+  not alter the plan. Expand **Edit endpoints** for keyboard controls.
+- Select CG-47, LHD-1 or CVN-68. The hull and environmental inputs remain visible, while missing fitting data blocks
+  planning. The previous ship's lines and agent plan must disappear.
+- After planning, inspect the sequence's review state, each intermediate static check, issues, limitations and
+  source link. Partial restraint remains indeterminate; matching geometry does not establish forecast revision binding.
+- **Wind limits** separates the working-limit gust and application advisory from the unavailable ultimate breaking
+  gust. **Gust risk** reports scenario statistics and does not turn missing MBS evidence into zero risk.
+
+The reproducible pointer check is `frontend/browser_checks/canvas_drag.py`; run it against a Vite development server
+as described in its docstring. [Delivery evidence and remaining dependencies](KORI_UI_DELIVERY.md) distinguish the
+implemented UI from work still assigned to Snyder, Cruz and Bixler.
 
 ## Things to say
 

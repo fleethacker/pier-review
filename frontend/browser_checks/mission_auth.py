@@ -45,7 +45,6 @@ ROOT = Path(__file__).resolve().parents[2]
 WEB = ROOT / "frontend/packages/web"
 CAPTION = "SYNTHETIC AUTH TEST IMAGE"
 REPORT = "SYNTHETIC AUTH TEST REPORT"
-FORBIDDEN_PORTS = {52465, 52466, 52467}
 
 
 def free_port(used: set[int]) -> int:
@@ -106,7 +105,7 @@ def main() -> int:
         vite = WEB / "node_modules/.bin/vite"
         if not vite.exists():
             raise RuntimeError("Run npm ci in frontend/packages/web before this check.")
-        used = set(FORBIDDEN_PORTS)
+        used: set[int] = set()
         api_port, ui_port = free_port(used), free_port(used)
         api_url, ui_url = f"http://127.0.0.1:{api_port}", f"http://127.0.0.1:{ui_port}"
         environment = dict(os.environ)
@@ -115,6 +114,7 @@ def main() -> int:
             "MOORING_AUTH_REQUIRED": "1",
             "MOORING_API_KEYS": json.dumps({"synthetic-browser-smoke": token}),
             "MOORING_DB": str(artifacts / "synthetic.sqlite"),
+            "MOORING_ENV_SOURCE": "mock",
             "MOORING_RATE_PER_MINUTE": "600",
             "MODELING_PROXY_TARGET": api_url,
             "VITE_MODELING_URL": "",

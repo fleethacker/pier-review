@@ -50,6 +50,7 @@ import { hasMarker } from './styling';
 import { parseRequestText, setMaxSpeed, setRouteSpeed, setVesselMode } from './transitRequest';
 import type {
   Mission,
+  MissionTrack,
   TrackFix,
   ReportCreate,
   Storyboard,
@@ -186,6 +187,33 @@ export function timeSpan(sb: Storyboard): { startMs: number; endMs: number } | n
   return { startMs: Math.min(...times), endMs: Math.max(...times) };
 }
 
+/** Cross-check every identity/bounds fact the API supplies. No shared revision/hash exists,
+ * so these checks can disprove consistency but cannot establish an atomic track/event revision.
+ */
+function trackMatchesStoryboard(track: MissionTrack, sb: Storyboard): boolean {
+  if (track.mission_id !== sb.mission.mission_id || track.decimated ||
+    track.fix_count !== track.fixes.length || track.fix_count !== sb.stats.fix_count ||
+    track.fix_count !== sb.mission.fix_count) return false;
+  const timed = prepareTrack(track.fixes);
+  if (timed.length !== track.fix_count) return false;
+  const first = timed[0];
+  const last = timed[timed.length - 1];
+  if (sb.stats.start_utc && first?.tMs !== Date.parse(sb.stats.start_utc)) return false;
+  if (sb.stats.end_utc && last?.tMs !== Date.parse(sb.stats.end_utc)) return false;
+  // Display vertices must be retained original fixes, not coordinates from another track revision.
+  return sb.track.every((fix) => {
+    const time = Date.parse(fix.t_utc);
+    let lo = 0;
+    let hi = timed.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (timed[mid].tMs < time) lo = mid + 1;
+      else hi = mid;
+    }
+    return timed[lo]?.tMs === time && timed[lo].lat === fix.lat && timed[lo].lon === fix.lon;
+  });
+}
+
 export class MissionsController {
   readonly store = new Store<MissionsState>({ ...initial });
   private timed: TimedFix[] = [];
@@ -296,9 +324,7 @@ export class MissionsController {
       if (storyboard.status === 'rejected') throw storyboard.reason;
       const sb = storyboard.value;
       if (sb.mission.mission_id !== id) throw new Error('Storyboard mission does not match the selection.');
-      const complete = track.status === 'fulfilled' && track.value.mission_id === id &&
-        !track.value.decimated && track.value.fix_count === track.value.fixes.length &&
-        track.value.fix_count === sb.stats.fix_count;
+      const complete = track.status === 'fulfilled' && trackMatchesStoryboard(track.value, sb);
       this.applyStoryboard(sb, complete && track.status === 'fulfilled' ? track.value.fixes : []);
       if (!complete) this.store.setState({ notice:
         'Playback position unavailable: the complete recorded track could not be verified. The map track is display geometry only.' });
@@ -417,6 +443,10 @@ export class MissionsController {
     this.host.store.replaceEntitiesOfKind(['event-image', 'event-report'], entities);
   }
 
+  private missionUnchanged(generation: number, id: string | null): boolean {
+    return !this.disposed && generation === this.missionGeneration && id === this.state.missionId;
+  }
+
   private guard<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
     if (this.state.sampleStoryboard) {
       this.store.setState({
@@ -442,6 +472,8 @@ export class MissionsController {
     shipClassId?: string,
     description?: string,
   ): Promise<Mission | undefined> {
+    const generation = this.missionGeneration;
+    const id = this.state.missionId;
     const m = await this.guard('Creating mission', () =>
       missionsApi.createMission({
         name,
@@ -450,29 +482,32 @@ export class MissionsController {
         ...(description ? { description } : {}),
       }),
     );
+    if (!this.missionUnchanged(generation, id)) return undefined;
     if (m) await this.refreshMissions(m.mission_id);
     return m;
   }
 
   async uploadTrack(input: TrackFormInput): Promise<void> {
+    const generation = this.missionGeneration;
     const id = this.state.missionId;
     if (!id) return;
     const r = await this.guard('Uploading track', () =>
       missionsApi.ingestTrackFile(id, buildTrackForm(input)),
     );
-    if (r) {
+    if (r && this.missionUnchanged(generation, id)) {
       this.store.setState({ trackResult: r });
       await this.reload();
     }
   }
 
   async uploadImage(input: MediaFormInput): Promise<void> {
+    const generation = this.missionGeneration;
     const id = this.state.missionId;
     if (!id) return;
     const r = await this.guard('Uploading image', () =>
       missionsApi.uploadMedia(id, buildMediaForm(input)),
     );
-    if (r) {
+    if (r && this.missionUnchanged(generation, id)) {
       this.store.setState({
         notice: `Image added (${r.time_note ?? (r.captured_utc ? 'time ' + r.captured_utc : 'no usable time')}).`,
       });
@@ -481,10 +516,11 @@ export class MissionsController {
   }
 
   async addReport(r: ReportCreate): Promise<void> {
+    const generation = this.missionGeneration;
     const id = this.state.missionId;
     if (!id) return;
     const out = await this.guard('Adding report', () => missionsApi.addReport(id, r));
-    if (out) {
+    if (out && this.missionUnchanged(generation, id)) {
       this.store.setState({ notice: 'Report added.' });
       await this.reload();
     }

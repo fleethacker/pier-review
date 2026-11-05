@@ -221,7 +221,8 @@ describe('mission evidence ownership', () => {
       lon: i <= 1000 ? 0 : (i - 1000) * 1e-6, quality: 'good' as const,
     }));
     const sb = { ...storyboardFor('dense'), track: [fixes[0], fixes.at(-1)!], max_interp_gap_s: 1,
-      stats: { ...sampleStoryboard.stats, fix_count: fixes.length } };
+      mission: { ...storyboardFor('dense').mission, fix_count: fixes.length },
+      stats: { ...sampleStoryboard.stats, fix_count: fixes.length, start_utc: fixes[0].t_utc, end_utc: fixes.at(-1)!.t_utc } };
     vi.stubGlobal('fetch', vi.fn(async (url: string) => json(200, url.includes('/track?')
       ? { mission_id: 'dense', fixes, fix_count: fixes.length, decimated: false } : sb)));
     const { c } = make();
@@ -229,7 +230,8 @@ describe('mission evidence ownership', () => {
     c.setScrub(start + 50_000);
     expect(c.state.shipPosition).toMatchObject({ established: true, method: 'exact_fix', lon: 0 });
     c.setScrub(start + 50_050);
-    expect(c.state.shipPosition).toMatchObject({ established: true, method: 'interpolated', lon: 0 });
+    // Documented 0.5 s tolerance snaps this dense interval to an original fix.
+    expect(c.state.shipPosition).toMatchObject({ established: true, method: 'exact_fix', lon: 0 });
     c.dispose();
   });
 
@@ -299,4 +301,19 @@ it('does not let a late earlier success or failure overwrite an already loaded s
     expect(c.state.error).toBeNull();
     c.dispose();
   }
+});
+
+
+it.each(['count', 'bounds', 'geometry'])('withholds playback when %s metadata disproves track consistency', async (kind) => {
+  const sb = structuredClone(storyboardFor('A'));
+  const full = structuredClone(fullTrackFor('A'));
+  if (kind === 'count') sb.mission.fix_count++;
+  if (kind === 'bounds') sb.stats.end_utc = '2026-11-05T15:00:00Z';
+  if (kind === 'geometry') full.fixes[0].lon += 0.01;
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => json(200, url.includes('/track?') ? full : sb)));
+  const { c } = make();
+  await c.selectMission('A');
+  expect(c.state.shipPosition?.established).toBe(false);
+  expect(c.state.notice).toMatch(/complete recorded track could not be verified/);
+  c.dispose();
 });

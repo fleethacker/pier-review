@@ -14,7 +14,8 @@ describe('locateOnTrack', () => {
     const p = locateOnTrack(track, T(30), 300);
     expect(p.method).toBe('interpolated');
     expect(p.lon).toBeCloseTo(-75.995, 6);
-    expect(p.sogKt).toBeCloseTo(11, 6);
+    // At 36°N a 0.01° longitude arc is about 899.59 m in 60 s.
+    expect(p.sogKt).toBeCloseTo(29.144, 2);
   });
   it('never extrapolates before or after the track', () => {
     expect(locateOnTrack(track, T(-1), 300)).toEqual({ method: 'before_track', established: false });
@@ -79,4 +80,35 @@ describe('spherical position evidence', () => {
     expect(p.lat).toBeCloseTo(36, 9);
     expect(p.lon).toBeCloseTo(-76, 9);
   });
+});
+
+
+describe('documented location time and speed semantics', () => {
+  it('snaps only within the recorded span, apart from the 1 ms endpoint tolerance', () => {
+    expect(locateOnTrack(track, T(60) - 250, 300)).toMatchObject({ method: 'exact_fix', lon: -75.99 });
+    expect(locateOnTrack(track, T(60) + 250, 300)).toMatchObject({ method: 'exact_fix', lon: -75.99 });
+    expect(locateOnTrack(track, T(0) - 1, 300).method).toBe('exact_fix');
+    expect(locateOnTrack(track, T(0) - 2, 300).method).toBe('before_track');
+    expect(locateOnTrack(track, T(1800) + 1, 300).method).toBe('exact_fix');
+    expect(locateOnTrack(track, T(1800) + 2, 300).method).toBe('after_track');
+  });
+  it('derives interpolated speed from distance/time and does not invent a stationary heading', () => {
+    const stationary = prepareTrack([
+      fx('2026-11-05T12:00:00Z', 36, -76, undefined, 12),
+      fx('2026-11-05T12:01:00Z', 36, -76, undefined, 14),
+    ]);
+    expect(locateOnTrack(stationary, T(30), 300)).toMatchObject({ method: 'interpolated', sogKt: 0, headingDeg: null });
+  });
+  it('does not interpret an unusable timestamp as a located position', () => {
+    expect(locateOnTrack(track, NaN, 300)).toEqual({ method: 'no_time', established: false });
+  });
+});
+
+
+it('does not substitute recorded course for missing interpolated heading', () => {
+  const fixes = prepareTrack([
+    { ...fx('2026-11-05T12:00:00Z', 36, -76), cog_true_deg: 90 },
+    { ...fx('2026-11-05T12:01:00Z', 36, -76), cog_true_deg: 90 },
+  ]);
+  expect(locateOnTrack(fixes, T(30), 300).headingDeg).toBeNull();
 });

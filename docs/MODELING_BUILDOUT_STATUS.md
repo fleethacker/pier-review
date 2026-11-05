@@ -2,28 +2,33 @@
 
 > Priorities and owners for remaining work: [MASTER_PLAN.md](MASTER_PLAN.md). This file is the capability ledger.
 
-Integration update (5 November 2026, Bixler branch): demo checks now exercise all four API planning chains through
-independent review/HTML sheets, synthetic advance-planning coverage and the existing live WebSocket controls.
-These checks do not close S1/D1 or the full browser gate. P1's resolver interface is published on
-`ws-b/p1-forecast-resolver` at `828d5ec`, but its preview route returns 501 and is not on this branch's `dev` base.
-Agent revision binding therefore remains pending resolver implementation and merge. Historical evidence below
-describes its cited revisions, not a new release or a claim of qualified data.
-The Bixler branch passed 1,769 Python tests, 227 UI tests, contract/typecheck/lint/build and 27 local API/browser
-checks; six readiness requirements remain explicitly uncovered. See [the local rehearsal](LOCAL_REHEARSAL.md).
+**Reconciled 5 November 2026 against `dev` at `3ababad` (PR #18).** Snyder maintains modeling evidence;
+Cruz supplies source/telemetry/chart evidence, Kori supplies browser evidence, and Bixler maintains the integrated
+status and release gate. [Execution ownership](MASTER_PLAN.md#execution-ownership) names leads, collaborators,
+reviewers and dependencies. This documentation pass ran no tests or CI; previous counts remain tied to their PRs.
 
+P1's canonical resolver is implemented and merged in #4; it is not a 501 stub. P2 rechecks (#8), initial P3 analytic
+benchmarks (#5), S1 rich runtime/recordings (#6), S7/U8's initial transit-based camera (#14), and U1–U7 UI (#18) are
+merged. #14 addresses several S6 defects but not the full #10 review; see the disposition below. D1–D4 composition,
+source selection, replay and waves remain in open #13 under separate review; A3 agent-wide revision binding remains
+work to do after the available P1/P2 interfaces. No combined release or physical qualification is asserted.
 
-Morning evidence (5 November 2026): 1,734 Python tests and 191 UI tests pass; contract/typecheck/lint/build pass. The four-case API chain and targeted real-browser probes pass, but the full explicit UI acceptance gate remains incomplete; the integrated UI supplies a scoped `make demo-check`. Public forecast composition is unavailable; supplied-series advance planning works. See the [final modeling report](archive/2026-11-05-overnight/modeling-agents.md#final-report) for source-specific soak evidence, commands, qualification limits and next priorities.
-
-Current integrated and pending-review status during the 4–5 November modeling work. See [the archived overnight log](archive/2026-11-05-overnight/modeling-agents.md) for exact PRs and test evidence. Tests and code review are not validation against real ships, piers, ropes or tugs; seed data remains placeholder data.
+Earlier rehearsal evidence (1,769 Python / 227 UI tests and 27 local API/browser checks, with six uncovered readiness
+requirements) belongs to #7's integration branch; see [LOCAL_REHEARSAL.md](LOCAL_REHEARSAL.md). The 1,734/191 morning
+counts belong to the [overnight report](archive/2026-11-05-overnight/modeling-agents.md#final-report). Neither is the
+current post-#18 suite count. Use exact PR/CI evidence for newer changes.
 
 ## Packet ledger
 
-| Packet | State on this branch | What exists | What is not done / blocked |
+S01–S21 below are legacy modeling packets, not the master plan's S1–S8 task IDs. The master plan determines
+current ownership/order; this ledger records implementation and remaining technical/qualification gates.
+
+| Packet | State on reconciled `dev` | What exists | What is not done / blocked |
 | --- | --- | --- | --- |
 | S01 data qualification | implemented | `qualification.py`, `GET /qualification`, `GET /capabilities`, rule coverage audit, defensive catalog copies, synthetic fixture | No published data on file, so every real asset is `demonstration`. NSTM paragraph references still unverified (`source_verified=false`). Runtime berth IDs are immutable: identical retries are accepted, changed revisions require new IDs. Confirmed runtime additions persist with MOORING_DB and survive backup/restore; default storage is ephemeral. Catalog administration/retirement policy remains missing. A published tug label does not establish rating verification; unverified ratings remain demonstration/limited. |
 | S02 results and jobs | implemented, single host | SQLite write-once results, resolved-input snapshots, persistent scenarios, bounded worker pool, queue limit (429), deadlines, cancellation, restart recovery, SSE resume | Threads share the GIL; cancellation is cooperative. Not distributed. Agents now use bounded background tasks with cancellation; opt-in durable documents/jobs, service-scoped recovery and completed event replay. Authenticated ownership survives restart. Interrupted work is failed, not resumed; active events are not journaled. One process per service/database. |
 | S03 M3 validity | implemented | one wind-basis boundary with actual applied factor, explicit environmental quality/interval gates, depth-at-draft invalid, finding aggregation, `compute_loads` p50 about 5 us | UFC conversions beyond 60 s -> 30 s and 10 m are not implemented (reported limited, not converted). |
-| S04 environment | S04a and S04b implemented, opt-in | deterministic replay; CO-OPS adapter (wind, water level, currents, tide and current predictions parsed) verified against the live API and recorded fixtures; retries, rate limit, TTL cache, stale policy, 503/502/422 mapping; `MOORING_ENV_SOURCE=coops` wires `/env/now`, `/env/history` and `/ws/env`; opt-in `scripts/smoke_coops.py` | Default stays `mock` (offline). **S04c composition incomplete:** NWS wind adapter is integrated with interval/unit/cache tests, but `/env/forecast` still returns 503 in coops mode until wind/current/water-level components can be composed honestly. CBOFS regular-grid sampling is integrated with units, domain, time and missing-layer guards; live surface sampling succeeds but the demo-pier 4m/6m layers are missing. Complete composition, available depth coverage and pier applicability remain blockers. Current flow-toward convention is supported by NOAA definitions; see [source check](NOAA_CURRENT_DIRECTION_REVIEW.md). Instrument heading and pier/bin applicability are not independently qualified. Live currents at cb0402 lag by hours, so `/env/now` is often 503 (stale); no prediction fallback was added. |
+| S04 environment | S04a and S04b implemented, opt-in | deterministic replay; CO-OPS adapter (wind, water level, currents, tide and current predictions parsed) verified against the live API and recorded fixtures; retries, rate limit, TTL cache, stale policy, 503/502/422 mapping; `MOORING_ENV_SOURCE=coops` wires `/env/now`, `/env/history` and `/ws/env`; opt-in `scripts/smoke_coops.py` | Default stays `mock` (offline). **D1–D4 implementation is in open [PR #13](https://github.com/fleethacker/pier-review/pull/13), not merged:** NWS wind adapter is integrated with interval/unit/cache tests, but `/env/forecast` still returns 503 in coops mode until wind/current/water-level components can be composed honestly. CBOFS regular-grid sampling is integrated with units, domain, time and missing-layer guards; live surface sampling succeeds but the demo-pier 4m/6m layers are missing. Complete composition, available depth coverage and pier applicability remain blockers. Current flow-toward convention is supported by NOAA definitions; see [source check](NOAA_CURRENT_DIRECTION_REVIEW.md). Instrument heading and pier/bin applicability are not independently qualified. Live currents at cb0402 lag by hours, so `/env/now` is often 503 (stale); no prediction fallback was added. |
 | S05 mechanics | implemented | pose, tension-only lines, pretension/slack/paid-out initialization, fenders with energy | Multi-part reeving and chock friction rejected or flagged, not modeled. |
 | S06 equilibrium | implemented | joint 3-DOF solve, independent residual/rank/stability checks, tolerances, tug vectors, resolved line spans and solved-pose line geometry for reports/rules | No heave/roll; fender vertical extent ignored; solver is local (a failed solve is never proof of infeasibility). |
 | S07 limits and tide | implemented | bracketed limit search with distinct outcomes and null limits for invalid inputs; supplied-forecast or explicitly synthetic tide sweep with explicit tending only | Wind speed scaling holds the request's gust ratio; no probabilistic limit. |
@@ -33,18 +38,43 @@ Current integrated and pending-review status during the 4–5 November modeling 
 | S11 risk | implemented | line and rated ship/pier/fender sampling (fender energy comparison, reaction-force percentiles); combined solve budget; endpoint-inclusive horizon with failed-solve bounds; supplied-snapshot or explicitly synthetic timeline; validity-aware alerts preserving installation tide | Probabilities are scenario outputs until a model is qualified. Sub-sample events remain unresolved; all-failed calculations are invalid. |
 | S12 search | implemented | constrained bounded/exhaustive search; optional candidate resolved_config preserves the assessed installation for later tide rechecks | Fixed holding-tug assistance is evaluated across every case; tug selection is not optimized. Ranking does not use unqualified risk. |
 | S13 sequence | implemented | generation/validation with loading/MST and explicit installation tide, staged parts and tug-release checks, quality/depth/rating guards, nonrecursive timing, cited printable intermediate states | Rule table unverified; durations unreviewed; static only. `draft_unreviewed` always. |
-| F24 advance docking | implemented, supplied-series static scope | Default at-least-24h lead with explicit short-lead reassessment, candidate arrivals through operation/holding, coverage/issue/replay gates, bounded optional search, retained installation lengths, invalid-snapshot isolation and immutable result references | Complete public forecast composition unavailable. No transient approach/contact/line-handling clearance; separate sequence review required. Synthetic generators are training inputs, not forecasts. |
+| F24 advance docking / master P1–P2 | implemented; resolver/recheck merged (#4/#8) | Canonical immutable supplied/scenario resolution with content/binding hashes; explicit revision comparison and reassessment without mutating old results. Default at-least-24h lead with explicit short-lead reassessment, candidate arrivals through operation/holding, coverage/issue/replay gates, bounded optional search, retained installation lengths, invalid-snapshot isolation and immutable result references | Public composer is in open #13; A3 must still bind agents/watch to one manifest. No transient approach/contact/line-handling clearance; separate sequence review required. Synthetic generators are training inputs, not forecasts. |
 | S14 Phase 1 gate | **partial** | `test_s14_phase1_chain.py` (supported, overload, invalid, undetermined); local supported intake→plan→review→approved HTML chain: five runs, median 3.09 s (3.06–3.31 s), Python 3.12.13/macOS arm64, no LLM or external network, synthetic steady input. Actual TCP smoke also passed; PDF returned explicit 501 without native-library discovery; a subsequent full supported chain returned HTTP 200/26,175-byte PDF with the documented macOS library path. | **No subject-matter review.** Four named API chains also complete in 3.10–4.35 s locally; the initially underconstrained arrangement is repairable by search. No performance budget sign-off. Not a release gate pass. |
-| S15 dynamics | synthetic integrator; wiring pending review | RK4 3-DOF with analytic tests; shared batch/interactive adapter | **No qualified vessel coefficients**, relative-flow derivatives or operational envelope. |
-| S16 contact/batch | implemented, pending review (synthetic scope) | Shared integrator; unilateral fenders; line activation/take-up; bounded persisted frames and validity; energy diagnostics; cooperative jobs | No independently sourced contact benchmark, qualified hull coefficients or rupture/snatch law. Not a Phase 2 gate pass. |
-| S17 interactive | implemented, pending review (local controls) | Same timed trajectory as batch; authoritative clock; pause/reset/reconnect; bounded commands, slew/capacity, ownership and latest-frame backpressure | Ephemeral single-process sessions, possible scheduling lag under load; no vessel qualification or subject-matter acceptance. |
+| S15 dynamics | synthetic integrator and wiring implemented | RK4 3-DOF; shared batch/interactive adapter; independent P3 analytical benchmarks merged (#5) | **No qualified vessel coefficients**, relative-flow derivatives or operational envelope. |
+| S16 contact/batch | implemented (synthetic scope); physical gate open | Shared integrator; unilateral fenders; line activation/take-up; bounded persisted frames and validity; energy diagnostics; cooperative jobs | No independently sourced contact benchmark, qualified hull coefficients or rupture/snatch law. Not a Phase 2 gate pass. |
+| S17 interactive / master S1 | implemented; rich runtime and review fixes merged (#6) | rm0-v1 frames, scene, lifecycle, speed, reconnect and saved recordings; same timed trajectory as batch; authoritative clock; pause/reset/reconnect; bounded commands, slew/capacity, ownership and latest-frame backpressure | Ephemeral single-process sessions, possible scheduling lag under load; no vessel qualification or subject-matter acceptance. |
 | S18/S19 approach | **not started** | | Needs chart source/edition, datum transformations and a sourced squat formulation. Mock remains and is labeled. |
 | S20 telemetry | S20a/b implemented | NMEA MWV/HDT/VTG/GGA/DPT declared subset, sensor registry validation, bounded storage, arbitration policy, optional HTTP/WS key | No AIS/NMEA 2000. Arbitration is not wired to the environment endpoints. No rate limiter beyond batch size. |
-| S21 readiness | implemented, pending review (scoped local controls) | Opt-in bearer auth/ownership, HTTP limits, JSON events/metrics, SQLite backup/restore and v1 migration tests; `docs/DEPLOYMENT_READINESS.md` | No deployment load/security review, TLS/proxy/identity lifecycle, UI credential integration or automated retention/backup. Agents bearer propagation and ownership tests now pass. **Not ready for live use.** |
+| S21 readiness | implemented local controls; deployment gate open | Opt-in bearer auth/ownership, HTTP limits, JSON events/metrics, SQLite backup/restore and v1 migration tests; `docs/DEPLOYMENT_READINESS.md` | No deployment load/security review, TLS/proxy/identity lifecycle, UI credential integration or automated retention/backup. Agents bearer propagation and ownership tests now pass. **Not ready for live use.** |
+
+## Current master-plan additions
+
+| Master item | Lead | Implemented | Remaining gate |
+| --- | --- | --- | --- |
+| S5 storyboarding | Snyder backend; Kori UI | Track/media/report ingestion, locations, storyboard and replay (#10) | Findings below; historical/simulated evidence must retain its validity |
+| S6 port transit | Snyder M-SIM; Cruz source support | Surrogate transit and selected fixes (#10/#14) | Finding closure, source/route coverage and qualified maneuvering/propulsion inputs |
+| S7/U8 camera | Snyder service; Kori overlay | `/predict/trajectory`, presets and initial missions/Transit overlay (#14) | Berthing engine, complete initial state, changing forcing/live own-ship integration, coastline and calibrated uncertainty; see [PREDICTION.md](PREDICTION.md) |
+| U1–U7 | Kori; Bixler integration | UI and browser-check additions merged (#18) | Combined integration/target evidence; conditional roll/pitch/water displays do not implement missing S2/S3 physics |
+| R1–R9 | Leads in [master plan §11](MASTER_PLAN.md#11-requirements-audit-remediation-prompts) | Executable specifications merged (#12) | Implementation and source evidence still required; use the [ownership table](MASTER_PLAN.md#execution-ownership) |
+
+## PR #10 review disposition
+
+Source: [the 16-finding review](https://github.com/fleethacker/pier-review/pull/10#issuecomment-6663809986), compared
+with merged #14 and #18. This is a read-only code/history reconciliation, not a new reproduction run or blanket
+approval. Record the closing PR, regression and independent review against each finding when it is resolved.
+
+| Finding | Disposition on reconciled `dev` | Lead / next evidence |
+| --- | --- | --- |
+| 1, 2, 4–7: rejected RMC date changes, simulated-track validity, GGA quality, malformed uploads, JPEG decoding, duplicate-row memory | Open; relevant S5 backend paths were unchanged by #14/#18 | Snyder M-SIM fixes; Snyder M-PLAN independently verifies |
+| 12–16: mission-selection race, decimated playback evidence, antipodal/dateline behavior, authenticated media/downloads | Open; relevant mission geometry/playback/media paths unchanged | Kori fixes; Snyder supplies authoritative location semantics; Bixler reviews integration |
+| 9: future manual tug command suppresses earlier auto-assist | Open; manual tug IDs still selected from all future commands at initialization | Snyder M-SIM fixes simulation-time ownership; M-PLAN regression/review |
+| 3, 8, 11: arrival speed, latched auto-assist, exact output sampling | Fixes and regressions added in #14; explicit independent closure still to record | Snyder's independent reviewer verifies each against original acceptance |
+| 10: land-crossing presets | Partially addressed: OSM checks/rerouting, a 1 km pier-zone exception and two simulated presets; original complete NOAA-based criterion not demonstrated | Snyder + Cruz complete/review authoritative coverage and all applicable routes; keep restricted scope visible |
 
 ## Test evidence
 
-Contract export and the full Python suite run before review. Final count is in the PR description. Skips: none. xfails: none.
+Use the exact implementation PR and CI run for test counts, skips and xfails. This documentation reconciliation
+intentionally skipped tests/CI at Snyder's request; it does not produce new runtime or release evidence.
 
 ## Measured performance (one machine, macOS arm64, Python 3.12, single runs; not a budget sign-off)
 
@@ -68,7 +98,7 @@ The earlier 50 ms solve target is met on this machine for these cases; it says n
 * Several months of 2025 currents were missing at cb0402 ("No data was found"); the fit used what existed.
 * Latest current observations lagged by about 2.3 hours while wind and water level were current.
 
-## Decisions for review
+## Historical decisions for review (4 November)
 
 1. Validity and status are separated and enforced on the envelope; with seed data every real result is `limited`, so nothing returns an unconditional GREEN. Is that the intended demo experience?
 2. The real equilibrium shows the single-part template plan overloaded at the MST II design condition and at the example gust. The earlier mock reported it as acceptable. Consumers (UI, agents) will now see RED for the demo example.
@@ -79,7 +109,9 @@ The earlier 50 ms solve target is met on this machine for these cases; it says n
 
 ## S16/S17/S21 follow-on scope
 
-Branch `ws-e/berthing-sim-and-readiness`, stacked on the build-out branch while #15 is open. [Simulation semantics](BERTHING_SIMULATION.md) and [readiness controls](DEPLOYMENT_READINESS.md) state parameters, error policies, compatibility and blockers. Synthetic consistency tests do not replace the independent evidence or reviews required by the execution plan.
+Historical follow-on: `ws-e/berthing-sim-and-readiness` was stacked on the legacy repository's build-out PR #15.
+That work is already integrated; current S1 (#6 in `fleethacker/pier-review`) extends its runtime. Do not reopen
+the historical stack as a new task. [Simulation semantics](BERTHING_SIMULATION.md) and [readiness controls](DEPLOYMENT_READINESS.md) state parameters, error policies, compatibility and blockers. Synthetic consistency tests do not replace the independent evidence or reviews required by the execution plan.
 
 ## Concurrent agent-job smoke (4 November evening)
 

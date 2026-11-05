@@ -1,5 +1,7 @@
 # Advance docking planning
 
+Ownership: **Snyder M-PLAN** owns P1/P2 modeling and **Snyder M-SIM** independently reviews; **Cruz** owns D2 acquisition, **Bixler** A3 agent binding, and **Kori** U4. P1/P2 and U4 are merged (#4/#8/#18); public composition remains in open #13. Follow [execution ownership](MASTER_PLAN.md#execution-ownership); agent-wide manifest/watch integration is still required.
+
 ## Canonical forecast binding (P1)
 
 `POST /api/v1/mooring/forecast/resolve` accepts a `ForecastResolveRequest`: `berth_id`,

@@ -146,6 +146,9 @@ describe('landing page and tabs', () => {
     await waitFor(() => expect(screen.getByText('Alpha app panels')).toBeTruthy());
     expect(started).toEqual(['alpha', 'beta']);
     expect(stores[0]).not.toBe(stores[1]);
+    // Reopened from the landing page, Alpha is back on the tab it was left on.
+    expect(screen.getByRole('tab', { name: 'Alpha app one' }).getAttribute('aria-selected')).toBe('true');
+    expect(window.location.search).toBe('?app=alpha&tab=one');
   });
 
   it('moves between tabs with the arrow keys', async () => {

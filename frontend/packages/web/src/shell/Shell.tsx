@@ -55,6 +55,9 @@ export function Shell({ store }: { store?: SceneStore }) {
   const [, setVersion] = useState(0);
   const [upBearing, setUpBearing] = useState(0);
   const running = useRef(new Map<string, Running>());
+  /** The tab each application was last on, so reopening it from the landing page returns there. */
+  const lastTab = useRef(new Map<string, string>());
+  if (route.appId) lastTab.current.set(route.appId, route.tabId);
   const fallbackStore = useMemo(() => store ?? null, [store]);
 
   // Start an application the first time it is opened; keep it afterwards.
@@ -127,7 +130,7 @@ export function Shell({ store }: { store?: SceneStore }) {
     return (
       <div className="flex h-full w-full flex-col bg-mil-bg font-mono text-mil-text">
         <Header onHome={() => go({ appId: null })} />
-        <Landing apps={apps} onOpen={(def) => go({ appId: def.id, tabId: tabsOf(def)[0].id })} />
+        <Landing apps={apps} onOpen={(def) => go({ appId: def.id, tabId: lastTab.current.get(def.id) ?? tabsOf(def)[0].id })} />
       </div>
     );
   }

@@ -19,9 +19,19 @@ export function Overlay() {
   return overlay.kind === 'result' ? <ResultViewer id={overlay.id} /> : <SheetViewer />;
 }
 
-function Frame({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+export function Frame({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => ref.current?.focus(), []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.key === 'Escape' && !e.defaultPrevented && !(t && (t.tagName === 'SELECT' || t.tagName === 'TEXTAREA'))) onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   return (
-    <div className="pointer-events-auto flex h-full w-full items-start justify-center overflow-auto bg-mil-bg/80 p-6" role="dialog" aria-label={title}>
+    <div ref={ref} tabIndex={-1} className="pointer-events-auto flex h-full w-full items-start justify-center overflow-auto bg-mil-bg/80 p-6 outline-none" role="dialog" aria-modal="true" aria-label={title}>
       <div className={cn('w-full', wide ? 'max-w-6xl' : 'max-w-3xl')}>
         <Panel className="p-0">
           <div className="flex items-center justify-between border-b border-mil-border px-4 py-2">

@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 21:20 EST: DC0 merged to dev via #35, including thread lock, stale-age-after-retry and policy validation fixes. Reviewing DC1/DC2. DC2 needs interval intersection: preserve the period already active at as_of, split at direction/gust boundaries within constant-speed periods, support NWS ISO day/hour/minute durations, validate direction units/finite nonnegative speeds, and propagate stale HTTP provenance. Current start-only sampling can miss a gust peak and leave the beginning of the requested horizon empty. Please fix on your branch before composed forecast integration; I will keep F24 supplied-snapshot consumption moving. Public grid pull is in /tmp/psp-public-data for local evidence only.
+
 - B 21:11 EST: merged ws-a/dc0-provider-plumbing into my integration branch (your branch untouched). Small reviewed fixes in providers.py recompute stale age after retries, serve only age-bounded explicitly stale cache while breaker is open, serialize shared-client state, and validate finite/integer policy settings. Regression tests appended. Merge dev after this packet lands to pick these up; DC8 inventory is already integrated with procedure/abort requirements preserved.
 
 - B 20:44 EST: watcher found ws-a/dc0-provider-plumbing a820492. Review notes for providers.py: stale age is measured before retries/backoff, so a response can exceed max_stale_s yet be returned with an understated age; recompute clock.now() at fallback. Shared clients also need serialized/rate-limited access or explicit per-request ownership before threaded API use. Please address before integration; no changes made on your branch.

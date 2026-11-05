@@ -18,8 +18,10 @@ from ..execution import submit_async
 from ..state import API_PREFIX, JOBS, PlannerTools
 
 router = APIRouter(tags=["Planner agent"])
-PLAN_JOBS: dict[str, str] = {}
-PLAN_REQUESTS: dict[str, AgentPlanRequest] = {}
+from ...shared.storage import AgentStore
+
+PLAN_JOBS = AgentStore("agent_plan_job", str, owner_kind="agent_plan")
+PLAN_REQUESTS = AgentStore("agent_plan_request", AgentPlanRequest, owner_kind="agent_plan")
 
 
 def _job(plan_id: str):
@@ -113,6 +115,7 @@ def plan_events(plan_id: str, follow: bool = True,
         msent = max(0, sent - offset)
         idle = 0.0
         while idle < 600:
+            rec = planner.PLANS[plan_id]
             while msent < len(rec.messages):
                 name, data = rec.messages[msent]
                 yield sse(name, data, event_id=offset + msent)

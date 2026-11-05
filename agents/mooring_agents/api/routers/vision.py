@@ -18,7 +18,9 @@ from ...physics.client import ModelingError
 from ...vision.agent import MAX_IMAGE_BYTES
 
 router = APIRouter(tags=["Berth map agent"])
-VISION_RESULTS: dict[str, dict] = {}  # job_id -> VisionResponse JSON
+from ...shared.storage import AgentStore
+
+VISION_RESULTS = AgentStore("agent_vision", dict, owner_kind="job")  # job_id -> VisionResponse JSON
 META_EXAMPLE = ('{"image_kind": "satellite", "georef": {"scale_ft_per_px": 0.5}, '
                 '"ship_class_id": "DDG-51-FIIA", "side_to": "starboard"}')
 

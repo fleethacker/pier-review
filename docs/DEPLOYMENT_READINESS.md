@@ -65,3 +65,16 @@ Run the backup helper against the configured SQLite file; it uses SQLite's backu
 * Provider freshness/error dashboards, solver-specific latency distributions, durable metrics/log export and alerts.
 * Automated retention and backup scheduling, encryption/off-host copies and operational recovery rehearsal. `JobStore.purge` is manual; results and ownership rows are not automatically removed.
 * Vessel/berth/rope/tug data qualification, supported operating envelopes, independent contact benchmarks and accountable human acceptance. Real implementation and passing tests supply none of these.
+
+### Agent restart durability (overnight M3)
+
+Opt-in `AGENTS_PERSIST=1` requires file-backed `MOORING_DB` and saves agent documents, approvals, completed job results,
+terminal event history and ownership. Its audit ledger defaults to that database. Database migration 4 scopes job
+recovery/retention by service, so restarting agents does not interrupt modeling jobs. Interrupted agent work fails
+explicitly and must be resubmitted; active event history is not journaled. Completed plans contain no transport or
+credential objects. Tests reopen a real SQLite file, retrieve the completed authenticated chain, preserve event ids
+and tool-call audit, reject a different principal, and append concurrent approvals without losing entries.
+
+One process per service/database is supported. No distributed jobs, automatic retention, verified approval roles,
+freshness revalidation of archived sheets, or durable user-confirmed reference catalog is claimed. Existing local-demo
+mode stays in memory. Back up an explicitly separate AGENTS_LEDGER_DB along with MOORING_DB if configured.

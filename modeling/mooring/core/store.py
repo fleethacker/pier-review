@@ -27,6 +27,12 @@ MIGRATIONS: list[str] = [
     """,
     # 3: durable resource ownership; preexisting resources stay unowned.
     "CREATE TABLE ownership (kind TEXT NOT NULL, key TEXT NOT NULL, principal TEXT NOT NULL, PRIMARY KEY(kind,key));",
+    # 4: service-scoped recovery and terminal event replay. Existing jobs belong to modeling.
+    """
+    ALTER TABLE jobs ADD COLUMN namespace TEXT NOT NULL DEFAULT 'modeling';
+    ALTER TABLE jobs ADD COLUMN event_log TEXT;
+    CREATE INDEX jobs_namespace_finished ON jobs(namespace, finished_at_utc);
+    """,
 ]
 
 

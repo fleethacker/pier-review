@@ -26,8 +26,10 @@ from ..shared.narration import GuardrailError, format_fact, render
 from . import checks
 from .schemas import (DirectionalThreshold, GustWarning, SafetyReview, SafetyReviewRequest, Thresholds)
 
-REVIEWS: dict[str, SafetyReview] = {}
-ENVELOPES: dict[str, list[LimitEnvelopePoint]] = {}
+from ..shared.storage import AgentStore
+
+REVIEWS = AgentStore("agent_review", SafetyReview)
+ENVELOPES = AgentStore("agent_envelope", list[LimitEnvelopePoint], owner_kind="agent_review")
 LLM_TIMEOUT_S = 30
 logger = logging.getLogger(__name__)
 

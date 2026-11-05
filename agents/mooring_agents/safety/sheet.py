@@ -23,13 +23,20 @@ from .schemas import (
     SheetLineRow,
 )
 
-SHEETS: dict[str, SafetySheet] = {}
+from ..shared.storage import AgentStore
+
+SHEETS = AgentStore("agent_sheet", SafetySheet)
 
 DISCLAIMER = ("Decision aid only. The Commanding Officer and pilot retain authority for the mooring evolution. "
               "Values marked mock or estimated are not validated.")
 
 
 def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
+    with SHEETS.atomic():
+        return _build(rec, review)
+
+
+def _build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
     plan, a = rec.plan, rec.analysis
     if a is None or plan.config is None:
         raise ValueError("Plan has no analysis to build a sheet from")
@@ -91,10 +98,12 @@ def build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
 
 
 def approve(sheet: SafetySheet, req: ApprovalCreate) -> SafetySheet:
-    approval = Approval(**req.model_dump(), at_utc=utcnow())
-    updated = sheet.model_copy(update={"approvals": [*sheet.approvals, approval], "locked": True})
-    SHEETS[sheet.sheet_id] = updated
-    return updated
+    with SHEETS.atomic():
+        current = SHEETS[sheet.sheet_id]
+        approval = Approval(**req.model_dump(), at_utc=utcnow())
+        updated = current.model_copy(update={"approvals": [*current.approvals, approval], "locked": True})
+        SHEETS[sheet.sheet_id] = updated
+        return updated
 
 
 def render_html(s: SafetySheet) -> str:

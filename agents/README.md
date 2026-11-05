@@ -93,3 +93,21 @@ forwarded, never replaced with a shared service identity. Jobs, plans, reports, 
 ledger reads are owner-scoped. `/health` is public. `AGENTS_MAX_BODY_BYTES` defaults to 9000000 (8 MB image
 plus multipart/metadata); `AGENTS_RATE_PER_MINUTE` defaults to 600 with auth, otherwise 0. See
 [deployment boundaries](../docs/DEPLOYMENT_READINESS.md); this is not a role system or deployment approval.
+
+### Optional durable agent state
+
+Set `AGENTS_PERSIST=1` and a file-backed `MOORING_DB` before starting the agents service to retain intake reports,
+completed plans, reviews, sheets/approvals, vision drafts, plan messages, job results and ownership. The tool-call ledger
+uses that same file unless `AGENTS_LEDGER_DB` explicitly selects another file (back up both in that case). Unset/default
+`AGENTS_PERSIST=0` retains local-demo memory behavior. Invalid persistence configuration fails startup.
+
+Use one agents process per database. Jobs are scoped separately from modeling jobs: restarting agents cannot fail
+modeling work. Completed job event logs retain their SSE ids. Interrupted jobs become failed, never resumed; clients
+must fetch job status after a restart (in-flight event history is not journaled). Plan records omit live toolkits,
+HTTP clients and credentials; follow-up requests use the caller's current credentials. A restored plan does not make
+its forecast current: rerun intake and independent review before a new operation.
+
+This is single-host restart durability, not a distributed scheduler or deployment qualification. There is no automatic
+retention policy; protect and back up the database, and do not purge referenced modeling results. Confirmed runtime
+berths still require a separate durable reference-data/admin workflow. Role/name approval fields remain declarations,
+not verified command authority. Concurrent approvals are appended under the store lock without changing sheet content.

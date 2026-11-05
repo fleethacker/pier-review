@@ -18,7 +18,9 @@ from .thresholds import (
 )
 
 
-REPORTS: dict[str, IntakeReport] = {}
+from ..shared.storage import AgentStore
+
+REPORTS = AgentStore("agent_report", IntakeReport)
 
 
 def _windows(series: list[EnvironmentSnapshot], kind: str, value, amber: float, red: float, reason: str):

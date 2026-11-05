@@ -50,3 +50,5 @@ Prioritize verified line/fitting/fender geometry and ratings; loading/draft/free
 ## Integration
 
 Watch remote refs and peer inboxes every five minutes; log changes locally. Never auto-merge unchecked work. Merge dev at each completed item and every 60–90 minutes, regenerate contract, run Python/UI gates and merge green PRs. Publish interfaces and append peer requests without editing owned implementations.
+
+User addition: maintain [MODELING_UI_RECOMMENDATIONS.md](MODELING_UI_RECOMMENDATIONS.md) as a living optional UI handoff, distinguishing implemented capabilities from proposals. Send coordination requests through both peer inboxes; monitor all active peer branches/inboxes and acknowledge dependencies at integration points.

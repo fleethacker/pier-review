@@ -2,6 +2,12 @@
 
 ## Requests
 
+- B 21:46 EST, user-requested coordination: please watch origin/dev and all active peer branches/inboxes throughout the night, read Interfaces/Requests at each integration point (at least every 5 minutes while active), and publish changed contracts plus green commits promptly. I am watching every 2 minutes and integrating reviewed work in my own worktree; never edit peer worktrees or auto-merge unchecked changes. Reply with blockers in docs/overnight/modeling-agents.md → Requests. New optional UI capability handoff: docs/MODELING_UI_RECOMMENDATIONS.md; choose/adapt/defer against your UI priorities. It covers forecast arrivals, line placements, tide tending, training scenarios, progress and provenance, with implemented vs pending explicitly separated.
+
+- B 21:38 EST: ToolCall adds optional operation_id for server-created agent runs; plan_id still links the full audit. Repeated safety reviews now get separate bounded tool allowances. Generated type refresh only; no UI behavior required.
+
+- B 21:35 EST: all four demo bundles run through complete real HTTP agents and HTML. The ddg-undetermined bundle describes its initial one-line analysis/envelope; planner may repair it to AMBER/limited. Preserve/display initial outcome separately from final plan. Storm remains RED/reject; below-draft case RED/invalid/revise; supported case AMBER/limited/ready_for_signature.
+
 - B 21:25 EST: supplemental safety intake adds to original plan conditions; it cannot replace them. New PLAN-NOT-RED check preserves unresolved planner failures. Forecast windows reject poor/suspect or expired inputs. API descriptions regenerated (small generated-types refresh only).
 
 - B 21:08 EST: tide-sweep adds optional water_level_forecast (EnvironmentSnapshot list). Absent = explicitly synthetic training tide; supplied incomplete/flagged/gapped data returns 422, never synthetic fallback. Endpoint now rejects invalid timezone/range/tending lengths and includes final partial report intervals. Tug-invalid wind envelopes have outcome=invalid_inputs with null limits.

@@ -17,6 +17,7 @@ import dataclasses
 import itertools
 import math
 from dataclasses import dataclass, field
+from collections import Counter
 
 from mooring import refdata
 from mooring.core.envelopes import envelope, status_with_validity
@@ -102,10 +103,35 @@ def search_plans(ship: ShipClass, berth: Berth, specs: dict[str, LineSpec], slot
                  lines_wet: bool = True, install_level_ft: float = 0.0, side_tag: str | None = None, standoff_ft: float | None = None, tugs=None, ctx=None) -> Outcome:
     df = design_factor(mst)
     side_tag = side_tag or ("S" if side_to == "starboard" else "P")
-    locked = {ln.line_number: ln for ln in (locked or [])}
+    locked_items = list(locked or [])
+    locked = {ln.line_number: ln for ln in locked_items}
     excluded = set(excluded or ())
     notes, reasons = [], []
     inv = inventory if inventory is not None else {k: 10**6 for k in specs}
+    if len(locked) != len(locked_items) or not set(locked).issubset({slot.line_number for slot in slots}):
+        return Outcome([], 0, 0, "none", True, notes, ["Locked line numbers must be unique and belong to the searched slots; no lock is silently discarded."])
+    ship_fittings = {f.fitting_id: f for f in ship.fittings}
+    pier_fittings = {f.fitting_id: f for f in berth.fittings}
+
+    def usable_line(ln):
+        spec, bitt, pf = specs.get(ln.spec_id), ship_fittings.get(ln.ship_fitting_id), pier_fittings.get(ln.pier_fitting_id)
+        if spec is None or bitt is None or pf is None:
+            return False
+        if pf.fitting_id in excluded or pf.condition != "good" or pf.occupied_by or not pf.kind.startswith("bollard"):
+            return False
+        if bitt.kind not in ("bitt", "recessed_bitt", "cleat"):
+            return False
+        chock_id = ln.chock_id or bitt.paired_chock_id
+        chock = ship_fittings.get(chock_id) if chock_id else None
+        if chock_id and (chock is None or chock.kind != "chock"):
+            return False
+        return all(f.max_rope_circ_in is None or spec.size_circ_in <= f.max_rope_circ_in for f in (bitt, chock) if f)
+
+    locked_need = Counter()
+    for ln in locked_items:
+        locked_need[ln.spec_id] += ln.parts
+    if any(not usable_line(ln) for ln in locked_items) or any(count > inv.get(spec, 0) for spec, count in locked_need.items()):
+        return Outcome([], 0, 0, "none", True, notes, ["Locked lines violate inventory, fitting availability/exclusion, or rope/chock compatibility."])
     variants = [(spec_id, pname) for spec_id in specs if inv.get(spec_id, 0) > 0 for pname in PATTERNS]
     if not variants:
         return Outcome([], 0, 0, "none", True, notes, ["No line inventory available: nothing can be moored."])
@@ -138,23 +164,25 @@ def search_plans(ship: ShipClass, berth: Berth, specs: dict[str, LineSpec], slot
         spec_id, pname = variant
         if len(set(choice)) != len(choice):
             return None                                   # one line per pier fitting
-        lines, need = [], 0
+        lines, need = [], Counter()
         for (slot, bitt, _), pf in zip(options, choice):
             if slot.line_number in locked:
                 ln = locked[slot.line_number]
                 lines.append(ln)
-                need += ln.parts if ln.spec_id == spec_id else 0
+                need[ln.spec_id] += ln.parts
                 continue
             parts = PATTERNS[pname](slot.role, slot.line_number)
-            need += parts
+            need[spec_id] += parts
             lines.append(MooringLine(line_number=slot.line_number, role=slot.role, spec_id=spec_id, parts=parts,
                                      ship_fitting_id=bitt.fitting_id, pier_fitting_id=pf))
-        if need > inv.get(spec_id, 0):
+        if any(count > inv.get(spec, 0) for spec, count in need.items()):
             return None                                   # inventory counts
         cfg = MooringConfig(side_to=side_to, ship_x_ft=ship_x_ft, standoff_ft=standoff_ft, lines=lines)
         # geometric hard constraints from the installed geometry
         from mooring.core.geometry import line_geometry
         for ln in lines:
+            if not usable_line(ln):
+                return None
             try:
                 g = line_geometry(ln, ship, berth, cfg, install_level_ft)
             except KeyError:
@@ -179,24 +207,39 @@ def search_plans(ship: ShipClass, berth: Berth, specs: dict[str, LineSpec], slot
         evaluated += 1
         if ctx is not None:
             ctx.progress(min(evaluated / max_evals, 0.9), "Evaluating line configurations")
-        worst, worst_case, feasible = 0.0, "", True
-        base_sys = None
+        worst, worst_case, feasible, checked = 0.0, "", True, 0
+        from mooring import qualification
+        if any(issue.blocking for issue in qualification.analysis_issues(ship, berth, cfg, specs)):
+            results[key] = None
+            return None
+        from mooring.loads.helpers import mean_draft_ft
         for label, env in cases:
+            checked += 1
             try:
                 sysm = eq.build_system(ship, berth, cfg, specs, env, loading=loading, lines_wet=lines_wet, install_water_level_ft=install_level_ft, tugs=tugs)
             except eq.SystemError:
                 results[key] = None
                 return None
-            sol = eq.solve(sysm)
+            if sysm.depth_ft(eq.Pose()) <= mean_draft_ft(ship, loading):
+                feasible, worst, worst_case = False, math.inf, label + " (depth not above draft; invalid floating-mooring inputs)"
+                break
+            try:
+                sol = eq.solve(sysm)
+            except ValueError as exc:
+                feasible, worst, worst_case = False, math.inf, label + f" (invalid solve inputs: {exc})"
+                break
             if not sol.converged:
                 feasible, worst, worst_case = False, math.inf, label + " (solve failed)"
+                break
+            if sysm.depth_ft(sol.pose) <= mean_draft_ft(ship, loading):
+                feasible, worst, worst_case = False, math.inf, label + " (depth not above draft; invalid floating-mooring inputs)"
                 break
             el, pct, mode = max(utilization(sysm, sol.pose, df), key=lambda e: e[1])
             if pct > worst:
                 worst, worst_case = pct, f"{label}: {el} ({mode})"
             feasible = feasible and pct <= 100.0
         score = (0 if feasible else 1, worst, sum(l.parts for l in cfg.lines))
-        results[key] = (score, cfg, {"worst": worst, "worst_case": worst_case, "feasible": feasible, "spec": variant[0], "pattern": variant[1]})
+        results[key] = (score, cfg, {"worst": worst, "worst_case": worst_case, "feasible": feasible, "spec": variant[0], "pattern": variant[1], "cases_evaluated": checked})
         return results[key]
 
     if space <= max_evals:
@@ -270,8 +313,8 @@ def recommend(req: RecommendRequest, ctx=None) -> RecommendResponse:
         worst_lim = lim.result.worst.limit_wind_kt
         candidates.append(Candidate(
             config=cfg, tugs=req.tugs, min_margin_pct_wll=round(info["worst"], 1) if math.isfinite(info["worst"]) else 999.0, limit_wind_kt_worst=worst_lim,
-            line_count=len(cfg.lines), analysis_result_id=resp.result_id, feasible=info["feasible"], worst_case=info["worst_case"], cases_evaluated=len(cases),
-            why=[f"{info['pattern']}, {info['spec']}.", f"Worst case across {len(cases)} cases: {info['worst_case']} at {info['worst']:.0f}%." if math.isfinite(info["worst"]) else "A case failed to solve.",
+            line_count=len(cfg.lines), analysis_result_id=resp.result_id, feasible=info["feasible"], worst_case=info["worst_case"], cases_evaluated=info["cases_evaluated"],
+            why=[f"{info['pattern']}, {info['spec']}.", f"Worst case across {len(cases)} cases: {info['worst_case']} at {info['worst']:.0f}%." if math.isfinite(info["worst"]) else f"Assessment stopped: {info['worst_case']}.",
                  "Feasible: every case solved and every element within its limit." if info["feasible"] else "NOT feasible: at least one case exceeds a limit or did not solve."]))
         top_results.append(resp)
     feasible_found = sum(1 for _, _, i in out.ranked if i["feasible"])

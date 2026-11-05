@@ -48,8 +48,12 @@ def _database(path: str) -> Iterator[sqlite3.Connection]:
 
 
 def _budget_key(call: ToolCall, scope_id: str | None = None) -> str | None:
-    """Budgets are per plan and per caller (shared across instances of the same caller). The budget exists to stop
-    a runaway LLM loop; the deterministic Safety review must never be starved by the Planner's spending."""
+    """Explicit server operations get separate budgets; legacy gateway calls stay per plan/caller.
+
+    Plan ids still link every operation's audit, but archived spending must not prevent a later safety review.
+    """
+    if call.operation_id is not None:
+        return f"operation:{call.operation_id}:{call.caller}"
     if call.plan_id is not None:
         return f"plan:{call.plan_id}:{call.caller}"
     return f"toolkit:{scope_id}" if scope_id is not None else None

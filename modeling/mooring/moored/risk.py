@@ -20,7 +20,7 @@ import statistics
 from collections.abc import Callable
 from datetime import timedelta
 
-from mooring import environment, refdata
+from mooring import refdata
 from mooring.core.envelopes import envelope, new_id, status_with_validity, utcnow
 from mooring.core.schemas import (
     Alert, AnalyzeRequest, ElementRisk, EnvironmentSnapshot, ExceedanceRequest, ExceedanceResponse, ExceedanceResult, Finding,
@@ -242,64 +242,96 @@ def _horizon(req: ExceedanceRequest, system, specs, sol0, model, df, ctx=None) -
 
 
 def timeline(req: TimelineRequest, ctx=None) -> TimelineResponse:
+    from mooring.data_simulation.timeline import sample as training_sample
+
     berth = refdata.berth(req.berth_id)
     stations = (berth.env_station_ids.wind, berth.env_station_ids.current, berth.env_station_ids.water_level)
-    base_req = AnalyzeRequest(**req.model_dump(exclude={"forecast_hours", "step_min", "start_utc", "n_samples_per_step"}))
+    base_req = AnalyzeRequest(**req.model_dump(exclude={"forecast_hours", "step_min", "start_utc", "n_samples_per_step", "forecast"}))
     system, sol0, specs = solver.solve_request(base_req)
     df = design_factor(req.mst)
     start = req.start_utc or utcnow().replace(minute=0, second=0, microsecond=0)
-    n = int(req.forecast_hours * 60 / req.step_min) + 1
+    end = start + timedelta(hours=req.forecast_hours)
+    synthetic = req.forecast is None
+    if synthetic:
+        times = [start + timedelta(minutes=i) for i in range(0, req.forecast_hours * 60, req.step_min)] + [end]
+        forcing = [training_sample(t, stations) for t in times]
+    else:
+        forcing = [s for s in req.forecast if start <= s.valid_at_utc <= end]
     sampler = unc.Sampler(unc.SYNTHETIC_DEMO, 1)
-    steps, first_amber, first_red, actions, warm, failed = [], None, None, [], sol0.pose, []
-    peaks: dict[str, tuple[float, str]] = {}
-    for i in range(n):
-        if ctx is not None:
-            ctx.check_cancelled()
-            ctx.progress(i / n, f"step {i} of {n}")
-        t = start + timedelta(minutes=i * req.step_min)
-        env = environment.synthetic(t, "forecast", stations)
-        sysm = dataclasses.replace(system, env=env)
-        sol = eq.solve(sysm, warm)
-        if not sol.converged:
-            failed.append(t.isoformat())
-            steps.append(TimelineStep(valid_at_utc=t, status="RED", wind_speed_kt=env.wind_speed_kt, wind_gust_kt=env.wind_gust_kt,
-                                      p_any_exceeds_wll=None, governing_element="undetermined", valid=False))
-            continue
-        warm = sol.pose
-        worst_el = max(utilization(sysm, sol.pose, df), key=lambda e: e[1])
-        status = "RED" if worst_el[1] > 100 else "AMBER" if worst_el[1] > 80 else "GREEN"
-        if status != "GREEN" and first_amber is None:
-            first_amber = t
-        if status == "RED" and first_red is None:
-            first_red = t
-        if status == "RED":
-            actions.append(f"{worst_el[0]} reaches {worst_el[1]:.0f}% of its limit at {t:%H:%MZ}; review additional lines, tending or tugs.")
-        p = None
-        if req.n_samples_per_step > 0:
-            tl, _ = monte_carlo(lambda env=env: sampler.instant(env),
-                                lambda e: _eval_env(dataclasses.replace(system, env=e), warm, df), req.n_samples_per_step)
-            nv = tl.n - tl.failed
-            p = round(tl.any_wll / nv, 4) if nv else None
-        steps.append(TimelineStep(valid_at_utc=t, status=status, wind_speed_kt=env.wind_speed_kt, wind_gust_kt=env.wind_gust_kt,
-                                  p_any_exceeds_wll=p, governing_element=worst_el[0], max_pct_wll=round(worst_el[1], 1), valid=True))
+    steps, actions, warm = [], [], sol0.pose
     base_validity = solver_validity(req, base_req, system, sol0, specs)
     reasons = list(base_validity.reasons)
-    if failed:
-        reasons.append(ValidityReason(code="STEP_SOLVE_FAILED", affected_components=["timeline"],
-                                      message=f"Equilibrium failed at {len(failed)} of {n} steps ({', '.join(failed[:3])}{'...' if len(failed) > 3 else ''}); those steps are undetermined."))
+    if synthetic:
+        reasons.append(ValidityReason(code="SYNTHETIC_TIMELINE", affected_components=["timeline"],
+            message="No forecast supplied: this is a synthetic training timeline, independent of the configured provider."))
     if req.n_samples_per_step > 0:
         reasons.append(ValidityReason(code="UNQUALIFIED_UNCERTAINTY_MODEL", affected_components=["synthetic-demo"],
-                                      message="Per-step probabilities use the synthetic model: scenario outputs only."))
-    state = "invalid" if base_validity.state == "invalid" or failed else "limited" if reasons else "valid"
+            message="Per-step probabilities use the synthetic model: scenario outputs only."))
+    common_reasons = list(reasons)
+    for i, env in enumerate(forcing):
+        if ctx is not None:
+            ctx.check_cancelled()
+            ctx.progress(i / len(forcing), f"step {i} of {len(forcing)}")
+        sysm = dataclasses.replace(system, env=env)
+        sol = eq.solve(sysm, warm)
+        condition_req = base_req.model_copy(update={"environment": env})
+        condition_validity = solver_validity(req, condition_req, sysm, sol, specs)
+        condition_reasons = [*common_reasons, *condition_validity.reasons]
+        n_valid = n_failed = p = bounds = None
+        worst_el, pct = "undetermined", None
+        status = "RED"
+        if sol.converged and condition_validity.state != "invalid":
+            warm = sol.pose
+            worst_el, pct, _ = max(utilization(sysm, sol.pose, df), key=lambda e: e[1])
+            status = "RED" if pct > 100 else "AMBER" if pct > 80 else "GREEN"
+            if pct > 100:
+                actions.append(f"{worst_el} reaches {pct:.0f}% of its limit at {env.valid_at_utc:%H:%MZ}; review additional lines, tending or tugs.")
+            if req.n_samples_per_step > 0:
+                def check_sampling(_):
+                    if ctx is not None:
+                        ctx.check_cancelled()
+                tally, _ = monte_carlo(lambda env=env: sampler.instant(env),
+                    lambda e: _eval_env(dataclasses.replace(system, env=e), warm, df), req.n_samples_per_step, check_sampling)
+                n_valid, n_failed = tally.n - tally.failed, tally.failed
+                p = round(tally.any_wll / n_valid, 4) if n_valid else None
+                bounds = [tally.any_wll / tally.n, (tally.any_wll + tally.failed) / tally.n]
+                if n_failed:
+                    condition_reasons.append(ValidityReason(code="FAILED_SAMPLES", affected_components=["timeline"],
+                        message=f"{n_failed} of {tally.n} samples failed at {env.valid_at_utc.isoformat()}; see p_any_bounds."))
+        else:
+            actions.append(f"Condition at {env.valid_at_utc:%H:%MZ} is invalid or undetermined; recheck inputs and the plan.")
+        if not sol.converged:
+            condition_reasons.append(ValidityReason(code="STEP_SOLVE_FAILED", affected_components=["timeline"],
+                message=f"Equilibrium failed at {env.valid_at_utc.isoformat()}; the condition is undetermined."))
+        invalid = base_validity.state == "invalid" or not sol.converged or condition_validity.state == "invalid" or n_valid == 0
+        if n_valid == 0:
+            condition_reasons.append(ValidityReason(code="NO_VALID_RISK_SAMPLES", affected_components=["timeline"],
+                message=f"No successful risk samples at {env.valid_at_utc.isoformat()}; no probability established."))
+        state = "invalid" if invalid else "limited" if synthetic or reasons or condition_reasons else "valid"
+        step_validity = condition_validity.model_copy(update={"state": state, "reasons": condition_reasons})
+        steps.append(TimelineStep(valid_at_utc=env.valid_at_utc, status=status_with_validity(status, step_validity),
+            wind_speed_kt=env.wind_speed_kt, wind_gust_kt=env.wind_gust_kt, p_any_exceeds_wll=p,
+            governing_element=worst_el, max_pct_wll=round(pct, 1) if pct is not None else None,
+            valid=not invalid, environment=env, validity=step_validity, n_valid=n_valid, n_failed=n_failed, p_any_bounds=bounds))
+        reasons.extend(condition_reasons)
+    # Repeated seed/geometry reasons need one entry, while timestamped failures remain distinct.
+    reasons = list({(r.code, r.message, tuple(r.affected_components)): r for r in reasons}.values())
+    state = "invalid" if base_validity.state == "invalid" or any(not s.valid for s in steps) else "limited" if reasons else "valid"
     validity = Validity(state=state, reasons=reasons, diagnostics=base_validity.diagnostics)
-    overall = "RED" if first_red or failed else "AMBER" if first_amber else "GREEN"
+    first_amber = next((s.valid_at_utc for s in steps if s.status != "GREEN"), None)
+    first_red = next((s.valid_at_utc for s in steps if s.status == "RED"), None)
+    overall = "RED" if first_red else "AMBER" if first_amber else "GREEN"
     return envelope(TimelineResponse, model="mooring.risk.timeline", request=req, backend="real", model_version="1.0.0",
-                    result=TimelineResult(steps=steps, first_amber_utc=first_amber, first_red_utc=first_red, recommended_actions=actions),
-                    status=status_with_validity(overall, validity), validity=validity,
-                    manifest=solver.manifest_for(base_req, system, specs, sol0, {"timeline": {"start": start.isoformat(), "step_min": req.step_min}}),
-                    assumptions=["Each step is a deterministic equilibrium at the forecast environment (mock synthetic forecast until providers are enabled).",
-                                 "p_any_exceeds_wll is pointwise per step and present only when n_samples_per_step > 0; it is not a horizon probability.",
-                                 *solver.ASSUMPTIONS])
+        result=TimelineResult(steps=steps, first_amber_utc=first_amber, first_red_utc=first_red, recommended_actions=actions,
+                              forcing_source="synthetic_training" if synthetic else "supplied"),
+        status=status_with_validity(overall, validity), validity=validity,
+        manifest=solver.manifest_for(base_req, system, specs, sol0, {"timeline": {"start": start.isoformat(),
+            "step_min": req.step_min, "forcing": [s.model_dump(mode="json") for s in forcing]}}),
+        assumptions=["Synthetic training conditions; not a forecast and not replaced when providers are enabled." if synthetic else
+                     "Every supplied snapshot in the horizon is evaluated without interpolation or extrapolation; peaks between snapshots remain unresolved.",
+                     "Line installation lengths stay fixed at the request environment's installation water level unless explicitly provided in config.",
+                     "p_any_exceeds_wll is pointwise per step among valid samples, not a horizon probability; failed samples have explicit bounds.",
+                     *solver.ASSUMPTIONS])
 
 
 def alert_for(env: EnvironmentSnapshot, analyze_req: AnalyzeRequest | None) -> Alert:

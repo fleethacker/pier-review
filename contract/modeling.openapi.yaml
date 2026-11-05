@@ -8348,6 +8348,18 @@ components:
           title: N Samples Per Step
           description: 0 = deterministic utilization only, no probability.
           default: 0
+        forecast:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/EnvironmentSnapshot'
+            type: array
+            maxItems: 721
+            minItems: 2
+          - type: 'null'
+          title: Forecast
+          description: Exact supplied snapshots; all knots in the requested window are evaluated. Requires start_utc, both
+            horizon endpoints and gaps <=60 minutes. No interpolation or provider fallback. Omitted means synthetic training
+            forcing.
       additionalProperties: false
       type: object
       required:
@@ -10816,6 +10828,15 @@ components:
     TimelineResult:
       additionalProperties: false
       properties:
+        forcing_source:
+          anyOf:
+          - enum:
+            - synthetic_training
+            - supplied
+            type: string
+          - type: 'null'
+          default: null
+          title: Forcing Source
         steps:
           items:
             $ref: '#/components/schemas/TimelineStep'
@@ -10887,6 +10908,36 @@ components:
           - type: 'null'
           default: null
           title: Valid
+        environment:
+          anyOf:
+          - $ref: '#/components/schemas/EnvironmentSnapshot'
+          - type: 'null'
+          default: null
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+        n_valid:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: N Valid
+        n_failed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: N Failed
+        p_any_bounds:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          default: null
+          title: P Any Bounds
       required:
       - valid_at_utc
       - status

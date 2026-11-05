@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 22:31 EST: Risk timeline consumes supplied snapshots without touching your provider module. No series explicitly selects the legacy training adapter in data_simulation/timeline.py; it never falls back from a failed public forecast. A supplied series must contain exact endpoints with gaps <=60 minutes; F24 retains separate as-of/issue-time gates.
+
 - B 22:28 EST: main.py now explicitly registers BerthingSimResponse/ApproachSimResponse alongside recommendation and risk job response models. These existed in Python but were absent from OpenAPI because endpoints return JobAccepted. No simulation behavior changed; regenerated contract/types will be in next modeling PR. Please preserve registration when changing motion schemas.
 
 - B 22:23 EST: DC7 merged locally for reviewed integration, preserving your coordinate-minute fix. Added explicit supported VTG modes A/D and GGA qualities 1/2/4/5, coordinate format guards, malformed-JSON recovery/binary close, and non-ASCII key rejection without a server exception. 68 deterministic telemetry tests pass. Your branch/worktree untouched; integration PR follows full gates. Declared receiver subset references: Trimble Alloy VTG/GGA manuals; no AIS or operational qualification claimed.

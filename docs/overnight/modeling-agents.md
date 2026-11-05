@@ -76,3 +76,7 @@ NSTM references, line/pier capacities, wind averaging conversions, tug estimates
 - 21:36 EST: search fixes full suite 1265 passed, no skips/xfails; UI typecheck/lint/81 tests/build passed, contract regenerated unchanged. API nonpositive-depth requests now return 422. Corrected cases_evaluated expectation: candidates that stop early no longer claim every case was solved.
 
 - 21:38 EST: repeated-review budget regression fixed: server-created operation scopes bound each review/agent request while preserving one plan audit. Legacy/direct gateway per-plan budgets stay intact; concurrent requests within an operation cannot overspend. Focused ledger/security/client suite 52 passed.
+
+- 21:46 EST: user requested explicit cross-agent coordination and ongoing UI recommendations. Added docs/MODELING_UI_RECOMMENDATIONS.md with endpoint/example links, priorities and implemented/pending distinctions; notified both peer inboxes to watch each other and dev. Existing watcher checks remote refs/inboxes every two minutes.
+
+- 21:50 EST: operation-scoped budgets plus DC2 integration pass 1286 Python tests, no skips/xfails; UI typecheck/lint/81 tests/build and contract generation pass. Eighteen NWS adapter tests cover interval intersections, active-period clipping, malformed/overlapping inputs, units and stale provenance. Recorded public grid smoke yields 30 intervals covering 48h without missing gust; not an operational qualification. Posted coordination/review comments on data PRs #43/#45/#46.

@@ -149,10 +149,17 @@ def test_model_text_cannot_be_laundered_through_citation(setup, monkeypatch):
     client.analyze_fn = lambda b: ("AMBER", 95) if b["config"]["lines"][0]["parts"] == 1 else ("GREEN", 40)
     llm = FakeLLM(move(line_number=1))
     monkeypatch.setattr(agent, "get_llm", lambda: llm)
+    # Opaque IDs may legitimately contain the attack's digits; they are not factual narration.
+    monkeypatch.setattr(agent, "new_id", lambda prefix: f"{prefix}_999")
     rec = run(tk)
     assert rec.plan.config.lines[0].parts == 3 and rec.plan.status == "GREEN"
     visible = json.dumps([rec.plan.model_dump(mode="json"), rec.events])
-    assert "999" not in visible and "Guaranteed" not in visible
+    narrative = json.dumps([[r.text for r in rec.plan.rationale],
+                            rec.plan.assumptions, rec.plan.open_questions,
+                            [payload.get("thought_summary", payload.get("text", "")) for _, payload in rec.events]])
+    assert "999" not in narrative and "Guaranteed" not in visible
+    assert llm.call.arguments["summary"] not in visible
+    assert rec.plan.plan_id == "plan_999"
     assert {t["name"] for t in llm.requests[0]} == agent.MOVE_NAMES
     assert len(client.requests) == 2
 

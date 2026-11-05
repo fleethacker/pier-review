@@ -270,3 +270,38 @@ def test_empty_additional_fleet_preserves_existing_holding_assistance():
     assert result['feasible'] and result['assignments'] == []
     assert result['recommended_tug_count'] == 0
     assert result['assisted_max_pct_wll'] <= 100 / 1.25
+
+
+@pytest.mark.parametrize('bounds', [
+    {'from_utc': '2026-11-04T12:00:00'},
+    {'to_utc': '2026-11-05T12:00:00'},
+    {'from_utc': '2026-11-05T13:00:00Z', 'to_utc': '2026-11-05T12:00:00Z'},
+])
+def test_window_bounds_reject_ambiguous_or_reversed_times(bounds):
+    response = windows(**bounds)
+    assert response.status_code == 422, response.text
+
+
+@pytest.mark.parametrize('month,day', [(3, 8), (11, 1)])
+def test_window_sampling_covers_elapsed_time_through_clock_changes(monkeypatch, month, day):
+    from zoneinfo import ZoneInfo
+    from mooring.berthing import service
+    from mooring.core.schemas import BerthingWindowRequest
+    zone = ZoneInfo('America/New_York')
+    start = datetime(2026, month, day, 0, 30, tzinfo=zone)
+    end = datetime(2026, month, day, 4, 30, tzinfo=zone)
+    expected = []
+    t = start.astimezone(UTC)
+    while t <= end.astimezone(UTC):
+        expected.append(t)
+        t += timedelta(minutes=6)
+    seen = []
+    original = service.environment.synthetic
+    def recorded(at, *args):
+        seen.append(at.astimezone(UTC))
+        return original(at, *args)
+    monkeypatch.setattr(service.environment, 'synthetic', recorded)
+    req = BerthingWindowRequest.model_validate(EXAMPLES['windows_berthing'] | {
+        'from_utc': start, 'to_utc': end, 'step_min': 6, 'available_tug_ids': []})
+    service.windows(req)
+    assert seen == expected  # No feasible windows/refinement without tugs: inspect the actual sampled instants.

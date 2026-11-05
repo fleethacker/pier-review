@@ -161,7 +161,11 @@ provenance:
     satellite imagery
   url: https://www.openstreetmap.org/way/563308681
   confidence: mock
-  notes: Position, direction and length of the face are surveyed (Polygon long edge
-    facing south (seamark berth 'Tulapier').). Fittings, fenders and depths are the
-    notional Pier 12 layout stretched to the face length; weather is synthetic. Not
-    for operational use.
+  notes: 'Position, direction and length of the face are surveyed (Polygon long edge
+    facing south (seamark berth ''Tulapier'').). Fittings, fenders and depths are
+    the notional Pier 12 layout stretched to the face length; weather is synthetic.
+    Occupancy in the imagery: No ship alongside. Not for operational use.'
+clear_stretch:
+  start_ft: 0
+  end_ft: 622
+  note: No ship alongside.

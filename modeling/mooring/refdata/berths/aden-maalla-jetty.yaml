@@ -204,7 +204,12 @@ provenance:
     satellite imagery
   url: https://www.openstreetmap.org/way/485538999
   confidence: mock
-  notes: Position, direction and length of the face are surveyed (Polygon long edge
+  notes: 'Position, direction and length of the face are surveyed (Polygon long edge
     facing northeast, away from the pier area. Commercial wharf.). Fittings, fenders
     and depths are the notional Pier 12 layout stretched to the face length; weather
-    is synthetic. Not for operational use.
+    is synthetic. Occupancy in the imagery: No ship alongside this face. Not for operational
+    use.'
+clear_stretch:
+  start_ft: 0
+  end_ft: 853
+  note: No ship alongside this face.

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { cn } from '../../../lib/cn';
-import { clusterPorts, groupPorts, mapPosition, portAt } from '../world';
+import { clusterPorts, groupPorts, mapBackground, mapPosition, portAt } from '../world';
 import type { Port } from '../world';
 import { useController, useMooring } from './context';
 
@@ -11,6 +11,7 @@ const MAP_IMAGE = TOKEN
   ? `url(https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/0,0,0/512x512@2x?access_token=${TOKEN})`
   : undefined;
 const BACKDROP = 'linear-gradient(180deg, #0d2a4a 0%, #0a1f3a 100%)';
+const BG = mapBackground();
 
 /**
  * Pick the berth by docking the ship at a port: drag the ship chip onto a port marker. A port with several berths
@@ -64,11 +65,12 @@ export function WorldPicker() {
   return (
     <div className="space-y-2">
       <div
-        className="relative aspect-[2/1] w-full overflow-hidden rounded-sm border border-mil-border"
+        className="relative w-full overflow-hidden rounded-sm border border-mil-border"
         style={{
+          aspectRatio: BG.aspectRatio,
           backgroundImage: [MAP_IMAGE, BACKDROP].filter(Boolean).join(', '),
-          backgroundSize: MAP_IMAGE ? '100% 200%, 100% 100%' : '100% 100%',
-          backgroundPosition: 'center',
+          backgroundSize: MAP_IMAGE ? `${BG.size}, 100% 100%` : '100% 100%',
+          backgroundPosition: MAP_IMAGE ? `center ${BG.positionY}, center` : 'center',
         }}
         role="group"
         aria-label="World map of ports"

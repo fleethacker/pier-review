@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clusterPorts, groupPorts, mapPosition, mercator, portAt, portLabel } from './world';
+import { clusterPorts, groupPorts, mapBackground, mapPosition, mercator, portAt, portLabel } from './world';
 
 const site = (berthId: string, name: string, lat: number, lon: number) => ({ berthId, name, lat, lon });
 
@@ -16,7 +16,7 @@ describe('world map helpers', () => {
   });
 
   it('keeps every port in the cropped band', () => {
-    for (const [lat, lon] of [[36.9, -76.3], [32.7, -117.1], [21.4, -158], [35.3, 139.7], [36.6, -6.3]]) {
+    for (const [lat, lon] of [[36.9, -76.3], [32.7, -117.1], [21.4, -158], [35.3, 139.7], [36.6, -6.3], [76.54, -68.84], [1.27, 103.79], [25.0, 55.07]]) {
       const p = mapPosition(lat, lon);
       expect(p.x).toBeGreaterThan(0);
       expect(p.x).toBeLessThan(1);
@@ -74,5 +74,20 @@ describe('world map helpers', () => {
   it('leaves well-separated ports alone', () => {
     const ports = groupPorts([site('A', 'A (Norfolk)', 36.9, -76.3), site('B', 'B (San Diego)', 32.7, -117.1)]);
     expect(clusterPorts(ports)).toEqual(ports);
+  });
+
+  it('lines the background image up with the marker positions', () => {
+    const bg = mapBackground();
+    const band = 1 / bg.aspectRatio;
+    const yMin = mercator(79, 0).y;
+    // The top of the box is the band's north edge and the bottom is its south edge.
+    expect(mapPosition(79, 0).y).toBeCloseTo(0);
+    expect(mapPosition(-66.6, 0).y).toBeGreaterThan(0.99);
+    // CSS: image height H = boxHeight / band, offset p% places p% of the image at p% of the box: top = p * (box - H).
+    const p = parseFloat(bg.positionY) / 100;
+    const imageHeight = 1 / band;
+    // To 4 decimals: the CSS string keeps 3 decimals of a percent, a twentieth of a pixel on this map.
+    expect(p * (1 - imageHeight)).toBeCloseTo(-yMin * imageHeight, 4);
+    expect(parseFloat(bg.size.split(' ')[1])).toBeCloseTo(100 / band, 2);
   });
 });

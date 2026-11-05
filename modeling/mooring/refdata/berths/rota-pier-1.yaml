@@ -190,7 +190,8 @@ provenance:
     satellite imagery
   url: https://www.openstreetmap.org/way/478953761
   confidence: mock
-  notes: Position, direction and length of the face are surveyed (Mapped as a centreline;
+  notes: 'Position, direction and length of the face are surveyed (Mapped as a centreline;
     pier half width estimated at 6 m. Unnamed in OSM.). Fittings, fenders and depths
     are the notional Pier 12 layout stretched to the face length; weather is synthetic.
-    Not for operational use.
+    Occupancy in the imagery: A large ship is moored along the whole face; no clear
+    stretch. Not for operational use.'

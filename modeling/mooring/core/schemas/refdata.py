@@ -158,7 +158,23 @@ class EnvStations(Model):
     water_level: str = Field(examples=["8638610"])
 
 
+class ClearStretch(Model):
+    """Part of a berth face that was free of moored ships in the satellite imagery used to place the berth."""
+
+    start_ft: float = Field(ge=0, description="Distance along the face from the origin, feet.")
+    end_ft: float = Field(gt=0, description="Distance along the face from the origin, feet.")
+    note: str | None = Field(default=None, description="What was seen, e.g. the length available against the ship.")
+
+    @model_validator(mode="after")
+    def _ordered(self):
+        if self.end_ft <= self.start_ft:
+            raise ValueError("clear stretch end_ft must be greater than start_ft")
+        return self
+
+
 class Berth(Model):
+    wire_omitted_defaults = {"clear_stretch": None}
+
     berth_id: str = Field(examples=["NAVSTA-NORFOLK-P12-N"])
     name: str
     face_bearing_true_deg: float = Field(ge=0, lt=360, description="True bearing of the berth frame's +x axis.")
@@ -172,6 +188,13 @@ class Berth(Model):
     structure: Literal["open_pile", "solid"] = "open_pile"
     env_station_ids: EnvStations
     provenance: Provenance
+    clear_stretch: ClearStretch | None = Field(
+        default=None,
+        description=(
+            "Where the face was free of moored ships in the satellite imagery used to place it; the UI starts the ship "
+            "there. A display default only: not a booking, and not evidence the berth is free now."
+        ),
+    )
 
     @model_validator(mode="after")
     def _reference_identity(self):
@@ -181,6 +204,8 @@ class Berth(Model):
         stations = [point.x_ft for point in self.depth_profile]
         if len(stations) != len(set(stations)):
             raise ValueError("Depth profile x_ft stations must be unique")
+        if self.clear_stretch and self.clear_stretch.end_ft > self.face_length_ft + 1e-6:
+            raise ValueError("clear stretch must lie within the berth face")
         return self
 
 

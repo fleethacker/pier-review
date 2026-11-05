@@ -16,8 +16,8 @@ export interface Port {
 }
 
 const PORT_RADIUS_DEG = 0.5;
-/** The map shows the middle band of the Web Mercator square: y from 0.25 to 0.75, about 66 N to 66 S. */
-const Y_MIN = 0.25;
+/** The map shows a band of the Web Mercator square from 79 N (far enough for Pituffik, 76.5 N) to about 66 S. */
+export const MAP_NORTH_DEG = 79;
 const Y_MAX = 0.75;
 
 /** Web Mercator, as 0..1 fractions of the world square (x from the west edge, y from the north edge). */
@@ -25,6 +25,17 @@ export function mercator(lat: number, lon: number): { x: number; y: number } {
   const clamped = Math.max(-85, Math.min(85, lat));
   const rad = (clamped * Math.PI) / 180;
   return { x: (lon + 180) / 360, y: 0.5 - Math.log(Math.tan(Math.PI / 4 + rad / 2)) / (2 * Math.PI) };
+}
+
+const Y_MIN = mercator(MAP_NORTH_DEG, 0).y;
+
+/**
+ * CSS for the world-square background image so it lines up with `mapPosition`: the image is scaled so the band fills
+ * the box, and offset so the band's top edge is at the top. `aspectRatio` keeps the projection undistorted.
+ */
+export function mapBackground(): { size: string; positionY: string; aspectRatio: number } {
+  const band = Y_MAX - Y_MIN;
+  return { size: `100% ${(100 / band).toFixed(3)}%`, positionY: `${((Y_MIN / (1 - band)) * 100).toFixed(3)}%`, aspectRatio: 1 / band };
 }
 
 /** Position inside the cropped map box, as 0..1 fractions of its width and height. */

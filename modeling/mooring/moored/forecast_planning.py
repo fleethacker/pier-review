@@ -185,7 +185,9 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
     # Hash effective selection rather than optional request syntax or validation pins.
     request_snapshot['forecast_binding'] = ForecastBinding(
         source=resolved.source, source_id=resolved.source_id, env_scenario_id=resolved.env_scenario_id,
-        revision=resolved.revision, expected_content_hash=resolved.content_hash).model_dump(mode='json')
+        revision=resolved.revision, expected_content_hash=resolved.content_hash,
+        **({'sample_from_utc': req.forecast[0].valid_at_utc, 'sample_to_utc': req.forecast[-1].valid_at_utc}
+           if resolved.source == 'scenario' else {})).model_dump(mode='json')
     if original_request.forecast is not None:
         request_snapshot['forecast'] = [s.model_dump(mode='json') for s in req.forecast]
         request_snapshot.pop('forecast_step_min', None)  # Supplied samples are never resampled.
@@ -201,7 +203,7 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
                 'installed_at_water_level_mllw_ft': result.installed_at_water_level_mllw_ft,
                 'forecast_manifest': forecast_manifest.model_dump(mode='json'),
                 'forecast': [s.model_dump(mode='json') for s in req.forecast], 'assets': assets,
-                'code_version': 'mooring.forecast_docking@1.1.0'}
+                'code_version': 'mooring.forecast_docking@1.2.0'}
     digest = resolved_inputs_hash(snapshot)
     store.save_snapshot(digest, snapshot)
     semantic_result = result.model_dump(mode='json')
@@ -215,10 +217,10 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
     if recommendation_id:
         records.append(ManifestRecord(kind='recommendation_result', id=recommendation_id))
     records.append(ManifestRecord(kind='forecast', id=resolved.binding_hash, revision=resolved.revision))
-    manifest = ResultManifest(resolved_inputs_hash=digest, code_version='mooring.forecast_docking@1.1.0',
+    manifest = ResultManifest(resolved_inputs_hash=digest, code_version='mooring.forecast_docking@1.2.0',
         records=records, environment_hash=resolved.content_hash,
         numerical_settings={'max_gap_min': req.max_gap_min, 'max_evaluations': req.max_evaluations})
-    return envelope(ForecastDockingResponse, model='mooring.forecast_docking', model_version='1.1.0',
+    return envelope(ForecastDockingResponse, model='mooring.forecast_docking', model_version='1.2.0',
         backend='real', request=original_request, result=result, manifest=manifest, status='AMBER' if selected else 'RED', validity=validity,
         assumptions=[f'Forecast sampled/held with maximum gap {req.max_gap_min} minutes.',
                      'Target is a utilization bound on supplied forecast conditions, not an MST design certification.',

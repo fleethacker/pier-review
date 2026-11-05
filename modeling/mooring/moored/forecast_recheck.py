@@ -94,13 +94,23 @@ def recheck(req: ForecastRecheckRequest) -> ForecastRecheckResponse:
     if req.as_of_utc > old_request.arrival_from_utc:
         return finish('unavailable', ['The assessed arrival has passed; this endpoint cannot approve an operation retrospectively.'])
     end = old_request.arrival_to_utc + timedelta(hours=old_request.operation_hours + old_request.holding_hours)
-    resolution_request = ForecastResolveRequest(
-        berth_id=old_request.berth_id, as_of_utc=req.as_of_utc,
-        from_utc=old_request.arrival_from_utc, to_utc=end, max_gap_min=old_request.max_gap_min,
-        step_min=old_request.forecast_step_min,
-        forecast=req.forecast, forecast_binding=req.forecast_binding,
-    )
+    binding = req.forecast_binding
+    if (binding is not None and binding.source == previous.source == 'scenario'
+            and binding.env_scenario_id == previous.env_scenario_id and binding.sample_from_utc is None):
+        # Compare the same sampled dataset; only the coverage check narrows to the
+        # selected operation. Otherwise an unchanged scenario looks revised.
+        samples = saved.get('forecast')
+        if not samples:
+            return finish('unavailable', ['Prior scenario samples are unavailable for revision comparison.'])
+        binding = ForecastBinding.model_validate(binding.model_dump(mode='json') | {
+            'sample_from_utc': samples[0]['valid_at_utc'], 'sample_to_utc': samples[-1]['valid_at_utc']})
     try:
+        resolution_request = ForecastResolveRequest(
+            berth_id=old_request.berth_id, as_of_utc=req.as_of_utc,
+            from_utc=old_request.arrival_from_utc, to_utc=end, max_gap_min=old_request.max_gap_min,
+            step_min=old_request.forecast_step_min,
+            forecast=req.forecast, forecast_binding=binding,
+        )
         resolved = resolve_request(resolution_request)
     except (refdata.InvalidReference, ValueError) as exc:
         return finish('unavailable', [str(exc)])
@@ -126,7 +136,10 @@ def recheck(req: ForecastRecheckRequest) -> ForecastRecheckResponse:
         forecast=[sample.model_dump(mode='json') for sample in req.forecast] if req.forecast is not None else None,
         forecast_binding=ForecastBinding(
             source=current.source, source_id=current.source_id, env_scenario_id=current.env_scenario_id,
-            revision=current.revision, expected_content_hash=current.content_hash).model_dump(mode='json'),
+            revision=current.revision, expected_content_hash=current.content_hash,
+            **({'sample_from_utc': resolved.snapshots()[0].valid_at_utc,
+                'sample_to_utc': resolved.snapshots()[-1].valid_at_utc}
+               if current.source == 'scenario' else {})).model_dump(mode='json'),
         config=prior['result'].get('selected_config') or prior['result']['config'],
         tugs=prior['result']['tugs'],
         installed_at_water_level_mllw_ft=installation_tide,

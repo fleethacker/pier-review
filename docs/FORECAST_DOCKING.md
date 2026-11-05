@@ -125,4 +125,42 @@ Berthing-window bounds require explicit timezones and ordered endpoints; samplin
 
 Set `allow_short_lead=true` when a new forecast or changed conditions require reassessment less than 24 hours before arrival. The default remains false and is omitted on the wire for compatibility. Arrival must still be at or after the new `as_of_utc`; coverage, issue/retrieval availability, quality, budgets and static-only validity rules do not change. The result identifies a short-lead reassessment instead of implying a new 24-hour advance forecast.
 
+### Explicit revision comparison (P2)
+
+`POST /api/v1/mooring/forecast-plan/recheck` accepts an owned `prior_result_id`, a
+new `as_of_utc`, and either supplied snapshots or an explicit scenario binding.
+It returns a new immutable comparison result with `state=unchanged`,
+`recheck_required`, or `unavailable`. It performs no physics and never modifies an
+earlier assessment or transfers an approval. An unchanged overloaded result stays
+RED; an invalid/unknown prior result cannot become usable through this comparison.
+
+Source identity, declared revision, and canonical content/provenance are compared
+separately from the moving assessment cutoff. Changed issue or retrieval provenance
+conservatively requires recheck. Future-issued, poor/stale, uncovered or inaccessible
+data cannot produce a usable comparison; missing/foreign historical result IDs return
+404. Saved input hashes are verified before reconstructing the earlier operation.
+
+A changed, usable revision returns `reassessment_request` for a separate, explicit
+call to `/mooring/forecast-plan`. It preserves the selected arrival's complete docking
+and holding period, resolved paid-out lengths, wet/dry properties, tug assignments and
+`installed_at_water_level_mllw_ft`. If no arrival was selected, the original candidate
+interval/configuration remains. Arrival cannot be in the past, and a recheck cutoff
+cannot precede the original cutoff. The new calculation and any approval require
+independent review; the comparison itself never marks a plan approved.
+
+For scenario rechecks, optional `forecast_binding.sample_from_utc` and
+`sample_to_utc` retain the original sampling window even when coverage is checked
+only for a selected arrival. This prevents an unchanged scenario from appearing
+revised merely because the comparison uses fewer arrival alternatives. Suggested
+reassessment requests retain these endpoints and pin the exact compared content.
+Earlier training samples may be retained for identity; the actual new cutoff still
+governs availability checks, and the requested operation must remain in the future.
+Sampling windows are bounded, must cover the operation and cannot extend an archive
+or sample before scenario creation. Supplied series are never resampled.
+
+The generated `mooring_forecast_recheck.json` fixture uses synthetic data; replace
+its placeholder prior ID with your own completed forecast-plan result ID. UI/agent
+workflow wiring is separate: display the comparison and require an explicit new
+calculation/review rather than silently replacing the previously reviewed plan.
+
 Use fresh supplied snapshots and retain `selected_config` when rechecking the same installation. A revised calculation produces new result IDs; an earlier approval does not transfer. The generated `contract/examples/modeling/mooring_forecast_reassessment.json` is an explicitly synthetic example with four hours of lead. It demonstrates the API option, not a public forecast composer or an automatic F24-to-Safety approval workflow.

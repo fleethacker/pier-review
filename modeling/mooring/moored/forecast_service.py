@@ -26,9 +26,13 @@ def resolve_request(req: ForecastResolveRequest):
     if binding.source == 'scenario':
         from mooring.data_simulation.scenario_forecast import sample_scenario
         from mooring.environment.errors import ProviderError
+        start = binding.sample_from_utc or req.from_utc
+        end = binding.sample_to_utc or req.to_utc
         try:
+            # Rechecks can retain earlier training samples for content identity.
+            # The actual request cutoff still governs all resolver availability gates.
             series, scenario_revision = sample_scenario(binding.env_scenario_id,
-                as_of_utc=req.as_of_utc, from_utc=req.from_utc, to_utc=req.to_utc, step_min=req.step_min)
+                as_of_utc=min(req.as_of_utc, start), from_utc=start, to_utc=end, step_min=req.step_min)
         except ProviderError as exc:
             raise refdata.InvalidReference(f'Scenario source unavailable ({exc.kind}): {exc}') from None
         revision = revision or scenario_revision

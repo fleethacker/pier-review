@@ -17,6 +17,93 @@ from mooring.moored.forecast_planning import assess
 from mooring.moored.forecast_recheck import recheck
 
 
+def scenario_plan(baseline):
+    from mooring.core.schemas import EnvScenario
+    original = baseline[0]
+    env = original.forecast[0]
+    scenario = EnvScenario(env_scenario_id=new_id('recheck_training'), name='Scenario recheck fixture',
+        kind='steady', created_at_utc=original.as_of_utc,
+        wind_speed_kt=env.wind_speed_kt, wind_gust_kt=env.wind_gust_kt,
+        wind_from_true_deg=env.wind_from_true_deg, current_speed_kt=env.current_speed_kt,
+        current_set_true_deg=env.current_set_true_deg, water_level_mllw_ft=env.water_level_mllw_ft)
+    store.DocStore('env_scenario', EnvScenario)[scenario.env_scenario_id] = scenario
+    data = original.model_dump(mode='json')
+    data.pop('forecast')
+    data.update(arrival_to_utc=original.arrival_from_utc+timedelta(hours=2),
+                forecast_binding=dict(source='scenario', env_scenario_id=scenario.env_scenario_id))
+    request = ForecastDockingRequest.model_validate(data)
+    prior = assess(request)
+    assert prior.result.selected_arrival_utc is not None and len(prior.result.windows) == 3
+    comparison = ForecastRecheckRequest(prior_result_id=prior.result_id,
+        as_of_utc=request.as_of_utc+timedelta(hours=2), forecast_binding=request.forecast_binding)
+    return scenario, request, prior, comparison
+
+
+def test_unchanged_scenario_retains_original_sampling_window_for_selected_arrival(baseline):
+    _, _, prior, req = scenario_plan(baseline)
+    response = recheck(req)
+    assert response.result.state == 'unchanged'
+    assert response.result.current_forecast_manifest.content_hash == prior.result.forecast_manifest.content_hash
+    assert response.result.current_forecast_manifest.revision == prior.result.forecast_manifest.revision
+    assert response.result.reassessment_request is None
+
+
+def test_changed_scenario_suggestion_reuses_the_exact_compared_samples(baseline):
+    from mooring.core.schemas import EnvScenario
+    scenario, original, prior, req = scenario_plan(baseline)
+    scenario.wind_speed_kt += 1
+    scenario.wind_gust_kt += 1
+    store.DocStore('env_scenario', EnvScenario)[scenario.env_scenario_id] = scenario
+    response = recheck(req)
+    assert response.result.state == 'recheck_required'
+    suggested = response.result.reassessment_request
+    assert suggested.forecast_binding.sample_from_utc == original.arrival_from_utc
+    assert suggested.forecast_binding.sample_to_utc == original.arrival_to_utc+timedelta(hours=original.operation_hours)
+    repeated = assess(suggested)
+    assert repeated.result.forecast_manifest.content_hash == response.result.current_forecast_manifest.content_hash
+    assert repeated.result.installed_at_water_level_mllw_ft == prior.result.installed_at_water_level_mllw_ft
+
+
+def test_scenario_provider_failure_is_persisted_as_unavailable(baseline, monkeypatch):
+    from mooring import environment
+    from mooring.environment.errors import ProviderError
+    _, _, prior, req = scenario_plan(baseline)
+    before = RESULTS[prior.result_id]
+    def unavailable(*args, **kwargs):
+        raise ProviderError('no_data', 'training archive gap')
+    monkeypatch.setattr(environment, 'scenario_snapshot', unavailable)
+    response = recheck(req)
+    assert response.result.state == 'unavailable' and response.status == 'RED'
+    assert any('training archive gap' in reason for reason in response.result.reasons)
+    assert response.result.reassessment_request is None
+    assert RESULTS[prior.result_id] == before
+
+
+def test_invalid_retained_sampling_window_is_unavailable(baseline):
+    _, original, _, req = scenario_plan(baseline)
+    req.forecast_binding = req.forecast_binding.model_copy(update={
+        'sample_from_utc': original.arrival_from_utc+timedelta(hours=1),
+        'sample_to_utc': original.arrival_to_utc+timedelta(hours=1)})
+    response = recheck(req)
+    assert response.result.state == 'unavailable'
+    assert any('cover the requested operation' in reason for reason in response.result.reasons)
+
+
+def test_http_recheck_returns_typed_new_evidence_without_changing_prior(baseline):
+    from fastapi.testclient import TestClient
+    from modeling_api.main import app
+    req = check_request(baseline)
+    req.forecast_binding.revision = 'http-revision-2'
+    before = RESULTS[baseline[1].result_id]
+    with TestClient(app) as client:
+        reply = client.post('/api/v1/mooring/forecast-plan/recheck', json=req.model_dump(mode='json'))
+    assert reply.status_code == 200, reply.text
+    response = ForecastRecheckResponse.model_validate(reply.json())
+    assert response.result.state == 'recheck_required'
+    assert response.result_id != baseline[1].result_id
+    assert RESULTS[baseline[1].result_id] == before
+
+
 @pytest.fixture(scope='module')
 def baseline():
     path = Path(__file__).resolve().parents[2] / 'contract/examples/modeling/mooring_forecast_plan.json'

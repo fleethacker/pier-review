@@ -2,7 +2,7 @@
 from datetime import timedelta
 
 from mooring.core.schemas.data_simulation import SyntheticForecastRequest
-from mooring.core.schemas.forecast_planning import ForecastBinding, ForecastDockingRequest, ForecastResolveRequest
+from mooring.core.schemas.forecast_planning import ForecastBinding, ForecastDockingRequest, ForecastRecheckRequest, ForecastResolveRequest
 from mooring.demo_cases import docking_cases
 from .forecast import generate
 
@@ -22,7 +22,11 @@ def examples():
         to_utc=request.arrival_to_utc+timedelta(hours=request.operation_hours+request.holding_hours),
         forecast=forecast.series,
         forecast_binding=ForecastBinding(source_id='synthetic-training-example', revision='training-v1'))
-    return {'mooring_forecast_resolve': resolution.model_dump(mode='json'),
+    recheck = ForecastRecheckRequest(prior_result_id='replace-with-owned-forecast-plan-result-id',
+        as_of_utc=reassessment.as_of_utc, forecast=forecast.series,
+        forecast_binding=ForecastBinding(source_id='synthetic-training-example', revision='training-v2'))
+    return {'mooring_forecast_recheck': recheck.model_dump(mode='json'),
+            'mooring_forecast_resolve': resolution.model_dump(mode='json'),
             'mooring_forecast_reassessment': reassessment.model_dump(mode='json'),
             'data_simulation_forecast': simulation.model_dump(mode='json'),
             'mooring_forecast_plan': request.model_dump(mode='json')}

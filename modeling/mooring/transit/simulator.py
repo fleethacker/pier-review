@@ -132,7 +132,9 @@ class Vessel:
         self.assist_ids = ids[:2]
         self.auto = vt.mode == "tug_assisted" and vt.tug_assist is not None and vt.tug_assist.policy == "auto"
         self.assist_below = (vt.tug_assist.assist_below_kt * KT) if vt.tug_assist else 0.0
-        self.manual_ids = {c.tug_id for c in vt.tug_commands}
+        self.manual_since: dict[str, float] = {}  # tug_id -> simulation time of its first manual command
+        for c in vt.tug_commands:
+            self.manual_since[c.tug_id] = min(c.t_s, self.manual_since.get(c.tug_id, c.t_s))
         self.tug_cmds = sorted(vt.tug_commands, key=lambda c: c.t_s)
         self.tug_idx = 0
         self.helm = sorted(vt.helm_commands, key=lambda c: c.t_s)
@@ -305,11 +307,17 @@ class Vessel:
         # capacity: effectiveness fades with speed, so a command of +-1 may not deliver the full demand
         return force, deficit - force * self.prop.thruster_x
 
+    def is_manual(self, tid, t) -> bool:
+        """A tug belongs to the operator only from its first manual command onward (simulation time), so a command
+        scheduled for later never suppresses auto-assist before it is issued."""
+        t0 = self.manual_since.get(tid)
+        return t0 is not None and t0 <= t + 1e-9
+
     def release_auto_assist(self, t):
         """Outside the assist regime (speed at/above assist_below, auto policy off): tugs we were driving are commanded to
         zero (they still slew down). Tugs holding a manual command are untouched."""
         for tid, tr in self.tracks.items():
-            if tid not in self.manual_ids and tr.source == "auto_assist":
+            if not self.is_manual(tid, t) and tr.source == "auto_assist":
                 self.flag_sat(t, tr, tr.command(0.0, 0.0, "auto_assist"))
 
     def auto_assist(self, t, deficit, brake):
@@ -319,7 +327,7 @@ class Vessel:
         f_couple = abs(deficit) / (2 * arm)
         cdir_bow = 270.0 if deficit > 0 else 90.0
         for idx, tid in enumerate(self.assist_ids):
-            if tid in self.manual_ids:
+            if self.is_manual(tid, t):
                 continue
             tr = self.track_of(tid)
             point = "bow" if idx == 0 else "stern"

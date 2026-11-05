@@ -48,9 +48,11 @@ class RecommendRequest(Model):
 
 
 class Candidate(Model):
-    wire_omitted_defaults = {"feasible": None, "worst_case": None, "cases_evaluated": None, "tugs": []}
+    wire_omitted_defaults = {"feasible": None, "worst_case": None, "cases_evaluated": None, "tugs": [], "resolved_config": None}
 
     config: MooringConfig
+    resolved_config: MooringConfig | None = Field(default=None,
+        description="Assessed installation with explicit unstretched spans and wet/dry condition, when available. Use for fixed-installation rechecks; config retains assignment-only search semantics.")
     min_margin_pct_wll: float = Field(description="Highest utilization over every evaluated case (lower is better).")
     limit_wind_kt_worst: float | None
     line_count: int

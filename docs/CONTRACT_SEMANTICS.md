@@ -16,8 +16,8 @@ Every envelope may carry `validity: {state, reasons[], diagnostics}`.
 - The `Envelope` model rejects a contradictory status/validity pair, so it holds for both services. `status_with_validity()` lifts a computed status; `validity_state()` reads a model or JSON dict and returns `unknown` when validity is missing.
 - Reason `code`s are `UPPER_SNAKE` strings with `affected_components` (element ids). Utilization stays in the result (`min_margin`, `pct_wll`); validity never rewrites it.
 - `backend="real"`, a converged solver, or GREEN never implies `valid`.
-- New real computations must always populate validity. Existing computations do not yet (they stay unknown).
-- Compatibility: unset `validity`, `manifest`, environment `metadata`, and per-line `condition`/`paid_out_unstretched_length_ft` are omitted, including nested payloads, stored results and job results. Unknown ledger `validity_state` is also omitted; parsing it still defaults to `unknown`. Existing optional fields retain their legacy null/default serialization. Explicitly populated additions are serialized and require upgraded consumers: deploy the S00a schemas to consumers before enabling producers that populate them. This PR does not enable such producers.
+- New real computations must always populate validity. Legacy or remaining mock responses that omit it stay unknown.
+- Compatibility: unset `validity`, `manifest`, environment `metadata`, and per-line `condition`/`paid_out_unstretched_length_ft` are omitted, including nested payloads, stored results and job results. Unknown ledger `validity_state` is also omitted; parsing it still defaults to `unknown`. Existing optional fields retain their legacy null/default serialization. Explicitly populated additions are serialized and require upgraded consumers: deploy the S00a schemas to consumers before enabling producers that populate them. Current producers populate these additions where available; use consumers generated from the matching contract.
 
 ## Failure taxonomy
 
@@ -66,3 +66,7 @@ Unknown quantities are `null`. NaN and infinity are rejected on input (`422`) an
 A `MooringConfig` requires unique `line_number` values. Duplicate IDs return422 at request validation because analysis rows and line-handling commands must identify one line unambiguously. Numbering gaps and an empty layout remain valid inputs; an empty layout still needs a physical determination from the solver. Inputs are never silently renumbered.
 
 Berths require at least one depth sample, unique depth-profile x stations, unique IDs across fittings/fenders, and geographic latitude/longitude bounds. Malformed assets return422 before catalog registration. A single depth sample and unordered unique stations remain supported; these checks establish structural consistency, not hydrographic qualification.
+
+## Recommendation assignments and installations
+
+A recommendation candidate’s config retains assignment-only search semantics. Its optional resolved_config is the installation used by analysis_result_id, with explicit unstretched line spans and wet/dry condition. Use resolved_config plus candidate.tugs when rechecking that fixed installation at another tide; absence means the resolved installation is unavailable, not zero-length rope. This separates an assessed installation from assignments that advance-arrival planning can install at each arrival’s own water level. These modeled spans are not cutting lengths or handling instructions.

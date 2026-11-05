@@ -25,6 +25,7 @@ import type {
   Environment,
   LineSpec,
   MooringLine,
+  MooringConfig,
   Scenario,
   ShipClass,
   ShipClassSummary,
@@ -36,6 +37,7 @@ import { ft, subscribeUnits, toFt } from './units';
 import type { BerthSite } from './world';
 
 export interface Candidate {
+  resolved_config?: MooringConfig | null;
   tugs?: TugAssignment[];
   config: { lines: MooringLine[]; ship_x_ft: number };
   min_margin_pct_wll: number;
@@ -189,6 +191,7 @@ export class MooringController {
   private selectionSeq = 0;
   private analyzeAbort: AbortController | null = null;
   private recommendAbort: AbortController | null = null;
+  private readonly candidateContexts = new WeakMap<Candidate, string>();
   private unsubscribeScene: () => void;
   private unsubscribeUnits: () => void;
   private disposed = false;
@@ -511,11 +514,12 @@ export class MooringController {
   // ---- recommend -------------------------------------------------------------------------------------------
 
   async recommend(opts: { apply: boolean }): Promise<void> {
-    const { ship, berth, side, shipXFt, loading } = this.s;
+    const { ship, berth, side, shipXFt, loading, standoffOverrideFt, tugAssignments } = this.s;
     if (!ship || !berth) return;
     this.recommendAbort?.abort();
     const abort = (this.recommendAbort = new AbortController());
     const context = this.contextKey();
+    const assistance = JSON.stringify(tugAssignments);
     this.state.set({ recommend: { state: 'running', progress: 0, candidates: [], error: null } });
     try {
       const accepted = unwrap(
@@ -526,6 +530,8 @@ export class MooringController {
             berth_id: berth.berth_id,
             side_to: side,
             ship_x_ft: shipXFt,
+            ...(standoffOverrideFt != null ? { standoff_ft: standoffOverrideFt } : {}),
+            tugs: tugAssignments,
             design_mst: ship.mst_class as 'I' | 'II' | 'IIA' | 'III',
             max_candidates: 3,
             max_evaluations: 1500,
@@ -541,11 +547,12 @@ export class MooringController {
         abort.signal,
       );
       if (this.disposed || abort.signal.aborted || this.recommendAbort !== abort) return;
-      if (context !== this.contextKey()) {
+      if (context !== this.contextKey() || assistance !== JSON.stringify(this.s.tugAssignments)) {
         this.state.set({ recommend: { state: 'idle', progress: 0, candidates: [], error: null } });
         return;
       }
       const candidates = [...envelope.result.candidates].sort((a, b) => a.min_margin_pct_wll - b.min_margin_pct_wll);
+      for (const candidate of candidates) this.candidateContexts.set(candidate, context);
       this.state.set({ recommend: { state: 'idle', progress: 1, candidates, error: null } });
       if (opts.apply && candidates[0]) this.applyCandidate(candidates[0]);
     } catch (e) {
@@ -561,8 +568,14 @@ export class MooringController {
   }
 
   applyCandidate(candidate: Candidate): void {
+    const context = this.candidateContexts.get(candidate);
+    if (context !== undefined && context !== this.contextKey()) {
+      this.state.set({ recommend: { state: 'error', progress: 0, candidates: [],
+        error: 'Ship, berth or geometry changed. Run a new recommendation before applying it.' } });
+      return;
+    }
     this.setTugAssignments(candidate.tugs ?? []);
-    this.setLines(candidate.config.lines.map((l) => ({ ...l })));
+    this.setLines((candidate.resolved_config ?? candidate.config).lines.map((l) => ({ ...l })));
   }
 
   // ---- scenarios -------------------------------------------------------------------------------------------

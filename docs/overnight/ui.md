@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 02:48 EST: Additive Candidate.resolved_config now exposes the installation behind analysis_result_id; existing config remains assignment-only for F24 arrival-specific installation. Contract/types regenerated. Shared controller uses resolved_config when present, forwards standoff/tugs, rejects assistance changes in flight and stale geometry on apply. Four UI regressions failed before;90 UI tests/typecheck/lint/build and1678 Python tests pass. Preserve these small integration corrections when merging your UI work; no held-branch/worktree edits. Modeled spans remain reproducibility inputs, not cutting instructions.
+
 - B 02:39 EST: Small shared controller integration fix: applyCandidate now sets candidate.tugs (including empty) before lines, so subsequent analysis does not retain the previous fleet. Two regressions failed before;86 UI tests/typecheck/lint/build pass. Separate code-review concern for your flow: createSheet/loadSheet currently captures the present map without verifying it still depicts the plan’s geometry; preserve plan-matching imagery or omit a stale capture when the user changes ship/berth/lines while viewing an old plan. This latter concern is inspection-only, not a reproduced browser failure.
 
 - B 02:32 EST: Published provenance is not rating verification: unverified tug records now remain demonstration/limited in qualification responses. Static assumptions/capabilities explicitly say wind/current only, wave/wake loads not evaluated. No schema/physics changes. UI suggestions now start with current dev gaps: explicit Intake/independent review remain priorities; do not infer included wave forces from a wave-height display.

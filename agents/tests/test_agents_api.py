@@ -271,3 +271,25 @@ def test_vision_confirmation_cannot_overwrite_catalog_or_claim_certification(mon
     berth = modeling.get(f"{P}/berths/{original_id}").json()
     assert berth['provenance']['confidence'] == 'estimated'
     assert 'qualification not established' in berth['provenance']['notes']
+
+
+def test_safety_watch_provider_failure_is_explicit_stream_event(planned, monkeypatch):
+    from mooring_agents.api.routers import safety as router
+    from mooring_agents.physics.client import ModelingError
+    from mooring_agents.safety.schemas import SafetyWatchUnavailable
+    async def failed(*args, **kwargs):
+        raise ModelingError(503, "provider timeout")
+        yield  # async generator contract
+    monkeypatch.setattr(router.safety, 'watch', failed)
+    response = client.get(f"{P}/safety/watch/{planned}", params={"limit":1})
+    assert response.status_code == 200
+    assert "event: source_unavailable" in response.text
+    payload = json.loads(next(line[6:] for line in response.text.splitlines() if line.startswith('data: ')))
+    event = SafetyWatchUnavailable.model_validate(payload)
+    assert event.severity == 'RED' and event.retryable
+    assert 'gust_kt' not in payload and 'wind_from_true_deg' not in payload
+
+
+def test_safety_watch_rejects_negative_and_unbounded_zero_interval(planned):
+    for params in ({"interval_s":-1}, {"limit":-1}, {"heartbeat_minutes":-1}, {"interval_s":0, "limit":0}):
+        assert client.get(f"{P}/safety/watch/{planned}", params=params).status_code == 422

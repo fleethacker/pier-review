@@ -82,3 +82,5 @@ PDFs are rendered from the HTML sheet with WeasyPrint, which needs the Pango/GOb
 `brew install pango` on macOS, or `apt-get install libpango-1.0-0 libpangoft2-1.0-0` on Debian/Ubuntu
 (including container images). Without them, `format=pdf` returns `501` with these instructions and HTML still
 works; the tests accept either outcome.
+
+Watch limits apply only to the assessed current/water-level/density and wind-basis conditions. Changed inputs emit `requires_recheck` with reasons and no threshold percentage; missing/poor inputs are RED. This compares facts and requests a new modeling assessment; it does not extrapolate limits in the agent. A provider/transport failure emits terminal `source_unavailable` (`SafetyWatchUnavailable`) with no invented measurements. Clients should show unavailable, then reconnect with backoff only when `retryable`. Negative watch parameters and unbounded zero-interval polling are rejected.

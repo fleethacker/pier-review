@@ -83,6 +83,10 @@ class SafetyReview(Model):
 class GustWarning(Model):
     """SSE `warning` event on GET /safety/watch/{plan_id}."""
 
+    wire_omitted_defaults = {"requires_recheck": False, "recheck_reasons": []}
+    requires_recheck: bool = False
+    recheck_reasons: list[str] = Field(default_factory=list)
+
     warning_id: str
     plan_id: str
     at_utc: datetime
@@ -93,6 +97,16 @@ class GustWarning(Model):
     pct_of_breaking_limit: float | None
     element_id: str | None
     message: str
+
+
+class SafetyWatchUnavailable(Model):
+    """Terminal SSE source_unavailable event; contains no fabricated measurement."""
+
+    plan_id: str
+    at_utc: datetime
+    severity: Literal["RED"] = "RED"
+    reason: str
+    retryable: bool
 
 
 # ---------- Safety sheet ----------

@@ -242,7 +242,8 @@ def _limit_for(points: list[LimitEnvelopePoint], rel_deg: float) -> LimitEnvelop
     return nearest if _gust_limit(nearest) is not None else None
 
 
-def _warning(plan_id: str, env, point: LimitEnvelopePoint | None, factor: float, *, prefix: str = "") -> GustWarning:
+def _warning(plan_id: str, env, point: LimitEnvelopePoint | None, factor: float, *, prefix: str = "",
+             recheck_reasons: list[str] | None = None, invalid_input: bool = False) -> GustWarning:
     limit = _gust_limit(point) if point is not None else None
     positive_limit = limit is not None and limit > 0
     pct_wll = 100 * env.wind_gust_kt / limit if positive_limit else None
@@ -254,11 +255,46 @@ def _warning(plan_id: str, env, point: LimitEnvelopePoint | None, factor: float,
                (f"{pct_wll:.0f}% of the {limit:.0f} kt working-load gust limit "
                 f"({point.first_failure_element} governs); breaking threshold is unavailable."
                 if positive_limit else "gust threshold is unavailable; do not infer safe conditions."))
+    reasons = list(recheck_reasons or [])
+    if not positive_limit:
+        reasons.append("No positive assessed gust limit is available.")
+    if recheck_reasons:
+        pct_wll = None
+        severity = "RED" if severity == "RED" or invalid_input else "AMBER"
+        message = f"{prefix}Reanalysis required before using the assessed gust limits: " + " ".join(reasons)
     return GustWarning(warning_id=new_id("warn"), plan_id=plan_id, at_utc=env.valid_at_utc, severity=severity,
                        gust_kt=env.wind_gust_kt, wind_from_true_deg=env.wind_from_true_deg,
                        pct_of_wll_limit=round(pct_wll, 1) if pct_wll is not None else None,
                        pct_of_breaking_limit=round(pct_break, 1) if pct_break is not None else None,
-                       element_id=point.first_failure_element if point else None, message=message)
+                       element_id=point.first_failure_element if point else None, message=message,
+                       requires_recheck=bool(reasons), recheck_reasons=reasons)
+
+
+def _watch_recheck(env, assessed) -> tuple[list[str], bool]:
+    """Compare supplied facts, never recompute or extrapolate a physical threshold in the agent."""
+    reasons = []
+    invalid = False
+    fields = ("current_speed_kt", "current_set_true_deg", "water_level_mllw_ft", "air_density_kgm3", "water_density_kgm3")
+    if not any(all(getattr(env, field) == getattr(prior, field) for field in fields) for prior in assessed):
+        reasons.append("Current, water level or density differs from the reviewed conditions; wind limits have not been recomputed.")
+    meta = env.metadata
+    if meta and meta.quality in ("suspect", "poor"):
+        reasons.append("The environment provider reports suspect or poor quality.")
+        invalid = meta.quality == "poor"
+    flags = " ".join(flag for station in env.quality for flag in station.flags).lower()
+    if any(word in flags for word in ("missing", "unavailable", "stale", "suspect", "poor", "invalid", "gap")):
+        reasons.append("A required environmental source is flagged; review source availability and freshness.")
+        invalid = invalid or any(word in flags for word in ("missing", "unavailable", "poor", "invalid", "gap"))
+    if env.valid_at_utc.tzinfo is None or (meta and (
+            (meta.valid_from_utc and env.valid_at_utc < meta.valid_from_utc)
+            or (meta.valid_to_utc and env.valid_at_utc > meta.valid_to_utc))):
+        reasons.append("Environment time is unspecified or outside its declared validity interval.")
+        invalid = True
+    basis_fields = ("wind_averaging_s", "gust_duration_s", "wind_reference_height_m")
+    basis = tuple(getattr(meta, field, None) for field in basis_fields)
+    if not any(basis == tuple(getattr(prior.metadata, field, None) for field in basis_fields) for prior in assessed):
+        reasons.append("Wind duration or reference height differs from the reviewed basis.")
+    return reasons, invalid
 
 
 async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, limit: int = 0,
@@ -276,14 +312,18 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
     emitted = 0
 
     report = REPORTS.get(safety_review.intake_report_id) if safety_review.intake_report_id else None
+    assessed = [rec.env]
+    if report:
+        assessed += [condition.environment for condition in report.planning_conditions]
     if report:
         for condition in report.planning_conditions:
             rel = (condition.environment.wind_from_true_deg - heading) % 360
             point = _limit_for(points, rel)
             forecast_at = format_fact("valid_at_utc", condition.environment.valid_at_utc)
+            reasons, invalid = _watch_recheck(condition.environment, assessed)
             warning = _warning(plan_id, condition.environment, point, factor,
-                               prefix=f"Forecast ahead at {forecast_at}: ")
-            if warning.pct_of_wll_limit is not None and warning.pct_of_wll_limit >= 80:
+                               prefix=f"Forecast ahead at {forecast_at}: ", recheck_reasons=reasons, invalid_input=invalid)
+            if warning.requires_recheck or (warning.pct_of_wll_limit is not None and warning.pct_of_wll_limit >= 80):
                 yield warning
                 emitted += 1
                 if limit and emitted >= limit:
@@ -292,6 +332,7 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
     previous_severity = -1
     previous_element = None
     previous_limit = math.inf
+    previous_recheck = None
     last_emit = -math.inf
     rank = {"INFO": 0, "AMBER": 1, "RED": 2}
     heartbeat_s = max(heartbeat_minutes * 60, 0)
@@ -299,14 +340,16 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
         env = await client.env_now(rec.scenario.berth_id)
         rel = (env.wind_from_true_deg - heading) % 360
         point = _limit_for(points, rel)
-        warning = _warning(plan_id, env, point, factor)
+        recheck_reasons, invalid_input = _watch_recheck(env, assessed)
+        warning = _warning(plan_id, env, point, factor, recheck_reasons=recheck_reasons, invalid_input=invalid_input)
         now = time.monotonic()
         point_limit = _gust_limit(point) if point and _gust_limit(point) is not None else math.inf
         severity_rise = rank[warning.severity] > previous_severity
         element_change = warning.element_id != previous_element
         weaker_sector = point_limit < previous_limit
         heartbeat = heartbeat_s == 0 or now - last_emit >= heartbeat_s
-        should_emit = severity_rise or element_change or weaker_sector or heartbeat
+        recheck_changed = tuple(warning.recheck_reasons) != previous_recheck
+        should_emit = severity_rise or element_change or weaker_sector or heartbeat or recheck_changed
         if should_emit:
             yield warning
             emitted += 1
@@ -314,6 +357,7 @@ async def watch(plan_id: str, client: ModelingClient, interval_s: float = 5.0, l
         previous_severity = rank[warning.severity]
         previous_element = warning.element_id
         previous_limit = point_limit
+        previous_recheck = tuple(warning.recheck_reasons)
         if limit and emitted >= limit:
             return
         await asyncio.sleep(interval_s)

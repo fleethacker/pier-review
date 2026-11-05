@@ -71,3 +71,5 @@ Real static analysis now returns optional `result.resolved_config`, with the mod
 Scheduling uses elapsed UTC time. Aware local-zone inputs are normalized to UTC before lead-time, interval and sample-order checks, including daylight-saving transitions. The synthetic forecast generator likewise uses elapsed durations; a named local-zone day can contain 23 or 25 elapsed hours and is not substituted for the requested duration.
 
 Temporal availability is checked in `mooring/core/forecast_provenance.py` and reused by Intake. This shared policy distinguishes observations from future guidance and requires public forecast availability by the assessment cutoff. Quality and interval checks remain separate; no physical calculations moved into the agents service.
+
+The legacy observation/replay normalizer does not infer provider issuance from a record’s observation time. Its snapshot time, source validity interval and observation age remain available; `issued_at_utc` stays unknown when no independent issue time is supplied. Observation records are not advance forecast guidance.

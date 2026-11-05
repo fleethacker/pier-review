@@ -7,7 +7,7 @@ import { ExerciseController, PLAYBACK_RATES, presentationRate } from './controll
 import { MapCanvas } from './MapCanvas';
 import { PRESET_SCENARIOS } from './scenarios';
 import { Side } from './Side';
-import { StoryboardPanel } from './Storyboard';
+import { StoryboardPanel } from './StoryboardPanel';
 import { STOCK } from './stockImages';
 
 vi.mock('mapbox-gl', () => ({ default: { fake: true } }));

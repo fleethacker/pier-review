@@ -36,7 +36,7 @@ from mooring.core.schemas import (
 from mooring.core.schemas.forecast_planning import ForecastDockingResponse
 from mooring.core.schemas.risk import ExceedanceResponse, TimelineResponse
 
-from .routers import (approach, berthing, env, loads, missions, moored, qualification, refdata as refdata_router, system,
+from .routers import (approach, berthing, env, loads, missions, moored, prediction, qualification, refdata as refdata_router, system,
                       telemetry, transit)
 from .backend import overall_backend
 from .security import Controls
@@ -55,6 +55,7 @@ TAGS = [
     {"name": "M12 Approach", "description": "Phase 3: route, under-keel clearance, approach simulation."},
     {"name": "M13 Telemetry", "description": "Ship sensor ingest for deployment."},
     {"name": "S5 Missions", "description": "Mission storyboarding: recorded tracks with images and reports located by time."},
+    {"name": "S7 Prediction", "description": "Backup camera for ships: predicted path, footprints, corridor and clearance from the current state."},
     {"name": "S6 Port transit", "description": "Ships entering or leaving port on own thrust or with tugs (surrogate maneuvering)."},
     {"name": "System", "description": "Jobs, stored results, health."},
 ]
@@ -143,7 +144,7 @@ async def invalid_reference(_: Request, exc: refdata.InvalidReference):
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
-for r in (env, refdata_router, qualification, loads, moored, berthing, approach, telemetry, missions, transit, system):
+for r in (env, refdata_router, qualification, loads, moored, berthing, approach, telemetry, missions, transit, prediction, system):
     app.include_router(r.router, prefix=API_PREFIX)
 app.include_router(ws_router)
 

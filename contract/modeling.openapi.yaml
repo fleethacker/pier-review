@@ -2450,6 +2450,47 @@ paths:
                   $ref: '#/components/schemas/TransitPreset'
                 type: array
                 title: Response Presets Api V1 Transit Presets Get
+  /api/v1/predict/trajectory:
+    post:
+      tags:
+      - S7 Prediction
+      summary: Predict a vessel's path, hull footprints, uncertainty corridor and hazard clearance from its current state
+      operationId: predict_trajectory_api_v1_predict_trajectory_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PredictionRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/predict/presets:
+    get:
+      tags:
+      - S7 Prediction
+      summary: Ready-made prediction requests for demos
+      operationId: presets_api_v1_predict_presets_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/PredictionPreset'
+                type: array
+                title: Response Presets Api V1 Predict Presets Get
   /api/v1/jobs/{job_id}:
     get:
       tags:
@@ -3697,6 +3738,38 @@ components:
       - assets
       title: CatalogAudit
       description: Whole-catalog integrity (duplicate ids, dangling references) and per-asset qualification.
+    CurrentTugForce:
+      properties:
+        tug_id:
+          type: string
+          title: Tug Id
+        point:
+          type: string
+          enum:
+          - bow
+          - stern
+          - port_shoulder
+          - starboard_shoulder
+          - port_quarter
+          - starboard_quarter
+          title: Point
+        force_lbf:
+          type: number
+          minimum: 0.0
+          title: Force Lbf
+        direction_rel_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Direction Rel Deg
+      additionalProperties: false
+      type: object
+      required:
+      - tug_id
+      - point
+      - force_lbf
+      - direction_rel_deg
+      title: CurrentTugForce
     DepthPoint:
       properties:
         x_ft:
@@ -5234,6 +5307,69 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    HazardApproach:
+      properties:
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+        kind:
+          type: string
+          enum:
+          - pier
+          - fender
+          - coastline
+          - vessel
+          title: Kind
+        element_id:
+          type: string
+          title: Element Id
+        clearance_ft:
+          type: number
+          title: Clearance Ft
+          description: Hull-to-hazard distance at that time; <= 0 means contact.
+        position:
+          $ref: '#/components/schemas/GeoPoint'
+          description: Closest point on the hull.
+        probability:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Probability
+          description: Share of uncertainty samples that breach; null without samples. Not a calibrated probability.
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - kind
+      - element_id
+      - clearance_ft
+      - position
+      title: HazardApproach
+    HazardSettings:
+      properties:
+        berth_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Berth Id
+          description: Check clearance to this berth's pier face and fenders.
+        coastline:
+          type: boolean
+          title: Coastline
+          description: Check clearance to available coastline data, where covered.
+          default: true
+        min_clearance_ft:
+          type: number
+          minimum: 0.0
+          title: Min Clearance Ft
+          description: Clearance below this is reported as a breach.
+          default: 50.0
+      additionalProperties: false
+      type: object
+      title: HazardSettings
     Health:
       properties:
         status:
@@ -7648,6 +7784,93 @@ components:
       additionalProperties: false
       type: object
       title: MotionWrench
+    ObservedShipState:
+      properties:
+        vessel_id:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Vessel Id
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        observed_utc:
+          type: string
+          format: date-time
+          title: Observed Utc
+          description: Time the state was observed; input age = as_of_utc - observed_utc.
+        position:
+          $ref: '#/components/schemas/GeoPoint'
+        heading_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Heading True Deg
+        surge_kt:
+          type: number
+          title: Surge Kt
+          description: Speed through the water, + ahead.
+        sway_kt:
+          type: number
+          title: Sway Kt
+          description: Through the water, + to port.
+          default: 0.0
+        yaw_rate_degps:
+          type: number
+          title: Yaw Rate Degps
+          description: + counterclockwise (turning to port).
+          default: 0.0
+        rudder_deg:
+          type: number
+          maximum: 45.0
+          minimum: -45.0
+          title: Rudder Deg
+          default: 0.0
+        engine_order:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Engine Order
+          default: 0.0
+        delivered_thrust_lbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Delivered Thrust Lbf
+          description: Null assumes thrust has settled at the order.
+        tugs:
+          items:
+            $ref: '#/components/schemas/CurrentTugForce'
+          type: array
+          maxItems: 4
+          title: Tugs
+        uncertainty:
+          anyOf:
+          - $ref: '#/components/schemas/StateUncertainty'
+          - type: 'null'
+          description: 'Null: no initial-state spread is sampled.'
+        source:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Source
+          description: e.g. gps+gyro, ais, replay:<mission_id>, sim:<session>.
+      additionalProperties: false
+      type: object
+      required:
+      - vessel_id
+      - ship_class_id
+      - observed_utc
+      - position
+      - heading_true_deg
+      - surge_kt
+      title: ObservedShipState
+      description: 'The starting state: where the ship is now and what it is doing.'
     Offset:
       properties:
         surge_ft:
@@ -7667,6 +7890,35 @@ components:
       - sway_ft
       - yaw_deg
       title: Offset
+    OtherVessel:
+      properties:
+        vessel_id:
+          type: string
+          title: Vessel Id
+        beam_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Beam Ft
+        length_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Length Ft
+        path:
+          items:
+            $ref: '#/components/schemas/TrackFix'
+          type: array
+          maxItems: 2000
+          minItems: 1
+          title: Path
+      additionalProperties: false
+      type: object
+      required:
+      - vessel_id
+      - beam_ft
+      - length_ft
+      - path
+      title: OtherVessel
+      description: 'Another vessel whose path is checked for clearance: a supplied predicted/planned path, not simulated here.'
     PierFitting:
       properties:
         fitting_id:
@@ -7913,6 +8165,305 @@ components:
       required:
       - points
       title: PolarResult
+    PredictedTick:
+      properties:
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+          description: Seconds after as_of_utc.
+        t_utc:
+          type: string
+          format: date-time
+          title: T Utc
+        position:
+          $ref: '#/components/schemas/GeoPoint'
+        heading_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Heading True Deg
+        sog_kt:
+          type: number
+          minimum: 0.0
+          title: Sog Kt
+        cog_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: Cog True Deg
+        rudder_deg:
+          type: number
+          title: Rudder Deg
+        engine_order:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Engine Order
+        footprint:
+          items:
+            $ref: '#/components/schemas/GeoPoint'
+          type: array
+          maxItems: 64
+          minItems: 3
+          title: Footprint
+          description: Hull outline at this tick (parametric planform).
+        position_sd_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Position Sd Ft
+          description: Spread of sampled positions; null without samples.
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - t_utc
+      - position
+      - heading_true_deg
+      - sog_kt
+      - rudder_deg
+      - engine_order
+      - footprint
+      title: PredictedTick
+    PredictionAlternative:
+      properties:
+        alt_id:
+          type: string
+          title: Alt Id
+        label:
+          type: string
+          title: Label
+        ticks:
+          items:
+            $ref: '#/components/schemas/PredictedTick'
+          type: array
+          title: Ticks
+        corridor:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/GeoPoint'
+            type: array
+          - type: 'null'
+          title: Corridor
+          description: Outline enclosing the chosen percentile of sampled hull footprints over the horizon; null without samples.
+        closest_approach:
+          anyOf:
+          - $ref: '#/components/schemas/HazardApproach'
+          - type: 'null'
+          description: Smallest clearance to any checked hazard.
+        first_breach:
+          anyOf:
+          - $ref: '#/components/schemas/HazardApproach'
+          - type: 'null'
+          description: First time clearance falls below min_clearance_ft on the central prediction.
+      additionalProperties: false
+      type: object
+      required:
+      - alt_id
+      - label
+      - ticks
+      title: PredictionAlternative
+    PredictionPreset:
+      properties:
+        preset_id:
+          type: string
+          title: Preset Id
+        title:
+          type: string
+          title: Title
+        request:
+          $ref: '#/components/schemas/PredictionRequest'
+        validity:
+          $ref: '#/components/schemas/Validity'
+      additionalProperties: false
+      type: object
+      required:
+      - preset_id
+      - title
+      - request
+      - validity
+      title: PredictionPreset
+    PredictionRequest:
+      properties:
+        vessel:
+          $ref: '#/components/schemas/ObservedShipState'
+        environment:
+          anyOf:
+          - $ref: '#/components/schemas/EnvironmentSnapshot'
+          - type: 'null'
+          description: Conditions held over the horizon. Null means explicitly calm (labeled), not unknown.
+        as_of_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: As Of Utc
+          description: Prediction time; default now.
+        horizon_s:
+          type: number
+          maximum: 900.0
+          exclusiveMinimum: 0.0
+          title: Horizon S
+          default: 300
+        tick_s:
+          type: number
+          maximum: 60.0
+          minimum: 1.0
+          title: Tick S
+          description: Output spacing of predicted states and footprints.
+          default: 10
+        dt_s:
+          type: number
+          maximum: 1.0
+          minimum: 0.05
+          title: Dt S
+          default: 0.2
+        propulsion:
+          $ref: '#/components/schemas/PropulsionAssumptions'
+        alternatives:
+          items:
+            $ref: '#/components/schemas/WhatIf'
+          type: array
+          maxItems: 4
+          title: Alternatives
+          description: What-if command sets; the baseline (commands held) is always predicted as alt_id 'hold'.
+        others:
+          items:
+            $ref: '#/components/schemas/OtherVessel'
+          type: array
+          maxItems: 16
+          title: Others
+        uncertainty:
+          $ref: '#/components/schemas/UncertaintySettings'
+        hazards:
+          $ref: '#/components/schemas/HazardSettings'
+      additionalProperties: false
+      type: object
+      required:
+      - vessel
+      title: PredictionRequest
+    PredictionResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/PredictionResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: PredictionResponse
+    PredictionResult:
+      properties:
+        vessel_id:
+          type: string
+          title: Vessel Id
+        engine:
+          type: string
+          enum:
+          - transit
+          - berthing
+          title: Engine
+        as_of_utc:
+          type: string
+          format: date-time
+          title: As Of Utc
+        input_age_s:
+          type: number
+          minimum: 0.0
+          title: Input Age S
+          description: as_of_utc - observed_utc. Stale inputs reduce validity.
+        hazards_checked:
+          items:
+            type: string
+            enum:
+            - pier
+            - fender
+            - coastline
+            - vessel
+          type: array
+          title: Hazards Checked
+          description: Hazard kinds actually checked; unchecked kinds are not clear, just unknown.
+        alternatives:
+          items:
+            $ref: '#/components/schemas/PredictionAlternative'
+          type: array
+          minItems: 1
+          title: Alternatives
+          description: '''hold'' first, then what-ifs in request order.'
+      additionalProperties: false
+      type: object
+      required:
+      - vessel_id
+      - engine
+      - as_of_utc
+      - input_age_s
+      - hazards_checked
+      - alternatives
+      title: PredictionResult
     PropulsionAssumptions:
       properties:
         max_speed_kt:
@@ -10085,6 +10636,27 @@ components:
       - tolerance
       title: SolverResidual
       description: One dimensional residual (e.g. net surge force) with the tolerance it was judged against.
+    StateUncertainty:
+      properties:
+        position_sd_ft:
+          type: number
+          minimum: 0.0
+          title: Position Sd Ft
+          default: 15.0
+        heading_sd_deg:
+          type: number
+          minimum: 0.0
+          title: Heading Sd Deg
+          default: 1.0
+        speed_sd_kt:
+          type: number
+          minimum: 0.0
+          title: Speed Sd Kt
+          default: 0.2
+      additionalProperties: false
+      type: object
+      title: StateUncertainty
+      description: One-sigma uncertainty of the starting state (e.g. GPS and heading sensor error).
     StationQuality:
       properties:
         station_id:
@@ -11919,6 +12491,37 @@ components:
       - legs
       - window
       title: UkcResult
+    UncertaintySettings:
+      properties:
+        samples:
+          type: integer
+          maximum: 64.0
+          minimum: 0.0
+          title: Samples
+          description: Monte Carlo samples per alternative; 0 = no corridor.
+          default: 0
+        seed:
+          type: integer
+          minimum: 0.0
+          title: Seed
+          default: 0
+        model:
+          type: string
+          const: s10_gust_current
+          title: Model
+          description: Seeded gust and current perturbations from the S10 uncertainty model (unqualified), plus initial-state
+            spread.
+          default: s10_gust_current
+        percentile:
+          type: number
+          exclusiveMaximum: 100.0
+          exclusiveMinimum: 50.0
+          title: Percentile
+          description: Corridor encloses this share of sampled footprints.
+          default: 90.0
+      additionalProperties: false
+      type: object
+      title: UncertaintySettings
     ValidationError:
       properties:
         loc:
@@ -12104,6 +12707,38 @@ components:
       - channel_depth_mllw_ft
       - width_ft
       title: Waypoint
+    WhatIf:
+      properties:
+        alt_id:
+          type: string
+          maxLength: 40
+          minLength: 1
+          pattern: ^[a-z0-9_-]+$
+          title: Alt Id
+        label:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Label
+        helm_commands:
+          items:
+            $ref: '#/components/schemas/TransitHelmCommand'
+          type: array
+          maxItems: 50
+          title: Helm Commands
+        tug_commands:
+          items:
+            $ref: '#/components/schemas/TransitTugCommand'
+          type: array
+          maxItems: 50
+          title: Tug Commands
+      additionalProperties: false
+      type: object
+      required:
+      - alt_id
+      - label
+      title: WhatIf
+      description: An alternative set of commands from now on. Times are seconds from the prediction start.
     WrenchLbf:
       properties:
         fx_lbf:
@@ -13992,6 +14627,8 @@ tags:
   description: Ship sensor ingest for deployment.
 - name: S5 Missions
   description: 'Mission storyboarding: recorded tracks with images and reports located by time.'
+- name: S7 Prediction
+  description: 'Backup camera for ships: predicted path, footprints, corridor and clearance from the current state.'
 - name: S6 Port transit
   description: Ships entering or leaving port on own thrust or with tugs (surrogate maneuvering).
 - name: System

@@ -5927,13 +5927,15 @@ components:
           title: Design Mst
           default: II
         design_basis:
-          type: string
-          enum:
-          - mst_and_forecast
-          - forecast_only
+          anyOf:
+          - type: string
+            enum:
+            - mst_and_forecast
+            - forecast_only
+          - type: 'null'
           title: Design Basis
-          description: forecast_only checks supplied conditions, not MST design compliance. Strength factors still use design_mst.
-          default: mst_and_forecast
+          description: Absent means mst_and_forecast. forecast_only checks supplied conditions, not MST design compliance.
+            Strength factors still use design_mst.
         tugs:
           items:
             $ref: '#/components/schemas/TugAssignment'

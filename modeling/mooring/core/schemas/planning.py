@@ -11,7 +11,7 @@ from .refdata import LineInventoryItem
 
 
 class RecommendRequest(Model):
-    wire_omitted_defaults = {"max_evaluations": 1500, "neighbors_per_line": 3, "tide_levels_ft": [0.0], "tugs": [], "design_basis": "mst_and_forecast", "standoff_ft": None}
+    wire_omitted_defaults = {"max_evaluations": 1500, "neighbors_per_line": 3, "tide_levels_ft": [0.0], "tugs": [], "design_basis": None, "standoff_ft": None}
 
     ship_class_id: str = Field(examples=["DDG-51-FIIA"])
     loading: str = "full_load"
@@ -19,8 +19,8 @@ class RecommendRequest(Model):
     side_to: SideTo
     ship_x_ft: float | None = Field(default=None, description="Defaults to the middle of the berth face.")
     design_mst: MooringServiceType = "II"
-    design_basis: Literal["mst_and_forecast", "forecast_only"] = Field(default="mst_and_forecast",
-        description="forecast_only checks supplied conditions, not MST design compliance. Strength factors still use design_mst.")
+    design_basis: Literal["mst_and_forecast", "forecast_only"] | None = Field(default=None,
+        description="Absent means mst_and_forecast. forecast_only checks supplied conditions, not MST design compliance. Strength factors still use design_mst.")
     tugs: list[TugAssignment] = Field(default_factory=list, max_length=12,
         description="Fixed holding assistance evaluated in every case; not an autonomous tug schedule.")
     standoff_ft: float | None = Field(default=None, ge=0)

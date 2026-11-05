@@ -261,6 +261,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/demo/docking-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Named offline demo requests (seed data; not operational plans) */
+        get: operations["demo_docking_cases_api_v1_demo_docking_cases_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/qualification": {
         parameters: {
             query?: never;
@@ -1302,6 +1319,24 @@ export interface components {
             params: {
                 [key: string]: number;
             };
+        };
+        /** DockingDemoCase */
+        DockingDemoCase: {
+            /** Case Id */
+            case_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Expected Outcome
+             * @enum {string}
+             */
+            expected_outcome: "supported_limited" | "overloaded" | "invalid_data" | "undetermined";
+            /** Explanation */
+            explanation: string;
+            environment_request: components["schemas"]["EnvScenarioCreate"];
+            scenario_request: components["schemas"]["ScenarioCreate"];
+            analysis_request: components["schemas"]["AnalyzeRequest"];
+            envelope_request?: components["schemas"]["LimitEnvelopeRequest"] | null;
         };
         /** EnvScenario */
         EnvScenario: {
@@ -3197,6 +3232,18 @@ export interface components {
              * @enum {string}
              */
             design_mst: "I" | "II" | "IIA" | "III";
+            /**
+             * Design Basis
+             * @description Absent means mst_and_forecast. forecast_only checks supplied conditions, not MST design compliance. Strength factors still use design_mst.
+             */
+            design_basis?: ("mst_and_forecast" | "forecast_only") | null;
+            /**
+             * Tugs
+             * @description Fixed holding assistance evaluated in every case; not an autonomous tug schedule.
+             */
+            tugs?: components["schemas"]["TugAssignment"][];
+            /** Standoff Ft */
+            standoff_ft?: number | null;
             /**
              * Forecast Env
              * @description Extra conditions to check besides the MST design condition.
@@ -5638,6 +5685,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    demo_docking_cases_api_v1_demo_docking_cases_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DockingDemoCase"][];
                 };
             };
         };

@@ -242,7 +242,7 @@ def recommend(req: RecommendRequest, ctx=None) -> RecommendResponse:
             raise refdata.InvalidReference(f"Unknown line specs in inventory: {unknown}")
         specs = {k: v for k, v in specs.items() if k in inventory}
     ship_x = req.ship_x_ft if req.ship_x_ft is not None else berth.face_length_ft / 2
-    cases = design_cases(berth, req.side_to, req.design_mst, req.forecast_env, req.tide_levels_ft, include_mst=req.design_basis == "mst_and_forecast")
+    cases = design_cases(berth, req.side_to, req.design_mst, req.forecast_env, req.tide_levels_ft, include_mst=req.design_basis != "forecast_only")
     from mooring.tugs.validation import assignment_errors
     errors = assignment_errors(ship, req.tugs, refdata.tugs())
     if errors:
@@ -297,6 +297,6 @@ def recommend(req: RecommendRequest, ctx=None) -> RecommendResponse:
                                                                     budget=req.max_evaluations, feasible_found=feasible_found, notes=out.notes + out.infeasible_reasons)),
                     status=status_with_validity(status, validity), validity=validity,
                     assumptions=["Hard constraints before objective; objective = lowest worst-case utilization over every MST alternative, forecast case and water level, then fewer parts.",
-                                 f"Design basis: {req.design_basis}; forecast_only does not establish MST design compliance.",
+                                 f"Design basis: {req.design_basis or 'mst_and_forecast'}; forecast_only does not establish MST design compliance.",
                                  "Fixed holding assistance is evaluated in every case and requires continuous availability." if req.tugs else "No holding assistance used.", "Risk (M5) is not used to rank: its model is unqualified.",
                                  *solver.ASSUMPTIONS])

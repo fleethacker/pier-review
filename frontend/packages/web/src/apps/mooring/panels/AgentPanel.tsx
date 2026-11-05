@@ -50,8 +50,8 @@ export function AgentPanel() {
 
       {a.steps.length > 0 && (
         <ol className="space-y-1.5" aria-label="Agent steps">
-          {a.steps.map((s) => (
-            <li key={`${s.iteration}-${s.tool}`} className="rounded-sm border border-mil-border bg-mil-bg/60 p-2 text-[11px]">
+          {a.steps.map((s, i) => (
+            <li key={`${s.iteration}-${s.tool}-${i}`} className="rounded-sm border border-mil-border bg-mil-bg/60 p-2 text-[11px]">
               <div className="flex items-center justify-between">
                 <span className="text-mil-cyan">
                   {s.iteration}. {s.tool}
@@ -98,8 +98,8 @@ export function AgentPanel() {
                   </li>
                 ))}
               </ul>
-              {a.plan.tug_plan.rationale.map((r) => (
-                <p key={r} className="mt-1 text-[10px] text-mil-dim">
+              {a.plan.tug_plan.rationale.map((r, i) => (
+                <p key={`${i}-${r}`} className="mt-1 text-[10px] text-mil-dim">
                   {r}
                 </p>
               ))}
@@ -109,8 +109,8 @@ export function AgentPanel() {
           <div>
             <div className="mil-label">Rationale</div>
             <ul className="mt-1 space-y-1.5">
-              {(a.plan.rationale ?? []).map((r) => (
-                <li key={r.text} className="text-[11px] text-white">
+              {(a.plan.rationale ?? []).map((r, i) => (
+                <li key={`${i}-${r.text}`} className="text-[11px] text-white">
                   {r.text}
                   <span className="ml-2 inline-flex flex-wrap gap-1 align-middle">
                     {r.cites.map((id) => (
@@ -130,8 +130,8 @@ export function AgentPanel() {
           <details className="text-[10px] text-mil-dim">
             <summary className="cursor-pointer">Agent assumptions</summary>
             <ul className="mt-1 list-disc pl-4">
-              {(a.plan.assumptions ?? []).map((x) => (
-                <li key={x}>{x}</li>
+              {(a.plan.assumptions ?? []).map((x, i) => (
+                <li key={`${i}-${x}`}>{x}</li>
               ))}
             </ul>
           </details>

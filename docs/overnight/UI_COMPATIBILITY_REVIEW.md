@@ -1,5 +1,26 @@
 # UI/modeling compatibility review — 5 November 2026
 
+## Integration follow-up
+
+The user subsequently authorized integrating **only** `ui/frontend-updates`; `frontend-exercise` is excluded.
+The separate `agents/ui-integration` checkout preserves current dev fixes and resolves nullable vision boxes,
+8,000,000-byte PNG/JPEG/WebP validation, uncalibrated confidence/source wording, stale motion snapshots,
+input changes during session creation/scene loading, and changed initial offsets. Holding assistance and
+plan-bound sheet-image behavior come from current dev. Merge conflicts preserve both Makefile targets and
+all peer Requests. The earlier review below remains historical evidence.
+
+The combined suite passes 1,734 Python tests and 191 UI tests, with contract/typecheck/lint/build checks.
+The final scoped browser/API harness passed 20 checks with no failures/skips after correcting its validity lookup,
+using the supported scenario, asserting explicit API Intake/review outcomes, using a working Chrome
+configuration and supplying the missing favicon. The final scene-loading race fix has an additional unit
+counterexample and is included in that browser run. A separate four-case initial-analysis browser check
+also passes, including unavailable load displays for invalid cases.
+
+Explicit Intake/review UI controls and the full four-case browser flow remain incomplete. A passing scoped
+`make demo-check` must not be called completion of the whole overnight gate.
+
+## Original held-branch review
+
 UI branch: `ui/frontend-updates` at `6faddf0`. Its log explicitly asks to leave it unmerged; modeling has respected that
 hold. Review used a separate local worktree, merged with `dev` at `edcc1ae`. No peer branch or worktree was changed.
 This is an integration review, not an approval of the UI branch.

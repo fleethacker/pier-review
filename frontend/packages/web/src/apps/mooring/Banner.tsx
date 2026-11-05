@@ -10,9 +10,13 @@ export function Banner() {
   const confidence = useMooring((s) => s.berth?.provenance.confidence);
   return (
     <div className="flex items-center gap-3">
-      {(
-        <span className="text-[10px] text-mil-amber">Development model with unqualified seed data. Not for operational use.</span>
-      )}
+      <span
+        className="rounded-sm border border-mil-amber/50 bg-mil-amber/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-mil-amber"
+        title="Reference data is estimated or mock, so every result is limited. See docs/DEPLOYMENT_READINESS.md."
+      >
+        All results limited: seed data
+      </span>
+      <span className="text-[10px] text-mil-amber">Development model, unqualified. Not for operational use.</span>
       <BackendBadge backend={backend} />
       <div role="group" aria-label="Units" className="flex">
         {([['navy', 'Navy'], ['metric', 'Metric']] as [UnitSystem, string][]).map(([id, label]) => (

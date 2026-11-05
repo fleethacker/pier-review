@@ -7,6 +7,7 @@ vi.mock('./api', () => ({
   modeling: { GET: vi.fn(), POST: (...args: unknown[]) => post(...args) },
   unwrap: <T,>(r: { data: T }) => r.data,
   awaitJob: vi.fn(),
+  describeError: (e: unknown) => (e instanceof Error ? e.message : String(e)),
 }));
 
 import { MooringController, type Candidate } from './controller';
@@ -330,5 +331,24 @@ it.each(['parts', 'drag'])('clears old map loads immediately after a %s edit', a
     expect(c.state.get().analysis.state).toBe('error'); // A failed recheck must not resurrect the old map values.
     expect(store.getState().links['line-1'].status).toBeUndefined();
   }
+  c.dispose();
+});
+
+it.each(['wind', 'loading', 'position', 'standoff', 'tugs'])('motion saves fresh inputs after changing %s on a saved scenario', async (change) => {
+  const { c } = setup();
+  post.mockResolvedValueOnce({ data: { env_scenario_id: 'weather-snapshot' } });
+  post.mockResolvedValueOnce({ data: { scenario_id: 'saved', name: 'test' } });
+  vi.spyOn(c, 'refreshScenarioList').mockResolvedValue();
+  await c.saveScenario('test');
+  if (change === 'wind') c.setEnv({ wind_speed_kt: 20 });
+  if (change === 'loading') c.setLoading('light');
+  if (change === 'position') c.setShipX(600);
+  if (change === 'standoff') c.setStandoff(20);
+  if (change === 'tugs') c.setTugAssignments([{ tug_id: 'T1', force_lbf: 100 }] as never);
+  const save = vi.spyOn(c, 'saveScenario').mockResolvedValue('fresh');
+  post.mockResolvedValue({ data: { session_id: 'session' } });
+  await c.motion.startSession();
+  expect(save).toHaveBeenCalledOnce();
+  expect(post.mock.calls.at(-1)?.[1].body.scenario_id).toBe('fresh');
   c.dispose();
 });

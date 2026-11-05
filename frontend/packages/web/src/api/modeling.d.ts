@@ -720,6 +720,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/berthing/recordings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Owner-scoped saved recordings, including expired sessions; stable session-ID order */
+        get: operations["recordings_api_v1_berthing_recordings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/berthing/sessions/{session_id}/recording": {
         parameters: {
             query?: never;
@@ -3392,6 +3409,11 @@ export interface components {
             status: "slack" | "taut" | "overloaded" | "unknown";
             /** Ship Fitting Id */
             ship_fitting_id?: string | null;
+            /**
+             * Chock Id
+             * @description Intermediate ship lead fitting, when the line routes through a chock.
+             */
+            chock_id?: string | null;
             /** Pier Fitting Id */
             pier_fitting_id?: string | null;
             ship_end?: components["schemas"]["BerthPosition"] | null;
@@ -4747,6 +4769,42 @@ export interface components {
             lifecycle?: components["schemas"]["SimLifecycle"][];
             validity?: components["schemas"]["Validity"] | null;
             provenance?: components["schemas"]["MotionProvenance"] | null;
+        };
+        /**
+         * SimRecordingList
+         * @description Owner-scoped keyset page, ordered by session ID, not creation time.
+         */
+        SimRecordingList: {
+            /** Recordings */
+            recordings: components["schemas"]["SimRecordingSummary"][];
+            /**
+             * Next Cursor
+             * @description Pass as after_session_id for the next page.
+             */
+            next_cursor?: string | null;
+        };
+        /**
+         * SimRecordingSummary
+         * @description Small saved-recording index entry; frames are fetched separately.
+         */
+        SimRecordingSummary: {
+            /** Recording Id */
+            recording_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Scene Id */
+            scene_id: string;
+            /** Scene Revision */
+            scene_revision: string;
+            /** Duration S */
+            duration_s: number;
+            /** Frame Count */
+            frame_count: number;
+            validity: components["schemas"]["Validity"];
+            /** Scene Url */
+            scene_url: string;
+            /** Recording Url */
+            recording_url: string;
         };
         /** SimSamplingPolicy */
         SimSamplingPolicy: {
@@ -8089,6 +8147,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SimScene"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recordings_api_v1_berthing_recordings_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                after_session_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimRecordingList"];
                 };
             };
             /** @description Validation Error */

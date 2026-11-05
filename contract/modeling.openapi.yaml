@@ -1726,6 +1726,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/berthing/recordings:
+    get:
+      tags:
+      - M11 Berthing simulator
+      summary: Owner-scoped saved recordings, including expired sessions; stable session-ID order
+      operationId: recordings_api_v1_berthing_recordings_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 20
+          title: Limit
+      - name: after_session_id
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 256
+          default: ''
+          title: After Session Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimRecordingList'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/berthing/sessions/{session_id}/recording:
     get:
       tags:
@@ -6103,6 +6140,12 @@ components:
           - type: string
           - type: 'null'
           title: Ship Fitting Id
+        chock_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Chock Id
+          description: Intermediate ship lead fitting, when the line routes through a chock.
         pier_fitting_id:
           anyOf:
           - type: string
@@ -8556,6 +8599,71 @@ components:
       - frames
       title: SimRecording
       description: Bounded display recording. Sequence gaps mean decimation, never missing physics integration steps.
+    SimRecordingList:
+      properties:
+        recordings:
+          items:
+            $ref: '#/components/schemas/SimRecordingSummary'
+          type: array
+          maxItems: 100
+          title: Recordings
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Pass as after_session_id for the next page.
+      additionalProperties: false
+      type: object
+      required:
+      - recordings
+      title: SimRecordingList
+      description: Owner-scoped keyset page, ordered by session ID, not creation time.
+    SimRecordingSummary:
+      properties:
+        recording_id:
+          type: string
+          title: Recording Id
+        session_id:
+          type: string
+          title: Session Id
+        scene_id:
+          type: string
+          title: Scene Id
+        scene_revision:
+          type: string
+          title: Scene Revision
+        duration_s:
+          type: number
+          minimum: 0.0
+          title: Duration S
+        frame_count:
+          type: integer
+          maximum: 10000.0
+          minimum: 1.0
+          title: Frame Count
+        validity:
+          $ref: '#/components/schemas/Validity'
+        scene_url:
+          type: string
+          title: Scene Url
+        recording_url:
+          type: string
+          title: Recording Url
+      additionalProperties: false
+      type: object
+      required:
+      - recording_id
+      - session_id
+      - scene_id
+      - scene_revision
+      - duration_s
+      - frame_count
+      - validity
+      - scene_url
+      - recording_url
+      title: SimRecordingSummary
+      description: Small saved-recording index entry; frames are fetched separately.
     SimSamplingPolicy:
       properties:
         physics_dt_s:

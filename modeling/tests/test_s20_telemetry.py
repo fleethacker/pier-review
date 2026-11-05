@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from modeling_api.main import app
 from mooring.core.schemas import EnvironmentSnapshot, TelemetryBatch, TelemetryRecord
@@ -31,13 +32,22 @@ def test_valid_mwv_and_hdt_decode_with_unit_conversion():
     assert nmea.decode(sentence("HEHDT,123.4,T")).true_deg == 123.4
 
 
+def test_vtg_gga_and_dpt_declared_subset():
+    assert nmea.decode(sentence("GPVTG,123.4,T,,M,12.5,N,23.2,K")).speed_kt == 12.5
+    pos = nmea.decode(sentence("GPGGA,123519,3657.510,N,07619.830,W,1,08,0.9,5.0,M,0.0,M,,"))
+    assert pos.latitude == pytest.approx(36.9585) and pos.longitude == pytest.approx(-76.3305)
+    assert nmea.decode(sentence("SDDPT,12.3,-0.7")).depth_m == 12.3
+    with pytest.raises(nmea.NmeaError, match="coordinate"):
+        nmea.decode(sentence("GPGGA,123519,3699.000,N,07619.830,W,1,08,0.9,5.0,M,0.0,M,,"))
+
+
 @pytest.mark.parametrize("raw,code", [
     ("$WIMWV,045.0,R,18.5,N,A*00", "CHECKSUM_MISMATCH"),
     ("$WIMWV,045.0,R,18.5,N,A", "MISSING_CHECKSUM"),
     ("$WIMWV,045.0,R,18.5,N,A*ZZ", "BAD_CHECKSUM_FORMAT"),
     ("WIMWV,045.0,R,18.5,N,A*1E", "BAD_FRAMING"),
     ("!AIVDM,1,1,,A,x,0*00", "BAD_FRAMING"),
-    (sentence("WIGGA,1,2,3"), "UNSUPPORTED_SENTENCE"),
+    (sentence("WIGGA,1,2,3"), "BAD_FIELD_COUNT"),
     (sentence("WIMWV,045.0,R,18.5,N,V"), "DATA_NOT_VALID"),
     (sentence("WIMWV,045.0,X,18.5,N,A"), "BAD_REFERENCE"),
     (sentence("WIMWV,045.0,R,18.5,Q,A"), "BAD_UNITS"),
@@ -66,6 +76,8 @@ def test_apparent_to_true_wind_with_explicit_frames():
     assert (round(at_rest.angle_from_deg, 6), round(at_rest.speed_kt, 6)) == (90.0, 12.0)
     with pytest.raises(nmea.NmeaError):
         nmea.true_wind(nmea.Wind("true", 10.0, 5.0), 0.0, 0.0, 0.0)
+    with pytest.raises(nmea.NmeaError, match="outside its valid range"):
+        nmea.true_wind(nmea.Wind("relative", 10.0, 5.0), 360.0, 0.0, 0.0)
 
 
 # ---------- ingest ----------
@@ -179,3 +191,14 @@ def test_http_ingest_enforces_the_key_only_when_configured(monkeypatch):
     assert client.post("/api/v1/telemetry/batch", json=body, headers={"X-Telemetry-Key": "wrong"}).status_code == 401
     ok = client.post("/api/v1/telemetry/batch", json=body, headers={"X-Telemetry-Key": "s3cret"})
     assert ok.status_code == 202 and ok.json()["accepted"] == 1
+
+
+def test_websocket_ingest_uses_the_same_configured_key(monkeypatch):
+    monkeypatch.setenv("MOORING_TELEMETRY_KEY", "s3cret")
+    with pytest.raises(WebSocketDisconnect) as denied:
+        with client.websocket_connect("/ws/telemetry?limit=1"):
+            pass
+    assert denied.value.code == 1008
+    with client.websocket_connect("/ws/telemetry?limit=1", headers={"X-Telemetry-Key": "s3cret"}) as ws:
+        ws.send_json({})
+        assert ws.receive_json()["rejected"] == 1

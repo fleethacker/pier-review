@@ -48,7 +48,8 @@ binding, berth, availability cutoff and interval. Its interval must match `horiz
 each log a canonical resolve and preserve the same `forecast_manifest` (source, revision, content/binding hashes).
 Their `forecast_result_id` values identify those independent resolves. A changed selection requires new assessment;
 it cannot inherit approvals from an earlier plan. Safety watch uses that selected source within its assessed interval.
-Public latest-revision discovery still requires D2; a supplied `source_id` is not a provider lookup.
+Public latest-revision acquisition/watch integration against the merged D2 composer remains; a supplied `source_id`
+is not a provider lookup.
 
 New `SafetySheet.layout` records contain a self-contained SVG or an explicit unavailable reason, bound to sheet ID,
 version, plan, review and analysis plus reference/geometry hashes. Render this saved SVG; never capture a later canvas

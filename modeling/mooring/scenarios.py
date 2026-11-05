@@ -33,11 +33,13 @@ def environment_for(sc: Scenario) -> EnvironmentSnapshot:
         raise refdata.InvalidReference(
             "Scenario source mode is not implemented here; use an explicit environment scenario for recorded replay")
     if sc.env_source.mode == "scenario" and sc.env_source.env_scenario_id:
-        return environment.scenario_snapshot(sc.env_source.env_scenario_id, utcnow())
+        return environment.scenario_snapshot(sc.env_source.env_scenario_id, utcnow(), sc.berth_id)
     if sc.env_source.mode == "mock":
         stations = refdata.berth(sc.berth_id).env_station_ids
         snapshot = environment.synthetic(utcnow().replace(second=0, microsecond=0), "mock",
                                          (stations.wind, stations.current, stations.water_level))
         return snapshot.model_copy(update={"metadata": EnvironmentMetadata(
             basis="scenario", source="Explicit synthetic mock scenario", quality="unknown")})
-    return environment.now(sc.berth_id)
+    if sc.env_source.mode == "live":
+        return environment.live_snapshot(sc.berth_id)
+    raise refdata.InvalidReference(f"Unsupported environment source mode {sc.env_source.mode!r}")

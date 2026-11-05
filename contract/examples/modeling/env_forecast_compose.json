@@ -1,0 +1,13 @@
+{
+  "berth_id": "NAVSTA-NORFOLK-P12-N",
+  "source": {
+    "mode": "public",
+    "env_scenario_id": null
+  },
+  "as_of_utc": "2026-11-05T05:00:00Z",
+  "horizon_start_utc": "2026-11-06T05:00:00Z",
+  "horizon_end_utc": "2026-11-06T13:00:00Z",
+  "step_min": 60,
+  "current_depth_ft": 21.0,
+  "current_bin": "4"
+}

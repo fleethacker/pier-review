@@ -19,11 +19,15 @@ Policies (each tested):
 * A request outside the recorded horizon, or older than `stale_after_s` since the last record, returns unavailable.
 """
 
+import hashlib
+import json
 import math
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
-from mooring.core.schemas import EnvironmentMetadata, EnvironmentSnapshot
+from mooring.core.schemas import EnvironmentComponentProvenance, EnvironmentMetadata, EnvironmentSnapshot
+from .providers import canonical_fixture_bytes
 
 REQUIRED = ("wind_speed_kt", "wind_gust_kt", "wind_from_true_deg", "current_speed_kt", "current_set_true_deg", "water_level_ft")
 QUALITY_RANK = {"good": 3, "unknown": 2, "suspect": 1, "poor": 0}
@@ -46,6 +50,7 @@ class Record:
     current_depth_ft: float | None = None
     current_bin: str | None = None
     original: dict[str, float | str] | None = None
+    components: list[dict] | None = None
 
 
 @dataclass
@@ -70,6 +75,36 @@ def circular_lerp_deg(a: float, b: float, w: float) -> float:
     """Interpolate along the short way around the circle."""
     d = (b - a + 180.0) % 360.0 - 180.0
     return round((a + w * d) % 360.0, 9) % 360.0
+
+
+def _component_provenance(lo: Record, hi: Record) -> list[EnvironmentComponentProvenance] | Unavailable:
+    lower = [EnvironmentComponentProvenance.model_validate(item) for item in (lo.components or [])]
+    if lo.t == hi.t:
+        return lower
+    upper = {item.component: item for item in (
+        EnvironmentComponentProvenance.model_validate(raw) for raw in (hi.components or [])
+    )}
+    out = []
+    for item in lower:
+        other = upper.get(item.component)
+        endpoints_valid = other is not None and all(
+            (meta.valid_from_utc is None or meta.valid_from_utc <= at)
+            and (meta.valid_to_utc is None or at <= meta.valid_to_utc)
+            for meta, at in ((item, lo.t), (other, hi.t))
+        )
+        if not endpoints_valid or (item.source, item.basis) != (other.source, other.basis):
+            # Never repair invalid input metadata by enlarging its interval.
+            return Unavailable(f"{item.component} replay interpolation requires matching sources and valid endpoint intervals")
+        note = (f"Interpolated between aligned replay values at {lo.t.isoformat()} and {hi.t.isoformat()}; "
+                "speeds/level are linear and directions circular. Both endpoint observations are retained in metadata.original; "
+                "this interval describes replay interpolation, not provider-declared observation validity.")
+        out.append(item.model_copy(update={
+            "valid_from_utc": lo.t,
+            "valid_to_utc": hi.t,
+            "quality": min((item.quality, other.quality), key=QUALITY_RANK.__getitem__),
+            "limitations": list(dict.fromkeys([*item.limitations, *other.limitations, note])),
+        }))
+    return out
 
 
 class ReplaySource:
@@ -103,7 +138,8 @@ class ReplaySource:
                 vals["water_level_ft"] = float(vals["water_level_ft"]) + offsets[datum]
             original = r.get("original") or {k: v for k, v in r.items() if isinstance(v, (float, int, str))}
             rec = Record(t, {k: float(v) for k, v in vals.items()}, quality, "MLLW", r.get("wind_averaging_s"), r.get("gust_duration_s"),
-                         r.get("wind_reference_height_m"), r.get("source"), r.get("current_depth_ft"), r.get("current_bin"), original)
+                         r.get("wind_reference_height_m"), r.get("source"), r.get("current_depth_ft"), r.get("current_bin"), original,
+                         r.get("components"))
             if t in out:
                 old = out[t]
                 if old.values == rec.values:
@@ -146,15 +182,27 @@ class ReplaySource:
             rec_meta, age = lo, (clock - lo.t).total_seconds()
         worst = min((lo, hi), key=lambda r: QUALITY_RANK[r.quality]).quality
         # Record time establishes observation/validity time, not an independent provider issue time.
+        components = _component_provenance(lo, hi)
+        if isinstance(components, Unavailable):
+            return components
+        original = rec_meta.original
+        if lo.t != hi.t and components:
+            original = {
+                **(lo.original or {}),
+                **{f"interpolation_upper_{key}": value for key, value in (hi.original or {}).items()},
+                "interpolation_lower_time_utc": lo.t.isoformat(),
+                "interpolation_upper_time_utc": hi.t.isoformat(),
+            }
         return EnvironmentSnapshot(
             valid_at_utc=t, source=self.source_kind, wind_speed_kt=v["wind_speed_kt"], wind_gust_kt=max(v["wind_gust_kt"], v["wind_speed_kt"]),
             wind_from_true_deg=v["wind_from_true_deg"] % 360, current_speed_kt=v["current_speed_kt"], current_set_true_deg=v["current_set_true_deg"] % 360,
             water_level_mllw_ft=v["water_level_ft"],
-            metadata=EnvironmentMetadata(basis=self.basis, source=rec_meta.source or self.station, valid_from_utc=lo.t, valid_to_utc=hi.t,
+            metadata=EnvironmentMetadata(basis=self.basis, source=rec_meta.source or self.station, components=components,
+                                         valid_from_utc=lo.t, valid_to_utc=hi.t,
                                          wind_averaging_s=rec_meta.wind_averaging_s, gust_duration_s=rec_meta.gust_duration_s,
                                          wind_reference_height_m=rec_meta.wind_reference_height_m, vertical_datum="MLLW", quality=worst, age_s=max(age, 0.0),
                                          current_depth_ft=rec_meta.current_depth_ft, current_bin=rec_meta.current_bin,
-                                         original=rec_meta.original))
+                                         original=original))
 
     def series(self, start: datetime, end: datetime, step: timedelta, *, now: datetime | None = None):
         """(time, snapshot | Unavailable) on a regular grid. Unavailable entries stay in place: gaps are never filled."""
@@ -178,3 +226,110 @@ def recorded_fixture_source() -> "ReplaySource":
         raw = json.loads((Path(__file__).parent / "fixtures" / "replay_sample.json").read_text())
         _FIXTURE_SOURCE = ReplaySource(raw, max_gap_s=900, stale_after_s=10**9, station="synthetic recorded-format fixture", source_kind="replay", basis="scenario")
     return _FIXTURE_SOURCE
+
+
+RECORDED_REAL_PACKAGE = (
+    Path(__file__).parent
+    / "fixtures"
+    / "recorded_real"
+    / "noaa-coops-norfolk-2026-01-01-v1"
+)
+
+
+@dataclass(frozen=True)
+class RecordedReplayPackage:
+    manifest: dict
+    source: ReplaySource
+
+    @property
+    def package_id(self) -> str:
+        return self.manifest["package_id"]
+
+    def supports_berth(self, berth_id: str) -> bool:
+        return berth_id in self.manifest["applicable_berth_ids"]
+
+
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def load_recorded_real_package(path: Path = RECORDED_REAL_PACKAGE) -> RecordedReplayPackage:
+    """Load and verify a recorded-observation package before any value is served."""
+    try:
+        manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ReplayError(f"recorded replay manifest is unreadable: {exc}") from None
+    if manifest.get("schema_version") != "recorded-replay-v1" or manifest.get("kind") != "recorded_observation":
+        raise ReplayError("recorded replay manifest has an unsupported schema or kind")
+    data_info = manifest.get("data")
+    if not isinstance(data_info, dict):
+        raise ReplayError("recorded replay manifest has no data object")
+    relative = data_info.get("path")
+    if not isinstance(relative, str) or Path(relative).name != relative:
+        raise ReplayError("recorded replay data path must be one package-local file")
+    data_path = path / relative
+    try:
+        data = data_path.read_bytes()
+    except OSError as exc:
+        raise ReplayError(f"recorded replay observations are unreadable: {exc}") from None
+    digest = _sha256(data)
+    if digest != data_info.get("sha256"):
+        raise ReplayError("recorded replay observations do not match the manifest SHA-256")
+    revision_payload = {key: value for key, value in manifest.items() if key != "revision"}
+    if manifest.get("revision") != f"sha256:{_sha256(canonical_fixture_bytes(revision_payload))}":
+        raise ReplayError("recorded replay revision does not match the package manifest")
+    source_files = manifest.get("source_files")
+    if not isinstance(source_files, list) or len(source_files) != 3:
+        raise ReplayError("recorded replay manifest must bind all three source fixtures")
+    for item in source_files:
+        try:
+            source_path = (path / item["path"]).resolve()
+            source_path.relative_to((Path(__file__).parent / "fixtures").resolve())
+            source_data = source_path.read_bytes()
+        except (KeyError, OSError, TypeError, ValueError):
+            raise ReplayError("recorded replay source fixture is missing or outside the fixture directory") from None
+        if _sha256(source_data) != item.get("sha256"):
+            raise ReplayError(f"recorded replay source fixture hash mismatch: {item.get('path')}")
+    try:
+        raw = json.loads(data)
+    except json.JSONDecodeError:
+        raise ReplayError("recorded replay observations are not valid JSON") from None
+    coverage = manifest.get("coverage")
+    if not isinstance(coverage, dict):
+        raise ReplayError("recorded replay manifest has no coverage object")
+    if not isinstance(raw, list) or len(raw) != coverage.get("record_count"):
+        raise ReplayError("recorded replay record count does not match the manifest")
+    try:
+        source = ReplaySource(
+            raw,
+            max_gap_s=float(coverage["max_interpolation_gap_s"]),
+            stale_after_s=10**12,
+            station=manifest["package_id"],
+            source_kind="replay",
+            basis="observation",
+        )
+        actual = source.coverage
+        expected = (parse_time(coverage["start_utc"]), parse_time(coverage["end_utc"]))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ReplayError(f"recorded replay manifest or observations are malformed: {exc}") from None
+    if actual != expected:
+        raise ReplayError("recorded replay coverage does not match the manifest")
+    applicable = manifest.get("applicable_berth_ids")
+    if (not isinstance(applicable, list) or not applicable
+            or any(not isinstance(berth_id, str) or not berth_id for berth_id in applicable)):
+        raise ReplayError("recorded replay manifest has no applicable berths")
+    return RecordedReplayPackage(manifest, source)
+
+
+_RECORDED_REAL_PACKAGE: RecordedReplayPackage | None = None
+
+
+def recorded_real_package() -> RecordedReplayPackage:
+    global _RECORDED_REAL_PACKAGE
+    if _RECORDED_REAL_PACKAGE is None:
+        _RECORDED_REAL_PACKAGE = load_recorded_real_package()
+    return _RECORDED_REAL_PACKAGE
+
+
+def recorded_real_source() -> ReplaySource:
+    return recorded_real_package().source

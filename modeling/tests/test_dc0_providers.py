@@ -57,9 +57,10 @@ def assert_provider_contract(provider: EnvironmentProvider, at: datetime):
 
 def test_fake_and_fixture_providers_pass_the_same_contract():
     fixture = Path(__file__).parents[1] / "mooring/environment/fixtures/replay_sample.json"
-    recorded = FixtureProvider(fixture)
+    recorded = FixtureProvider(fixture, basis="scenario", source_kind="mock")
     good = recorded.snapshot(T0)
     assert isinstance(good, Available)
+    assert good.value.source == "mock" and good.value.metadata.basis == "scenario"
     for provider in (recorded, FakeProvider(good), FakeProvider(Unavailable("OUTAGE", "down"))):
         assert isinstance(provider, EnvironmentProvider)
         assert_provider_contract(provider, T0)
@@ -101,6 +102,20 @@ def test_cache_hit_expiry_and_stale_fallback():
     clock.value += timedelta(seconds=301)
     with pytest.raises(ProviderError):
         c.get("https://provider.invalid/data")
+
+
+def test_recorded_retrieval_is_immutable_across_fresh_and_stale_cache_hits():
+    c, clock, calls = client([OK, TimeoutError("down")], retries=0, min_interval_s=0,
+                            cache_ttl_s=60, max_stale_s=300)
+    first = c.get("https://provider.invalid/data")
+    assert first.retrieved_at_utc == clock.value
+    clock.value += timedelta(seconds=30)
+    cached = c.get("https://provider.invalid/data")
+    clock.value += timedelta(seconds=60)
+    stale = c.get("https://provider.invalid/data")
+    assert cached.from_cache and stale.stale and len(calls) == 2
+    assert first.retrieved_at_utc == cached.retrieved_at_utc == stale.retrieved_at_utc
+    assert first.content == cached.content == stale.content
 
 
 def test_breaker_opens_short_circuits_then_half_opens_and_closes():
@@ -172,3 +187,91 @@ def test_open_breaker_can_serve_only_explicitly_stale_cache_inside_its_age_bound
     {'backoff_s': float('inf')}, {'retries': 1.5}, {'breaker_failures': 1.5}])
 def test_provider_policy_rejects_nonfinite_or_noninteger_limits(options):
     with pytest.raises(ValueError): HttpPolicy(**options)
+
+
+def test_request_budget_bounds_lock_acquisition_without_starting_transport():
+    c, _, calls = client([OK])
+    requested = []
+
+    class BusyLock:
+        def acquire(self, *, timeout):
+            requested.append(timeout)
+            return False
+
+        def release(self):
+            pytest.fail("unacquired lock must not be released")
+
+    c._lock = BusyLock()
+    with pytest.raises(ProviderError, match="deadline exceeded waiting for provider lock"):
+        c.get("https://provider.invalid/data", deadline_monotonic=12, monotonic=lambda: 10)
+    assert requested == [2] and calls == []
+
+
+def test_time_spent_queued_reduces_transport_timeout_and_releases_lock():
+    c, clock, calls = client([OK], retries=0, min_interval_s=0)
+    events = []
+
+    class DelayedLock:
+        def acquire(self, *, timeout):
+            events.append(timeout)
+            clock.value += timedelta(seconds=4)
+            return True
+
+        def release(self):
+            events.append("released")
+
+    c._lock = DelayedLock()
+    payload = c.get("https://provider.invalid/data", deadline_monotonic=5,
+                    monotonic=lambda: (clock.value - T0).total_seconds())
+    assert payload.json() == {"ok": True}
+    assert calls[0][2] == 1 and events == [5, "released"]
+
+
+@pytest.mark.parametrize("wait_kind", ["rate", "backoff"])
+def test_request_budget_caps_rate_and_retry_waits(wait_kind):
+    c, clock, calls = client([OK if wait_kind == "rate" else TimeoutError("down")],
+                             retries=1, min_interval_s=5 if wait_kind == "rate" else 0,
+                             backoff_s=5, breaker_failures=10)
+    if wait_kind == "rate":
+        c.get("https://provider.invalid/first")
+    with pytest.raises(ProviderError, match="total request deadline exceeded"):
+        c.get("https://provider.invalid/second", deadline_monotonic=1,
+              monotonic=lambda: (clock.value - T0).total_seconds())
+    assert len(calls) == 1 and clock.sleeps == [1]
+
+
+def test_transport_finishing_after_deadline_cannot_publish_or_cache_a_result():
+    clock = Clock()
+
+    def slow_transport(*_):
+        clock.value += timedelta(seconds=2)
+        return OK
+
+    c = ProviderHttpClient("test", HttpPolicy(retries=0, min_interval_s=0), clock, slow_transport)
+    with pytest.raises(ProviderError, match="deadline exceeded"):
+        c.get("https://provider.invalid/data", deadline_monotonic=1,
+              monotonic=lambda: (clock.value - T0).total_seconds())
+    assert not c._cache
+    # The failed request released its lock; a later caller can complete.
+    c.transport = lambda *_: OK
+    assert c.get("https://provider.invalid/data").json() == {"ok": True}
+
+
+def test_streaming_transport_honors_shorter_remaining_caller_budget(monkeypatch):
+    import httpx
+    from mooring.environment.providers import bounded_httpx_transport
+
+    class Stream:
+        status_code = 200
+        headers = {}
+
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def iter_bytes(self): yield b"{}"
+
+    monkeypatch.setattr(httpx, "stream", lambda *_args, **_kwargs: Stream())
+    ticks = iter([0, 0.1, 0.3])
+    with pytest.raises(httpx.TimeoutException, match="0.2s elapsed limit"):
+        bounded_httpx_transport("https://provider.invalid/data", {}, 0.2, {},
+                                max_response_bytes=100, max_elapsed_s=5,
+                                monotonic=lambda: next(ticks))

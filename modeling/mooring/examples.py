@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 
 from mooring import refdata
 from mooring.core.schemas import EnvironmentSnapshot
+from mooring.environment.forecast_contract_examples import compose_request_example
+from mooring.environment.wave_contract_examples import wave_compose_request_example
 
 from mooring.templates import template_config
 
@@ -37,6 +39,8 @@ def build() -> dict[str, dict]:
         "env_scenario": {"name": "MST II design condition", "kind": "steady", "wind_speed_kt": 64, "wind_gust_kt": 64,
                          "wind_from_true_deg": 195, "current_speed_kt": 2.0, "current_set_true_deg": 15,
                          "water_level_mllw_ft": 0.0},
+        "env_forecast_compose": compose_request_example(),
+        "env_waves_compose": wave_compose_request_example(),
         "scenario": {"name": "DDG at Pier 12 North", "ship_class_id": SHIP, "loading": "full_load", "berth_id": BERTH,
                      "side_to": "starboard", "env_source": {"mode": "mock"}, "config": cfg},
         "loads_environmental": {"ship_class_id": SHIP, "loading": "full_load", "heading_true_deg": 105.0,

@@ -3,3 +3,4 @@
 import os
 
 os.environ["MOCK_JOB_DELAY_S"] = "0"
+os.environ.setdefault("MOORING_ENV_SOURCE", "mock")

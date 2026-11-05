@@ -17,7 +17,7 @@ from pydantic import ValidationError
 from mooring import refdata
 from mooring.core.envelopes import resolved_inputs_hash
 from mooring.core.forecast_provenance import availability_problem
-from mooring.core.schemas.environment import EnvironmentSnapshot
+from mooring.core.schemas.environment import MAX_FORECAST_SNAPSHOTS, EnvironmentSnapshot
 
 
 def _utc(value: datetime, field: str) -> datetime:
@@ -169,8 +169,8 @@ def resolve_forecast(
         raise refdata.InvalidReference('Scenario source requires env_scenario_id; supplied source forbids it')
     if type(max_gap_min) is not int or not 1 <= max_gap_min <= 180:
         raise refdata.InvalidReference('Maximum forecast gap must be an integer from 1 through 180 minutes')
-    if not 2 <= len(series) <= 721:
-        raise refdata.InvalidReference('Forecast series must contain between 2 and 721 snapshots')
+    if not 2 <= len(series) <= MAX_FORECAST_SNAPSHOTS:
+        raise refdata.InvalidReference(f'Forecast series must contain between 2 and {MAX_FORECAST_SNAPSHOTS} snapshots')
     payloads, dates = [], []
     for snapshot in series:
         if not isinstance(snapshot, EnvironmentSnapshot):

@@ -44,19 +44,20 @@ def test_selected_environment_scenario_is_resolved_without_provider_switch(monke
     sid = create('scenario', env_scenario_id='selected-source')
     baseline = EnvironmentSnapshot.model_validate(EXAMPLES['mooring_analyze']['environment'])
     seen = []
-    def selected(identifier, at):
-        seen.append(identifier)
+    def selected(identifier, at, berth_id):
+        seen.append((identifier, berth_id))
         return baseline
     monkeypatch.setattr(environment, 'scenario_snapshot', selected)
     monkeypatch.setattr(environment, 'now', lambda *a, **k: pytest.fail('Scenario switched to provider'))
     assert client.get(f'{P}/scenarios/{sid}/environment').json() == baseline.model_dump(mode='json')
-    assert seen == ['selected-source']
+    assert seen == [('selected-source', EXAMPLES['scenario']['berth_id'])]
 
 
 def test_live_alias_preserves_configured_provider_failure(monkeypatch):
     sid = create('live')
     def unavailable(*a, **k): raise ProviderError('unavailable', 'fixture source unavailable')
-    monkeypatch.setattr(environment, 'now', unavailable)
+    monkeypatch.setattr(environment, 'live_snapshot', unavailable)
+    monkeypatch.setattr(environment, 'now', lambda *a, **k: pytest.fail('Explicit live consulted global fallback mode'))
     assert client.get(f'{P}/scenarios/{sid}/environment').status_code == 503
 
 

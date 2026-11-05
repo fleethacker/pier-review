@@ -29,12 +29,17 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
-from urllib.parse import urlsplit, urlunsplit
-from types import SimpleNamespace
-
-from demo_check_planning import advance_planning_check, four_case_checks, forecast_binding_check, prediction_brief_check
+from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
+from urllib.parse import urlsplit, urlunsplit
+
+if __package__:
+    from .demo_check_planning import advance_planning_check, four_case_checks, forecast_binding_check, prediction_brief_check
+else:
+    from demo_check_planning import advance_planning_check, four_case_checks, forecast_binding_check, prediction_brief_check
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "frontend" / "packages" / "web"
@@ -88,7 +93,7 @@ def readiness_checks(ctx: dict, profile: str) -> None:
         record("FAIL" if profile == "readiness" else "SKIP", "Build readiness (P1/Snyder + A3/Bixler)",
                "forecast revision handoff to Intake/Planner/Safety has not passed")
     blockers = (
-        ("D1/Cruz + U3/Kori", "component availability and startup rejection checks await D1's published interface"),
+        ("D1/Cruz + U3/Kori", "complete component-availability/startup-rejection acceptance is not yet integrated against the merged D1 interface"),
         ("U1/U4/Kori", "complete independent-review browser chains for all four cases remain beyond the supported-chain and initial-outcome checks"),
         ("S2/Snyder + U5/Kori", "simulation-time forcing and source labels over changing forcing are not covered"),
     )
@@ -141,6 +146,43 @@ def wait_for(url: str, seconds: float, what: str) -> None:
             last = str(exc)
         time.sleep(0.5)
     raise RuntimeError(f"{what} did not come up at {url}: {last}")
+
+
+def recorded_package_integrity() -> str:
+    """Prove that the checked-in replay still matches its deterministic builder."""
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "build_recorded_replay.py"), "--check"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    detail = (result.stdout or result.stderr).strip()
+    assert result.returncode == 0, detail or "recorded replay package check failed"
+    return detail
+
+
+def verify_recorded_replay(snapshot: dict, scenario: dict) -> str:
+    """Check the offline API result without accepting synthetic or provenance-free data."""
+    assert scenario["kind"] == "replay" and scenario["replay_source"] == "recorded_real"
+    assert snapshot["source"] == "replay", "recorded observations must be labeled replay"
+    metadata = snapshot.get("metadata") or {}
+    assert metadata.get("basis") == "observation", "recorded observations must not be labeled scenario data"
+    components = {item["component"]: item for item in metadata.get("components") or []}
+    assert set(components) == {"wind", "current", "water_level"}, "recorded replay needs all measured components"
+    assert all(item.get("basis") == "observation" for item in components.values())
+    assert all((item.get("source") or "").startswith("NOAA CO-OPS") for item in components.values())
+    assert any("gust duration" in note for note in components["wind"].get("limitations") or [])
+    assert any("direction" in note for note in components["current"].get("limitations") or [])
+    assert metadata.get("vertical_datum") == "MLLW"
+    assert metadata.get("current_bin") == "4" and metadata.get("current_depth_ft") == 20.6
+    assert snapshot["wind_gust_kt"] >= snapshot["wind_speed_kt"]
+    assert snapshot.get("wave_height_ft") is None, "the CO-OPS package must not invent waves"
+    valid_text = snapshot["valid_at_utc"]
+    valid = datetime.fromisoformat(valid_text.replace("Z", "+00:00"))
+    start = datetime.fromisoformat(scenario["replay_start_utc"].replace("Z", "+00:00"))
+    end = datetime.fromisoformat(scenario["replay_end_utc"].replace("Z", "+00:00"))
+    assert start <= valid <= end
+    return f"NOAA CO-OPS replay at {valid_text}; wind/current/water-level provenance retained"
 
 
 class Stack:
@@ -260,6 +302,19 @@ def api_checks(stack: Stack) -> dict:
         assert env["source"] in {"mock", "live", "replay", "forecast", "scenario", "ship_sensor"}
         assert "wave_height_ft" not in env or env["wave_height_ft"] is None, "waves must be unavailable, not a number"
         return f"environment source={env['source']}"
+
+    def recorded_real_replay():
+        berth = json.loads((EXAMPLES / "scenario.json").read_text())["berth_id"]
+        _, scenario = http("POST", modeling + "/env/scenarios", {
+            "name": "demo-check recorded NOAA observations",
+            "kind": "replay",
+            "replay_start_utc": "2026-01-01T00:00:00Z",
+            "replay_end_utc": "2026-01-01T00:30:00Z",
+            "replay_source": "recorded_real",
+        })
+        query = urllib.parse.urlencode({"berth_id": berth, "env_scenario_id": scenario["env_scenario_id"]})
+        _, snapshot = http("GET", f"{modeling}/env/now?{query}")
+        return verify_recorded_replay(snapshot, scenario)
 
     def motion_session():
         import websockets  # in the repo venv: uvicorn[standard] depends on it
@@ -417,6 +472,7 @@ def api_checks(stack: Stack) -> dict:
     check("Prediction agent: immutable S7 narration and hazard limits (A7)",
           lambda: prediction_brief_check(ui, EXAMPLES, http))
     check("Environment source is labeled; waves are not invented", environment_honesty)
+    check("Recorded-real NOAA package is served as an offline replay", recorded_real_replay)
     check("Intake agent: environment assessment, mock data flagged", intake)
     check("Berth vision: image to draft berth, flagged items, confirmed and saved", berth_vision)
     def planning():
@@ -495,6 +551,7 @@ def main() -> int:
     ap.add_argument("--logs", default=str(ROOT / "docs" / "overnight" / "demo-check-logs"))
     args = ap.parse_args()
 
+    check("Recorded-real replay package is deterministic and intact", recorded_package_integrity)
     if args.base_url:
         parsed = urlsplit(args.base_url)
         if parsed.scheme not in ("http", "https") or not parsed.hostname or parsed.query or parsed.fragment or parsed.username or parsed.password:

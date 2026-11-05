@@ -9,7 +9,7 @@ Combined validation completed at 18:51 UTC, approximately 27 minutes after start
 
 | Prompt | Result | Remaining dependency |
 | --- | --- | --- |
-| A3 | Intake accepts canonical `forecast_request`; logged resolves preserve source/revision/content/binding through Planner, independent Safety and sheet. Changed selection requires explicit reassessment. Watch retains the saved source and rejects out-of-interval use. | D2 public revision discovery and Kori's explicit UI selection. Supplied source IDs are not lookup endpoints. |
+| A3 | Intake accepts canonical `forecast_request`; logged resolves preserve source/revision/content/binding through Planner, independent Safety and sheet. Changed selection requires explicit reassessment. Watch retains the saved source and rejects out-of-interval use. | Agent public-revision acquisition against merged D2 and Kori's explicit UI selection. Supplied source IDs are not lookup endpoints. |
 | A7 | Logged prediction tools and `GET /api/v1/predictions/{result_id}/brief` explain immutable caller-owned S7 results, retain model warnings/citations and distinguish central breaches from uncalibrated sampled exceedance. Unknown hazards/corridor stay unavailable. | Camera UI consumption, S7 state/hazard/uncertainty work; no new physics or calibration. |
 | A11 / R1 | Planner freezes assessed reference geometry, configuration, environment and solved offset. Sheets persist self-contained SVG with sheet/version/plan/review/result identity, immutable hashes, rationale and line/bollard margins. Invalid, legacy or mismatched evidence cannot produce a current-map substitute. | U13 sidebar integration and target PDF setup; the existing HTML preview already contains the diagram. |
 | A8 / R3 | Ship-input validation and class-specific capability routes; geometry-based templates work with arbitrary fitting IDs and supported counts. Synthetic non-DDG cases cover both sides, equilibrium, recommendation and draft sequence. | Approved CG-47/LHD-1/CVN-68 records, loading-specific fitting heights, review metadata, controlled registration and U9 display. No additional real class is declared supported. |
@@ -74,6 +74,31 @@ Existing engineering/input behavior remains covered by the full suite:
 | Class capability and selection | `test_a8_ship_inputs.py`, browser named-case loading | DDG seed demonstration and synthetic non-DDG software tests; actual additional-class fitting data unavailable |
 
 ## Requirements still open
+
+### PR preparation against newer dev
+
+After the implementation and its original evidence above, `dev` advanced to `684db99` with provider PR #13 and
+exercise/UI PR #21. Those commits are merged into this branch. The demo-runner conflict was resolved by preserving
+package-aware imports and all four planning helpers. Contracts/types were regenerated, including the expanded
+canonical forecast sample limit. The original 35-check browser run remains evidence for `205a7f6` before this merge.
+
+Combined verification after the merge:
+
+- `make test`: **2,473 passed in 267.98 seconds**, with no skips or expected failures;
+  [log](evidence/bixler-2026-11-05/pr-python-tests.log).
+- `make contract-check` and `npm run lint`: passed; generated types refreshed.
+- macOS `npm run typecheck` and `npm run build`: blocked by existing dev exercise filenames
+  `Library.tsx`/`library.ts` and `Storyboard.tsx`/`storyboard.ts`. The case-insensitive filesystem resolves the
+  capitalized imports to the lowercase `.ts` modules (TS1149/TS2305).
+- macOS `npm test -- --run`: **818 passed, 45 failed** across four exercise UI suites (`library`, `storyboardUi`,
+  `sensorsUi`, `ui`), with undefined-component/rendering failures. Those exercise sources, package configuration and
+  TypeScript configuration are unchanged from `origin/dev`. This does not replace the earlier passing 365-test result.
+
+Linux CI uses a case-sensitive filesystem and remains the pending verification for the combined UI. No current-head
+browser pass is claimed while the local build is blocked. The source/startup readiness gate now refers to missing
+combined acceptance against the merged D1 interface, rather than a missing provider implementation.
+
+### Remaining requirement gates
 
 | Requirement | Evidence/gate still needed | Owner |
 | --- | --- | --- |

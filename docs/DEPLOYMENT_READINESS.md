@@ -7,7 +7,8 @@ limits and Cruz provider availability/freshness. Review responsibilities and dep
 [master plan ownership table](MASTER_PLAN.md#execution-ownership).
 
 Integration snapshot: `dev` at `3ababad`, 5 November 2026. S1 rich sessions (#6), P1/P2 forecast resolution/recheck (#4/#8),
-limited S7/U8 prediction (#14) and U1–U7 UI (#18) are merged. D1–D4 provider composition remains in open #13.
+limited S7/U8 prediction (#14) and U1–U7 UI (#18) are merged. Subsequent PR preparation integrated `dev` at `684db99`,
+including D1–D4 provider composition (#13) and the exercise/source UI updates (#21).
 Rehearse their combined release candidate before marking any end-to-end gate passed. Historical local evidence below
 is retained with its original scope; this documentation refresh did not rerun tests or the hosting rehearsal.
 
@@ -104,12 +105,14 @@ If that cannot be completed, state **HTML print supported; server PDF unavailabl
 | API identity | `MOORING_API_KEYS` JSON object mapping principal names to unique bearer keys of at least 32 characters | Constant-time byte comparisons. Applies to HTTP except health, and WebSocket handshakes. No identity provider, roles or revocation service. |
 | Ownership | SQLite ownership records plus worker context propagation | Jobs/status/SSE/cancellation, results, scenarios and simulator sessions separated by principal. Unknown or another owner's ids return 404 / WS 4404. Legacy unowned resources remain inaccessible when enforcement is enabled. |
 | HTTP body cap | `MOORING_MAX_BODY_BYTES=1048576` | 413 before JSON parsing; proxy must also cap upload size/time and connections. Invalid limit configuration returns 503. |
+| Forecast body cap | `MOORING_MAX_FORECAST_BODY_BYTES=4194304` | Resolve, plan and recheck POSTs accept up to 4 MiB by default to retain five days of six-minute forcing and provenance. An explicit `MOORING_MAX_BODY_BYTES` also governs these routes unless separately overridden. Other routes keep their existing limits; oversize forecasts return 413. |
 | HTTP rate cap | `MOORING_RATE_PER_MINUTE=600` with auth; `0` (disabled) in demo mode | Fixed 60-second window per principal, injected clock in tests; 429 plus `Retry-After`. Process-local; counter resets on restart. Explicit 0 disables. |
 | Simulation sessions | [Simulation control and limits](BERTHING_SIMULATION.md) | Bounded count/duration/commands; one controller; disconnect pauses; latest-frame backpressure. Ephemeral, one process. |
 | Logs | JSON events on logger `mooring.operations` | Job ids, terminal state/duration/result id; stored result id, validity and reason codes. No bodies or credentials. Configure the logger at INFO to retain events. |
 | Metrics | Authenticated `GET /api/v1/metrics` when auth is enabled | Queue depth, active jobs, saturation, cancellation, terminal-job counts and total duration seconds. `solver_failures` counts invalid stored results; failed jobs have a separate counter. Aggregate operational data, shared across authorized principals; no ids. In-process counters, no exporter/histograms. |
 | Backup/restore | `python -m mooring.core.backup backup SOURCE NEW_BACKUP` / `restore BACKUP NEW_DATABASE` | SQLite online backup; integrity check; exclusive new target path, file mode 0600. Restore migrates the copy. Tests preserve result ids/hashes/snapshots/ownership and migrate v1 to current. |
 | Capability statement | `/capabilities`, `/qualification`, `/rules` | Machine-readable limitations. Synthetic dynamics remain unqualified. |
+| Environmental providers | Required `MOORING_ENV_SOURCE`; optional `MOORING_CBOFS_ARTIFACT` and `MOORING_GFS_WAVE_ARTIFACT`; live checks require `MOORING_LIVE_SMOKE=1` | Source modes fail closed; decoded artifacts are integrity/provenance-identity checked, but self-hashes do not authenticate provider bytes. Wave composition is restricted to the reviewed Pier 12 North target and exact offshore GFS cell; GFS cycle, maximum lead, native partitions and 18-hour issue freshness are enforced. NDBC response bytes/elapsed time and composition time are bounded, and rows over three hours old are unavailable. Provider availability and passing parsers do not establish engineering applicability. NDBC/GFS-Wave output is offshore-only and not load-ready. |
 
 ## Authentication default and deployment boundary
 

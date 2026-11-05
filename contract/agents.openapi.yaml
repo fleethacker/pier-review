@@ -1816,7 +1816,7 @@ components:
           - items:
               $ref: '#/components/schemas/EnvironmentSnapshot'
             type: array
-            maxItems: 721
+            maxItems: 1201
             minItems: 2
           - type: 'null'
           title: Forecast

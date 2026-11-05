@@ -21,6 +21,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/env/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Independent source and availability status for environment components
+         * @description Report partial status without weakening the complete `/env/now` contract.
+         */
+        get: operations["env_availability_api_v1_env_availability_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/env/forecast": {
         parameters: {
             query?: never;
@@ -32,6 +52,40 @@ export interface paths {
         get: operations["env_forecast_api_v1_env_forecast_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/env/forecast/compose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acquire a frozen component-level forecast manifest */
+        post: operations["env_forecast_compose_api_v1_env_forecast_compose_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/env/waves/compose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acquire offshore wave evidence and explicit berth-applicability gaps */
+        post: operations["env_waves_compose_api_v1_env_waves_compose_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1879,6 +1933,128 @@ export interface components {
             /** Assets */
             assets: components["schemas"]["AssetQualification"][];
         };
+        /**
+         * ComposedForecast
+         * @description Public/scenario component series plus only the snapshots safe for existing load consumers.
+         */
+        ComposedForecast: {
+            manifest: components["schemas"]["ComposedForecastManifest"];
+            /** Snapshots */
+            snapshots?: components["schemas"]["EnvironmentSnapshot"][];
+        };
+        /**
+         * ComposedForecastManifest
+         * @description Frozen, content-addressed acquisition manifest shared by every consumer.
+         */
+        ComposedForecastManifest: {
+            /**
+             * Schema Version
+             * @default composed-forecast-v1
+             * @constant
+             */
+            schema_version: "composed-forecast-v1";
+            /**
+             * Revision
+             * @description SHA-256 of the canonical manifest excluding this revision field.
+             */
+            revision: string;
+            request: components["schemas"]["ComposedForecastRequest"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "complete" | "partial" | "unavailable";
+            /** Components */
+            components: components["schemas"]["ForecastComponentSeries"][];
+            /** Limitations */
+            limitations?: string[];
+        };
+        /**
+         * ComposedForecastRequest
+         * @description Bounded forecast acquisition request with an explicit source and planning clock.
+         */
+        ComposedForecastRequest: {
+            /** Berth Id */
+            berth_id: string;
+            source: components["schemas"]["ForecastSourceSelection"];
+            /**
+             * As Of Utc
+             * Format: date-time
+             * @description Availability cutoff. Every public component must be issued or recorded as retrieved by this time.
+             */
+            as_of_utc: string;
+            /**
+             * Horizon Start Utc
+             * Format: date-time
+             */
+            horizon_start_utc: string;
+            /**
+             * Horizon End Utc
+             * Format: date-time
+             */
+            horizon_end_utc: string;
+            /**
+             * Step Min
+             * @default 60
+             */
+            step_min: number;
+            /**
+             * Current Depth Ft
+             * @description Required current depth below the surface; a nearby model layer is not an implicit substitute.
+             */
+            current_depth_ft: number;
+            /**
+             * Current Bin
+             * @description Requested station bin or model-layer identifier; substitutions must be reported unavailable.
+             */
+            current_bin: string;
+        };
+        /**
+         * ComposedWaveManifest
+         * @description Frozen offshore acquisition and explicit berth-applicability gaps.
+         */
+        ComposedWaveManifest: {
+            /**
+             * Schema Version
+             * @default composed-waves-v1
+             * @constant
+             */
+            schema_version: "composed-waves-v1";
+            /** Revision */
+            revision: string;
+            request: components["schemas"]["WaveComposeRequest"];
+            /** Offshore Series */
+            offshore_series: components["schemas"]["OffshoreWaveSeries"][];
+            /** Berth Exposure */
+            berth_exposure: components["schemas"]["WaveBerthExposureAvailability"][];
+            /** Limitations */
+            limitations?: string[];
+        };
+        /** ComposedWaves */
+        ComposedWaves: {
+            manifest: components["schemas"]["ComposedWaveManifest"];
+        };
+        /** CurrentForecastPoint */
+        CurrentForecastPoint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            component: "current";
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /** Current Speed Kt */
+            current_speed_kt: number;
+            /** Current Set True Deg */
+            current_set_true_deg: number;
+            /** Original */
+            original?: {
+                [key: string]: number | string;
+            } | null;
+        };
         /** CurrentTugForce */
         CurrentTugForce: {
             /** Tug Id */
@@ -1988,11 +2164,11 @@ export interface components {
             replay_end_utc?: string | null;
             /**
              * Replay Source
-             * @description kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never looped or synthesized.
+             * @description kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled synthetic recorded-format sample (2026-03-01 12:00-13:00Z); 'recorded_real' selects the manifest-backed NOAA observation package. Recorded sources are unavailable outside their declared coverage: they are never looped or synthesized.
              * @default synthetic
              * @enum {string}
              */
-            replay_source: "synthetic" | "recorded_fixture";
+            replay_source: "synthetic" | "recorded_fixture" | "recorded_real";
             /** Env Scenario Id */
             env_scenario_id: string;
             /**
@@ -2062,11 +2238,11 @@ export interface components {
             replay_end_utc?: string | null;
             /**
              * Replay Source
-             * @description kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled recorded-format sample (2026-03-01 12:00-13:00Z) and is unavailable outside it: it is never looped or synthesized.
+             * @description kind='replay': 'synthetic' generates the deterministic mock for the window (legacy); 'recorded_fixture' replays the bundled synthetic recorded-format sample (2026-03-01 12:00-13:00Z); 'recorded_real' selects the manifest-backed NOAA observation package. Recorded sources are unavailable outside their declared coverage: they are never looped or synthesized.
              * @default synthetic
              * @enum {string}
              */
-            replay_source: "synthetic" | "recorded_fixture";
+            replay_source: "synthetic" | "recorded_fixture" | "recorded_real";
         };
         /** EnvSource */
         EnvSource: {
@@ -2105,6 +2281,149 @@ export interface components {
              * @example 8638610
              */
             water_level: string;
+        };
+        /**
+         * EnvironmentAvailability
+         * @description Per-component status; the complete snapshot endpoint remains unchanged.
+         * @example {
+         *       "berth_id": "NAVSTA-NORFOLK-P12-N",
+         *       "checked_at_utc": "2026-11-05T12:00:00Z",
+         *       "complete_snapshot_available": false,
+         *       "components": [
+         *         {
+         *           "age_basis": "valid_time",
+         *           "age_s": 360,
+         *           "basis": "observation",
+         *           "component": "wind",
+         *           "limitations": [],
+         *           "quality": "good",
+         *           "source": "NOAA CO-OPS 8638614",
+         *           "state": "live"
+         *         },
+         *         {
+         *           "age_basis": "valid_time",
+         *           "age_s": 2400,
+         *           "basis": "observation",
+         *           "component": "current",
+         *           "limitations": [],
+         *           "quality": "unknown",
+         *           "reason": "latest observation is stale",
+         *           "source": "NOAA CO-OPS cb0402 bin 4",
+         *           "state": "unavailable"
+         *         },
+         *         {
+         *           "age_basis": "valid_time",
+         *           "age_s": 360,
+         *           "basis": "observation",
+         *           "component": "water_level",
+         *           "limitations": [],
+         *           "quality": "good",
+         *           "source": "NOAA CO-OPS 8638610",
+         *           "state": "live"
+         *         },
+         *         {
+         *           "component": "forecast",
+         *           "limitations": [],
+         *           "quality": "unknown",
+         *           "reason": "no composed forecast configured",
+         *           "state": "unavailable"
+         *         },
+         *         {
+         *           "component": "waves",
+         *           "limitations": [],
+         *           "quality": "unknown",
+         *           "reason": "no wave provider configured",
+         *           "state": "unavailable"
+         *         }
+         *       ]
+         *     }
+         */
+        EnvironmentAvailability: {
+            /** Berth Id */
+            berth_id: string;
+            /**
+             * Checked At Utc
+             * Format: date-time
+             */
+            checked_at_utc: string;
+            /**
+             * Complete Snapshot Available
+             * @description True only when aligned wind, current and water level can form the existing complete snapshot.
+             */
+            complete_snapshot_available: boolean;
+            /** Components */
+            components: components["schemas"]["EnvironmentComponentAvailability"][];
+        };
+        /**
+         * EnvironmentComponentAvailability
+         * @description Availability and provenance for one independently acquired component.
+         *
+         *     This carries no environmental measurement. Missing values stay unavailable here
+         *     instead of being represented as numeric zero in an ``EnvironmentSnapshot``.
+         */
+        EnvironmentComponentAvailability: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "wind" | "current" | "water_level" | "forecast" | "waves";
+            /**
+             * State
+             * @description Active source state. Stale or missing data is unavailable, never silently relabeled as a prediction.
+             * @enum {string}
+             */
+            state: "live" | "replay" | "prediction" | "mock" | "unavailable";
+            /**
+             * Source
+             * @description Provider plus station/bin or grid product when known.
+             */
+            source?: string | null;
+            /** Basis */
+            basis?: ("observation" | "prediction" | "scenario") | null;
+            /**
+             * Age S
+             * @description Age according to age_basis. Retrieval time is never substituted for issue or valid time.
+             */
+            age_s?: number | null;
+            /** Age Basis */
+            age_basis?: ("valid_time" | "issued_time") | null;
+            /** Issued At Utc */
+            issued_at_utc?: string | null;
+            /** Retrieved At Utc */
+            retrieved_at_utc?: string | null;
+            /** Valid From Utc */
+            valid_from_utc?: string | null;
+            /** Valid To Utc */
+            valid_to_utc?: string | null;
+            /**
+             * Quality
+             * @default unknown
+             * @enum {string}
+             */
+            quality: "good" | "suspect" | "poor" | "unknown";
+            /** Limitations */
+            limitations?: string[];
+            /** Station Id */
+            station_id?: string | null;
+            /** Grid Cell */
+            grid_cell?: string | null;
+            /** Current Depth Ft */
+            current_depth_ft?: number | null;
+            /** Current Bin */
+            current_bin?: string | null;
+            /** Vertical Datum */
+            vertical_datum?: ("MLLW" | "MSL" | "NAVD88" | "other") | null;
+            /** Wind Averaging S */
+            wind_averaging_s?: number | null;
+            /** Gust Duration S */
+            gust_duration_s?: number | null;
+            /** Wind Reference Height M */
+            wind_reference_height_m?: number | null;
+            /**
+             * Reason
+             * @description Why this component is unavailable; required when state is unavailable.
+             */
+            reason?: string | null;
         };
         /**
          * EnvironmentComponentProvenance
@@ -2539,6 +2858,20 @@ export interface components {
             /** Sample To Utc */
             sample_to_utc?: string | null;
         };
+        /**
+         * ForecastComponentSeries
+         * @description One independently acquired prediction series and its content digest.
+         */
+        ForecastComponentSeries: {
+            availability: components["schemas"]["EnvironmentComponentAvailability"];
+            /**
+             * Content Sha256
+             * @description SHA-256 of the canonical component availability and decoded point content.
+             */
+            content_sha256?: string | null;
+            /** Points */
+            points?: (components["schemas"]["WindForecastPoint"] | components["schemas"]["CurrentForecastPoint"] | components["schemas"]["WaterLevelForecastPoint"])[];
+        };
         /** ForecastDockingRequest */
         ForecastDockingRequest: {
             /**
@@ -2847,6 +3180,19 @@ export interface components {
             step_min: number;
             /** Series */
             series: components["schemas"]["EnvironmentSnapshot"][];
+        };
+        /**
+         * ForecastSourceSelection
+         * @description Explicit acquisition source; a public request never falls through to a scenario.
+         */
+        ForecastSourceSelection: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "public" | "scenario";
+            /** Env Scenario Id */
+            env_scenario_id?: string | null;
         };
         /** GeoPoint */
         GeoPoint: {
@@ -4348,6 +4694,91 @@ export interface components {
             sway_ft: number;
             /** Yaw Deg */
             yaw_deg: number;
+        };
+        /**
+         * OffshoreWavePoint
+         * @description One offshore provider time; representations are alternatives, never additive forcing.
+         */
+        OffshoreWavePoint: {
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /** Sample Start Utc */
+            sample_start_utc?: string | null;
+            /** Sample End Utc */
+            sample_end_utc?: string | null;
+            /**
+             * Timestamp Basis
+             * @default unknown
+             * @enum {string}
+             */
+            timestamp_basis: "start" | "center" | "end" | "instant" | "unknown";
+            total_sea?: components["schemas"]["WaveBulkParameters"] | null;
+            /** Partitions */
+            partitions?: components["schemas"]["WaveBulkParameters"][];
+            spectrum?: components["schemas"]["WaveSpectrum"] | null;
+            /** Original */
+            original?: {
+                [key: string]: number | string;
+            } | null;
+        };
+        /**
+         * OffshoreWaveSeries
+         * @description Observation, forecast, or independent check at its source location.
+         */
+        OffshoreWaveSeries: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "observation" | "forecast" | "independent_check";
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "ndbc" | "gfs-wave";
+            /** Station Id */
+            station_id?: string | null;
+            /** Model Id */
+            model_id?: string | null;
+            /**
+             * Reference Time Utc
+             * @description Forecast model reference/cycle time; not a substitute for issue or retrieval time.
+             */
+            reference_time_utc?: string | null;
+            /**
+             * Coverage
+             * @enum {string}
+             */
+            coverage: "complete" | "partial" | "unavailable";
+            availability: components["schemas"]["EnvironmentComponentAvailability"];
+            /** Product Ids */
+            product_ids?: string[];
+            location?: components["schemas"]["WaveSourceLocation"] | null;
+            /**
+             * Applicability
+             * @default offshore_boundary_only
+             * @constant
+             */
+            applicability: "offshore_boundary_only";
+            /**
+             * Load Ready
+             * @default false
+             * @constant
+             */
+            load_ready: false;
+            /**
+             * Representation Policy
+             * @default choose_total_or_partitions_or_spectrum
+             * @constant
+             */
+            representation_policy: "choose_total_or_partitions_or_spectrum";
+            /** Content Sha256 */
+            content_sha256?: string | null;
+            /** Points */
+            points?: components["schemas"]["OffshoreWavePoint"][];
         };
         /**
          * OtherVessel
@@ -7162,6 +7593,217 @@ export interface components {
             tug_commands?: components["schemas"]["TransitTugCommand"][];
             tug_assist?: components["schemas"]["TugAssistSettings"] | null;
         };
+        /** WaterLevelForecastPoint */
+        WaterLevelForecastPoint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            component: "water_level";
+            /**
+             * Valid At Utc
+             * Format: date-time
+             */
+            valid_at_utc: string;
+            /** Water Level Mllw Ft */
+            water_level_mllw_ft: number;
+            /** Original */
+            original?: {
+                [key: string]: number | string;
+            } | null;
+        };
+        /**
+         * WaveBerthExposureAvailability
+         * @description Status of one physically distinct berth exposure; this model carries no measurements.
+         */
+        WaveBerthExposureAvailability: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "ocean_swell" | "local_chop" | "ship_wake" | "tug_wake";
+            /**
+             * State
+             * @default unavailable
+             * @constant
+             */
+            state: "unavailable";
+            /** Reason Code */
+            reason_code?: ("NO_BERTH_WAVE_TRANSFER" | "NO_DIRECTIONAL_FETCH" | "NO_WAKE_SOURCE" | "SOURCE_UNAVAILABLE") | null;
+            /** Reason */
+            reason?: string | null;
+            /** Limitations */
+            limitations?: string[];
+        };
+        /**
+         * WaveBulkParameters
+         * @description Provider bulk parameters; total sea and partitions are deliberately distinct.
+         */
+        WaveBulkParameters: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "total_sea" | "swell" | "wind_sea" | "provider_partition";
+            /** Provider Partition Id */
+            provider_partition_id?: string | null;
+            /** Significant Height Ft */
+            significant_height_ft: number;
+            /** Period S */
+            period_s?: number | null;
+            /**
+             * Period Basis
+             * @default unknown
+             * @enum {string}
+             */
+            period_basis: "dominant" | "average" | "peak" | "primary_mean" | "provider_partition" | "provider_partition_mean" | "unknown";
+            /** Direction From True Deg */
+            direction_from_true_deg?: number | null;
+            /**
+             * Direction Basis
+             * @default unknown
+             * @enum {string}
+             */
+            direction_basis: "mean" | "dominant" | "peak" | "primary" | "provider_partition" | "unknown";
+        };
+        /**
+         * WaveComposeRequest
+         * @description Bounded public wave acquisition with a reproducible availability cutoff.
+         */
+        WaveComposeRequest: {
+            /** Berth Id */
+            berth_id: string;
+            /**
+             * As Of Utc
+             * Format: date-time
+             * @description Availability cutoff for observations and forecast cycles; provider retrieval after this time is excluded.
+             */
+            as_of_utc: string;
+            /**
+             * Horizon Start Utc
+             * Format: date-time
+             */
+            horizon_start_utc: string;
+            /**
+             * Horizon End Utc
+             * Format: date-time
+             */
+            horizon_end_utc: string;
+            /**
+             * Observation Lookback Hours
+             * @default 24
+             */
+            observation_lookback_hours: number;
+            /**
+             * Max Forecast Gap Hours
+             * @default 3
+             */
+            max_forecast_gap_hours: number;
+            /**
+             * Observation Station Id
+             * @default 44099
+             * @constant
+             */
+            observation_station_id: "44099";
+            /**
+             * Independent Check Station Id
+             * @default 44014
+             * @constant
+             */
+            independent_check_station_id: "44014";
+            /**
+             * Forecast Source
+             * @default gfs-wave
+             * @constant
+             */
+            forecast_source: "gfs-wave";
+            /**
+             * Include Spectrum
+             * @default true
+             */
+            include_spectrum: boolean;
+        };
+        /** WaveSourceLocation */
+        WaveSourceLocation: {
+            /** Latitude Deg */
+            latitude_deg: number;
+            /** Longitude Deg */
+            longitude_deg: number;
+            /** Water Depth M */
+            water_depth_m?: number | null;
+            /** Grid Cell */
+            grid_cell?: string | null;
+        };
+        /**
+         * WaveSpectrum
+         * @description Native NDBC density/coefficient representation, not a reconstructed 2-D spectrum.
+         */
+        WaveSpectrum: {
+            /**
+             * Representation
+             * @enum {string}
+             */
+            representation: "frequency_density" | "ndbc_fourier_coefficients";
+            /** Frequency Bin Count */
+            frequency_bin_count: number;
+            /**
+             * Density Coverage
+             * @enum {string}
+             */
+            density_coverage: "complete" | "partial" | "unavailable";
+            /**
+             * Alpha1 Coverage
+             * @default unavailable
+             * @enum {string}
+             */
+            alpha1_coverage: "complete" | "partial" | "unavailable";
+            /**
+             * Alpha2 Coverage
+             * @default unavailable
+             * @enum {string}
+             */
+            alpha2_coverage: "complete" | "partial" | "unavailable";
+            /**
+             * R1 Coverage
+             * @default unavailable
+             * @enum {string}
+             */
+            r1_coverage: "complete" | "partial" | "unavailable";
+            /**
+             * R2 Coverage
+             * @default unavailable
+             * @enum {string}
+             */
+            r2_coverage: "complete" | "partial" | "unavailable";
+            /** Bins */
+            bins: components["schemas"]["WaveSpectrumBin"][];
+        };
+        /**
+         * WaveSpectrumBin
+         * @description One provider-native frequency bin; Fourier coefficients are never reconstructed.
+         */
+        WaveSpectrumBin: {
+            /** Frequency Hz */
+            frequency_hz: number;
+            /** Energy Density M2 Per Hz */
+            energy_density_m2_per_hz?: number | null;
+            /**
+             * Alpha1 Direction From True Deg
+             * @description NDBC alpha1 mean direction waves come from, clockwise from true north.
+             */
+            alpha1_direction_from_true_deg?: number | null;
+            /**
+             * Alpha2 Direction From True Deg
+             * @description NDBC alpha2 principal direction waves come from, clockwise from true north.
+             */
+            alpha2_direction_from_true_deg?: number | null;
+            /** R1 */
+            r1?: number | null;
+            /** R2 */
+            r2?: number | null;
+            /** Quality Flags */
+            quality_flags?: string[];
+        };
         /** Waypoint */
         Waypoint: {
             /** Lat */
@@ -7188,6 +7830,37 @@ export interface components {
             helm_commands?: components["schemas"]["TransitHelmCommand"][];
             /** Tug Commands */
             tug_commands?: components["schemas"]["TransitTugCommand"][];
+        };
+        /** WindForecastPoint */
+        WindForecastPoint: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            component: "wind";
+            /**
+             * Valid From Utc
+             * Format: date-time
+             */
+            valid_from_utc: string;
+            /**
+             * Valid To Utc
+             * Format: date-time
+             */
+            valid_to_utc: string;
+            /** Wind Speed Kt */
+            wind_speed_kt: number;
+            /**
+             * Wind Gust Kt
+             * @description Missing provider gust stays null and prevents a complete load-model snapshot.
+             */
+            wind_gust_kt?: number | null;
+            /** Wind From True Deg */
+            wind_from_true_deg: number;
+            /** Original */
+            original?: {
+                [key: string]: number | string;
+            } | null;
         };
         /**
          * WrenchLbf
@@ -8381,6 +9054,37 @@ export interface operations {
             };
         };
     };
+    env_availability_api_v1_env_availability_get: {
+        parameters: {
+            query: {
+                berth_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentAvailability"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     env_forecast_api_v1_env_forecast_get: {
         parameters: {
             query: {
@@ -8401,6 +9105,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForecastSeries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    env_forecast_compose_api_v1_env_forecast_compose_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComposedForecastRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposedForecast"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    env_waves_compose_api_v1_env_waves_compose_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaveComposeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposedWaves"];
                 };
             };
             /** @description Validation Error */

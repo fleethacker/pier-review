@@ -10,6 +10,7 @@ export type TugSpec = M['schemas']['TugSpec'];
 export type MooringLine = M['schemas']['MooringLine'];
 export type MooringConfig = M['schemas']['MooringConfig'];
 export type Environment = M['schemas']['EnvironmentSnapshot'];
+export type EnvironmentAvailability = M['schemas']['EnvironmentAvailability'];
 export type AnalyzeRequest = M['schemas']['AnalyzeRequest'];
 export type AnalyzeResponse = M['schemas']['AnalyzeResponse'];
 export type Finding = M['schemas']['Finding'];

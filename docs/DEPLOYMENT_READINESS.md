@@ -109,3 +109,10 @@ caps and two chains every two minutes. Sampled peak RSS was 116,624/131,760 KiB 
 The last periodic database-size sample was 113,213,688 bytes; documents accumulated deliberately.
 This is neither a sustained-capacity/retention guarantee nor validation of physical accuracy.
 Later commits did not receive this long soak; their regression and short-smoke evidence is separate.
+
+
+A separate final short TCP check at source `cf1286f775416d81ab74cd08e8b1bd8e916dcec7`
+(PR #102 merged, plus checkpoint documentation) completed eight chains, two per case, and 48
+cross-owner denials in 29.0 seconds. Maximum chain duration was 7.617 seconds. Invalid printed sheets
+withheld line loads and GREEN line statuses. Temporary services stopped. This is final-code smoke
+evidence, not an extension of the earlier frozen-revision soak.

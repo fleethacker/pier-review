@@ -1,5 +1,8 @@
 .PHONY: install mock modeling agents contract contract-check test check smoke-live
 
+# Optional installed native-library path, assigned inside the recipe for macOS make.
+PDF_LIBRARY_PATH ?=
+
 install:            ## Install both Python services into one virtualenv
 	uv sync --all-packages
 
@@ -7,7 +10,7 @@ modeling:           ## Modeling (physics/ML) mock API on :8000, docs at /docs
 	uv run --all-packages uvicorn modeling_api.main:app --reload --port 8000 --reload-dir modeling
 
 agents:             ## Agents mock API on :8001 (calls modeling on :8000)
-	MODELING_API_URL=http://localhost:8000/api/v1 uv run --all-packages uvicorn mooring_agents.api.main:app --reload --port 8001 --reload-dir agents
+	MODELING_API_URL=http://localhost:8000/api/v1 $(if $(PDF_LIBRARY_PATH),DYLD_FALLBACK_LIBRARY_PATH="$(PDF_LIBRARY_PATH)") uv run --all-packages uvicorn mooring_agents.api.main:app --reload --port 8001 --reload-dir agents
 
 mock:               ## Both services; Ctrl-C stops both
 	$(MAKE) -j2 modeling agents

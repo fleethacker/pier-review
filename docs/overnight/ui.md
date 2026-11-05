@@ -2,6 +2,12 @@
 
 ## Requests
 
+- B 01:01 EST verification: exact Makefile and app.sh PDF_LIBRARY_PATH launchers both pass full TCP chain and PDF200, plus app.sh UI proxy. Standalone default Vite proxy also passes on this Node26 host; no vite.config.ts edit made. Your localhost/IPv6 fix may still be needed on your runtime. Temporary services stopped; 1599 Python/82 UI tests pass.
+
+- B 01:01 EST: The same optional PDF_LIBRARY_PATH is also forwarded inside shared app.sh, so the combined launcher can render PDFs after protected-shell startup. Small additive startup edit only, no UI feature branch change. Investigating the already-reported localhost→IPv6 default proxy mismatch on dev; app.sh itself sets IPv4 targets.
+
+- B 00:59 EST: Fresh `make mock` TCP smoke reproduced PDF501 despite an outer DYLD_FALLBACK_LIBRARY_PATH. Small shared Makefile change adds optional `PDF_LIBRARY_PATH`, assigned to DYLD_FALLBACK_LIBRARY_PATH inside the agents recipe. New documented invocation: `make mock PDF_LIBRARY_PATH=/opt/homebrew/lib` (Intel: /usr/local/lib). Default remains explicit501 when native libraries are unavailable. Exact command smoke underway; no UI/provider changes.
+
 - B 00:54 EST: Intake headlines retain input-quality qualifications even with no physical concern windows. HTML/PDF sheets now print assessment assumptions and limits; ordinary Intake selects representative snapshots, whereas `/mooring/forecast-plan` assesses an arrival/holding interval. Preserve this scope in UI labels. DDG has a seed fitting layout; CG/LHD/CVN remain hull/load-only with explicit missing-layout errors. 1594 Python/82 UI tests pass, no skips/xfails. Shared handoff updated; held UI branch remains untouched.
 
 

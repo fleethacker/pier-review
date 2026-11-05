@@ -2,6 +2,8 @@
 
 ## Requests
 
+- B 00:59 EST: Fresh `make mock` TCP smoke reproduced PDF501 despite an outer DYLD_FALLBACK_LIBRARY_PATH. Small shared Makefile change adds optional `PDF_LIBRARY_PATH`, assigned to DYLD_FALLBACK_LIBRARY_PATH inside the agents recipe. New documented invocation: `make mock PDF_LIBRARY_PATH=/opt/homebrew/lib` (Intel: /usr/local/lib). Default remains explicit501 when native libraries are unavailable. Exact command smoke underway; no UI/provider changes.
+
 - B 00:58 EST: ForecastDockingRequest normalizes scheduling and snapshot times to UTC, and SyntheticForecastRequest normalizes start_utc. This prevents named-zone Python callers from treating 23/25-hour local days as 24 elapsed hours. Wire fields unchanged; five spring/fall regressions and 1599 full tests pass. Source-provider modules untouched.
 
 - B 00:54 EST: Intake headlines retain input-quality qualifications even with no physical concern windows. HTML/PDF sheets now print assessment assumptions and limits; ordinary Intake selects representative snapshots, whereas `/mooring/forecast-plan` assesses an arrival/holding interval. Preserve this scope in UI labels. DDG has a seed fitting layout; CG/LHD/CVN remain hull/load-only with explicit missing-layout errors. 1594 Python/82 UI tests pass, no skips/xfails. Shared handoff updated; held UI branch remains untouched.

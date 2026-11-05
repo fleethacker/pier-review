@@ -1,7 +1,8 @@
-.PHONY: install mock modeling agents contract contract-check test check smoke-live demo-check missions-check
+.PHONY: install mock modeling agents contract contract-check test check smoke-live demo-check demo-check-readiness missions-check
 
 # Optional installed native-library path, assigned inside the recipe for macOS make.
 PDF_LIBRARY_PATH ?=
+DEMO_CHECK_ARGS ?=
 
 install:            ## Install both Python services into one virtualenv
 	uv sync --all-packages
@@ -34,7 +35,10 @@ smoke-live:           ## Opt-in live provider checks (never part of CI)
 	fi
 
 demo-check:         ## Check the browser and API demonstration (see scripts/demo_check.py)
-	uv run --all-packages python scripts/demo_check.py
+	uv run --all-packages python scripts/demo_check.py --profile baseline $(DEMO_CHECK_ARGS)
+
+demo-check-readiness: ## Fail on outstanding master-plan demo acceptance requirements
+	uv run --all-packages python scripts/demo_check.py $(DEMO_CHECK_ARGS) --profile readiness
 
 missions-check:     ## Browser check of the Missions app against a running UI + modeling (UI_URL, SHOTS_DIR; see scripts/check_missions_ui.py)
 	uv run --all-packages --with playwright --with pillow python scripts/check_missions_ui.py $${UI_URL:-http://localhost:4000} $${SHOTS_DIR:-/tmp/missions-check}

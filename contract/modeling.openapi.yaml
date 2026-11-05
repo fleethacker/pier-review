@@ -1342,6 +1342,56 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mooring/forecast/resolve:
+    post:
+      tags:
+      - M7 Planning
+      summary: Freeze an explicit forecast series and its as-of/horizon identity
+      operationId: resolve_forecast_api_v1_mooring_forecast_resolve_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForecastResolveRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastResolvedResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/mooring/forecast-plan/recheck:
+    post:
+      tags:
+      - M7 Planning
+      summary: Compare replacement guidance with a saved plan; never change or approve it
+      operationId: forecast_recheck_api_v1_mooring_forecast_plan_recheck_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForecastRecheckRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastRecheckResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/tugs/berthing-plan:
     post:
       tags:
@@ -4461,8 +4511,67 @@ components:
       - mz_ftlbf
       title: ForceSet
       description: Forces and moment in the ship frame (+x forward, +y to port, yaw positive counterclockwise).
+    ForecastBinding:
+      properties:
+        source:
+          type: string
+          enum:
+          - supplied
+          - scenario
+          title: Source
+        source_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Source Id
+          description: Caller-declared dataset/product identity; not proof of provider authenticity.
+        env_scenario_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Env Scenario Id
+        revision:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Revision
+          description: Declared provider/scenario revision. Content is hashed independently even when this is unchanged.
+        expected_content_hash:
+          anyOf:
+          - type: string
+            pattern: ^sha256:[0-9a-f]{64}$
+          - type: 'null'
+          title: Expected Content Hash
+          description: 'Optional pin: reject different content instead of silently evaluating a changed revision.'
+        sample_from_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Sample From Utc
+          description: Scenario-only sampling window retained when rechecking a selected operation from a wider original series.
+        sample_to_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Sample To Utc
+      additionalProperties: false
+      type: object
+      title: ForecastBinding
+      description: Explicit input selection. Provider acquisition remains outside the planner.
     ForecastDockingRequest:
       properties:
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+          description: Preserve an existing installation tide during explicit reassessment; omitted means install at each
+            candidate arrival's tide.
         allow_short_lead:
           type: boolean
           title: Allow Short Lead
@@ -4527,12 +4636,24 @@ components:
           title: Holding Hours
           default: 6
         forecast:
-          items:
-            $ref: '#/components/schemas/EnvironmentSnapshot'
-          type: array
-          maxItems: 721
-          minItems: 2
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/EnvironmentSnapshot'
+            type: array
+            maxItems: 721
+            minItems: 2
+          - type: 'null'
           title: Forecast
+        forecast_binding:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastBinding'
+          - type: 'null'
+        forecast_step_min:
+          type: integer
+          maximum: 180.0
+          minimum: 10.0
+          title: Forecast Step Min
+          description: Sampling interval only for an explicitly selected environment scenario.
         max_gap_min:
           type: integer
           maximum: 180.0
@@ -4573,8 +4694,360 @@ components:
       - as_of_utc
       - arrival_from_utc
       - arrival_to_utc
-      - forecast
       title: ForecastDockingRequest
+    ForecastRecheckRequest:
+      properties:
+        prior_result_id:
+          type: string
+          minLength: 1
+          title: Prior Result Id
+        as_of_utc:
+          type: string
+          format: date-time
+          title: As Of Utc
+        forecast:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/EnvironmentSnapshot'
+            type: array
+            maxItems: 721
+            minItems: 2
+          - type: 'null'
+          title: Forecast
+        forecast_binding:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastBinding'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - prior_result_id
+      - as_of_utc
+      title: ForecastRecheckRequest
+    ForecastRecheckResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/ForecastRecheckResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: ForecastRecheckResponse
+    ForecastRecheckResult:
+      properties:
+        state:
+          type: string
+          enum:
+          - unchanged
+          - recheck_required
+          - unavailable
+          title: State
+        prior_result_id:
+          type: string
+          title: Prior Result Id
+        previous_forecast_manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastResolutionManifest'
+          - type: 'null'
+        current_forecast_manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastResolutionManifest'
+          - type: 'null'
+        reasons:
+          items:
+            type: string
+          type: array
+          title: Reasons
+        reassessment_request:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastDockingRequest'
+          - type: 'null'
+          description: Suggested explicit new calculation preserving the installation. This comparison neither runs it nor
+            transfers approval.
+        installed_at_water_level_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Installed At Water Level Mllw Ft
+      additionalProperties: false
+      type: object
+      required:
+      - state
+      - prior_result_id
+      - reasons
+      title: ForecastRecheckResult
+    ForecastResolutionManifest:
+      properties:
+        source:
+          type: string
+          enum:
+          - supplied
+          - scenario
+          title: Source
+        source_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Id
+        env_scenario_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Env Scenario Id
+        revision:
+          type: string
+          title: Revision
+        content_hash:
+          type: string
+          pattern: ^sha256:[0-9a-f]{64}$
+          title: Content Hash
+        binding_hash:
+          type: string
+          pattern: ^sha256:[0-9a-f]{64}$
+          title: Binding Hash
+        as_of_utc:
+          type: string
+          format: date-time
+          title: As Of Utc
+        from_utc:
+          type: string
+          format: date-time
+          title: From Utc
+        to_utc:
+          type: string
+          format: date-time
+          title: To Utc
+        max_gap_min:
+          type: integer
+          maximum: 180.0
+          minimum: 1.0
+          title: Max Gap Min
+      additionalProperties: false
+      type: object
+      required:
+      - source
+      - revision
+      - content_hash
+      - binding_hash
+      - as_of_utc
+      - from_utc
+      - to_utc
+      - max_gap_min
+      title: ForecastResolutionManifest
+      description: Immutable identity of the exact series and the requested temporal binding.
+    ForecastResolveRequest:
+      properties:
+        berth_id:
+          type: string
+          title: Berth Id
+        as_of_utc:
+          type: string
+          format: date-time
+          title: As Of Utc
+        from_utc:
+          type: string
+          format: date-time
+          title: From Utc
+        to_utc:
+          type: string
+          format: date-time
+          title: To Utc
+        max_gap_min:
+          type: integer
+          maximum: 180.0
+          minimum: 1.0
+          title: Max Gap Min
+        step_min:
+          type: integer
+          maximum: 180.0
+          minimum: 10.0
+          title: Step Min
+          description: Sampling interval for an explicitly selected scenario; supplied series retain every knot.
+        forecast:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/EnvironmentSnapshot'
+            type: array
+            maxItems: 721
+            minItems: 2
+          - type: 'null'
+          title: Forecast
+        forecast_binding:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastBinding'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - berth_id
+      - as_of_utc
+      - from_utc
+      - to_utc
+      title: ForecastResolveRequest
+    ForecastResolvedResponse:
+      properties:
+        result_id:
+          type: string
+          title: Result Id
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+        model:
+          type: string
+          title: Model
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+        model_version:
+          type: string
+          title: Model Version
+        backend:
+          type: string
+          enum:
+          - mock
+          - real
+          title: Backend
+          description: '''mock'' until the workstream''s real module lands.'
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+          description: sha256 of the canonical request JSON.
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/ForecastResolvedResult'
+      additionalProperties: false
+      type: object
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: ForecastResolvedResponse
+    ForecastResolvedResult:
+      properties:
+        berth_id:
+          type: string
+          title: Berth Id
+        forecast_manifest:
+          $ref: '#/components/schemas/ForecastResolutionManifest'
+        series:
+          items:
+            $ref: '#/components/schemas/EnvironmentSnapshot'
+          type: array
+          title: Series
+        coverage_complete:
+          type: boolean
+          title: Coverage Complete
+        problems:
+          items:
+            type: string
+          type: array
+          title: Problems
+        limitations:
+          items:
+            type: string
+          type: array
+          title: Limitations
+      additionalProperties: false
+      type: object
+      required:
+      - berth_id
+      - forecast_manifest
+      - series
+      - coverage_complete
+      title: ForecastResolvedResult
     ForecastSeries:
       properties:
         berth_id:
@@ -11759,6 +12232,17 @@ components:
     ForecastDockingResult:
       additionalProperties: false
       properties:
+        forecast_manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastResolutionManifest'
+          - type: 'null'
+        result_hash:
+          anyOf:
+          - pattern: ^sha256:[0-9a-f]{64}$
+            type: string
+          - type: 'null'
+          description: Hash of the semantic assessment, excluding newly allocated result IDs and execution timestamps.
+          title: Result Hash
         selected_config:
           anyOf:
           - $ref: '#/components/schemas/MooringConfig'

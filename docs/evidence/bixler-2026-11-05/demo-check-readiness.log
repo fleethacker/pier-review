@@ -1,0 +1,44 @@
+uv run --all-packages python scripts/demo_check.py --skip-build --browser-timeout 600 --logs /private/tmp/pier-review-bixler-readiness-logs --profile readiness
+demo-check: modeling :56025, agents :56026, ui :56027, agent tool timeout 120 s; profile=readiness
+  ✓ UI page served by the preview server — index.html served
+  ✓ Motion fixtures bundled for offline replay — 61 recorded frames, scene scene_rm0_fixture
+  ✓ Health through the UI proxy (REST) — modeling backend=mixed, agents ok
+  ✓ Capabilities report limits honestly — 11 of 11 capabilities not qualified
+  ✓ Prediction agent: immutable S7 narration and hazard limits (A7) — S7 res_a2d83f49ab3045fa; immutable cited alternatives/warnings, synthetic forcing, uncertainty and uncovered hazards explicit
+  ✓ Environment source is labeled; waves are not invented — environment source=mock
+  ✓ Intake agent: environment assessment, mock data flagged — MST I required, 0 windows of concern, 3 stations flagged mock
+  ✓ Berth vision: image to draft berth, flagged items, confirmed and saved — backend=real; 36 items needed confirmation; confirmed berth DRAFT-5A0708D7542C401E is usable
+  ✓ Planning chain: ddg-supported-limited (A1) — initial AMBER/limited → final AMBER/limited; 11 SSE steps; ready_for_signature; sheet approve recorded
+  ✓ Planning chain: ddg-overloaded (A1) — initial RED/limited → final RED/limited; 13 SSE steps; reject; sheet reject recorded
+  ✓ Planning chain: ddg-invalid-data (A1) — initial RED/invalid → final RED/invalid; 17 SSE steps; revise; sheet reject recorded
+  ✓ Planning chain: ddg-undetermined (A1) — initial RED/invalid → final AMBER/limited; 11 SSE steps; ready_for_signature; sheet approve recorded
+  ✓ Planning case catalog (A1) — four-case catalog checked
+  ✓ Advance planning: synthetic coverage, alternatives and installation (A1) — seed 42; 7 arrival alternatives; selected lengths/tide rechecked; uncovered arrivals unavailable (synthetic series)
+  ✓ Forecast selection: immutable manifest handoff and sheet layout (A3/A11) — same source/revision/hash across Intake, Planner, independent Safety and immutable illustrated sheet
+  ✓ Motion: session over WebSocket through the proxy (resume, command, pause, reset) — connected at t=0; 30 frames in 3 s, 1.0x real time; frame validity=limited; pause held t=3; reset returned to t=0; 2x speed acknowledged; reconnect retained paused run and scene; validated scene and indexed recording
+  ✓ Browser: Load the app and see the standing seed-data banner — app loaded against the services; seed-data banner visible
+  ✓ Browser: Data-source panel is honest — waves, wake and telemetry say unavailable; environment says mock
+  ✓ Browser: Analyzed lines are listed — lines listed with their analysis
+  ✓ Browser: Intake agent assessment — selected scenario assessed with MST, windows and deterministic summary; current wind matches the saved inputs
+  ✓ Browser: Phase 1: agent plans (SSE steps) — planner used the displayed Intake and scenario, returned AMBER/limited, and applied its plan
+  ✓ Browser: Phase 1: explicit independent safety review — independent review AMBER/ready_for_signature bound to the Planner's Intake report; sheet unlocked only after it
+  ✓ Browser: Phase 1: safety sheet, approval and print — sheet rendered with its review identity, approval recorded, print available
+  ✓ Browser: Motion: open the view and replay the recording — replay shows validity, provenance, schema badges; waves unavailable; heave not simulated
+  ✓ Browser: Motion: Cesium map mode with 3D camera presets — map mode draws the frame in Cesium (3D port-quarter and top), lists what it did not draw, and returns to plan
+  ✓ Browser: Motion: live session through the proxy — live session ran through the WebSocket proxy: resume, pause, reset
+  ✓ Browser: Motion: units toggle — Navy/Metric toggle applies to the motion view
+  ✓ Browser: Berth vision: upload, review, confirm, use — image analyzed, flagged items gated the confirm button, berth saved and selected, labeled with estimated catalog provenance (no pixel extraction claimed)
+  ✓ Browser: Four saved-scenario analysis outcomes — saved supported, overloaded, invalid-depth and underconstrained inputs show their expected initial outcomes; invalid loads withheld
+  ✓ Browser: Demo-case panel: initial vs final outcomes — each named case loads from the panel with its initial outcome; final outcome waits for Planner and review
+  ✓ Browser: Advance planning: training series, alternatives, apply, recheck — training series bound and covered; alternatives assessed; selected configuration applied; changed holding marks recheck required
+  ✓ Browser: No browser errors during the whole flow — no page errors or console errors
+  ✓ Live frame validates as rm0-v1 (S1/Snyder) — runtime frame validated
+  ✓ Runtime scene, recording, speed and reconnect (S1/A1) — verified through the UI HTTP/WebSocket proxies
+  ✓ Forecast manifest handoff (P1/A3) — supplied series retained through Intake, Planner, Safety and sheet
+  ✗ Build readiness (D1/Cruz + U3/Kori) — component availability and startup rejection checks await D1's published interface
+  ✗ Build readiness (U1/U4/Kori) — complete independent-review browser chains for all four cases remain beyond the supported-chain and initial-outcome checks
+  ✗ Build readiness (S2/Snyder + U5/Kori) — simulation-time forcing and source labels over changing forcing are not covered
+
+demo-check: 35 passed, 3 failed, 0 skipped
+Coverage: four complete API planning chains and supplied synthetic advance planning; baseline success is not full build readiness. The owner-tagged requirements above remain uncovered.
+make: *** [demo-check-readiness] Error 1

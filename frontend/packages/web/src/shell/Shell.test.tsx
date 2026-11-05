@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearApps, registerApp } from '../scene/app';
 import { SceneStore } from '../scene/store';
@@ -11,6 +11,7 @@ vi.mock('./cesium/SceneRenderer', () => ({
     constructor() {
       renderers.constructed++;
     }
+    setStore() {}
     view = { screenUpBearingDeg: 0 };
     dispose() {}
     screenPositionOf() {
@@ -87,33 +88,101 @@ describe('Shell layout', () => {
   });
 });
 
-describe('Shell tabs and custom canvases', () => {
+describe('landing page and tabs', () => {
+  function registerTwo() {
+    const started: string[] = [];
+    const tabsSeen: string[] = [];
+    const stores: SceneStore[] = [];
+    for (const [id, title] of [['alpha', 'Alpha app'], ['beta', 'Beta app']] as const) {
+      registerApp({
+        id,
+        title,
+        description: `${title} does things`,
+        physics: ['Line equilibrium'],
+        tabs: [
+          { id: 'one', label: `${title} one` },
+          { id: 'two', label: `${title} two` },
+        ],
+        start: (host) => {
+          started.push(id);
+          stores.push(host.store);
+          return { Sidebar: () => <div>{title} panels</div>, setTab: (t) => tabsSeen.push(`${id}:${t}`), dispose() {} };
+        },
+      });
+    }
+    return { started, tabsSeen, stores };
+  }
+
+  afterEach(() => window.history.replaceState(null, '', '/'));
+
+  it('shows a box for every application and opens the one clicked', async () => {
+    const { started } = registerTwo();
+    render(<Shell />);
+    expect(screen.getByText('Pier Review')).toBeTruthy();
+    const list = screen.getByRole('list', { name: 'Applications' });
+    expect(list.querySelectorAll('li')).toHaveLength(2);
+    expect(screen.getByText('Beta app does things')).toBeTruthy();
+    expect(started).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Open Beta app' }));
+    await waitFor(() => expect(screen.getByText('Beta app panels')).toBeTruthy());
+    expect(started).toEqual(['beta']);
+    expect(window.location.search).toBe('?app=beta&tab=one');
+  });
+
+  it('switches tabs through the app and keeps each app running with its own scene', async () => {
+    const { started, tabsSeen, stores } = registerTwo();
+    window.history.replaceState(null, '', '/?app=alpha&tab=two');
+    render(<Shell />);
+    await waitFor(() => expect(screen.getByText('Alpha app panels')).toBeTruthy());
+    expect(screen.getByRole('tab', { name: 'Alpha app two' }).getAttribute('aria-selected')).toBe('true');
+    await waitFor(() => expect(tabsSeen).toContain('alpha:two'));
+    fireEvent.click(screen.getByRole('tab', { name: 'Alpha app one' }));
+    await waitFor(() => expect(tabsSeen).toContain('alpha:one'));
+    fireEvent.click(screen.getByRole('button', { name: 'All applications' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Beta app' }));
+    await waitFor(() => expect(screen.getByText('Beta app panels')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'All applications' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open Alpha app' }));
+    await waitFor(() => expect(screen.getByText('Alpha app panels')).toBeTruthy());
+    expect(started).toEqual(['alpha', 'beta']);
+    expect(stores[0]).not.toBe(stores[1]);
+    // Reopened from the landing page, Alpha is back on the tab it was left on.
+    expect(screen.getByRole('tab', { name: 'Alpha app one' }).getAttribute('aria-selected')).toBe('true');
+    expect(window.location.search).toBe('?app=alpha&tab=one');
+  });
+
+  it('moves between tabs with the arrow keys', async () => {
+    registerTwo();
+    window.history.replaceState(null, '', '/?app=alpha');
+    render(<Shell />);
+    await waitFor(() => expect(screen.getByText('Alpha app panels')).toBeTruthy());
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Alpha app one' }), { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'Alpha app two' }).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('follows a tab change the application makes by itself', async () => {
+    let notify: ((id: string) => void) | null = null;
+    registerApp({
+      id: 'gamma', title: 'Gamma app', description: '',
+      tabs: [{ id: 'a', label: 'Gamma A' }, { id: 'b', label: 'Gamma B' }],
+      start: () => ({ Sidebar: () => <div>gamma</div>, onTabChange: (l) => ((notify = l), () => (notify = null)), dispose() {} }),
+    });
+    registerApp({ id: 'delta', title: 'Delta app', description: '', start: () => ({ dispose() {} }) });
+    window.history.replaceState(null, '', '/?app=gamma');
+    render(<Shell />);
+    await waitFor(() => expect(notify).not.toBeNull());
+    act(() => notify!('b'));
+    expect(screen.getByRole('tab', { name: 'Gamma B' }).getAttribute('aria-selected')).toBe('true');
+    expect(window.location.search).toBe('?app=gamma&tab=b');
+  });
+});
+
+describe('custom canvases', () => {
   const plain = (id: string, title: string) => ({
     id,
     title,
     description: `${title} description`,
     start: () => ({ Sidebar: () => <div>{id} sidebar</div>, dispose() {} }),
-  });
-
-  it('shows no tabs for a single app and one tab per app otherwise, switching apps on click', async () => {
-    registerApp(plain('a', 'App A'));
-    const { unmount } = render(<Shell store={new SceneStore()} />);
-    await waitFor(() => expect(screen.getByText('a sidebar')).toBeTruthy());
-    expect(screen.queryByRole('tablist')).toBeNull();
-    unmount();
-
-    registerApp(plain('b', 'App B'));
-    render(<Shell store={new SceneStore()} />);
-    await waitFor(() => expect(screen.getByText('a sidebar')).toBeTruthy());
-    const tabs = screen.getAllByRole('tab');
-    expect(tabs.map((t) => t.textContent)).toEqual(['App A', 'App B']);
-    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
-    expect(tabs[1].getAttribute('title')).toBe('App B description');
-
-    fireEvent.click(tabs[1]);
-    await waitFor(() => expect(screen.getByText('b sidebar')).toBeTruthy());
-    expect(screen.queryByText('a sidebar')).toBeNull();
-    expect(screen.getAllByRole('tab')[1].getAttribute('aria-selected')).toBe('true');
   });
 
   it('renders an app\'s own canvas in place of the scene canvas and its controls', async () => {

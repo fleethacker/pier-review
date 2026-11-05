@@ -18,6 +18,10 @@ export function CesiumCanvas({ store, onEdit, onScreenUpBearing }: Props) {
   onEditRef.current = onEdit;
   onBearingRef.current = onScreenUpBearing;
 
+  // One viewer for the page: creating a Cesium viewer is slow, so a tab switch hands it another store instead.
+  const rendererRef = useRef<SceneRenderer | null>(null);
+  const storeRef = useRef(store);
+  storeRef.current = store;
   useEffect(() => {
     if (!host.current) return;
     const container = host.current;
@@ -29,15 +33,18 @@ export function CesiumCanvas({ store, onEdit, onScreenUpBearing }: Props) {
         if (cancelled) return;
         renderer = new Renderer(
           container,
-          store,
+          storeRef.current,
           (edit) => onEditRef.current(edit),
           (bearing) => onBearingRef.current?.(bearing),
         );
+        rendererRef.current = renderer;
         setLoading(false);
         if (import.meta.env.DEV) {
           const r = renderer;
           (window as unknown as { __scene: unknown }).__scene = {
-            store,
+            get store() {
+              return storeRef.current;
+            },
             screenPositionOf: (id: string) => r.screenPositionOf(id),
             geometryReady: () => r.geometryReady,
             pickAtPage: (x: number, y: number) => r.pickAtPage(x, y),
@@ -47,8 +54,13 @@ export function CesiumCanvas({ store, onEdit, onScreenUpBearing }: Props) {
       .catch((e: unknown) => !cancelled && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       cancelled = true;
+      rendererRef.current = null;
       renderer?.dispose();
     };
+  }, []);
+
+  useEffect(() => {
+    rendererRef.current?.setStore(store);
   }, [store]);
 
   if (error) {

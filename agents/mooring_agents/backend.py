@@ -12,6 +12,7 @@ BACKENDS: dict[str, str] = {
     "Planner agent (M9)": "real (guarded adjustments, deterministic fallback; modeling capabilities remain mixed)",
     "Safety/Brief agent (M10)": "real deterministic review, guarded brief and warning stream",
     "Berth Map agent (M8)": "real draft pipeline; estimated catalog geometry and optional image proposals",
+    "Prediction narration agent (A7)": "real deterministic narration of immutable S7 results; model warnings and coverage preserved",
 }
 
 

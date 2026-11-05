@@ -285,6 +285,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/predictions/{result_id}/brief:
+    get:
+      tags:
+      - Prediction agent
+      summary: Explain a saved prediction, retaining its warnings, validity and unknown coverage
+      operationId: prediction_brief_api_v1_predictions__result_id__brief_get
+      parameters:
+      - name: result_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Result Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionBrief'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/safety/reviews:
     post:
       tags:
@@ -708,6 +734,19 @@ components:
       title: AgentMessageAccepted
     AgentPlan:
       properties:
+        forecast_manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastResolutionManifest'
+          - type: 'null'
+        forecast_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Forecast Result Id
+        forecast_request:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastResolveRequest'
+          - type: 'null'
         plan_id:
           type: string
           title: Plan Id
@@ -1633,6 +1672,184 @@ components:
       - reference
       title: Finding
       description: One rule result from the NSTM 582 rule registry (see GET /rules).
+    ForecastBinding:
+      properties:
+        source:
+          type: string
+          enum:
+          - supplied
+          - scenario
+          title: Source
+        source_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Source Id
+          description: Caller-declared dataset/product identity; not proof of provider authenticity.
+        env_scenario_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Env Scenario Id
+        revision:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Revision
+          description: Declared provider/scenario revision. Content is hashed independently even when this is unchanged.
+        expected_content_hash:
+          anyOf:
+          - type: string
+            pattern: ^sha256:[0-9a-f]{64}$
+          - type: 'null'
+          title: Expected Content Hash
+          description: 'Optional pin: reject different content instead of silently evaluating a changed revision.'
+        sample_from_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Sample From Utc
+          description: Scenario-only sampling window retained when rechecking a selected operation from a wider original series.
+        sample_to_utc:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Sample To Utc
+      additionalProperties: false
+      type: object
+      title: ForecastBinding
+      description: Explicit input selection. Provider acquisition remains outside the planner.
+    ForecastResolutionManifest:
+      properties:
+        source:
+          type: string
+          enum:
+          - supplied
+          - scenario
+          title: Source
+        source_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Id
+        env_scenario_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Env Scenario Id
+        revision:
+          type: string
+          title: Revision
+        content_hash:
+          type: string
+          pattern: ^sha256:[0-9a-f]{64}$
+          title: Content Hash
+        binding_hash:
+          type: string
+          pattern: ^sha256:[0-9a-f]{64}$
+          title: Binding Hash
+        as_of_utc:
+          type: string
+          format: date-time
+          title: As Of Utc
+        from_utc:
+          type: string
+          format: date-time
+          title: From Utc
+        to_utc:
+          type: string
+          format: date-time
+          title: To Utc
+        max_gap_min:
+          type: integer
+          maximum: 180.0
+          minimum: 1.0
+          title: Max Gap Min
+      additionalProperties: false
+      type: object
+      required:
+      - source
+      - revision
+      - content_hash
+      - binding_hash
+      - as_of_utc
+      - from_utc
+      - to_utc
+      - max_gap_min
+      title: ForecastResolutionManifest
+      description: Immutable identity of the exact series and the requested temporal binding.
+    ForecastResolveRequest:
+      properties:
+        berth_id:
+          type: string
+          title: Berth Id
+        as_of_utc:
+          type: string
+          format: date-time
+          title: As Of Utc
+        from_utc:
+          type: string
+          format: date-time
+          title: From Utc
+        to_utc:
+          type: string
+          format: date-time
+          title: To Utc
+        max_gap_min:
+          type: integer
+          maximum: 180.0
+          minimum: 1.0
+          title: Max Gap Min
+        step_min:
+          type: integer
+          maximum: 180.0
+          minimum: 10.0
+          title: Step Min
+          description: Sampling interval for an explicitly selected scenario; supplied series retain every knot.
+        forecast:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/EnvironmentSnapshot'
+            type: array
+            maxItems: 1201
+            minItems: 2
+          - type: 'null'
+          title: Forecast
+        forecast_binding:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastBinding'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - berth_id
+      - as_of_utc
+      - from_utc
+      - to_utc
+      title: ForecastResolveRequest
+    GeoPoint:
+      properties:
+        lat:
+          type: number
+          maximum: 90.0
+          minimum: -90.0
+          title: Lat
+        lon:
+          type: number
+          maximum: 180.0
+          minimum: -180.0
+          title: Lon
+      additionalProperties: false
+      type: object
+      required:
+      - lat
+      - lon
+      title: GeoPoint
     GoNoGo:
       properties:
         condition:
@@ -1660,6 +1877,47 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    HazardApproach:
+      properties:
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+        kind:
+          type: string
+          enum:
+          - pier
+          - fender
+          - coastline
+          - vessel
+          title: Kind
+        element_id:
+          type: string
+          title: Element Id
+        clearance_ft:
+          type: number
+          title: Clearance Ft
+          description: Hull-to-hazard distance at that time; <= 0 means contact.
+        position:
+          $ref: '#/components/schemas/GeoPoint'
+          description: Closest point on the hull.
+        probability:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Probability
+          description: Share of uncertainty samples that breach; null without samples. Not a calibrated probability.
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - kind
+      - element_id
+      - clearance_ft
+      - position
+      title: HazardApproach
     Health:
       properties:
         status:
@@ -1681,6 +1939,21 @@ components:
       title: Health
     IntakeReport:
       properties:
+        forecast_manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastResolutionManifest'
+          - type: 'null'
+        forecast_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Forecast Result Id
+        forecast_request:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastResolveRequest'
+          - type: 'null'
+          description: Frozen explicit selection used to re-resolve the same supplied/scenario source; no public latest-revision
+            discovery is implied.
         report_id:
           type: string
           title: Report Id
@@ -1688,7 +1961,8 @@ components:
           type: string
           format: date-time
           title: Created At Utc
-          description: UTC availability cutoff captured after input retrieval; assessment processing may finish later.
+          description: UTC availability cutoff; explicit forecast selections retain their resolver as_of cutoff. Assessment
+            processing may finish later.
         berth_id:
           type: string
           title: Berth Id
@@ -1784,6 +2058,12 @@ components:
       title: IntakeReport
     IntakeRequest:
       properties:
+        forecast_request:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastResolveRequest'
+          - type: 'null'
+          description: Explicit supplied/scenario forecast selection using the canonical modeling resolver. Its interval must
+            match horizon_hours; no default provider is substituted.
         scenario_id:
           anyOf:
           - type: string
@@ -1901,6 +2181,32 @@ components:
       - progress
       - created_at_utc
       title: JobStatus
+    ManifestRecord:
+      properties:
+        kind:
+          type: string
+          title: Kind
+          examples:
+          - ship
+          - berth
+          - line_spec
+          - tug
+        id:
+          type: string
+          title: Id
+        revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Revision
+          description: Content hash or version of the record; null if unversioned.
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - id
+      title: ManifestRecord
+      description: A resolved reference record that went into a result.
     MooringConfig:
       properties:
         config_id:
@@ -2193,6 +2499,219 @@ components:
       - why
       title: PlanningCondition
       description: An environment the Planner must design for, with why it was chosen.
+    PredictedTick:
+      properties:
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+          description: Seconds after as_of_utc.
+        t_utc:
+          type: string
+          format: date-time
+          title: T Utc
+        position:
+          $ref: '#/components/schemas/GeoPoint'
+        heading_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Heading True Deg
+        sog_kt:
+          type: number
+          minimum: 0.0
+          title: Sog Kt
+        cog_true_deg:
+          anyOf:
+          - type: number
+            exclusiveMaximum: 360.0
+            minimum: 0.0
+          - type: 'null'
+          title: Cog True Deg
+        rudder_deg:
+          type: number
+          title: Rudder Deg
+        engine_order:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Engine Order
+        footprint:
+          items:
+            $ref: '#/components/schemas/GeoPoint'
+          type: array
+          maxItems: 64
+          minItems: 3
+          title: Footprint
+          description: Hull outline at this tick (parametric planform).
+        position_sd_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Position Sd Ft
+          description: Spread of sampled positions; null without samples.
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - t_utc
+      - position
+      - heading_true_deg
+      - sog_kt
+      - rudder_deg
+      - engine_order
+      - footprint
+      title: PredictedTick
+    PredictionAlternativeBrief:
+      properties:
+        alt_id:
+          type: string
+          title: Alt Id
+        label:
+          type: string
+          title: Label
+        explanation:
+          type: string
+          title: Explanation
+        final_tick:
+          anyOf:
+          - $ref: '#/components/schemas/PredictedTick'
+          - type: 'null'
+        first_breach:
+          anyOf:
+          - $ref: '#/components/schemas/HazardApproach'
+          - type: 'null'
+        closest_approach:
+          anyOf:
+          - $ref: '#/components/schemas/HazardApproach'
+          - type: 'null'
+        corridor_available:
+          type: boolean
+          title: Corridor Available
+        uncertainty_note:
+          type: string
+          title: Uncertainty Note
+        cites:
+          items:
+            type: string
+          type: array
+          title: Cites
+      additionalProperties: false
+      type: object
+      required:
+      - alt_id
+      - label
+      - explanation
+      - corridor_available
+      - uncertainty_note
+      - cites
+      title: PredictionAlternativeBrief
+    PredictionBrief:
+      properties:
+        prediction_result_id:
+          type: string
+          title: Prediction Result Id
+        model:
+          type: string
+          title: Model
+        model_version:
+          type: string
+          title: Model Version
+        inputs_hash:
+          type: string
+          title: Inputs Hash
+        computed_at_utc:
+          type: string
+          format: date-time
+          title: Computed At Utc
+        as_of_utc:
+          type: string
+          format: date-time
+          title: As Of Utc
+        input_age_s:
+          type: number
+          minimum: 0.0
+          title: Input Age S
+          description: Age at the model's assessment time, not age when this brief is read.
+        status:
+          type: string
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+        summary:
+          type: string
+          title: Summary
+        hazards_checked:
+          items:
+            type: string
+            enum:
+            - pier
+            - fender
+            - coastline
+            - vessel
+          type: array
+          title: Hazards Checked
+        hazards_unavailable:
+          items:
+            type: string
+          type: array
+          title: Hazards Unavailable
+        alternatives:
+          items:
+            $ref: '#/components/schemas/PredictionAlternativeBrief'
+          type: array
+          title: Alternatives
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          type: array
+          title: Warnings
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        cites:
+          items:
+            type: string
+          type: array
+          title: Cites
+        disclaimer:
+          type: string
+          title: Disclaimer
+          default: Decision support for a demonstrator; not navigational guidance.
+      additionalProperties: false
+      type: object
+      required:
+      - prediction_result_id
+      - model
+      - model_version
+      - inputs_hash
+      - computed_at_utc
+      - as_of_utc
+      - input_age_s
+      - status
+      - validity
+      - manifest
+      - summary
+      - hazards_checked
+      - hazards_unavailable
+      - alternatives
+      - warnings
+      - assumptions
+      - cites
+      title: PredictionBrief
     Provenance:
       properties:
         source:
@@ -2263,12 +2782,77 @@ components:
       - text
       - cites
       title: RationaleItem
+    ResultManifest:
+      properties:
+        resolved_inputs_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resolved Inputs Hash
+          description: sha256 of the canonical resolved inputs.
+        code_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Code Version
+        records:
+          items:
+            $ref: '#/components/schemas/ManifestRecord'
+          type: array
+          title: Records
+        environment_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Environment Hash
+          description: sha256 of the environment snapshot used.
+        numerical_settings:
+          additionalProperties:
+            anyOf:
+            - type: number
+            - type: integer
+            - type: string
+            - type: boolean
+          type: object
+          title: Numerical Settings
+        rng_seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Rng Seed
+        rng_model_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rng Model Revision
+      additionalProperties: false
+      type: object
+      title: ResultManifest
+      description: 'What a result depended on, so it can be reproduced. `inputs_hash` still hashes the request as sent;
+
+        `resolved_inputs_hash` hashes the request after defaults and references are resolved.'
     SafetyReview:
       properties:
         validity:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
+        forecast_manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastResolutionManifest'
+          - type: 'null'
+        forecast_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Forecast Result Id
+        geometry_snapshot_verified:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Geometry Snapshot Verified
+          description: True only when independent-review result manifests match all captured immutable reference revisions;
+            null means unverified.
         review_id:
           type: string
           title: Review Id
@@ -2369,6 +2953,19 @@ components:
       title: SafetyReviewRequest
     SafetySheet:
       properties:
+        layout:
+          anyOf:
+          - $ref: '#/components/schemas/SheetLayout'
+          - type: 'null'
+        forecast_manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ForecastResolutionManifest'
+          - type: 'null'
+        forecast_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Forecast Result Id
         validity:
           anyOf:
           - $ref: '#/components/schemas/Validity'
@@ -2794,6 +3391,76 @@ components:
       - side_to
       - evolution
       title: SheetHeader
+    SheetLayout:
+      properties:
+        state:
+          type: string
+          enum:
+          - available
+          - unavailable
+          title: State
+        sheet_id:
+          type: string
+          title: Sheet Id
+        sheet_version:
+          type: integer
+          title: Sheet Version
+        plan_id:
+          type: string
+          title: Plan Id
+        review_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Review Id
+        analysis_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Analysis Result Id
+        geometry_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Geometry Hash
+        sheet_binding_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sheet Binding Hash
+          description: Hash of sheet identity, depicted environment, lines and tug assignments.
+        ship_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ship Revision
+        berth_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Berth Revision
+        svg:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Svg
+          description: Self-contained SVG generated from saved assessment geometry; no external assets.
+        unavailable_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Unavailable Reason
+      additionalProperties: false
+      type: object
+      required:
+      - state
+      - sheet_id
+      - sheet_version
+      - plan_id
+      - review_id
+      - analysis_result_id
+      title: SheetLayout
+      description: Immutable, self-contained graphic associated with one sheet version and analysis.
     SheetLineRow:
       properties:
         line_number:
@@ -3646,87 +4313,6 @@ components:
       - message
       title: GustWarning
       type: object
-    ManifestRecord:
-      additionalProperties: false
-      description: A resolved reference record that went into a result.
-      properties:
-        kind:
-          examples:
-          - ship
-          - berth
-          - line_spec
-          - tug
-          title: Kind
-          type: string
-        id:
-          title: Id
-          type: string
-        revision:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          description: Content hash or version of the record; null if unversioned.
-          title: Revision
-      required:
-      - kind
-      - id
-      title: ManifestRecord
-      type: object
-    ResultManifest:
-      additionalProperties: false
-      description: 'What a result depended on, so it can be reproduced. `inputs_hash` still hashes the request as sent;
-
-        `resolved_inputs_hash` hashes the request after defaults and references are resolved.'
-      properties:
-        resolved_inputs_hash:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          description: sha256 of the canonical resolved inputs.
-          title: Resolved Inputs Hash
-        code_version:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Code Version
-        records:
-          items:
-            $ref: '#/components/schemas/ManifestRecord'
-          title: Records
-          type: array
-        environment_hash:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          description: sha256 of the environment snapshot used.
-          title: Environment Hash
-        numerical_settings:
-          additionalProperties:
-            anyOf:
-            - type: number
-            - type: integer
-            - type: string
-            - type: boolean
-          title: Numerical Settings
-          type: object
-        rng_seed:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          default: null
-          title: Rng Seed
-        rng_model_revision:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          title: Rng Model Revision
-      title: ResultManifest
-      type: object
     SafetyWatchUnavailable:
       additionalProperties: false
       description: Terminal SSE source_unavailable event; contains no fabricated measurement.
@@ -3971,6 +4557,8 @@ tags:
   description: Independent review, live gust warnings, Mooring Evolution Safety Sheet.
 - name: Berth map agent
   description: Image of a berth -> draft berth and line placement, human-confirmed.
+- name: Prediction agent
+  description: Cited narration of immutable modeling predictions; no new physics or hazard decisions.
 - name: System
   description: Jobs, health.
 servers:

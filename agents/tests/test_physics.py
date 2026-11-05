@@ -38,7 +38,9 @@ def recorded_client():
 
 
 def test_public_imports_are_ready_for_planner():
-    assert len(tool_definitions()) == 18  # Includes canonical saved-scenario environment resolution.
+    definitions = tool_definitions()
+    assert len(definitions) == 21
+    assert {"resolve_forecast", "predict_trajectory", "get_prediction"} <= {item["name"] for item in definitions}
     assert summarize("analyze_mooring", {"status": "AMBER"}) == "analyze_mooring: AMBER"
 
 

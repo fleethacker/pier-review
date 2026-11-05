@@ -27,7 +27,7 @@ export class SceneRenderer {
   private viewer: Cesium.Viewer;
   private tf: FrameTransform | null = null;
   private cache = new Map<string, { src: unknown; entity: Cesium.Entity; geomSig: string }>();
-  private unsubscribe: () => void;
+  private unsubscribe: () => void = () => {};
   private lastState: SceneState | null = null;
   private lastContentRevision = -1;
   private lastFitRevision = 0;
@@ -67,6 +67,10 @@ export class SceneRenderer {
 
     this.configureScene();
     this.installInput();
+    this.attach();
+  }
+
+  private attach(): void {
     this.store.capture = () => {
       // The normal render loop owns frame sizing; capture its preserved frame without forcing another render.
       const canvas = this.viewer.scene.canvas;
@@ -75,6 +79,24 @@ export class SceneRenderer {
     };
     this.unsubscribe = this.store.subscribe(() => this.sync());
     this.sync();
+  }
+
+  /**
+   * Draw another application's scene in the same viewer (a tab switch). The viewer, camera controller and input
+   * handlers stay; everything drawn is rebuilt from the new store, without the intro animation.
+   */
+  setStore(store: SceneStore): void {
+    if (this.disposed || store === this.store) return;
+    this.unsubscribe();
+    this.store.capture = () => null;
+    this.store = store;
+    this.hoverId = null;
+    this.drag = null;
+    this.lastState = null;
+    this.lastContentRevision = -1;
+    this.lastFitRevision = -1;
+    this.clearEntities();
+    this.attach();
   }
 
   /**

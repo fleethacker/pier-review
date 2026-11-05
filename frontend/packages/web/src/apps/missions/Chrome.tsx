@@ -1,57 +1,12 @@
-import { cn } from '../../lib/cn';
-import { useController, useMissions } from './context';
-import { chipBtn } from './parts';
+import { useMissions } from './context';
 import { StoryboardBottom, StoryboardSide, StoryboardSidebar } from './StoryboardPanels';
 import { CameraSidebar, CameraSide, CameraBanner } from './CameraPanels';
 import { TransitBottom, TransitSide, TransitSidebar, TRANSIT_DISCLAIMER } from './TransitPanels';
-import type { Tab } from './controller';
 
-const TABS: [Tab, string][] = [
-  ['storyboard', 'Storyboard'],
-  ['transit', 'Transit'],
-  ['camera', 'Camera'],
-];
-
+/** Panels for the current tab. The shell's tab bar chooses the tab. */
 export function Sidebar() {
-  const c = useController();
   const tab = useMissions((s) => s.tab);
-  return (
-    <div>
-      <div role="tablist" aria-label="Missions views" className="mb-3 flex">
-        {TABS.map(([id, label]) => (
-          <button
-            key={id}
-            role="tab"
-            id={`missions-tab-${id}`}
-            aria-selected={tab === id}
-            aria-controls="missions-tabpanel"
-            tabIndex={tab === id ? 0 : -1}
-            className={cn(chipBtn(tab === id), 'flex-1')}
-            onClick={() => c.setTab(id)}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-                const i = TABS.findIndex(([t]) => t === tab);
-                c.setTab(
-                  TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length][0],
-                );
-              }
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div role="tabpanel" id="missions-tabpanel" aria-labelledby={`missions-tab-${tab}`}>
-        {tab === 'storyboard' ? (
-          <StoryboardSidebar />
-        ) : tab === 'transit' ? (
-          <TransitSidebar />
-        ) : (
-          <CameraSidebar />
-        )}
-      </div>
-    </div>
-  );
+  return tab === 'storyboard' ? <StoryboardSidebar /> : tab === 'transit' ? <TransitSidebar /> : <CameraSidebar />;
 }
 
 export function Side() {

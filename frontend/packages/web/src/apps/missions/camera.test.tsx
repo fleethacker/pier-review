@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SceneStore } from '../../scene/store';
 import { Banner, Sidebar } from './Chrome';
@@ -194,7 +194,8 @@ describe('camera tab', () => {
         <Sidebar />
       </ControllerContext.Provider>,
     );
-    fireEvent.click(screen.getByRole('tab', { name: 'Camera' }));
+    // The shell's tab bar selects the tab now; it calls the controller the same way.
+    act(() => c.setTab('camera'));
     fireEvent.click(screen.getByRole('button', { name: 'Preset' }));
     await waitFor(() => expect(screen.getAllByText(/Sample prediction/).length).toBeGreaterThan(0));
     expect(screen.getByText(/Hazards not checked: coastline/)).toBeTruthy();

@@ -7,9 +7,15 @@ limits and Cruz provider availability/freshness. Review responsibilities and dep
 [master plan ownership table](MASTER_PLAN.md#execution-ownership).
 
 Integration snapshot: `dev` at `3ababad`, 5 November 2026. S1 rich sessions (#6), P1/P2 forecast resolution/recheck (#4/#8),
-limited S7/U8 prediction (#14) and U1–U7 UI (#18) are merged. D1–D4 provider composition remains in open #13.
+limited S7/U8 prediction (#14) and U1–U7 UI (#18) are merged. Subsequent PR preparation integrated `dev` at `684db99`,
+including D1–D4 provider composition (#13) and the exercise/source UI updates (#21).
 Rehearse their combined release candidate before marking any end-to-end gate passed. Historical local evidence below
 is retained with its original scope; this documentation refresh did not rerun tests or the hosting rehearsal.
+
+The later Bixler implementation branch is being exercised locally with the expanded HTTP/SSE/WebSocket and browser
+checks; its exact results are recorded in [BIXLER_IMPLEMENTATION.md](BIXLER_IMPLEMENTATION.md). New sheets embed a
+self-contained saved SVG, so browser printing does not need a map token. Native server PDF support still depends on
+the libraries below; browser-exported PDF evidence does not establish server-renderer or Domino availability.
 
 ## A2: Domino demo launch and rehearsal
 

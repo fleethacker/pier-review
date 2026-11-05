@@ -65,6 +65,10 @@ def test_plan_runs_and_cites_results(plan_id):
     assert all(item.cites for item in plan.rationale)
     for rid in {c for item in plan.rationale for c in item.cites}:
         assert modeling.get(f"{P}/results/{rid}").status_code == 200, rid
+    from mooring_agents.planner.agent import PLANS
+    geometry = PLANS[plan_id].geometry_snapshot
+    assert geometry is not None and geometry.unavailable_reason is None
+    assert geometry.analysis_result_id == plan.analysis_result_id
 
 
 def test_plan_events_stream(plan_id):
@@ -409,7 +413,8 @@ def test_printed_sheet_preserves_environment_basis_direction_and_forecast_proven
     sheet.environment.forecast_summary = 'Coverage incomplete <img src="bad">; use only assessed inputs.'
     text = renderer.render_html(sheet)
     assert 'flowing toward 217° true' in text and '2.75 ft MLLW' in text
-    assert 'assessment MST' in text and text.count('<thead>') == 2
+    assert 'assessment MST' in text and text.count('<thead>') == 3
+    assert '<h2>Pier fitting margins</h2>' in text
     assert 'Wind averaging: 60 s' in text and 'gust duration: 30 s' in text and 'reference height: 10 m' in text
     assert 'issued unknown; retrieved 2026-11-05 06:00Z' in text
     assert 'not a provider issue time or proof of freshness' in text

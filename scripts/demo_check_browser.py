@@ -60,7 +60,8 @@ def main() -> int:
         page = browser.new_page(viewport={"width": 1600, "height": 1000}, reduced_motion="reduce")
         page.set_default_timeout(45_000)
         PAGE.append(page)
-        page.route("**/*", lambda route: route.continue_() if urlparse(route.request.url).hostname in {"127.0.0.1", "localhost"} else route.abort())
+        allowed_hosts = {"127.0.0.1", "localhost", urlparse(URL).hostname}
+        page.route("**/*", lambda route: route.continue_() if urlparse(route.request.url).hostname in allowed_hosts else route.abort())
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
         intake_context: dict = {}
         def on_console(m):
@@ -75,7 +76,7 @@ def main() -> int:
         page.on("console", on_console)
 
         def load():
-            page.goto(URL, wait_until="load")
+            page.goto(URL.rstrip("/") + "/", wait_until="load")
             expect(page.get_by_text("All results limited: seed data")).to_be_visible()
             expect(page.get_by_role("button", name="Ask the agent to plan")).to_be_enabled()
             saved = page.locator("select").filter(has=page.locator("option", has_text="demo-check supported-limited"))

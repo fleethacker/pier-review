@@ -333,9 +333,9 @@ def main() -> int:
                 status, validity = expected[case["case_id"]]
                 rows.nth(i).get_by_role("button", name=re.compile("^(Load|Reload)$")).click()
                 expect(outcomes.get_by_text(f"validity {validity}").first).to_be_visible(timeout=60_000)
-                text = outcomes.inner_text()
-                assert "Initial: plan as supplied" in text and status in text, (case["case_id"], text)
-                assert "Run the planning agent on this case" in text, "a final outcome was shown before planning this case"
+                text = outcomes.inner_text().lower()  # labels are uppercased by CSS
+                assert "initial: plan as supplied" in text and status.lower() in text, (case["case_id"], text[:300])
+                assert "run the planning agent on this case" in text, "a final outcome was shown before planning this case"
                 shot(page, f"10-case-{case['case_id']}")
             return "each named case loads from the panel with its initial outcome; final outcome waits for Planner and review"
 

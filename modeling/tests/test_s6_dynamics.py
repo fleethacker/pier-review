@@ -7,10 +7,19 @@ from s6_helpers import FT, env, run, states, vessel
 
 from mooring import refdata
 from mooring.transit import coefficients as C
+from mooring.transit import simulator as S
 from mooring.transit.hull import build_hull
 
 CLASSES = [("DDG-51-FIIA", 30.0), ("CG-47", 30.0), ("LHD-1", 22.0), ("CVN-68", 30.0)]
 KT = C.KT_MPS
+
+
+@pytest.fixture
+def no_air(monkeypatch):
+    """Isolate hull + engine dynamics: the calibration (T_max = R(v_max)) and the analytic comparisons below are for
+    water resistance only. The own-motion air drag that a calm run now includes (environment=None is treated as a
+    zero-wind environment) is switched off here and tested separately in test_calm_includes_own_motion_air_drag."""
+    monkeypatch.setattr(S.Vessel, "wind_wrench", lambda self, s: (0.0, 0.0, 0.0))
 
 
 def full_ahead(cls="DDG-51-FIIA", speed=0.0, rud=0.0, **kw):
@@ -18,7 +27,7 @@ def full_ahead(cls="DDG-51-FIIA", speed=0.0, rud=0.0, **kw):
 
 
 @pytest.mark.parametrize("cls,vmax", CLASSES)
-def test_full_ahead_converges_to_max_speed(cls, vmax):
+def test_full_ahead_converges_to_max_speed(cls, vmax, no_air):
     r = run([full_ahead(cls)], dur=4000, dt=0.5)
     st = states(r)
     assert abs(st[-1].stw_kt - vmax) / vmax < 0.02
@@ -37,7 +46,7 @@ def _two_lag_time_to_63(hull, tmax, u_inf, u0, tau_e, dt=0.05):
     return t, hull.m11 / k
 
 
-def test_speed_rise_time_matches_linearised_time_constant():
+def test_speed_rise_time_matches_linearised_time_constant(no_air):
     cls, vmax = "DDG-51-FIIA", 30.0
     ship = refdata.ship(cls)
     hull = build_hull(ship, refdata.loading(ship, "full_load"), C.RHO_WATER_DEFAULT)
@@ -55,7 +64,7 @@ def test_speed_rise_time_matches_linearised_time_constant():
 def test_zero_rudder_calm_goes_straight_and_symmetric():
     r = run([full_ahead(speed=15.0)], dur=600, dt=0.2)
     for s in states(r):
-        assert s.v_kt == 0.0 and s.r_degps == 0.0 and s.x_east_ft == 0.0 and s.heading_true_deg == 0.0
+        assert abs(s.v_kt) < 1e-12 and abs(s.r_degps) < 1e-12 and abs(s.x_east_ft) < 1e-9 and abs(s.heading_true_deg) < 1e-9   # headwind drag only
 
 
 def _turn(sign, cls="DDG-51-FIIA", rud=35.0, dur=900, dt=0.2):
@@ -80,11 +89,7 @@ def test_rudder_sign_and_mirror_symmetry():
     assert port[-1].x_east_ft < 0 < stbd[-1].x_east_ft
 
 
-@pytest.mark.parametrize("cls", [
-    "DDG-51-FIIA",
-    pytest.param("CG-47", marks=pytest.mark.xfail(strict=True, reason="KNOWN MODEL LIMIT: the Clarke/DNV surrogate gives TD/L = 8.8 for the narrow "
-                                                  "CG-47 hull, outside the 2-8 plausibility band; reported, not tuned away (docs/PORT_TRANSIT.md).")),
-    "LHD-1", "CVN-68"])
+@pytest.mark.parametrize("cls", ["DDG-51-FIIA", "CG-47", "LHD-1", "CVN-68"])
 def test_turning_circle_tactical_diameter_band(cls):
     L = refdata.ship(cls).lwl_ft
     r, st = _turn(+1, cls, dur=1500, dt=0.5)
@@ -99,9 +104,9 @@ def test_turning_circle_tactical_diameter_band(cls):
     assert 2 < td / L < 8
 
 
-def test_small_rudder_step_is_first_order_like():
+def test_small_rudder_step_is_first_order_like(no_air):
     r = run([full_ahead(speed=15.0, helm=None)] if False else
-            [vessel(speed=15.0, helm=[{"t_s": 0, "rudder_deg": 0, "engine_order": 0.4}, {"t_s": 200, "rudder_deg": 2.0}])],
+            [vessel(speed=15.0, helm=[{"t_s": 0, "rudder_deg": 0, "engine_order": 0.4}, {"t_s": 200, "rudder_deg": 2.0, "engine_order": 0.4}])],
             dur=1500, dt=0.2, sample=1.0)
     st = states(r)
     ts = [f.t_s for f in r.frames]
@@ -118,7 +123,7 @@ def test_small_rudder_step_is_first_order_like():
         assert abs(val - expect) < 0.08, (k, val)
 
 
-def test_engine_stop_decelerates_monotonically_and_matches_independent_integration():
+def test_engine_stop_decelerates_monotonically_and_matches_independent_integration(no_air):
     r = run([vessel(speed=20.0, helm=[{"t_s": 0, "rudder_deg": 0, "engine_order": 0.0}])], dur=900, dt=0.2, sample=1.0)
     st = states(r)
     u = [s.stw_kt for s in st]
@@ -191,3 +196,14 @@ def test_timestep_convergence_of_the_turning_circle():
     # Rudder/tug/wind are held constant over a step (zero-order hold), so the scheme is first order in dt overall.
     assert err[0.5] > err[0.2] and err[0.2] < 6.0          # 0.2 % of the 3000 ft transfer
     assert abs(out[0.2][2] - ref[2]) < 0.1
+
+
+def test_calm_includes_own_motion_air_drag():
+    """Fix 8e: environment=None is explicit calm and must still apply the air drag of the ship's own motion, identically to a
+    supplied zero-wind, zero-current environment."""
+    v = full_ahead(speed=25.0)
+    a = run([v], dur=120, dt=0.2, sample=10.0)
+    b = run([v], dur=120, dt=0.2, sample=10.0, env={**env(), "water_density_kgm3": C.RHO_WATER_DEFAULT})   # same water density
+    assert [s.model_dump() for s in states(a)] == [s.model_dump() for s in states(b)]
+    assert states(a)[-1].forces.wind.surge_lbf < -1000.0          # a real headwind drag from own motion
+    assert states(a)[-1].stw_kt < 25.0 + 4.0                      # sanity: still moving

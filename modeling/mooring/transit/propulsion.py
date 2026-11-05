@@ -40,21 +40,23 @@ class Propulsion:
     rudder_rate: float       # rad/s
     thruster_max: float | None   # N
     thruster_x: float
+    n_rudders: int = 1
 
     def command_thrust(self, order: float) -> float:
         return order * self.t_max if order >= 0 else order * self.astern_fraction * self.t_max
 
     def rudder_forces(self, delta: float, thrust: float, u: float, v: float, r: float) -> tuple[float, float, float]:
+        n = self.n_rudders
         u_a = (1 - C.WAKE_W) * u
         u_p = max(u_a, 0.0)
-        u_s = math.sqrt(u_p * u_p + 2 * max(thrust, 0.0) / (self.rho * self.area_disc))
+        u_s = math.sqrt(u_p * u_p + 2 * max(thrust, 0.0) / n / (self.rho * self.area_disc))   # T/n per race
         u_r = u_a + C.RACE_FRACTION * (u_s - u_p)
         v_r = C.GAMMA_R * (v + self.x_r * r)
         sgn = 1.0 if u_r >= 0 else -1.0
         alpha = delta * sgn + math.atan2(v_r, max(abs(u_r), 1e-3))
         stall = math.radians(C.RUDDER_STALL_DEG)
         alpha = max(-stall, min(stall, alpha))
-        fn = 0.5 * self.rho * self.area_rudder * self.f_alpha * math.sin(alpha) * (u_r * u_r + v_r * v_r)
+        fn = n * 0.5 * self.rho * self.area_rudder * self.f_alpha * math.sin(alpha) * (u_r * u_r + v_r * v_r)
         return (-(1 - C.T_R) * fn * math.sin(delta), -(1 + C.A_H) * fn * math.cos(delta),
                 -(self.x_r + C.A_H * self.x_h) * fn * math.cos(delta))
 
@@ -65,7 +67,7 @@ class Propulsion:
         return command * self.thruster_max * max(0.0, 1.0 - abs(u) / C.THRUSTER_FADE_MPS)
 
 
-def build_propulsion(hull, settings, max_speed_mps: float) -> Propulsion:
+def build_propulsion(hull, settings, max_speed_mps: float, ship_class_id: str = "") -> Propulsion:
     L, B, T = hull.L, hull.B, hull.T
     lam = C.RUDDER_ASPECT
     return Propulsion(
@@ -77,4 +79,4 @@ def build_propulsion(hull, settings, max_speed_mps: float) -> Propulsion:
         x_r=C.X_R_OVER_L * L, x_h=C.X_H_OVER_L * L, rho=hull.rho,
         max_rudder=math.radians(settings.max_rudder_deg), rudder_rate=math.radians(settings.rudder_rate_degps),
         thruster_max=None if settings.bow_thruster_lbf is None else settings.bow_thruster_lbf * C.LBF_N,
-        thruster_x=C.THRUSTER_X_OVER_L * L)
+        thruster_x=C.THRUSTER_X_OVER_L * L, n_rudders=C.RUDDER_COUNT.get(ship_class_id, 1))

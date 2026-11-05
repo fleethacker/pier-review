@@ -3,13 +3,14 @@ import { cn } from '../../../lib/cn';
 import { fmt, lengthFromDisplay, lengthToDisplay, lengthUnit, useUnitSystem } from '../units';
 import { useController, useMooring } from './context';
 import { WorldPicker } from './WorldPicker';
+import { classSupport } from '../classSupport';
 
 export function SetupPanel() {
   useUnitSystem();
   const c = useController();
   const s = useMooring((x) => x);
   const berthLength = s.berth?.face_length_ft ?? 1000;
-  const noFittings = s.ship && (s.ship.fittings?.length ?? 0) === 0;
+  const support = classSupport(s.ship, s.shipClassId, s.loading);
 
   return (
     <Panel title="Scenario" className="space-y-3 p-4">
@@ -31,11 +32,19 @@ export function SetupPanel() {
           }))}
         />
       </Field>
-      {noFittings && (
-        <p className="text-[11px] text-mil-amber">
-          This class has no fitting data yet, so lines cannot be placed. The hull is shown for reference.
+      <div aria-label="Selected class capabilities" className="rounded-sm border border-mil-border bg-mil-bg/60 p-2 text-[11px]">
+        <div className="mil-label mb-1">Catalog coverage</div>
+        <dl className="space-y-1">
+          <div className="flex justify-between gap-2"><dt>Hull reference</dt><dd>{support.current ? 'Available' : 'Loading…'}</dd></div>
+          <div className="flex justify-between gap-2"><dt>Environmental load inputs</dt><dd>{support.hasLoadInputs ? 'Present · unqualified' : 'Unavailable'}</dd></div>
+          <div className="flex justify-between gap-2"><dt>Mooring fittings</dt><dd>{support.hasFittings ? `${s.ship?.fittings?.length} records` : 'Unavailable'}</dd></div>
+          <div className="flex justify-between gap-2"><dt>Planning workflow</dt><dd className="text-mil-amber">{support.canPlan ? 'Demonstration only' : 'Blocked'}</dd></div>
+        </dl>
+        {support.reason && <p role="status" className="mt-2 text-mil-amber">{support.reason}</p>}
+        <p className="mt-2 text-[10px] text-mil-dim">
+          Catalog records do not establish class qualification or loading applicability. Seed data remains limited.
         </p>
-      )}
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Loading">
           <Select
@@ -72,12 +81,12 @@ export function SetupPanel() {
           max={berthLength}
           step={1}
           value={s.shipXFt}
-          disabled={!!noFittings}
+          disabled={!support.current}
           onChange={(e) => c.setShipX(Number(e.target.value))}
           className="w-full accent-cyan-400"
           aria-label="Ship position along the pier"
         />
-        <span className="text-[10px] text-mil-dim">Or drag the ship on the canvas.</span>
+        <span className="text-[10px] text-mil-dim">Drag a ship with fitting data along or away from the pier; use these controls for exact placement.</span>
       </Field>
       <Field label={`Standoff from face (${lengthUnit()})`}>
         <input
@@ -85,6 +94,8 @@ export function SetupPanel() {
           className={inputClass}
           min={0}
           step={0.5}
+          aria-label={`Standoff from face (${lengthUnit()})`}
+          disabled={!support.current}
           placeholder="berth default"
           value={s.standoffOverrideFt == null ? '' : Number(lengthToDisplay(s.standoffOverrideFt).toFixed(2))}
           onChange={(e) => c.setStandoff(e.target.value === '' ? null : lengthFromDisplay(Number(e.target.value)))}

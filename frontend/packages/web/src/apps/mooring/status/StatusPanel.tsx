@@ -56,6 +56,11 @@ export function StatusPanel() {
         })}
       </ul>
 
+      <div className="border-t border-mil-border pt-2 text-[10px] text-mil-dim">
+        <span className="text-mil-amber">Bollard structural strain: unavailable.</span>{' '}
+        Fitting load and percentage of capacity do not measure deformation. A reviewed structural model and asset properties are required.
+      </div>
+
       {statusError && (
         <div role="alert" className="rounded-sm border border-mil-red/40 bg-mil-red/10 p-2 text-[10px] text-mil-red">
           Could not read the service's capability statement: {statusError}

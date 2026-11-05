@@ -1,15 +1,18 @@
 import { Button, Panel } from '../../../shell/ui';
 import { useController, useMooring } from './context';
+import { classSupport } from '../classSupport';
 
 export function RecommendPanel() {
   const c = useController();
   const rec = useMooring((s) => s.recommend);
-  const canRecommend = useMooring((s) => (s.ship?.fittings?.length ?? 0) > 0);
+  const s = useMooring((state) => state);
+  const support = classSupport(s.ship, s.shipClassId, s.loading);
   return (
     <Panel title="Recommended layouts" className="space-y-2 p-4">
-      <Button size="sm" disabled={!canRecommend || rec.state === 'running'} onClick={() => void c.recommend({ apply: false })}>
+      <Button size="sm" disabled={!support.canPlan || rec.state === 'running'} onClick={() => void c.recommend({ apply: false })}>
         {rec.state === 'running' ? `Working… ${Math.round(rec.progress * 100)}%` : 'Recommend layouts'}
       </Button>
+      {support.reason && <p className="text-[11px] text-mil-amber">{support.reason}</p>}
       {rec.state === 'error' && <p className="text-[11px] text-mil-red">{rec.error}</p>}
       <ul className="space-y-1.5">
         {rec.candidates.map((cand, i) => (

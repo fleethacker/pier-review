@@ -39,6 +39,36 @@ describe('deriveSources', () => {
     expect(byId(deriveSources({ env: env({ source: 'scenario', quality: [] }), envMode: manual, capabilities: caps }), 'wind').state).toBe('manual');
   });
 
+  it('never relabels recorded replay components as live observations', () => {
+    const replay = env({
+      source: 'replay',
+      quality: [],
+      metadata: {
+        basis: 'observation', quality: 'suspect',
+        components: [{ component: 'wind', source: 'recorded NOAA', basis: 'observation', quality: 'suspect', limitations: ['NOT current conditions.'] }],
+      },
+    } as Partial<Environment>);
+    const row = byId(deriveSources({ env: replay, envMode: { kind: 'replay', status: 'open', detail: null }, capabilities: caps }), 'wind');
+    expect(row).toMatchObject({ state: 'replay', provider: 'recorded NOAA', basis: 'observation' });
+    expect(row.reason).toMatch(/not current/i);
+  });
+
+  it('drives forecast status from component availability and never calls a forecast live', () => {
+    const base = { berth_id: 'b', checked_at_utc: '2026-11-05T18:00:00Z', complete_snapshot_available: true };
+    const prediction = deriveSources({
+      env: env({ source: 'live', quality: [] }), envMode: { kind: 'live', status: 'open', detail: null }, capabilities: caps,
+      availability: { ...base, components: [{ component: 'forecast', state: 'prediction', source: 'NWS + CO-OPS', basis: 'prediction', age_s: 900, quality: 'good', limitations: [] }] },
+    });
+    expect(byId(prediction, 'forecast')).toMatchObject({ state: 'prediction', provider: 'NWS + CO-OPS', ageS: 900, basis: 'prediction' });
+
+    const invalidLive = deriveSources({
+      env: env({ source: 'live', quality: [] }), envMode: { kind: 'live', status: 'open', detail: null }, capabilities: caps,
+      availability: { ...base, components: [{ component: 'forecast', state: 'live', source: 'unknown', basis: 'observation', quality: 'unknown', limitations: [] }] },
+    });
+    expect(byId(invalidLive, 'forecast').state).toBe('unavailable');
+    expect(byId(invalidLive, 'forecast').reason).toMatch(/not shown as live/);
+  });
+
   it('keeps waves, wake and telemetry unavailable with a reason, never zero', () => {
     const rows = deriveSources({ env: env(), envMode: manual, capabilities: caps });
     for (const id of ['waves', 'wake', 'telemetry']) {

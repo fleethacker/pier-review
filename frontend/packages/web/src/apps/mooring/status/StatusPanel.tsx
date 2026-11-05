@@ -19,6 +19,7 @@ const STATE_STYLE: Record<SourceState, { color: string; label: string }> = {
 export function StatusPanel() {
   const c = useController();
   const env = useMooring((s) => s.env);
+  const availability = useMooring((s) => s.envAvailability);
   const envMode = useMooring((s) => s.envMode);
   const capabilities = useMooring((s) => s.capabilities);
   const modules = useMooring((s) => s.modules);
@@ -27,7 +28,7 @@ export function StatusPanel() {
   const statusError = useMooring((s) => s.statusError);
   const backend = useMooring((s) => s.backend);
   const envError = useMooring((s) => s.envError);
-  const rows = deriveSources({ env, envMode, capabilities, envError });
+  const rows = deriveSources({ env, availability, envMode, capabilities, envError });
   const { limited, total } = limitedCount(capabilities);
   return (
     <Panel title="Data sources and capabilities" className="space-y-2 p-4">

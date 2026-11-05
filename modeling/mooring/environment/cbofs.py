@@ -118,9 +118,13 @@ class CBOFSSampler:
         depths = _read(dataset.Depth).astype(float)
         if not np.isfinite(depths).all() or np.any(depths < 0) or np.any(np.diff(depths) <= 0):
             raise ProviderError("malformed", "CBOFS standard depths must be finite and strictly increasing")
-        if not depths[0] <= depth_m <= depths[-1]:
-            raise ProviderError("no_data", "Requested depth lies outside CBOFS standard layers")
-        z = int(np.argmin(abs(depths - depth_m)))
+        matches = np.flatnonzero(np.isclose(depths, depth_m, rtol=0, atol=1e-6))
+        if len(matches) != 1:
+            raise ProviderError(
+                "no_data",
+                "Requested depth does not exactly match one CBOFS standard layer; a nearby layer is not substituted",
+            )
+        z = int(matches[0])
         raw_times = _read(dataset.time)
         if raw_times.dtype.kind != "M":
             raise ProviderError("malformed", "CBOFS times must be decoded datetime coordinates")

@@ -88,6 +88,28 @@ def test_bad_quality_missing_fields_and_malformed_rows():
         assert e.value.kind == "malformed"
 
 
+@pytest.mark.parametrize("parser", [coops.parse_wind, coops.parse_water_level, coops.parse_currents])
+@pytest.mark.parametrize("row", [None, "invalid row", 12])
+def test_nonobject_observation_rows_raise_provider_error(parser, row):
+    with pytest.raises(ProviderError, match="list of objects") as error:
+        parser({"data": [row]})
+    assert error.value.kind == "malformed"
+
+
+def test_explicit_current_bin_mismatch_is_never_relabelled_during_parsing_or_join():
+    doc = L("currents_cb0402_bin4.json")
+    for row in doc["data"]:
+        row["b"] = "1"
+    with pytest.raises(ProviderError, match="differs from requested bin 4"):
+        coops.parse_currents(doc, expected_bin=4)
+    parsed = coops.parse_currents(doc)
+    assert all(row["bin"] == "1" for row in parsed)
+    with pytest.raises(ProviderError, match="differs from requested bin 4"):
+        coops.assemble(coops.parse_wind(L("wind_8638614.json")),
+                      coops.parse_water_level(L("water_level_8638610.json")), parsed,
+                      wind_station="8638614", level_station="8638610", current_station="cb0402", bin=4)
+
+
 def test_water_level_flags_mark_suspect_and_preliminary_is_disclosed():
     doc = {"data": [{"t": "2026-01-01 00:00", "v": "1.0", "f": "0,0,1,0", "q": "p"}, {"t": "2026-01-01 00:06", "v": "1.1", "f": "0,0,0,0", "q": "p"}]}
     lv = coops.parse_water_level(doc)
@@ -239,13 +261,40 @@ def configure(transport, now=NOW):
     live.configure(Fetcher(transport, clock=lambda: now, sleep=lambda s: None, retries=0, min_interval_s=0.0), clock=lambda: now)
 
 
+@pytest.mark.parametrize("bad_product,component", [("wind", "wind"), ("water_level", "water_level"), ("currents", "current")])
+def test_malformed_observation_preserves_other_component_availability(coops_mode, bad_product, component):
+    configure(recorded_transport({bad_product: {"data": [None]}}))
+    status = live.component_availability("NAVSTA-NORFOLK-P12-N", NOW)
+    by_component = {item.component: item for item in status.components}
+    assert by_component[component].state == "unavailable"
+    assert "malformed" in by_component[component].reason
+    assert all(by_component[name].state == "live" for name in ("wind", "current", "water_level") if name != component)
+    assert not status.complete_snapshot_available
+
+
+def test_wrong_current_bin_stays_unavailable_and_is_not_cached(coops_mode):
+    doc = L("currents_cb0402_bin4.json")
+    for row in doc["data"]:
+        row["b"] = "1"
+    f = Fetcher(recorded_transport({"currents": doc}), clock=lambda: NOW, sleep=lambda _: None,
+                retries=0, min_interval_s=0)
+    live.configure(f, clock=lambda: NOW)
+    status = live.component_availability("NAVSTA-NORFOLK-P12-N", NOW)
+    by_component = {item.component: item for item in status.components}
+    assert by_component["current"].state == "unavailable"
+    assert "differs from requested bin 4" in by_component["current"].reason
+    assert by_component["wind"].state == by_component["water_level"].state == "live"
+    assert len(f.cache) == 2  # only the unaffected wind and water-level documents
+
+
 def test_env_now_serves_the_latest_recorded_observation_with_metadata(coops_mode):
     configure(recorded_transport())
     r = client.get("/api/v1/env/now?berth_id=NAVSTA-NORFOLK-P12-N&heading_true_deg=105")
     assert r.status_code == 200
     j = r.json()
     assert j["source"] == "live" and j["metadata"]["current_bin"] == "4" and j["wind_rel_ship_deg"] is not None
-    assert j["valid_at_utc"].startswith("2026-01-01T00:54") and j["wind_speed_kt"] > 0
+    assert j["valid_at_utc"].startswith("2026-01-01T00:48") and j["wind_speed_kt"] > 0
+    assert datetime.fromisoformat(j["valid_at_utc"]) <= NOW
     # CO-OPS supplied an observation time, not an independent publication/issue timestamp.
     assert j["metadata"]["issued_at_utc"] is None and j["metadata"]["age_s"] >= 0
 
@@ -285,23 +334,24 @@ def test_ws_env_reports_provider_failure_and_does_not_synthesize(coops_mode):
     assert msg["error"] == "unavailable" and "unavailable" in msg["detail"]
 
 
-def test_ws_replay_uses_bundled_fixture_with_explicit_synthetic_basis(monkeypatch):
+def test_ws_replay_uses_manifest_backed_recorded_observations(monkeypatch):
     monkeypatch.delenv("MOORING_ENV_SOURCE", raising=False)
     with client.websocket_connect(
-        "/ws/env?berth_id=NAVSTA-NORFOLK-P12-N&mode=replay&replay_start_utc=2026-03-01T12:00:00Z&interval_s=0&limit=1"
+        "/ws/env?berth_id=NAVSTA-NORFOLK-P12-N&mode=replay&replay_start_utc=2026-01-01T00:00:00Z&interval_s=0&limit=1"
     ) as ws:
         msg = ws.receive_json()
-    assert msg["source"] == "replay" and msg["metadata"]["source"] == "synthetic recorded-format fixture"
-    assert msg["metadata"]["basis"] == "scenario"
+    assert msg["source"] == "replay" and "NOAA CO-OPS" in msg["metadata"]["source"]
+    assert msg["metadata"]["basis"] == "observation"
 
 
 def test_version_reports_provider_modes(coops_mode):
     modules = client.get("/api/v1/version").json()["modules"]
-    assert modules["Provider NOAA CO-OPS"] == "live"
-    assert modules["Provider NWS"].startswith("unavailable")
+    assert modules["Provider NOAA CO-OPS"].startswith("live observations")
+    assert modules["Provider NWS"].startswith("bound forecast composition")
 
 
-def test_default_mode_stays_offline_and_deterministic():
+def test_explicit_mock_mode_stays_offline_and_deterministic(monkeypatch):
+    monkeypatch.setenv("MOORING_ENV_SOURCE", "mock")
     r = client.get("/api/v1/env/now?berth_id=NAVSTA-NORFOLK-P12-N")
     assert r.status_code == 200 and r.json()["source"] == "mock"
 

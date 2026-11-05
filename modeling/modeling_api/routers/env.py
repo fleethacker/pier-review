@@ -3,7 +3,19 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
-from mooring.core.schemas import EnvironmentSnapshot, EnvScenario, EnvScenarioCreate, ForecastSeries, GustModel, HistorySeries
+from mooring.core.schemas import (
+    ComposedForecast,
+    ComposedForecastRequest,
+    ComposedWaves,
+    EnvironmentAvailability,
+    EnvironmentSnapshot,
+    EnvScenario,
+    EnvScenarioCreate,
+    ForecastSeries,
+    GustModel,
+    HistorySeries,
+    WaveComposeRequest,
+)
 from mooring.examples import ex
 
 from mooring.environment.coops import ProviderError
@@ -23,6 +35,12 @@ def guarded(fn, *a, **kw):
 router = APIRouter(tags=["M1 Environment"])
 
 
+@router.on_event("startup")
+def validate_environment_configuration():
+    """Fail process startup before an unknown source can fall through to synthetic data."""
+    impl.validate_configuration()
+
+
 @router.get("/env/now", response_model=EnvironmentSnapshot, summary="Current environment at a berth")
 def env_now(
     berth_id: str,
@@ -32,6 +50,19 @@ def env_now(
     return guarded(impl.now, berth_id, heading_true_deg, env_scenario_id)
 
 
+@router.get(
+    "/env/availability",
+    response_model=EnvironmentAvailability,
+    summary="Independent source and availability status for environment components",
+)
+def env_availability(berth_id: str):
+    """Report partial status without weakening the complete `/env/now` contract."""
+    from mooring import refdata
+
+    refdata.berth(berth_id)
+    return guarded(impl.availability, berth_id)
+
+
 @router.get("/env/forecast", response_model=ForecastSeries, summary="Forecast series at a berth")
 def env_forecast(berth_id: str, hours: Annotated[int, Query(ge=1, le=120)] = 48,
                  step_min: Annotated[int, Query(ge=6, le=180)] = 30):
@@ -39,6 +70,28 @@ def env_forecast(berth_id: str, hours: Annotated[int, Query(ge=1, le=120)] = 48,
 
     refdata.berth(berth_id)
     return guarded(impl.forecast, berth_id, hours, step_min)
+
+
+@router.post(
+    "/env/forecast/compose",
+    response_model=ComposedForecast,
+    summary="Acquire a frozen component-level forecast manifest",
+)
+def env_forecast_compose(
+    req: Annotated[ComposedForecastRequest, Body(openapi_examples=ex("env_forecast_compose"))],
+):
+    return guarded(impl.compose_forecast, req)
+
+
+@router.post(
+    "/env/waves/compose",
+    response_model=ComposedWaves,
+    summary="Acquire offshore wave evidence and explicit berth-applicability gaps",
+)
+def env_waves_compose(
+    req: Annotated[WaveComposeRequest, Body(openapi_examples=ex("env_waves_compose"))],
+):
+    return guarded(impl.compose_waves, req)
 
 
 @router.get("/env/history", response_model=HistorySeries, summary="Historical observations for replay")

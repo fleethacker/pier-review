@@ -9,6 +9,7 @@ import { PRESET_SCENARIOS } from './scenarios';
 import { Side } from './Side';
 import { StoryboardPanel } from './StoryboardPanel';
 import { STOCK } from './stockImages';
+import type { ScenarioConfig } from './types';
 
 vi.mock('mapbox-gl', () => ({ default: { fake: true } }));
 vi.mock('./mapView', () => ({
@@ -22,16 +23,16 @@ configure({ asyncUtilTimeout: 10_000 });
 vi.setConfig({ testTimeout: 60_000 });
 
 const preset = (id: string) => PRESET_SCENARIOS.find((p) => p.id === id)!;
-/** Presets that ship without a storyboard, for the empty states. Found at run time so adding one elsewhere cannot break these. */
-const WITHOUT_STORY = PRESET_SCENARIOS.find((p) => !p.storyboard?.length)!.id;
-/** One without a storyboard that has plenty happening in it, so building a storyboard has something to work from. */
-const BUSY_WITHOUT_STORY = 'air-raid';
-function mount(ui: React.ReactNode, id = 'salvo-defense') {
-  const c = new ExerciseController(undefined, preset(id));
+/** Every preset ships a storyboard, so the empty states run on a copy of one with its storyboard taken off. */
+const withoutStory = (id: string): ScenarioConfig => ({ ...preset(id), storyboard: undefined });
+/** One with plenty happening in it, so building a storyboard from the run has something to work from. */
+const BUSY = 'air-raid';
+function mount(ui: React.ReactNode, from: string | ScenarioConfig = 'salvo-defense') {
+  const c = new ExerciseController(undefined, typeof from === 'string' ? preset(from) : from);
   return { c, ...render(<ControllerContext.Provider value={c}>{ui}</ControllerContext.Provider>) };
 }
-const open = (id = 'salvo-defense') => {
-  const u = mount(<StoryboardPanel />, id);
+const open = (from: string | ScenarioConfig = 'salvo-defense') => {
+  const u = mount(<StoryboardPanel />, from);
   act(() => u.c.toggleStoryboard(true));
   return u;
 };
@@ -172,8 +173,8 @@ describe('the storyboard panel', () => {
   });
 
   it('builds a storyboard from the run, and can be told how many moments to make', () => {
-    const { c } = open(BUSY_WITHOUT_STORY);
-    expect(c.storyboard(), `${BUSY_WITHOUT_STORY} now ships with a storyboard; point this test at another preset`).toHaveLength(0);
+    const { c } = open(withoutStory(BUSY));
+    expect(c.storyboard()).toHaveLength(0);
     expect(dialog().getByText(/Nothing in the storyboard yet/)).toBeTruthy();
     const count = dialog().getByLabelText('Moments');
     fireEvent.change(count, { target: { value: '5' } });
@@ -310,7 +311,7 @@ describe('the storyboard strip on the page', () => {
   });
 
   it('offers to build one when a scenario has none', () => {
-    const { c } = mount(<Bottom />, WITHOUT_STORY);
+    const { c } = mount(<Bottom />, withoutStory(BUSY));
     showStory();
     expect(screen.queryByRole('list', { name: 'Storyboard' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Open the storyboard' }));

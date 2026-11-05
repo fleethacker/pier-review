@@ -70,6 +70,17 @@ const transit: ScenarioConfig = {
       behavior: { type: 'route', waypoints: [wp(18000, -40000)] },
     },
   ],
+  storyboard: [
+    { id: 'sb1', atS: 0, holdS: 200, at: OCEAN_CENTER, title: 'Carrier group transit', caption: 'A carrier, a cruiser and two destroyers steam east at 18 knots at dusk. Nothing shoots at anything: this one is about how a formation moves.', image: stock.formation },
+    { id: 'sb2', unitId: 'cvn1', atS: 40, holdS: 200, title: 'Carrier 1 — the guide', caption: 'T+00:00:00  The carrier sets course and speed for everyone. She turns at a tenth of a degree a second, so a 45-degree change takes seven and a half minutes.', image: stock.carrier },
+    { id: 'sb3', unitId: 'cg1', atS: 90, holdS: 180, title: 'Cruiser 1 — 3 km ahead', caption: 'T+00:01:30  The screen: the cruiser 3 km ahead, a destroyer 3 km out on each bow.', image: stock.destroyer },
+    { id: 'sb4', unitId: 'cvn1', atS: 2160, holdS: 200, title: 'Carrier 1 — first course change', caption: 'T+00:36:00  The carrier comes right onto the south-east leg. Watch the two destroyers rather than the carrier: the turn is theirs to pay for.', image: stock.bridge },
+    { id: 'sb5', unitId: 'ddg2', atS: 2320, holdS: 190, title: 'Destroyer 2 — 9 knots in the turn', caption: 'T+00:38:40  Inside the turn the station comes to meet her. She drops to nine knots and lets it.', image: stock.frigate },
+    { id: 'sb6', unitId: 'ddg1', atS: 2330, holdS: 190, title: 'Destroyer 1 — 28 knots in the same turn', caption: 'T+00:38:50  Outside the turn her station runs away from her, so she works up to 28 knots to catch it: nineteen knots between the two wings of one formation.', image: stock.destroyer },
+    { id: 'sb7', unitId: 'mv1', atS: 3475, holdS: 190, title: 'Merchant 1 — closest point of approach', caption: 'T+00:57:55  The merchant crosses the group’s track and passes 1.95 km from the carrier. Neither alters course: this is the geometry a watch officer is there to see coming.', image: stock.replenish },
+    { id: 'sb8', unitId: 'cvn1', atS: 3540, holdS: 200, title: 'Carrier 1 — back to the east', caption: 'T+00:59:00  The second course change, onto the last leg. The cruiser is 3 km ahead again inside six minutes.', image: stock.bridge },
+    { id: 'sb9', atS: 5100, holdS: 300, at: OCEAN_CENTER, title: 'What to watch', caption: 'Ninety minutes, no weapons, no contacts. Two course changes, 28 knots on the outside and nine on the inside, and one merchant inside 2 km. Load another scenario for the shooting.', image: stock.satellite },
+  ],
 };
 
 const encounter: ScenarioConfig = {
@@ -153,6 +164,16 @@ const encounter: ScenarioConfig = {
       behavior: { type: 'route', waypoints: [wp(-30000, 6000)] },
     },
   ],
+  storyboard: [
+    { id: 'sb1', atS: 0, holdS: 190, at: OCEAN_CENTER, title: 'Surface contact intercept', caption: 'Three fast attack craft come down from the north-east at 38 knots. Two destroyers hold their course east; a cruiser runs in from the north-west to shadow the leader.', image: stock.bridge },
+    { id: 'sb2', unitId: 'cg1', atS: 30, holdS: 180, title: 'Cruiser 1 — ordered to shadow', caption: 'T+00:00:20  The cruiser turns onto an intercept at 28 knots, meaning to sit 2.5 km off the lead craft and stay there.', image: stock.destroyer },
+    { id: 'sb3', unitId: 'fac1', atS: 600, holdS: 180, title: 'Fast craft 1 — coming down', caption: 'T+00:10:00  Three craft in a tight vee at 38 knots, headed for the water between the two destroyers.', image: stock.frigate },
+    { id: 'sb4', unitId: 'mv1', atS: 690, holdS: 170, title: 'Merchant 1 — passing through', caption: 'T+00:11:30  A neutral merchant crosses the picture westbound. Its nearest approach to the lead craft is 9.9 km.', image: stock.replenish },
+    { id: 'sb5', unitId: 'ddg1', atS: 1080, holdS: 190, title: 'Destroyer 1 — 240 metres', caption: 'T+00:18:00  The lead craft runs down Destroyer 1’s side at 240 m. Destroyer 2, 2.2 km across, sees it pass at just under 2 km.', image: stock.bridge },
+    { id: 'sb6', unitId: 'fac1', atS: 1120, holdS: 180, title: 'Fast craft 1 — through the screen', caption: 'T+00:18:40  Past the destroyers, all three turn south-west together and start opening the range.', image: stock.frigate },
+    { id: 'sb7', unitId: 'cg1', atS: 1450, holdS: 200, title: 'Cruiser 1 — the chase it cannot win', caption: 'T+00:24:10  The nearest the cruiser gets is 9.7 km. Twenty-eight knots does not catch thirty-eight, and the shadow never starts.', image: stock.destroyer },
+    { id: 'sb8', atS: 2300, holdS: 300, at: OCEAN_CENTER, title: 'What to watch', caption: 'No weapons in this one: it is speed and geometry. The craft are through the screen in eighteen minutes, and the standoff the cruiser was sent to hold was never hers to hold.', image: stock.satellite },
+  ],
 };
 
 const drillStart = at(-8000, -6000);
@@ -212,6 +233,17 @@ const drill: ScenarioConfig = {
       speedKt: 16,
       behavior: { type: 'escort', leaderId: 'cg1', aheadM: -1800, abeamM: 0 },
     },
+  ],
+  storyboard: [
+    { id: 'sb1', atS: 0, holdS: 200, at: OCEAN_CENTER, title: 'Formation maneuvering drill', caption: 'A cruiser leads three destroyers around a box: two abeam at 1.2 km, one astern at 1.8 km. No opposition and nothing to shoot — the whole exercise is station-keeping.', image: stock.formation },
+    { id: 'sb2', unitId: 'cg1', atS: 40, holdS: 190, title: 'Guide — 16 knots, east', caption: 'T+00:00:00  The guide holds 16 knots on the first leg and turns at a fifth of a degree a second. Everyone else keeps station on her.', image: stock.bridge },
+    { id: 'sb3', unitId: 'cg1', atS: 950, holdS: 190, title: 'Guide — up to 18 knots, wheel to port', caption: 'T+00:15:50  Speed on for the second leg and the wheel over to the north. The turn is where station-keeping gets expensive.', image: stock.destroyer },
+    { id: 'sb4', unitId: 'ddg2', atS: 1160, holdS: 190, title: 'Escort 2 — 26 knots on the outside', caption: 'T+00:19:20  Outside the turn, Escort 2 runs 26 knots to hold a station 1.2 km abeam of a ship doing 18.', image: stock.destroyer },
+    { id: 'sb5', unitId: 'ddg1', atS: 1260, holdS: 190, title: 'Escort 1 — 10 knots on the inside', caption: 'T+00:21:00  Inside the same turn, Escort 1 falls to 10 knots. Sixteen knots between the two wings, and neither has moved off station.', image: stock.frigate },
+    { id: 'sb6', unitId: 'ddg3', atS: 1420, holdS: 190, title: 'Escort 3 — across the wake', caption: 'T+00:23:40  Astern of the guide, Escort 3 swings through the wake and comes back out on the new course.', image: stock.destroyer },
+    { id: 'sb7', unitId: 'cg1', atS: 2630, holdS: 190, title: 'Guide — down to 14 knots', caption: 'T+00:43:50  The last leg of the box is the slow one. Now the escorts have to hold back rather than chase.', image: stock.bridge },
+    { id: 'sb8', unitId: 'cg1', atS: 3660, holdS: 200, title: 'Guide — round again', caption: 'T+01:01:00  The box loops: the same four legs in the same order for the rest of the hour and a half.', image: stock.formation },
+    { id: 'sb9', atS: 5100, holdS: 300, at: OCEAN_CENTER, title: 'What to watch', caption: 'Ninety minutes and nothing hostile on the screen. Every number worth having is the cost of a turn: 26 knots on the outside, 10 on the inside, and stations back inside 1.2 km once she steadies.', image: stock.satellite },
   ],
 };
 
@@ -409,6 +441,16 @@ const minefieldTransit: ScenarioConfig = {
     },
     ...minefield(36, 0, 0, 3000, 1500, 7),
   ],
+  storyboard: [
+    { id: 'sb1', atS: 0, holdS: 200, at: OCEAN_CENTER, title: 'Minefield transit', caption: 'Three destroyers and a merchant follow one track east at 15 knots. Thirty-six mines are scattered over the water ahead and nothing on board can see them.', image: stock.satellite },
+    { id: 'sb2', unitId: 'ddg1', atS: 60, holdS: 190, title: 'Destroyer 1 — leading', caption: 'The lead destroyer takes the track first and the other two follow 1.5 km apart in her wake.', image: stock.destroyer },
+    { id: 'sb3', unitId: 'mv1', atS: 900, holdS: 190, title: 'Merchant 1 — last in line', caption: 'The merchant follows 2 km astern of the last destroyer, over water three warships have already crossed. That is the safest place in the column, and it is about to not be enough.', image: stock.replenish },
+    { id: 'sb4', unitId: 'ddg1', atS: 1960, holdS: 180, title: 'Destroyer 1 — the one that did not go off', caption: 'T+00:32:40  Mine 7 is close enough to trigger under the leader and does not. She steams on, and nobody aboard ever learns how narrow that was.', image: stock.bridge },
+    { id: 'sb5', unitId: 'mv1', atS: 2098, holdS: 180, title: 'Merchant 1 — mine strike', caption: 'T+00:34:58  Mine 34 goes off under the merchant. 80 of 150 hit points left.', image: stock.burning },
+    { id: 'sb6', unitId: 'ddg2', atS: 2149, holdS: 190, title: 'Destroyer 2 — mine strike', caption: 'T+00:35:49  Mine 7 — the one that spared the leader — goes off under the second destroyer. 30 of 100 hit points left.', image: stock.burning },
+    { id: 'sb7', unitId: 'mv1', atS: 2231, holdS: 200, title: 'Merchant 1 — struck again', caption: 'T+00:37:11  Two minutes after the first, Mine 9 finds the merchant again. 10 of 150 hit points left: still afloat, and only just.', image: stock.burning },
+    { id: 'sb8', atS: 2600, holdS: 300, at: OCEAN_CENTER, title: 'What it cost', caption: 'Three strikes in two and a half minutes, no ship lost, and every ship on the same track. This is one roll of the dice: open Red team and run two hundred to see how often the leader is the one who finds a mine.', image: stock.formation },
+  ],
   redTeam: {
     runs: 200,
     seed: 5,
@@ -491,6 +533,17 @@ const airRaid: ScenarioConfig = {
       launch: { byId: i % 2 === 0 ? 'cg1' : 'ddg1', atS: 150 + i * 8 },
       behavior: { type: 'strike', targetId: `rf${i + 1}` },
     })),
+  ],
+  storyboard: [
+    { id: 'sb1', atS: 0, holdS: 130, at: OCEAN_CENTER, title: 'Air raid and SAM defence', caption: 'Four fighters come in from the north-east at 450 knots. A cruiser and a destroyer have surface-to-air missiles, close-in defences, and about four minutes.', image: stock.jet },
+    { id: 'sb2', unitId: 'rf1', atS: 70, holdS: 120, title: 'Raiders — missiles away', caption: 'T+00:01:10  Each of the four raiders fires one anti-ship missile at the cruiser, eight seconds apart.', image: stock.launch },
+    { id: 'sb3', unitId: 'cg1', atS: 150, holdS: 120, title: 'Cruiser 1 — SAMs away', caption: 'T+00:02:30  Four surface-to-air missiles leave the cruiser and the destroyer, aimed at the raiders rather than at the weapons already in the air.', image: stock.bridge },
+    { id: 'sb4', unitId: 'rf1', atS: 193, holdS: 120, title: 'Raider 1 — missed', caption: 'T+00:03:13  The first SAM does not detonate. Raider 1 is the only one of the four that gets away.', image: stock.jet },
+    { id: 'sb5', unitId: 'rf2', atS: 202, holdS: 130, title: 'Three raiders down', caption: 'T+00:03:22  SAMs 2, 3 and 4 take Raiders 2, 3 and 4 inside sixteen seconds. The missiles they already fired keep running.', image: stock.burning },
+    { id: 'sb6', unitId: 'cg1', atS: 243, holdS: 120, title: 'Cruiser 1 — two shot down', caption: 'T+00:04:03  The cruiser stops the leading missile and the destroyer the second, twelve seconds later. Two left.', image: stock.launch },
+    { id: 'sb7', unitId: 'cg1', atS: 288, holdS: 130, title: 'Cruiser 1 — hit', caption: 'T+00:04:48  The third missile gets through. 60 of 120 hit points left, and seven seconds until the next one arrives.', image: stock.burning },
+    { id: 'sb8', unitId: 'cg1', atS: 295, holdS: 200, title: 'Cruiser 1 — lost', caption: 'T+00:04:55  The fourth finishes her. Stopping half a salvo of four was not enough.', image: stock.burning },
+    { id: 'sb9', atS: 520, holdS: 300, at: OCEAN_CENTER, title: 'What it cost', caption: 'Three raiders shot down, one cruiser lost, the whole thing over inside five minutes. Open Red team: the cruiser’s magazine and the raiders’ altitude are the two numbers that move the answer.', image: stock.satellite },
   ],
   redTeam: {
     runs: 200,

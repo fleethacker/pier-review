@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { storyboardHtml } from './exportResults';
 import { exportScenario, parseScenario } from './scenarioJson';
 import { PRESET_SCENARIOS } from './scenarios';
-import { runScenario } from './sim';
+import { runScenario, unitStateAt } from './sim';
+import { angleDiff, distanceM } from './geo';
 import { STOCK, pickStock, stockByUrl, isStock } from './stockImages';
 import {
   autoStoryboard,
@@ -276,9 +277,11 @@ describe('the storyboard in a scenario file', () => {
   });
 
   const WITH_STORY = PRESET_SCENARIOS.filter((p) => p.storyboard?.length).map((p) => p.id);
+  /** Presets quiet enough to produce no events: their captions describe maneuvers instead, checked separately below. */
+  const PEACEFUL = ['csg-transit', 'surface-encounter', 'formation-drill'];
 
-  it('ships on several presets, not just one', () => {
-    expect(WITH_STORY).toEqual(expect.arrayContaining(['salvo-defense', 'sub-ambush', 'over-the-horizon', 'drone-swarm']));
+  it('ships on every preset', () => {
+    expect(WITH_STORY).toEqual(PRESET_SCENARIOS.map((p) => p.id));
   });
 
   it.each(WITH_STORY)('%s has a storyboard in order, inside the run, with a picture on every moment', (id) => {
@@ -296,7 +299,7 @@ describe('the storyboard in a scenario file', () => {
     expect(moments.at(-1)!.atS).toBeGreaterThan(s.durationS / 3);
   });
 
-  it.each(WITH_STORY)('%s: every time a caption quotes is a thing that really happens in the run', (id) => {
+  it.each(WITH_STORY.filter((id) => !PEACEFUL.includes(id)))('%s: every time a caption quotes is a thing that really happens in the run', (id) => {
     const s = PRESET_SCENARIOS.find((p) => p.id === id)!;
     const times = new Set(runScenario(s).events.map((e) => Math.round(e.tS)));
     const quoted = s.storyboard!.flatMap((m) => {
@@ -309,6 +312,58 @@ describe('the storyboard in a scenario file', () => {
       expect(times.has(at), `${id} ${m.id} quotes T+${at}, which is not an event`).toBe(true);
       expect(Math.abs(at - m.atS), `${id} ${m.id} comes up far from the moment it describes`).toBeLessThanOrEqual(60);
     }
+  });
+
+  describe('the presets where nothing is fired: the captions describe maneuvers, so check those', () => {
+    const run = (id: string) => {
+      const s = PRESET_SCENARIOS.find((p) => p.id === id)!;
+      const t = runScenario(s);
+      expect(t.events, `${id} now produces events; it belongs with the scenarios checked against them`).toEqual([]);
+      const state = (unitId: string, atS: number) => unitStateAt(t, t.unitIds.indexOf(unitId), atS);
+      const closest = (a: string, b: string) => {
+        let best = { distM: Infinity, atS: 0 };
+        for (let at = 0; at <= s.durationS; at += 5) {
+          const distM = distanceM(state(a, at), state(b, at));
+          if (distM < best.distM) best = { distM, atS: at };
+        }
+        return best;
+      };
+      return { state, closest };
+    };
+
+    it('carrier group transit: the turn costs the wings 28 knots and 9, and the merchant passes inside 2 km', () => {
+      const { state, closest } = run('csg-transit');
+      expect(state('ddg1', 2330).speedKt).toBeGreaterThan(27);
+      expect(state('ddg2', 2320).speedKt).toBeLessThan(10);
+      const pass = closest('mv1', 'cvn1');
+      expect(pass.distM / 1000).toBeCloseTo(1.95, 1);
+      expect(Math.abs(pass.atS - 3475)).toBeLessThanOrEqual(60);
+      // Both course changes are under way when the storyboard says they are.
+      expect(Math.abs(angleDiff(state('cvn1', 2760).headingDeg, state('cvn1', 2160).headingDeg))).toBeGreaterThan(20);
+      expect(Math.abs(angleDiff(state('cvn1', 4140).headingDeg, state('cvn1', 3540).headingDeg))).toBeGreaterThan(20);
+    });
+
+    it('surface contact intercept: the craft pass 240 m down the destroyer, and the cruiser never closes', () => {
+      const { closest } = run('surface-encounter');
+      const pass = closest('fac1', 'ddg1');
+      expect(Math.round(pass.distM)).toBeLessThan(250);
+      expect(Math.abs(pass.atS - 1080)).toBeLessThanOrEqual(60);
+      expect(closest('fac1', 'ddg2').distM / 1000).toBeCloseTo(1.95, 1);
+      expect(closest('mv1', 'fac1').distM / 1000).toBeCloseTo(9.9, 0);
+      const chase = closest('cg1', 'fac1');
+      expect(chase.distM / 1000).toBeCloseTo(9.7, 0);
+      expect(Math.abs(chase.atS - 1450)).toBeLessThanOrEqual(60);
+    });
+
+    it('formation drill: the guide changes speed by leg and the escorts pay for the turn', () => {
+      const { state } = run('formation-drill');
+      expect(state('cg1', 40).speedKt).toBeCloseTo(16, 0);
+      expect(state('cg1', 950).speedKt).toBeCloseTo(18, 0);
+      expect(state('cg1', 2630).speedKt).toBeCloseTo(14, 0);
+      expect(state('cg1', 3660).speedKt).toBeCloseTo(16, 0);
+      expect(state('ddg2', 1160).speedKt).toBeGreaterThan(25);
+      expect(state('ddg1', 1260).speedKt).toBeLessThan(11);
+    });
   });
 
   it('the salvo storyboard names the carrier being hit at the time it is hit', () => {

@@ -48,11 +48,10 @@ def _build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
     top = a.result.min_margin
     limit = review.thresholds.limit_wll_gust_kt if review else None
     breaking = review.thresholds.limit_breaking_gust_kt if review else None
-    worst_lines = sorted(rows, key=lambda r: -r.pct_wll)[:2]
     go_no_go = []
     if limit:
         go_no_go.append(GoNoGo(condition=f"Gusts above {0.8 * limit:.0f} kt (80% of plan limit)",
-                               action=f"Tend and double up lines {', '.join(str(r.line_number) for r in worst_lines)}"))
+                               action="Reassess the plan with the bridge and pilot; use only an independently reviewed tending or assistance procedure"))
         go_no_go.append(GoNoGo(condition=f"Gusts above {limit:.0f} kt (working-load limit)",
                                action="Call holding tugs; consider an alternate berth"))
     if breaking:
@@ -67,7 +66,8 @@ def _build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
         status = "RED"
     elif validity and validity.state == "limited" and status == "GREEN":
         status = "AMBER"
-    report = REPORTS.get(plan.intake_report_id) if plan.intake_report_id else None
+    report_id = review.intake_report_id if review and review.intake_report_id else plan.intake_report_id
+    report = REPORTS.get(report_id) if report_id else None
     forecast_summary = report.summary if report else "No intake forecast attached; only the plan's evaluated conditions are documented."
     validity_findings = [Finding(rule_id=r.code, severity="RED" if validity.state == "invalid" else "AMBER",
         message=r.message, reference="Result validity", element_ids=r.affected_components) for r in validity.reasons] if validity else []

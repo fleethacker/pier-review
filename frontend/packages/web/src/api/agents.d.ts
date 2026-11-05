@@ -1326,7 +1326,7 @@ export interface components {
             plan_id: string;
             /**
              * Intake Report Id
-             * @description Re-check against this report's conditions.
+             * @description Add this report's conditions to the original intake conditions; neither report is discarded.
              */
             intake_report_id?: string | null;
             /**

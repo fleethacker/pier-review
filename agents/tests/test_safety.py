@@ -214,3 +214,70 @@ def test_missing_or_stale_forecast_cannot_pass_safety_coverage():
     report=SimpleNamespace(data_quality=[SimpleNamespace(issue='missing', severity='RED', detail='No wind forecast')])
     result=forecast_coverage(report)
     assert not result.passed and result.severity=='RED' and 'No wind forecast' in result.detail
+
+
+def test_supplemental_intake_cannot_erase_original_failures(monkeypatch):
+    from mooring_agents.safety.schemas import SafetyReviewRequest
+    original, supplemental = env(90, 10), env(90, 20)
+    seen = []
+    plan = SimpleNamespace(status='RED', intake_report_id='original-review-input', rationale=[],
+                           config=SimpleNamespace(model_dump=lambda **kw: {}), tug_plan=None)
+    rec = SimpleNamespace(plan=plan, scenario=SimpleNamespace(berth_id='b', ship_class_id='s'),
+                          env=original, mst='II', holding_tugs=[])
+    def report(environment, exceeds):
+        return SimpleNamespace(planning_conditions=[SimpleNamespace(environment=environment)],
+            mst=SimpleNamespace(exceeds_ship_mst=exceeds, reason='original storm exceeds ship' if exceeds else 'within ship'),
+            data_quality=[])
+    monkeypatch.setitem(agent.PLANS, 'review-union', rec)
+    monkeypatch.setitem(agent.REPORTS, 'original-review-input', report(original, True))
+    monkeypatch.setitem(agent.REPORTS, 'supplemental-review-input', report(supplemental, False))
+    monkeypatch.setattr(agent, '_analyze_body', lambda sc, cfg, e, mst, t=None: {'environment': e.model_dump(mode='json')})
+    monkeypatch.setenv('AGENTS_LLM_PROVIDER', 'none')
+
+    class TK:
+        client = SimpleNamespace(result=lambda rid: asyncio.sleep(0))
+        async def analyze(self, body):
+            gust = body['environment']['wind_gust_kt']
+            seen.append(gust)
+            # The highest-status condition does NOT have the highest utilization or all findings.
+            return SimpleNamespace(result_id=f'analysis-{gust}', status='RED' if gust == 10 else 'AMBER',
+                result=SimpleNamespace(min_margin=SimpleNamespace(element_id='line', pct_wll=20 if gust == 10 else 90),
+                    findings=[] if gust == 10 else [SimpleNamespace(severity='RED', rule_id='RULE', message='Second condition finding')]))
+        async def envelope(self, body):
+            gust = body['environment']['wind_gust_kt']
+            point = LimitEnvelopePoint(wind_rel_deg=90, limit_wind_kt=60 if gust == 10 else 50,
+                limit_gust_kt=90 if gust == 10 else 80, first_failure_element='line', failure_mode='WLL', outcome='limit_found')
+            return SimpleNamespace(result_id=f'envelope-{gust}', result=SimpleNamespace(points=[point], worst=point))
+
+    review = asyncio.run(agent.review(SafetyReviewRequest(plan_id='review-union', intake_report_id='supplemental-review-input'), TK()))
+    assert seen == [10, 20]
+    checks = {check.check_id: check for check in review.checks}
+    assert not checks['MARGIN'].passed and '90%' in checks['MARGIN'].detail
+    assert not checks['NO-RED-FINDINGS'].passed and 'Second condition finding' in checks['NO-RED-FINDINGS'].detail
+    assert not checks['MST-WITHIN-SHIP'].passed and review.verdict == 'reject'
+    assert not checks['PLAN-NOT-RED'].passed and review.status == 'RED'
+    assert review.thresholds.limit_wll_gust_kt == 80
+    assert set(review.thresholds.cites) == {'envelope-10.0', 'envelope-20.0'}
+
+
+def test_envelope_union_preserves_unknown_and_lowest_limit():
+    import pytest
+    from mooring_agents.physics.client import ModelingError
+    def point(angle, gust):
+        return LimitEnvelopePoint(wind_rel_deg=angle, limit_wind_kt=gust, limit_gust_kt=gust,
+            first_failure_element='line', failure_mode='WLL', outcome='undetermined' if gust is None else 'limit_found')
+    def envelope(points): return SimpleNamespace(result=SimpleNamespace(points=points))
+    combined = agent._conservative_points([envelope([point(0, 100), point(90, 80)]),
+                                           envelope([point(0, None), point(90, 60)])])
+    assert [agent._gust_limit(point) for point in combined] == [None, 60]
+    with pytest.raises(ModelingError, match='inconsistent'):
+        agent._conservative_points([envelope([point(0, 100)]), envelope([point(90, 60)])])
+    with pytest.raises(ModelingError, match='empty'):
+        agent._conservative_points([envelope([])])
+
+
+def test_red_or_unknown_plan_cannot_pass_review_floor():
+    from mooring_agents.safety.checks import plan_not_red
+    assert not plan_not_red(SimpleNamespace(status='RED')).passed
+    assert not plan_not_red(SimpleNamespace(status=None)).passed
+    assert plan_not_red(SimpleNamespace(status='AMBER')).passed

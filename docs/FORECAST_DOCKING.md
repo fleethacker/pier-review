@@ -30,3 +30,8 @@ and labeled `SYNTHETIC_TIDE_SERIES` in validity. It can never establish a qualif
 timezone-aware, increasing bounds, at most 120 hours, and include the final partial reporting interval. Tending
 actions must fall within the window; actions that produce a nonpositive rest length are rejected. Tending
 recommendations remain advisory and unreviewed.
+
+Forecast provenance gates also reject poor/suspect quality, future observations disguised as forecasts, missing public
+forecast issue time/prediction basis, snapshots before their declared interval, and holding a snapshot past its declared
+validity end. Short operations may fit within a short declared interval; extending the holding duration requires actual
+coverage. These gates apply before a window is called supported; unavailable data is never replaced by a calm value.

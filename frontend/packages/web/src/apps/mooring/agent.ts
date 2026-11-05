@@ -170,7 +170,7 @@ export class AgentSession {
     if (!plan?.config || !this.applicable()) return;
     const { lines, tugAssignments } = this.parent.state.get();
     if (!this.s.undo) this.state.set({ undo: { lines, tugs: tugAssignments } });
-    this.parent.setTugAssignments(plan.tug_plan?.assignments ?? []);
+    this.parent.setTugAssignments(plan.holding_tugs ?? []);
     this.parent.replaceLines(plan.config.lines.map((l) => ({ ...l })));
   }
 

@@ -2,6 +2,10 @@
 
 ## Log
 
+- 23:58 EST: independent offline randomized probe (seed 20261104) ran 200 DDG cases across both sides, wind 0–80 kt plus 0–30 kt gust increment, current 0–3 kt, directions over 360 degrees, water/installation levels -4 to +6 ft and 1–3 line parts. All outputs finite and limited; 111 RED, 89 AMBER, none GREEN. Twenty repeat solves matched results, validity and input hashes without mutating requests. Median full analysis 1.72 ms, max 258 ms locally; not a performance budget or physics validation. Scratch script/results remain outside git.
+
+- 23:56 EST: two small shared UI fixes are prepared in this worktree, not the held feature branch: apply actual `holding_tugs` including empty, and capture preserved canvas without synchronous Cesium render. 82 UI tests/typecheck/lint/build pass; browser mitigation evidence is the isolated 19-pass/one-provenance-assertion-fail run. Backend code remains the previously verified 1486-test state. UI inbox records the narrow cross-boundary fixes and remaining installation/motion/vision work.
+
 - 23:54 EST: alert WebSocket preserves saved scenario source and initial connection installation basis; provider failure closes 1013 without substitute measurements; bad timing/reference closes 4400 and unknown/unowned references 4404. Shared resolver rejects unsupported direct replay/forecast modes instead of live fallback. 14 focused and 1486 full Python tests pass, no skips/xfails; UI 81/typecheck/lint/build and contract checks pass. Isolated capture experiment removes Cesium failure (19 browser/proxy passes, one incorrect vision-label expectation remains); UI branch still held. Watcher restarted as PID 59632 and now snapshots all three handoff files.
 
 - 23:43 EST: public 72h probes succeed for configured CO-OPS tide station 8638610 and cb0402/bin4 at 21 ft (73 hourly points each); NWS supplies 48 complete wind/gust intervals across 72h. Raw CO-OPS/URL/retrieval/SHA256 saved outside git, no new runtime composition or qualification claimed. C inbox documents per-component issuance versus retrieval and bin applicability blockers.

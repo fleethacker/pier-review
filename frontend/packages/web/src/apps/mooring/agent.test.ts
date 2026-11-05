@@ -27,7 +27,8 @@ const plan = {
   state: 'succeeded',
   status: 'GREEN',
   config: { side_to: 'starboard', ship_x_ft: 650, lines: [line(7), line(8)] },
-  tug_plan: { assignments: [tug] },
+  tug_plan: { assignments: [{ ...tug, tug_id: 'BERTHING_ONLY' }] },
+  holding_tugs: [tug],
 } as unknown as AgentPlan;
 
 let c: MooringController;
@@ -52,6 +53,14 @@ describe('applying and undoing an agent plan', () => {
     expect(c.state.get().lines.map((l) => l.line_number)).toEqual([1]);
     expect(c.state.get().tugAssignments).toEqual([]);
     expect(c.agent.state.get().undo).toBeNull();
+  });
+
+  it('honors an explicit empty holding fleet even when berthing tugs were planned', () => {
+    c.state.set({ tugAssignments: [tug] });
+    c.agent.applyPlan({ ...plan, holding_tugs: [] });
+    expect(c.state.get().tugAssignments).toEqual([]);
+    c.agent.undo();
+    expect(c.state.get().tugAssignments).toEqual([tug]);
   });
 
   it('does nothing for a plan without a config', () => {

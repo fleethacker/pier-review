@@ -2,12 +2,15 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body
+import httpx
+
+from fastapi import APIRouter, Body, Query, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from mooring import refdata
 from mooring.core import access
 from mooring.core.jobs import sse
+from mooring.core.envelopes import utcnow
 from mooring.core.schemas import JobAccepted
 
 from ...backend import safety, sheet
@@ -18,7 +21,9 @@ from ...safety.schemas import (
     SafetySheet,
     SafetySheetCreate,
     SafetySheetCreated,
+    SafetyWatchUnavailable,
 )
+from ...physics.client import ModelingError
 from ..state import JOBS, Client, SafetyTools
 from ..execution import submit_async
 from .planner import plan_record
@@ -45,14 +50,26 @@ def get_review(review_id: str):
 
 @router.get("/safety/watch/{plan_id}", response_class=StreamingResponse,
             responses={200: {"content": {"text/event-stream": {}}}},
-            summary="SSE `warning` events (GustWarning): live gusts vs the plan's working-load and breaking limits")
-def watch(plan_id: str, client: Client, interval_s: float = 5.0, limit: int = 0,
-          heartbeat_minutes: float = 5.0):
-    plan_record(plan_id)
+            summary="SSE warnings and recheck notices; terminal source_unavailable on provider failure")
+def watch(plan_id: str, client: Client, interval_s: Annotated[float, Query(ge=0, le=3600)] = 5.0,
+          limit: Annotated[int, Query(ge=0, le=1000)] = 0,
+          heartbeat_minutes: Annotated[float, Query(ge=0, le=1440)] = 5.0):
+    _, job = plan_record(plan_id)
+    if job.state != "succeeded":
+        raise HTTPException(409, "Plan is still running or did not succeed")
+    if interval_s == 0 and limit == 0:
+        raise HTTPException(422, "An unbounded watch requires a positive polling interval")
 
     async def gen():
-        async for w in safety.watch(plan_id, client, interval_s, limit, heartbeat_minutes):
-            yield sse("warning", w.model_dump(mode="json"))
+        try:
+            async for w in safety.watch(plan_id, client, interval_s, limit, heartbeat_minutes):
+                yield sse("warning", w.model_dump(mode="json"))
+        except (ModelingError, httpx.HTTPError) as exc:
+            status = exc.status if isinstance(exc, ModelingError) else None
+            event = SafetyWatchUnavailable(plan_id=plan_id, at_utc=utcnow(),
+                reason="Modeling/environment service unavailable during safety watch; no current limit assessment is available.",
+                retryable=status is None or status in (408, 429) or status >= 500)
+            yield sse("source_unavailable", event.model_dump(mode="json"))
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 

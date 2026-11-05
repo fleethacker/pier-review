@@ -346,7 +346,7 @@ paths:
     get:
       tags:
       - Safety agent
-      summary: 'SSE `warning` events (GustWarning): live gusts vs the plan''s working-load and breaking limits'
+      summary: SSE warnings and recheck notices; terminal source_unavailable on provider failure
       operationId: watch_api_v1_safety_watch__plan_id__get
       parameters:
       - name: plan_id
@@ -360,6 +360,8 @@ paths:
         required: false
         schema:
           type: number
+          maximum: 3600
+          minimum: 0
           default: 5.0
           title: Interval S
       - name: limit
@@ -367,6 +369,8 @@ paths:
         required: false
         schema:
           type: integer
+          maximum: 1000
+          minimum: 0
           default: 0
           title: Limit
       - name: heartbeat_minutes
@@ -374,6 +378,8 @@ paths:
         required: false
         schema:
           type: number
+          maximum: 1440
+          minimum: 0
           default: 5.0
           title: Heartbeat Minutes
       responses:
@@ -2270,6 +2276,25 @@ components:
           anyOf:
           - $ref: '#/components/schemas/Validity'
           - type: 'null'
+        analysis_result_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Analysis Result Id
+        threshold_result_ids:
+          items:
+            type: string
+          type: array
+          title: Threshold Result Ids
+        holding_tugs:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/TugAssignment'
+            type: array
+          - type: 'null'
+          title: Holding Tugs
+          description: Prescribed continuous assistance included in the line/holding assessment; null means not recorded in
+            a legacy sheet.
         sheet_id:
           type: string
           title: Sheet Id
@@ -3450,6 +3475,15 @@ components:
       additionalProperties: false
       description: SSE `warning` event on GET /safety/watch/{plan_id}.
       properties:
+        requires_recheck:
+          default: false
+          title: Requires Recheck
+          type: boolean
+        recheck_reasons:
+          items:
+            type: string
+          title: Recheck Reasons
+          type: array
         warning_id:
           title: Warning Id
           type: string
@@ -3584,6 +3618,35 @@ components:
           default: null
           title: Rng Model Revision
       title: ResultManifest
+      type: object
+    SafetyWatchUnavailable:
+      additionalProperties: false
+      description: Terminal SSE source_unavailable event; contains no fabricated measurement.
+      properties:
+        plan_id:
+          title: Plan Id
+          type: string
+        at_utc:
+          format: date-time
+          title: At Utc
+          type: string
+        severity:
+          const: RED
+          default: RED
+          title: Severity
+          type: string
+        reason:
+          title: Reason
+          type: string
+        retryable:
+          title: Retryable
+          type: boolean
+      required:
+      - plan_id
+      - at_utc
+      - reason
+      - retryable
+      title: SafetyWatchUnavailable
       type: object
     VisionMetadata:
       additionalProperties: false

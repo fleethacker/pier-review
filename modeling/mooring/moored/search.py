@@ -215,6 +215,10 @@ def search_plans(ship: ShipClass, berth: Berth, specs: dict[str, LineSpec], slot
         from mooring.loads.helpers import mean_draft_ft
         for label, env in cases:
             checked += 1
+            from mooring.loads.validity import environment_findings
+            if any(state == "invalid" for state, _ in environment_findings(env)):
+                feasible, worst, worst_case = False, math.inf, label + " (invalid environmental inputs)"
+                break
             try:
                 sysm = eq.build_system(ship, berth, cfg, specs, env, loading=loading, lines_wet=lines_wet, install_water_level_ft=install_level_ft, tugs=tugs)
             except eq.SystemError:

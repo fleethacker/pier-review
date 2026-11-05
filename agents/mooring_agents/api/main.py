@@ -17,7 +17,7 @@ from mooring.core.jobs import JobQueueFull
 from ..physics.client import ModelingError
 from ..backend import overall_backend
 from ..planner.schemas import AgentDoneEvent, AgentMessageEvent, AgentProposalEvent, AgentStepEvent
-from ..safety.schemas import GustWarning
+from ..safety.schemas import GustWarning, SafetyWatchUnavailable
 from ..vision.schemas import VisionMetadata, VisionResponse
 from ..intake.schemas import IntakeReport
 from ..safety.schemas import SafetyReview
@@ -82,7 +82,7 @@ for r in (intake, physics, planner, safety, vision, system):
     app.include_router(r.router, prefix=API_PREFIX)
 
 # Job results and SSE payloads that no endpoint references directly; added so clients get their types.
-STREAM_MODELS = [IntakeReport, SafetyReview, VisionResponse, GustWarning, AgentStepEvent, AgentProposalEvent,
+STREAM_MODELS = [IntakeReport, SafetyReview, VisionResponse, GustWarning, SafetyWatchUnavailable, AgentStepEvent, AgentProposalEvent,
                  AgentMessageEvent, AgentDoneEvent, VisionMetadata]
 
 

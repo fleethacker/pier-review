@@ -21,7 +21,7 @@ from mooring.core.schemas import (
     PierFittingResult, ResultManifest, Rule, ShipFittingResult, SolverDiagnostics, SolverResidual, Validity, ValidityReason,
 )
 from mooring.loads import mean_draft_ft, off_pier, range_findings
-from mooring.loads.validity import classify_findings, merge_reasons, wind_basis
+from mooring.loads.validity import classify_findings, environment_findings, merge_reasons, wind_basis
 from mooring.tugs.validation import assignment_errors
 from mooring.mechanics import Pose
 from mooring.rules.nstm582 import RULES, CheckContext, check_all, design_factor
@@ -86,6 +86,8 @@ def _validity(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs, l
     for state, reason in classify_findings(load_findings):
         (invalid if state == "invalid" else limited).append(reason)
     limited += basis.reasons
+    for state, reason in environment_findings(req.environment):
+        (invalid if state == "invalid" else limited).append(reason)
     # data qualification (S01)
     for i in qualification.analysis_issues(system.ship, system.berth, req.config, specs):
         (invalid if i.blocking else limited).append(

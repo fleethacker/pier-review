@@ -111,3 +111,13 @@ This is single-host restart durability, not a distributed scheduler or deploymen
 retention policy; protect and back up the database, and do not purge referenced modeling results. Confirmed runtime
 berths still require a separate durable reference-data/admin workflow. Role/name approval fields remain declarations,
 not verified command authority. Concurrent approvals are appended under the store lock without changing sheet content.
+
+## PDF rendering on macOS
+
+If WeasyPrint reports missing GObject/Pango libraries although Homebrew has installed them, start the stack with the library directory in the child process environment:
+
+```sh
+DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib make mock
+```
+
+Use `/usr/local/lib` instead for an Intel Homebrew installation, and install `pango` first if absent. This does not change the renderer or bypass its checks; it makes the installed libraries discoverable. See [WeasyPrint missing-library troubleshooting](https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#missing-library). A local supported-case intake→plan→review→sheet chain returned HTTP 200 with a 26,175-byte PDF on 4 November 2026. Without the libraries, the API returns explicit 501 and HTML remains available for browser printing.

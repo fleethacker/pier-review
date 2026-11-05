@@ -90,7 +90,7 @@ def collect(iterator):
 
 def install_watch_state(monkeypatch, review=None):
     review = review or safety_review()
-    record = SimpleNamespace(scenario=SimpleNamespace(berth_id="berth", side_to="starboard"), mst="II")
+    record = SimpleNamespace(scenario=SimpleNamespace(berth_id="berth", side_to="starboard"), mst="II", env=env(0))
     monkeypatch.setattr(agent, "plan_record", lambda plan_id: record)
     monkeypatch.setattr(agent, "latest_review", lambda plan_id: review)
     agent.ENVELOPES[review.review_id] = [
@@ -281,3 +281,70 @@ def test_red_or_unknown_plan_cannot_pass_review_floor():
     assert not plan_not_red(SimpleNamespace(status='RED')).passed
     assert not plan_not_red(SimpleNamespace(status=None)).passed
     assert plan_not_red(SimpleNamespace(status='AMBER')).passed
+
+
+def test_watch_marks_changed_current_and_tide_for_recheck(monkeypatch):
+    install_watch_state(monkeypatch)
+    changed = env(0).model_copy(update={"current_speed_kt": 0.2, "water_level_mllw_ft": 1.0})
+    warnings = collect(agent.watch("plan_test", FakeClient([env(0), changed]), interval_s=0, limit=2, heartbeat_minutes=60))
+    assert not warnings[0].requires_recheck
+    assert warnings[1].requires_recheck and warnings[1].severity == "AMBER"
+    assert warnings[1].pct_of_wll_limit is None
+    assert "not been recomputed" in warnings[1].message
+
+
+def test_watch_quality_failure_overrides_a_low_gust_percentage(monkeypatch):
+    from mooring.core.schemas import StationQuality
+    install_watch_state(monkeypatch)
+    flagged = env(0, gust=1).model_copy(update={"quality": [StationQuality(station_id="current", age_s=0, flags=["missing"])]})
+    warning = collect(agent.watch("plan_test", FakeClient([flagged]), interval_s=0, limit=1))[0]
+    assert warning.requires_recheck and warning.severity == "RED"
+    assert warning.pct_of_wll_limit is None and "flagged" in warning.message
+
+
+def test_watch_emits_change_when_different_recheck_reason_has_same_severity(monkeypatch):
+    from mooring.core.schemas import StationQuality
+    install_watch_state(monkeypatch)
+    tide = env(0).model_copy(update={"water_level_mllw_ft": 1})
+    flagged = env(0).model_copy(update={"quality": [StationQuality(station_id="current", age_s=0, flags=["stale"])]})
+    warnings = collect(agent.watch("plan_test", FakeClient([tide, flagged]), interval_s=0, limit=2, heartbeat_minutes=60))
+    assert all(w.severity == "AMBER" for w in warnings)
+    assert warnings[0].recheck_reasons != warnings[1].recheck_reasons
+
+
+def test_watch_accepts_a_condition_actually_in_the_review(monkeypatch):
+    review = install_watch_state(monkeypatch, safety_review(intake_report_id="review-conditions"))
+    assessed = env(0, gust=1).model_copy(update={"current_speed_kt": 0.2, "water_level_mllw_ft": 1})
+    monkeypatch.setitem(agent.REPORTS, "review-conditions", SimpleNamespace(planning_conditions=[SimpleNamespace(environment=assessed)]))
+    warning = collect(agent.watch("plan_test", FakeClient([assessed]), interval_s=0, limit=1))[0]
+    assert not warning.requires_recheck and warning.pct_of_wll_limit is not None
+
+
+def test_watch_forecast_unknown_limit_is_not_silently_omitted(monkeypatch):
+    review = install_watch_state(monkeypatch, safety_review(intake_report_id='unknown-ahead'))
+    agent.ENVELOPES[review.review_id] = [LimitEnvelopePoint(wind_rel_deg=90, limit_wind_kt=None,
+        first_failure_element=None, failure_mode='none', outcome='undetermined')]
+    forecast = env(90, gust=1, at=NOW+timedelta(hours=1))
+    monkeypatch.setitem(agent.REPORTS, 'unknown-ahead', SimpleNamespace(planning_conditions=[SimpleNamespace(environment=forecast)]))
+    warning = collect(agent.watch('plan_test', FakeClient([env(0)]), interval_s=0, limit=1))[0]
+    assert warning.at_utc == forecast.valid_at_utc and warning.requires_recheck
+    assert warning.pct_of_wll_limit is None and warning.severity == 'AMBER'
+
+
+def test_watch_changed_wind_basis_requires_new_assessment(monkeypatch):
+    from mooring.core.schemas import EnvironmentMetadata
+    install_watch_state(monkeypatch)
+    observed = env(0).model_copy(update={'metadata': EnvironmentMetadata(basis='scenario', gust_duration_s=3,
+        wind_reference_height_m=10)})
+    warning = collect(agent.watch('plan_test', FakeClient([observed]), interval_s=0, limit=1))[0]
+    assert warning.requires_recheck and warning.pct_of_wll_limit is None
+    assert 'reviewed basis' in warning.message
+
+
+def test_watch_does_not_treat_old_fallback_as_independently_reviewed(monkeypatch):
+    install_watch_state(monkeypatch, safety_review(intake_report_id='replacement-review'))
+    reviewed = env(0, gust=1).model_copy(update={'current_speed_kt':0.2})
+    monkeypatch.setitem(agent.REPORTS, 'replacement-review', SimpleNamespace(planning_conditions=[SimpleNamespace(environment=reviewed)]))
+    # This snapshot matches the original plan fallback, but that fallback was not in the independent review.
+    warning = collect(agent.watch('plan_test', FakeClient([env(0)]), interval_s=0, limit=1))[0]
+    assert warning.requires_recheck and warning.pct_of_wll_limit is None

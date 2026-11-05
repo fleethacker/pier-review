@@ -198,7 +198,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** SSE `warning` events (GustWarning): live gusts vs the plan's working-load and breaking limits */
+        /** SSE warnings and recheck notices; terminal source_unavailable on provider failure */
         get: operations["watch_api_v1_safety_watch__plan_id__get"];
         put?: never;
         post?: never;
@@ -1338,6 +1338,15 @@ export interface components {
         /** SafetySheet */
         SafetySheet: {
             validity?: components["schemas"]["Validity"] | null;
+            /** Analysis Result Id */
+            analysis_result_id?: string | null;
+            /** Threshold Result Ids */
+            threshold_result_ids?: string[];
+            /**
+             * Holding Tugs
+             * @description Prescribed continuous assistance included in the line/holding assessment; null means not recorded in a legacy sheet.
+             */
+            holding_tugs?: components["schemas"]["TugAssignment"][] | null;
             /** Sheet Id */
             sheet_id: string;
             /** Version */
@@ -2028,6 +2037,13 @@ export interface components {
          * @description SSE `warning` event on GET /safety/watch/{plan_id}.
          */
         GustWarning: {
+            /**
+             * Requires Recheck
+             * @default false
+             */
+            requires_recheck: boolean;
+            /** Recheck Reasons */
+            recheck_reasons?: string[];
             /** Warning Id */
             warning_id: string;
             /** Plan Id */
@@ -2116,6 +2132,29 @@ export interface components {
              * @default null
              */
             rng_model_revision: string | null;
+        };
+        /**
+         * SafetyWatchUnavailable
+         * @description Terminal SSE source_unavailable event; contains no fabricated measurement.
+         */
+        SafetyWatchUnavailable: {
+            /** Plan Id */
+            plan_id: string;
+            /**
+             * At Utc
+             * Format: date-time
+             */
+            at_utc: string;
+            /**
+             * Severity
+             * @default RED
+             * @constant
+             */
+            severity: "RED";
+            /** Reason */
+            reason: string;
+            /** Retryable */
+            retryable: boolean;
         };
         /**
          * VisionMetadata

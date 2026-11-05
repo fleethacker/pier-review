@@ -60,6 +60,7 @@ def _build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
     cited = [c for item in plan.rationale for c in item.cites]
     if review:
         cited += review.thresholds.cites
+        cited += [cite for check in review.checks for cite in check.cites]
     status = review.status if review else (plan.status or "RED")
     validity = (review.validity if review else None) or a.validity
     if validity and validity.state == "invalid":
@@ -76,6 +77,8 @@ def _build(rec: PlanRecord, review: SafetyReview | None = None) -> SafetySheet:
     sheet = SafetySheet(
         sheet_id=new_id("sheet"), version=version, plan_id=plan.plan_id, review_id=review.review_id if review else None,
         locked=False, status=status, validity=validity,
+        analysis_result_id=a.result_id, threshold_result_ids=review.thresholds.cites if review else [],
+        holding_tugs=getattr(rec, "holding_tugs", []) or [],
         header=SheetHeader(ship_class_id=rec.scenario.ship_class_id, berth_id=rec.scenario.berth_id,
                            side_to=rec.scenario.side_to, evolution="moor", planned_utc=utcnow()),
         environment=SheetEnvironment(observed=rec.env, forecast_summary=forecast_summary,
@@ -122,7 +125,7 @@ def render_html(s: SafetySheet) -> str:
                       + " ".join(e(x) for x in s.sequence_limitations) + "</p>")
     gng = "".join(f"<li><b>{e(g.condition)}</b>: {e(g.action)}</li>" for g in s.go_no_go)
     warn = "".join(f"<li>[{w.severity}] {e(w.message)} <small>({e(w.reference)})</small></li>" for w in s.warnings)
-    why = "".join(f"<li>{e(r.text)} <small>[{', '.join(r.cites)}]</small></li>" for r in s.rationale)
+    why = "".join(f"<li>{e(r.text)} <small>[{e(', '.join(r.cites))}]</small></li>" for r in s.rationale)
     appr = "".join(f"<li>{e(a.role.upper())}: {e(a.name)}, {a.decision} {a.at_utc:%Y-%m-%d %H:%MZ}</li>" for a in s.approvals)
     thresholds = "".join(
         f"<tr><td>{row.wind_rel_deg:.0f}°</td><td>{e(row.governing_element or '-')}</td>"
@@ -133,6 +136,13 @@ def render_html(s: SafetySheet) -> str:
     tug = s.tug_plan
     tug_line = (f"{tug.recommended_tug_count} tugs, {tug.total_power_hp:,.0f} hp, {tug.total_bollard_pull_lbf:,.0f} lbf "
                 f"bollard pull" if tug else "None")
+    holding = "".join(f"<li>{e(t.tug_id)}: {e(t.mode)} at {e(t.push_point_id)}, {t.force_lbf:,.0f} lbf"
+        + (f", direction {t.direction_true_deg:.0f}° true" if t.direction_true_deg is not None else ", push-point direction")
+        + "</li>" for t in (s.holding_tugs or []))
+    holding_note = ("Prescribed assistance included in the holding assessment; continuous availability must be arranged."
+                    if s.holding_tugs else "Holding assistance is not recorded in this archived sheet; inspect the cited analysis before use."
+                    if s.holding_tugs is None else "No prescribed holding assistance is included in the line assessment.")
+    citations = "".join(f"<li>{e(cite)}</li>" for cite in s.cited_result_ids)
     return f"""<!doctype html><html><head><meta charset="utf-8"><title>Mooring Evolution Safety Sheet</title>
 <style>body{{font-family:system-ui,sans-serif;margin:24px;color:#111}}table{{border-collapse:collapse}}
 td,th{{border:1px solid #999;padding:4px 8px;text-align:left}}.st{{font-weight:700}}</style></head><body>
@@ -143,17 +153,23 @@ td,th{{border:1px solid #999;padding:4px 8px;text-align:left}}.st{{font-weight:7
 <p>Wind {s.environment.observed.wind_speed_kt:.0f} kt gusting {s.environment.observed.wind_gust_kt:.0f} kt from
 {s.environment.observed.wind_from_true_deg:03.0f}; current {s.environment.observed.current_speed_kt:.1f} kt;
 MST {s.environment.mst}</p>
+<p>Evaluated condition: {s.environment.observed.valid_at_utc:%Y-%m-%d %H:%M %z}; source {e(s.environment.observed.source)}.
+These are assessed inputs, not a live observation display.</p>
 {f'<h2>Bridge brief</h2><p>{e(s.brief)}</p>' if s.brief else ''}
 <h2>Directional gust thresholds</h2>
+<p>Modeling result references: {e(', '.join(s.threshold_result_ids)) or 'Unavailable in this archived sheet'}.</p>
 <table><tr><th>Relative wind</th><th>Governing element</th><th>Working-load limit</th>
 <th>Breaking threshold estimate</th></tr>{thresholds}</table>
-<h2>Line plan</h2><table><tr><th>#</th><th>Role</th><th>Line</th><th>Parts</th><th>Ship fitting</th>
+<h2>Line plan</h2><p>Static loads for the evaluated condition, result {e(s.analysis_result_id or 'unavailable in this archived sheet')}.
+Other reviewed conditions may govern individual elements.</p><table><tr><th>#</th><th>Role</th><th>Line</th><th>Parts</th><th>Ship fitting</th>
 <th>Pier fitting</th><th>Tension (lbf)</th><th>% WLL</th><th>Status</th></tr>{lines}</table>
-<h2>Tugs</h2><p>{tug_line}</p>
+<h2>Holding assistance</h2><p>{holding_note}</p><ul>{holding}</ul>
+<h2>Berthing tug plan</h2><p>{tug_line}</p>
 <h2>Go / no-go</h2><ul>{gng}</ul>
 <h2>Sequence</h2>{seq_banner}<ol>{steps}</ol>
 <h2>Warnings</h2><ul>{warn or '<li>None</li>'}</ul>
 <h2>Agent rationale</h2><ul>{why}</ul>
+<h2>Referenced modeling results</h2><ul>{citations}</ul>
 <h2>Approvals</h2><ul>{appr or '<li>Pending</li>'}</ul>
 <p><small>{e(s.disclaimer)}</small></p></body></html>"""
 

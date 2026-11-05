@@ -9,9 +9,9 @@ Living handoff from modeling to UI, 4–5 November 2026. These are suggestions f
 | Four named demo choices, with initial and final outcomes shown separately | `GET /api/v1/demo/docking-cases`; `contract/examples/modeling/demo_ddg-*.json` | Implemented. Supported case finishes AMBER/limited; storm RED/reject; invalid depth RED/invalid/revise. Initially underconstrained plan can be repaired by the planner. Do not label its repaired result undetermined. |
 | Explicit intake → plan → independent review → sheet flow | Agents intake reports, plans, safety reviews and sheets in `contract/agents.openapi.yaml` | Implemented. Pass `intake_report_id` to planning; retain returned review identity when showing a sheet. Completion does not imply feasibility or approval. |
 | Progress and cancellation without blocking the map | Real asynchronous jobs, planner SSE `step`, `proposal`, `done`; `DELETE /jobs/{id}` | Implemented. Poll/consume terminal state after HTTP 202. Respect 429 `Retry-After`; display failed/cancelled states. Keep bounded event/frame history. |
-| Explain what limits a plan | Result findings, validity, governing element and immutable `result_id` references | Implemented. Keep operational status, data validity and computation outcome distinct. `backend=real` is implementation provenance, not qualification. Unknown/null limits are unavailable, not zero. |
-| Preserve assistance actually assessed | Final `holding_tugs`, candidate `tugs`, analysis references | Implemented. Berthing `tug_plan` assignments are a different purpose; do not substitute them into the holding analysis. |
-| Gust warning with the right threshold | Envelope `limit_gust_kt` / `advisory_gust_kt`; sustained `limit_wind_kt` | Implemented. Compare gust to gust, sustained to sustained. Breaking gust is unavailable where the solver cannot establish it. |
+| Explain what limits a plan | Result findings, validity, governing element and immutable `result_id` references | Implemented. Keep operational status, data validity and computation outcome distinct. `backend=real` is implementation provenance, not qualification. Unknown/null limits are unavailable, not zero. Direct analyses now retain explicit environmental quality/interval reasons; invalid input limits are null. |
+| Preserve assistance actually assessed | Final `holding_tugs`, candidate `tugs`, analysis references | Implemented. Berthing `tug_plan` assignments are a different purpose; do not substitute them into the holding analysis. Safety sheets now expose `holding_tugs` too: null/absent means unknown in an archived sheet, while an empty list means none was prescribed. Sheet `analysis_result_id` and `threshold_result_ids` identify the table sources. |
+| Gust warning with the right threshold | Envelope `limit_gust_kt` / `advisory_gust_kt`; sustained `limit_wind_kt` | Implemented. Compare gust to gust, sustained to sustained. Breaking gust is unavailable where the solver cannot establish it. Watch `requires_recheck`/`recheck_reasons` when current, tide or wind basis changes; clear the threshold percentage. Terminal `source_unavailable` contains no measurements: show unavailable and reconnect with backoff only if retryable. |
 
 ## Advance docking planning (optional compact panel)
 
@@ -41,7 +41,7 @@ Draft sequences use the existing sequence/planner/review interfaces; the forecas
 - Keep seed/synthetic/limited labels visible on map, alternatives and sheet, including when a review is ready for signature.
 - Display partial/stale/missing forecasts without filling values. Future missing coverage is a risk finding, even if present conditions look moderate.
 - Auth is off for the local demo. Optional authenticated HTTP/SSE clients need headers; never place bearer keys in URLs. Do not infer verified approver authority from a typed name.
-- PDF may return 501 when the renderer is unavailable; HTML remains usable for browser print. Show the actual renderer result.
+- PDF is verified with the documented native-library setup in `agents/README.md`; it may return 501 when the renderer is unavailable; HTML remains usable for browser print. Show the actual renderer result.
 - Report which suggestions were picked up in the UI inbox's Interfaces section. Defer optional forecast/training panels if they jeopardize the required end-to-end flow.
 
 ## Coordination

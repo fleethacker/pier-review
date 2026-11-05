@@ -3,11 +3,20 @@ import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } f
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Bottom } from './Bottom';
 import { ControllerContext } from './context';
-import { ExerciseController } from './controller';
+import { ExerciseController, PLAYBACK_RATES, presentationRate } from './controller';
+import { MapCanvas } from './MapCanvas';
 import { PRESET_SCENARIOS } from './scenarios';
 import { Side } from './Side';
 import { StoryboardPanel } from './Storyboard';
 import { STOCK } from './stockImages';
+
+vi.mock('mapbox-gl', () => ({ default: { fake: true } }));
+vi.mock('./mapView', () => ({
+  ExerciseMapView: class {
+    map = {};
+    dispose() {}
+  },
+}));
 
 configure({ asyncUtilTimeout: 10_000 });
 vi.setConfig({ testTimeout: 60_000 });
@@ -320,5 +329,86 @@ describe('the view panel', () => {
     expect(box.checked).toBe(true);
     fireEvent.click(box);
     expect(c.state.get().view.showStory).toBe(false);
+  });
+});
+
+describe('presentation mode', () => {
+  it('plays the whole run from the top, full screen, at a rate that fits', () => {
+    const { c } = mount(<div />);
+    act(() => c.seek(900));
+    act(() => c.present());
+    const s = c.state.get();
+    expect(s.presenting).toBe(true);
+    expect(s.playing).toBe(true);
+    expect(c.clock.timeS).toBe(0);
+    // A 25-minute run at 15x plays in about 100 seconds.
+    expect(s.rate).toBe(presentationRate(c.state.get().active.scenario.durationS));
+    expect(c.state.get().active.scenario.durationS / s.rate).toBeGreaterThan(20);
+    expect(c.state.get().active.scenario.durationS / s.rate).toBeLessThan(400);
+  });
+
+  it('picks a rate from the ones the app offers, for runs of any length', () => {
+    expect(PLAYBACK_RATES).toContain(presentationRate(1500));
+    expect(PLAYBACK_RATES).toContain(presentationRate(60));
+    expect(presentationRate(60)).toBeLessThan(presentationRate(3600));
+    expect(presentationRate(100_000)).toBe(600);
+  });
+
+  it('gets the panels out of the way, so nothing covers the map', () => {
+    const { c } = mount(<div />);
+    act(() => {
+      c.toggleRedTeam(true);
+      c.toggleStoryboard(true);
+      c.setPlacing(true);
+    });
+    act(() => c.present());
+    expect(c.state.get()).toMatchObject({ redTeamOpen: false, storyOpen: false, placing: false, presenting: true });
+  });
+
+  it('shows the beat that is up as a caption big enough to read, and changes it as the run goes', () => {
+    const { c } = mount(<MapCanvas />);
+    act(() => c.present());
+    const caption = () => screen.queryByRole('status', { name: 'Storyboard caption' });
+    const first = c.storyboard()[0];
+    act(() => c.seek(first.atS + 10));
+    expect(caption()!.textContent).toContain(first.title);
+    const hit = c.storyboard().find((m) => /hit/i.test(m.title))!;
+    act(() => c.seek(hit.atS + 5));
+    expect(caption()!.textContent).toContain(hit.title);
+    expect(caption()!.textContent).toContain('Carrier 1');
+  });
+
+  it('shows no caption between beats, or when the bubbles are switched off', () => {
+    const { c } = mount(<MapCanvas />);
+    act(() => c.present());
+    const caption = () => screen.queryByRole('status', { name: 'Storyboard caption' });
+    // The preset's beats overlap on purpose, so find a time no beat covers rather than guessing one.
+    const last = c.storyboard().at(-1)!;
+    const quiet = last.atS + last.holdS + 5;
+    expect(quiet).toBeLessThan(c.state.get().active.scenario.durationS);
+    act(() => c.seek(quiet));
+    expect(caption()).toBeNull();
+    act(() => c.seek(c.storyboard()[0].atS + 5));
+    expect(caption()).toBeTruthy();
+    act(() => c.setView({ showStory: false }));
+    expect(caption()).toBeNull();
+  });
+
+  it('offers to play again once the run has finished', () => {
+    const { c } = mount(<MapCanvas />);
+    act(() => c.present());
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy();
+    act(() => c.seek(c.state.get().active.scenario.durationS));
+    const again = screen.getByRole('button', { name: 'Play again' });
+    fireEvent.click(again);
+    expect(c.clock.timeS).toBe(0);
+    expect(c.state.get().playing).toBe(true);
+  });
+
+  it('leaves presentation mode from its own button', () => {
+    const { c } = mount(<MapCanvas />);
+    act(() => c.present());
+    fireEvent.click(screen.getByRole('button', { name: 'Exit' }));
+    expect(c.state.get().presenting).toBe(false);
   });
 });

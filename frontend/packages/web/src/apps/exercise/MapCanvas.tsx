@@ -4,6 +4,8 @@ import { Button, inputClass } from '../../shell/ui';
 import { useClockSecond, useController, useExercise } from './context';
 import { PLAYBACK_RATES } from './controller';
 import { formatClock } from './geo';
+import { momentsAt } from './storyboard';
+import type { StoryMoment } from './types';
 import { reportClientError } from './clientErrors';
 import { downloadBlob } from './exportResults';
 import { slugify } from './library';
@@ -12,6 +14,9 @@ import { canRecord, startRecording } from './recorder';
 import type { Recording } from './recorder';
 import { fetchConfig } from './serverApi';
 import type { ExerciseMapView, MapProblem } from './mapView';
+
+/** One empty array for every scenario with no storyboard: a fresh [] in a selector would re-render without end. */
+const NO_MOMENTS: StoryMoment[] = [];
 
 function TokenPrompt({ onSave, message }: { onSave: (token: string) => void; message?: string | null }) {
   const [value, setValue] = useState('');
@@ -98,7 +103,7 @@ function Toolbar({ recording, onRecord }: { recording: boolean; onRecord: () => 
         <ToolButton title="Circle the selected ship, or the whole group" pressed={follow === 'orbit'} onClick={() => c.setFollow(follow === 'orbit' ? 'off' : 'orbit')}>
           Orbit
         </ToolButton>
-        <ToolButton title="Hide the panels and fill the screen with the map" onClick={() => c.setPresenting(true)}>
+        <ToolButton title="Play the whole exercise full screen, with the storyboard coming up as it goes" onClick={() => c.present()}>
           Present
         </ToolButton>
         <ToolButton title="Run the scenario many times with random variation and measure how often things happen" pressed={redTeamOpen} onClick={() => c.toggleRedTeam()}>
@@ -166,7 +171,40 @@ function Toolbar({ recording, onRecord }: { recording: boolean; onRecord: () => 
   );
 }
 
-/** The little that stays on screen in presentation mode: what this is, the time, and the playback controls. */
+/** The storyboard beat that is up, shown big enough to read from the back of a room. */
+function PresentCaption() {
+  const second = useClockSecond();
+  const moments = useExercise((s) => s.active.scenario.storyboard) ?? NO_MOMENTS;
+  const showStory = useExercise((s) => s.view.showStory);
+  const units = useExercise((s) => s.active.scenario.units);
+  if (!showStory || moments.length === 0) return null;
+  // The one that started most recently leads, so a new beat takes over the caption from an older one still up.
+  const live = momentsAt(moments, second);
+  const lead = live.at(-1);
+  if (!lead) return null;
+  const { moment, opacity } = lead;
+  const who = moment.unitId ? units.find((u) => u.id === moment.unitId)?.name : undefined;
+  return (
+    <div
+      role="status"
+      aria-label="Storyboard caption"
+      className="pointer-events-none absolute bottom-20 left-6 z-10 flex max-w-[34rem] items-stretch gap-3 border-l-2 border-mil-cyan bg-mil-bg/80 p-3 backdrop-blur"
+      style={{ opacity }}
+    >
+      {moment.image && <img src={moment.image} alt="" className="h-20 w-28 shrink-0 object-cover" />}
+      <div className="min-w-0">
+        <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-mil-cyan">
+          T+{formatClock(moment.atS)}
+          {who ? ` · ${who}` : ''}
+        </div>
+        <div className="mt-0.5 text-lg font-light leading-tight text-white">{moment.title}</div>
+        {moment.caption && <p className="mt-1 text-xs leading-snug text-mil-text">{moment.caption}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** The little that stays on screen in presentation mode: what this is, the time, the storyboard, and the playback controls. */
 function PresentHud() {
   const c = useController();
   const second = useClockSecond();
@@ -174,18 +212,33 @@ function PresentHud() {
   const playing = useExercise((s) => s.playing);
   const rate = useExercise((s) => s.rate);
   const duration = useExercise((s) => s.active.scenario.durationS);
+  const moments = useExercise((s) => s.active.scenario.storyboard) ?? NO_MOMENTS;
+  const done = second >= duration;
   return (
     <>
       <div className="pointer-events-none absolute right-5 top-4 z-10 text-right drop-shadow-[0_1px_6px_rgba(0,0,0,0.8)]">
         <div className="font-mono text-[11px] uppercase tracking-[0.25em] text-mil-cyan">{name}</div>
         <div className="mt-1 font-mono text-3xl font-light tabular-nums text-white">T+{formatClock(second)}</div>
       </div>
+      <PresentCaption />
       <div className="absolute inset-x-0 bottom-5 z-10 flex justify-center">
         <div className="flex items-center gap-3 rounded-sm border border-mil-border bg-mil-panel/80 px-4 py-2 backdrop-blur" role="group" aria-label="Presentation controls">
-          <button aria-label={playing ? 'Pause' : 'Play'} onClick={() => c.togglePlay()} className="w-14 font-mono text-[11px] uppercase tracking-wider text-mil-cyan hover:text-white">
-            {playing ? 'Pause' : 'Play'}
+          <button
+            aria-label={done ? 'Play again' : playing ? 'Pause' : 'Play'}
+            onClick={() => (done ? c.present() : c.togglePlay())}
+            className="w-20 font-mono text-[11px] uppercase tracking-wider text-mil-cyan hover:text-white"
+          >
+            {done ? 'Play again' : playing ? 'Pause' : 'Play'}
           </button>
-          <input type="range" aria-label="Time" className="w-72" min={0} max={duration} step={1} value={second} onChange={(e) => c.seek(Number(e.target.value))} />
+          <div className="relative w-72">
+            <input type="range" aria-label="Time" className="w-full" min={0} max={duration} step={1} value={second} onChange={(e) => c.seek(Number(e.target.value))} />
+            {/* The beats of the storyboard, so a presenter can see what is coming. */}
+            <div className="pointer-events-none absolute inset-x-1.5 top-full -mt-1 h-1.5" aria-hidden>
+              {moments.map((m) => (
+                <span key={m.id} className="absolute top-0 h-1.5 w-px bg-mil-cyan/70" style={{ left: `${(m.atS / duration) * 100}%` }} />
+              ))}
+            </div>
+          </div>
           <select aria-label="Playback speed" className="rounded-sm border border-mil-border bg-mil-bg px-1.5 py-1 font-mono text-xs text-white" value={rate} onChange={(e) => c.setRate(Number(e.target.value))}>
             {PLAYBACK_RATES.map((r) => (
               <option key={r} value={r}>
@@ -339,8 +392,8 @@ export function MapCanvas() {
           {loadError ?? problem?.message ?? recordError}
         </p>
       )}
-      <Toolbar recording={!!recording} onRecord={toggleRecord} />
-      {presenting && <PresentHud />}
+      {/* Presenting is for a room: the editing tools come off the screen and only the show is left. */}
+      {presenting ? <PresentHud /> : <Toolbar recording={!!recording} onRecord={toggleRecord} />}
     </div>
   );
 }

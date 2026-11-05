@@ -150,8 +150,10 @@ the tab says so if Mapbox refuses.
   under the water. Ship missile defences cannot shoot torpedoes; decoys are the defence.
 - Storyboard: pictures and captions that come up beside units as the run plays. See below.
 - Playback: play, pause, restart, scrub, 1x to 600x. Camera: fit all, follow, chase, orbit (circles the selected ship, or
-  the whole group), and **Present**, which hides the panels and fills the screen with the map plus a minimal HUD (Esc
-  exits). The view opens with a fly-in to the main group. View: ship size exaggeration (so ships read when zoomed
+  the whole group), and **Present**, which plays the whole exercise: it fills the screen, winds back to the top, picks a
+  speed that plays the run out in about a minute and a half, and starts, with the storyboard coming up as it goes and the
+  caption large enough to read from the back of a room. Pause, scrub and speed are still there, *Play again* restarts it,
+  and Esc or *Exit* leaves. The view opens with a fly-in to the main group. View: ship size exaggeration (so ships read when zoomed
   out), wake length, names, routes, sensor ring, storyboard bubbles.
 - Look: the light preset (dawn, day, dusk, night) lights the sea, and at dusk and night the ships' navigation and deck
   lights glow. Dusk and night are the most dramatic; the presets use them.
@@ -200,6 +202,8 @@ unit replaces an earlier one, and different units can have bubbles up at the sam
   government. Each one's source, author and licence are recorded in `stockImages.ts` and shown in the picker.
 - **Editing.** Every moment has a title, a caption, a time, how long it stays up, and the unit it hangs on (or a spot on
   the map, for scene-setting). Click a bubble on the map to open that moment; click a moment to wind the clock to it.
+- **Showing it.** **Present** in the toolbar plays the whole thing by itself, full screen, with each moment's picture and
+  caption coming up as its time arrives — one button, nothing to drive.
 - **On the page.** The **Storyboard** tab at the bottom shows the whole thing as a strip that runs with the clock: the
   moment that is up is lit and scrolled to, past ones are solid, ones still to come are dimmed. Click a card to jump to it.
   The moments also appear as marks above the timeline.

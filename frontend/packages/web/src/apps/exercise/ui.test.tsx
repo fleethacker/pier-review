@@ -420,11 +420,15 @@ describe('MapCanvas', () => {
     expect(controller.state.get().presenting).toBe(true);
     expect(frame().className).toContain('fixed');
     const hud = within(screen.getByRole('group', { name: 'Presentation controls' }));
+    // The editing toolbar is off the screen while presenting.
+    expect(screen.queryByRole('toolbar', { name: 'Camera' })).toBeNull();
     expect(screen.getByText('Carrier group transit')).toBeTruthy();
     expect(screen.getByText('T+00:00:00')).toBeTruthy();
 
-    fireEvent.click(hud.getByRole('button', { name: 'Play' }));
+    // Present starts the show: it is already playing, so the button offers to pause it.
     expect(controller.clock.playing).toBe(true);
+    fireEvent.click(hud.getByRole('button', { name: 'Pause' }));
+    expect(controller.clock.playing).toBe(false);
     fireEvent.change(hud.getByLabelText('Time'), { target: { value: '120' } });
     expect(controller.clock.timeS).toBe(120);
     fireEvent.change(hud.getByLabelText('Playback speed'), { target: { value: '300' } });

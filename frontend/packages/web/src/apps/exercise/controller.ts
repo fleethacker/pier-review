@@ -19,6 +19,14 @@ import type { Behavior, ClassId, Environment, LonLat, RedTeamSpec, ScenarioConfi
 
 export type FollowMode = 'off' | 'follow' | 'chase' | 'orbit';
 export const PLAYBACK_RATES = [1, 5, 10, 30, 60, 120, 300, 600];
+/** How long a presentation should take to play out, in real seconds. Long enough to follow, short enough to hold a room. */
+export const PRESENTATION_S = 100;
+
+/** The playback rate that plays a run of `durationS` in about `PRESENTATION_S`, out of the rates the app offers. */
+export function presentationRate(durationS: number): number {
+  const wanted = durationS / PRESENTATION_S;
+  return PLAYBACK_RATES.reduce((best, rate) => (Math.abs(rate - wanted) < Math.abs(best - wanted) ? rate : best), PLAYBACK_RATES[0]);
+}
 
 /** Simulated time, advanced by wall-clock time times the playback rate. */
 export class PlaybackClock {
@@ -237,6 +245,18 @@ export class ExerciseController {
 
   setPresenting(presenting: boolean): void {
     this.state.set({ presenting });
+  }
+
+  /**
+   * Show the exercise to a room: fill the screen, go back to the top, pick a rate that plays the whole run in about a minute
+   * and a half, and start. The storyboard comes up as it goes; nothing else need be touched.
+   */
+  present(): void {
+    const { scenario } = this.state.get().active;
+    this.setRate(presentationRate(scenario.durationS));
+    this.clock.seek(0);
+    this.state.set({ presenting: true, redTeamOpen: false, storyOpen: false, placing: false });
+    this.play();
   }
 
   /** 'orbit' circles the selected ship, or the whole group when nothing is selected, so it needs no selection. */

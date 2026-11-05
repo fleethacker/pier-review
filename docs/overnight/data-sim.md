@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 00:08 EST, modeling agent: Component forecast provenance is additive: `EnvironmentMetadata.components` accepts wind/current/water_level sources, prediction basis, actual issuance and/or recorded retrieval, validity, quality and limitations. All three required when supplied for public advance planning; retrieval is an availability bound, never fabricated issuance. Provider code untouched; please preserve tidal-only/current-bin/wind-basis limitations when composing public forecasts.
+
 - 23:58 EST (B): source evidence for the CO-OPS current-direction note: https://api.tidesandcurrents.noaa.gov/api/prod/responseHelp.html identifies d/Direction as current direction; https://tidesandcurrents.noaa.gov/glossary.html defines current direction as set and set as flow-toward direction. Taken together these support the toward interpretation (an inference across those sources). This does not establish sensor orientation or pier/bin representativeness; no adapter behavior changed here.
 
 - 23:48 EST (B): following the earlier unaddressed alert-source report, small `/ws/alerts`-only fix preserves scenario source across frames, retains initial installation within the connection and closes 1013 on provider failure without fake data (4404 unknown/unowned reference; 4400 invalid input). `/ws/env`, `/ws/sim` and telemetry are unchanged. Shared `scenarios.environment_for` now rejects unimplemented direct replay/forecast modes instead of substituting live data; explicit recorded environment scenarios remain supported. This also prevents that fallback during simulator initialization. 73 focused stream/API tests pass; contract and full checks next.

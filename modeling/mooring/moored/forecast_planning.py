@@ -29,11 +29,32 @@ LIMITATIONS = ['Static line/holding assessment, not a validated docking maneuver
 
 def _input_problem(snapshot, as_of, valid_until=None):
     meta = snapshot.metadata
-    if (snapshot.source == 'replay' and snapshot.valid_at_utc > as_of
-            and (meta is None or meta.basis != 'prediction' or meta.issued_at_utc is None)):
-        return 'Future replay samples require archived forecast basis and issuance time; observations are not advance guidance'
-    if snapshot.source == 'forecast' and (meta is None or meta.basis != 'prediction' or meta.issued_at_utc is None):
-        return 'Public forecast lacks prediction basis or issuance time'
+    public_forecast = snapshot.source == 'forecast' or (snapshot.source == 'replay' and snapshot.valid_at_utc > as_of)
+    if public_forecast:
+        if meta is None or meta.basis != 'prediction':
+            return 'Public forecast or future replay requires prediction basis and availability provenance'
+        if meta.components:
+            if {item.component for item in meta.components} != {'wind', 'current', 'water_level'}:
+                return 'Composed forecasts require provenance for wind, current and water level'
+            for item in meta.components:
+                if item.basis != 'prediction':
+                    return f'{item.component}: future public guidance requires prediction basis'
+                available = item.issued_at_utc or item.retrieved_at_utc
+                if available is None or available > as_of:
+                    return f'{item.component}: availability by planning as-of time is not established'
+        elif meta.issued_at_utc is None:
+            return 'Public forecast or future replay lacks issuance time; observations are not advance guidance'
+    for item in meta.components if meta else []:
+        if item.quality in ('poor', 'suspect'):
+            return f'{item.component}: source quality is poor or suspect'
+        if item.basis == 'observation' and snapshot.valid_at_utc > as_of:
+            return f'{item.component}: future observations cannot be used as a forecast'
+        if item.issued_at_utc and item.issued_at_utc > as_of:
+            return f'{item.component}: forecast was issued after planning as-of time'
+        if item.valid_from_utc and snapshot.valid_at_utc < item.valid_from_utc:
+            return f'{item.component}: snapshot precedes its declared validity interval'
+        if item.valid_to_utc and (valid_until or snapshot.valid_at_utc) > item.valid_to_utc:
+            return f'{item.component}: forecast would be held beyond its declared validity interval'
     if meta and meta.quality in ('poor', 'suspect'):
         return 'Environment quality is poor or suspect; a supported arrival cannot be established'
     if meta and meta.basis == 'observation' and snapshot.valid_at_utc > as_of:
@@ -179,15 +200,20 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
         validity.reasons.append(ValidityReason(code='NO_USABLE_ARRIVAL_ASSESSMENT',
             message='No arrival has a complete usable static assessment; inspect unavailable, invalid or undetermined window outcomes. This does not prove physical infeasibility.',
             affected_components=['forecast', 'docking']))
+    component_provenance = [item for snap in req.forecast if snap.metadata for item in snap.metadata.components]
+    unknown_issuance = any(item.basis == 'prediction' and item.issued_at_utc is None for item in component_provenance)
     result = ForecastDockingResult(as_of_utc=req.as_of_utc, forecast_start_utc=dates[0], forecast_end_utc=dates[-1],
-        issued_at_utc=sorted({s.metadata.issued_at_utc for s in req.forecast if s.metadata and s.metadata.issued_at_utc}),
-        sources=sorted({s.metadata.source or s.source if s.metadata else s.source for s in req.forecast}),
+        issued_at_utc=sorted({s.metadata.issued_at_utc for s in req.forecast if s.metadata and s.metadata.issued_at_utc}
+                            | {item.issued_at_utc for item in component_provenance if item.issued_at_utc}),
+        retrieved_at_utc=sorted({item.retrieved_at_utc for item in component_provenance if item.retrieved_at_utc}),
+        sources=sorted({s.metadata.source or s.source if s.metadata else s.source for s in req.forecast}
+                       | {item.source for item in component_provenance}),
         config=config, tugs=req.tugs, recommendation_result_id=recommendation_id,
         selected_config=selected_config,
         installed_at_water_level_mllw_ft=selected.installed_at_water_level_mllw_ft if selected else None,
         selected_arrival_utc=selected.arrival_utc if selected else None, windows=windows, conditions=conditions,
         evaluations=evaluations, complete=complete, recheck_triggers=RECHECK,
-        limitations=LIMITATIONS + (['Input contains synthetic scenario data; this is not a public weather forecast.']
+        limitations=LIMITATIONS + (['Some component issue times are unknown; retrieval establishes only an available-by bound, not issuance or forecast freshness.'] if unknown_issuance else []) + (['Input contains synthetic scenario data; this is not a public weather forecast.']
                                   if any(s.source in ('scenario', 'mock') for s in req.forecast) else []))
     snapshot = {'request': req.model_dump(mode='json'), 'config': config.model_dump(mode='json'),
                 'selected_config': selected_config.model_dump(mode='json') if selected_config else None,

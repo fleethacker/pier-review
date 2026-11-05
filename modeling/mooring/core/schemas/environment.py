@@ -14,12 +14,43 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+class EnvironmentComponentProvenance(Model):
+    """Provider timing for one forcing component; retrieval is not provider issuance."""
+
+    wire_omitted_defaults = {"issued_at_utc": None, "retrieved_at_utc": None,
+                            "valid_from_utc": None, "valid_to_utc": None,
+                            "quality": "unknown", "limitations": []}
+    component: Literal["wind", "current", "water_level"]
+    source: str = Field(min_length=1, description="Provider, station/bin or grid product that supplied this component.")
+    basis: Literal["observation", "prediction", "scenario"]
+    issued_at_utc: AwareDatetime | None = Field(default=None,
+        description="Actual provider issuance, when supplied; never substitute retrieval time.")
+    retrieved_at_utc: AwareDatetime | None = Field(default=None,
+        description="Recorded retrieval completion. If issuance is unknown, this proves only availability by this time, not forecast age or accuracy.")
+    valid_from_utc: AwareDatetime | None = None
+    valid_to_utc: AwareDatetime | None = None
+    quality: Literal["good", "suspect", "poor", "unknown"] = "unknown"
+    limitations: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _timing(self):
+        if self.valid_from_utc and self.valid_to_utc and self.valid_to_utc < self.valid_from_utc:
+            raise ValueError("component valid_to_utc is before valid_from_utc")
+        if self.issued_at_utc and self.retrieved_at_utc and self.issued_at_utc > self.retrieved_at_utc:
+            raise ValueError("component issuance is after its recorded retrieval")
+        return self
+
+
 class EnvironmentMetadata(Model):
     """Where an environment snapshot came from and how to read its numbers (S00a).
 
     Optional: absent means the basis is undocumented, and the legacy meaning applies (wind is a 10 m, 1-minute
     sustained speed; the gust is assumed to be 30 s). Supplying metadata never changes the numerical values.
     """
+
+    wire_omitted_defaults = {"components": []}
+    components: list[EnvironmentComponentProvenance] = Field(default_factory=list, max_length=3,
+        description="Optional per-component provenance for composed snapshots. Advance public forecasts require wind, current and water level when this is supplied.")
 
     basis: Literal["observation", "prediction", "scenario"] = Field(
         description="Measured, forecast/model output, or synthetic what-if input."
@@ -45,6 +76,8 @@ class EnvironmentMetadata(Model):
 
     @model_validator(mode="after")
     def _consistent(self):
+        if len({item.component for item in self.components}) != len(self.components):
+            raise ValueError("component provenance must be unique by component")
         if self.valid_from_utc and self.valid_to_utc and self.valid_to_utc < self.valid_from_utc:
             raise ValueError("valid_to_utc is before valid_from_utc")
         if self.wind_averaging_s and self.gust_duration_s and self.gust_duration_s >= self.wind_averaging_s:

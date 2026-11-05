@@ -73,7 +73,7 @@ class DockingArrivalWindow(Model):
 
 
 class ForecastDockingResult(Model):
-    wire_omitted_defaults = {"selected_config": None, "installed_at_water_level_mllw_ft": None}
+    wire_omitted_defaults = {"selected_config": None, "installed_at_water_level_mllw_ft": None, "retrieved_at_utc": []}
     selected_config: MooringConfig | None = Field(default=None,
         description="Selected arrival's configuration with modeled unstretched paid-out lengths made explicit. Reproduces the static installation assumption; not a deck-handling instruction.")
     installed_at_water_level_mllw_ft: float | None = Field(default=None,
@@ -82,6 +82,8 @@ class ForecastDockingResult(Model):
     forecast_start_utc: AwareDatetime
     forecast_end_utc: AwareDatetime
     issued_at_utc: list[AwareDatetime]
+    retrieved_at_utc: list[AwareDatetime] = Field(default_factory=list,
+        description="Recorded component retrieval times, separate from actual provider issuance.")
     sources: list[str]
     config: MooringConfig
     tugs: list[TugAssignment]

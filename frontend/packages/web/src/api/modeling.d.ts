@@ -1642,6 +1642,49 @@ export interface components {
             water_level: string;
         };
         /**
+         * EnvironmentComponentProvenance
+         * @description Provider timing for one forcing component; retrieval is not provider issuance.
+         */
+        EnvironmentComponentProvenance: {
+            /**
+             * Component
+             * @enum {string}
+             */
+            component: "wind" | "current" | "water_level";
+            /**
+             * Source
+             * @description Provider, station/bin or grid product that supplied this component.
+             */
+            source: string;
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "observation" | "prediction" | "scenario";
+            /**
+             * Issued At Utc
+             * @description Actual provider issuance, when supplied; never substitute retrieval time.
+             */
+            issued_at_utc?: string | null;
+            /**
+             * Retrieved At Utc
+             * @description Recorded retrieval completion. If issuance is unknown, this proves only availability by this time, not forecast age or accuracy.
+             */
+            retrieved_at_utc?: string | null;
+            /** Valid From Utc */
+            valid_from_utc?: string | null;
+            /** Valid To Utc */
+            valid_to_utc?: string | null;
+            /**
+             * Quality
+             * @default unknown
+             * @enum {string}
+             */
+            quality: "good" | "suspect" | "poor" | "unknown";
+            /** Limitations */
+            limitations?: string[];
+        };
+        /**
          * EnvironmentMetadata
          * @description Where an environment snapshot came from and how to read its numbers (S00a).
          *
@@ -1649,6 +1692,11 @@ export interface components {
          *     sustained speed; the gust is assumed to be 30 s). Supplying metadata never changes the numerical values.
          */
         EnvironmentMetadata: {
+            /**
+             * Components
+             * @description Optional per-component provenance for composed snapshots. Advance public forecasts require wind, current and water level when this is supplied.
+             */
+            components?: components["schemas"]["EnvironmentComponentProvenance"][];
             /**
              * Basis
              * @description Measured, forecast/model output, or synthetic what-if input.
@@ -5585,6 +5633,11 @@ export interface components {
             forecast_end_utc: string;
             /** Issued At Utc */
             issued_at_utc: string[];
+            /**
+             * Retrieved At Utc
+             * @description Recorded component retrieval times, separate from actual provider issuance.
+             */
+            retrieved_at_utc?: string[];
             /** Sources */
             sources: string[];
             config: components["schemas"]["MooringConfig"];

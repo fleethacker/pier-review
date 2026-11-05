@@ -703,6 +703,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/berthing/sessions/{session_id}/scene": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Static rm0-v1 scene (berth, hull, fittings, fenders) for an interactive session */
+        get: operations["session_scene_api_v1_berthing_sessions__session_id__scene_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/berthing/recordings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Owner-scoped saved recordings, including expired sessions; stable session-ID order */
+        get: operations["recordings_api_v1_berthing_recordings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/berthing/sessions/{session_id}/recording": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bounded recording of an interactive session: live copy, else the persisted one */
+        get: operations["session_recording_api_v1_berthing_sessions__session_id__recording_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/approach/route": {
         parameters: {
             query?: never;
@@ -3797,6 +3848,11 @@ export interface components {
             status: "slack" | "taut" | "overloaded" | "unknown";
             /** Ship Fitting Id */
             ship_fitting_id?: string | null;
+            /**
+             * Chock Id
+             * @description Intermediate ship lead fitting, when the line routes through a chock.
+             */
+            chock_id?: string | null;
             /** Pier Fitting Id */
             pier_fitting_id?: string | null;
             ship_end?: components["schemas"]["BerthPosition"] | null;
@@ -3856,6 +3912,78 @@ export interface components {
             references?: string[];
             /** Notes */
             notes?: string[];
+        };
+        /** MotionSceneDepth */
+        MotionSceneDepth: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            position: components["schemas"]["BerthPosition"];
+            /** Depth Mllw Ft */
+            depth_mllw_ft?: number | null;
+        };
+        /** MotionSceneFender */
+        MotionSceneFender: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** Fender Id */
+            fender_id: string;
+            position: components["schemas"]["BerthPosition"];
+            /** Length Ft */
+            length_ft?: number | null;
+            /** Standoff Ft */
+            standoff_ft?: number | null;
+        };
+        /** MotionScenePierFitting */
+        MotionScenePierFitting: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** Fitting Id */
+            fitting_id: string;
+            position: components["schemas"]["BerthPosition"];
+            /** Kind */
+            kind?: string | null;
+            /** Capacity Lbf */
+            capacity_lbf?: number | null;
+        };
+        /** MotionSceneShipFitting */
+        MotionSceneShipFitting: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            /** Fitting Id */
+            fitting_id: string;
+            position: components["schemas"]["ShipPoint"];
+            /** Kind */
+            kind?: string | null;
+            /** Capacity Lbf */
+            capacity_lbf?: number | null;
         };
         /** MotionTugState */
         MotionTugState: {
@@ -4996,6 +5124,24 @@ export interface components {
             dofs: components["schemas"]["MotionDofs"];
             acceleration?: components["schemas"]["MotionAcceleration"] | null;
         };
+        /** ShipPoint */
+        ShipPoint: {
+            /**
+             * X Ft
+             * @description Forward from the ship reference origin.
+             */
+            x_ft?: number | null;
+            /**
+             * Y Ft
+             * @description Port from the ship reference origin.
+             */
+            y_ft?: number | null;
+            /**
+             * Z Ft
+             * @description Up from the declared reference waterline/loading.
+             */
+            z_ft?: number | null;
+        };
         /**
          * ShipState
          * @description Ship pose and velocity in the berth frame. y_ft is the distance from the pier face to the centerline.
@@ -5079,6 +5225,200 @@ export interface components {
             /** Structured Alerts */
             structured_alerts?: components["schemas"]["MotionAlert"][] | null;
         } & unknown;
+        /**
+         * SimLifecycle
+         * @description Server lifecycle metadata for the rm0-v1 session stream.
+         */
+        SimLifecycle: {
+            /**
+             * Type
+             * @default session_lifecycle
+             * @constant
+             */
+            type: "session_lifecycle";
+            /**
+             * Schema Version
+             * @default rm0-v1
+             * @constant
+             */
+            schema_version: "rm0-v1";
+            /** Session Id */
+            session_id: string;
+            /**
+             * Run Id
+             * @description Changes on reset; sequence remains monotonic for the session.
+             */
+            run_id: string;
+            /** Sequence */
+            sequence: number;
+            /** T S */
+            t_s: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "created" | "running" | "paused" | "reset" | "ended" | "error";
+            /** Scene Id */
+            scene_id?: string | null;
+            /** Scene Revision */
+            scene_revision?: string | null;
+            /** Message */
+            message?: string | null;
+            validity?: components["schemas"]["Validity"] | null;
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /**
+             * Speed
+             * @description Current simulated seconds per wall second.
+             */
+            speed?: number | null;
+        };
+        /**
+         * SimRecording
+         * @description Bounded display recording. Sequence gaps mean decimation, never missing physics integration steps.
+         */
+        SimRecording: {
+            /**
+             * Schema Version
+             * @default rm0-v1
+             * @constant
+             */
+            schema_version: "rm0-v1";
+            /** Recording Id */
+            recording_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Scene Id */
+            scene_id: string;
+            /** Scene Revision */
+            scene_revision: string;
+            /**
+             * Duration S
+             * @description Recorded simulation duration, excluding paused wall time.
+             */
+            duration_s?: number | null;
+            sampling: components["schemas"]["SimSamplingPolicy"];
+            /** Frames */
+            frames: components["schemas"]["SimFrame"][];
+            /** Lifecycle */
+            lifecycle?: components["schemas"]["SimLifecycle"][];
+            validity?: components["schemas"]["Validity"] | null;
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+        };
+        /**
+         * SimRecordingList
+         * @description Owner-scoped keyset page, ordered by session ID, not creation time.
+         */
+        SimRecordingList: {
+            /** Recordings */
+            recordings: components["schemas"]["SimRecordingSummary"][];
+            /**
+             * Next Cursor
+             * @description Pass as after_session_id for the next page.
+             */
+            next_cursor?: string | null;
+        };
+        /**
+         * SimRecordingSummary
+         * @description Small saved-recording index entry; frames are fetched separately.
+         */
+        SimRecordingSummary: {
+            /** Recording Id */
+            recording_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Scene Id */
+            scene_id: string;
+            /** Scene Revision */
+            scene_revision: string;
+            /** Duration S */
+            duration_s: number;
+            /** Frame Count */
+            frame_count: number;
+            validity: components["schemas"]["Validity"];
+            /** Scene Url */
+            scene_url: string;
+            /** Recording Url */
+            recording_url: string;
+        };
+        /** SimSamplingPolicy */
+        SimSamplingPolicy: {
+            /**
+             * Physics Dt S
+             * @description Integrator step if fixed; rendering never controls it.
+             */
+            physics_dt_s?: number | null;
+            /** Display Interval S */
+            display_interval_s?: number | null;
+            /** Max Pending Frames */
+            max_pending_frames?: number | null;
+            /**
+             * Slow Client Policy
+             * @default drop_display_frames
+             * @constant
+             */
+            slow_client_policy: "drop_display_frames";
+            /**
+             * Description
+             * @default Keep the newest display frame; never skip or slow physics. Sequence gaps disclose dropped frames.
+             */
+            description: string;
+        };
+        /**
+         * SimScene
+         * @description Static scene fetched once. Producers publish a new revision whenever scene content changes.
+         */
+        SimScene: {
+            /**
+             * Availability
+             * @default unknown
+             * @enum {string}
+             */
+            availability: "available" | "unavailable" | "not_simulated" | "unknown";
+            provenance?: components["schemas"]["MotionProvenance"] | null;
+            /** @description Absent means unknown, never valid. */
+            validity?: components["schemas"]["Validity"] | null;
+            /**
+             * Schema Version
+             * @default rm0-v1
+             * @constant
+             */
+            schema_version: "rm0-v1";
+            /** Scene Id */
+            scene_id: string;
+            /** Revision */
+            revision: string;
+            /** Berth Id */
+            berth_id: string;
+            /** Ship Class Id */
+            ship_class_id: string;
+            /** Loading */
+            loading: string;
+            /** Face Bearing True Deg */
+            face_bearing_true_deg?: number | null;
+            /**
+             * Deck Height Mllw Ft
+             * @description Fixed pier-deck elevation above MLLW.
+             */
+            deck_height_mllw_ft?: number | null;
+            /**
+             * Ship Reference
+             * @description Origin used by ship geometry and frame motion.
+             * @default midships at the reference waterline
+             */
+            ship_reference: string;
+            /** Berth Outline */
+            berth_outline?: components["schemas"]["BerthPosition"][] | components["schemas"]["BerthPosition"][] | null;
+            /** Ship Hull Outline */
+            ship_hull_outline?: components["schemas"]["ShipPoint"][] | components["schemas"]["ShipPoint"][] | null;
+            /** Ship Fittings */
+            ship_fittings?: components["schemas"]["MotionSceneShipFitting"][] | null;
+            /** Pier Fittings */
+            pier_fittings?: components["schemas"]["MotionScenePierFitting"][] | null;
+            /** Fenders */
+            fenders?: components["schemas"]["MotionSceneFender"][] | null;
+            /** Depth Profile */
+            depth_profile?: components["schemas"]["MotionSceneDepth"][] | null;
+        };
         /** SimSeries */
         SimSeries: {
             /** Job Id */
@@ -5092,6 +5432,11 @@ export interface components {
             dt_s?: number | null;
             /** Duration S */
             duration_s?: number | null;
+            /**
+             * Record Interval S
+             * @description Simulation-time interval between recorded frames; absent means 1 s.
+             */
+            record_interval_s?: number | null;
             /** Scenario Id */
             scenario_id: string;
             initial_state: components["schemas"]["ShipState"];
@@ -5113,6 +5458,11 @@ export interface components {
              * @description Present only when the session implements the RM0 stream protocol.
              */
             protocol?: "rm0-v1" | null;
+            /**
+             * Recording Url
+             * @description Bounded SimRecording resource for this session (live copy, else persisted).
+             */
+            recording_url?: string | null;
         };
         /** SimulationDiagnostics */
         SimulationDiagnostics: {
@@ -7046,115 +7396,6 @@ export interface components {
             /** Message */
             message: string;
         };
-        /** MotionSceneDepth */
-        MotionSceneDepth: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            position: components["schemas"]["BerthPosition"];
-            /**
-             * Depth Mllw Ft
-             * @default null
-             */
-            depth_mllw_ft: number | null;
-        };
-        /** MotionSceneFender */
-        MotionSceneFender: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            /** Fender Id */
-            fender_id: string;
-            position: components["schemas"]["BerthPosition"];
-            /**
-             * Length Ft
-             * @default null
-             */
-            length_ft: number | null;
-            /**
-             * Standoff Ft
-             * @default null
-             */
-            standoff_ft: number | null;
-        };
-        /** MotionScenePierFitting */
-        MotionScenePierFitting: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            /** Fitting Id */
-            fitting_id: string;
-            position: components["schemas"]["BerthPosition"];
-            /**
-             * Kind
-             * @default null
-             */
-            kind: string | null;
-            /**
-             * Capacity Lbf
-             * @default null
-             */
-            capacity_lbf: number | null;
-        };
-        /** MotionSceneShipFitting */
-        MotionSceneShipFitting: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            /** Fitting Id */
-            fitting_id: string;
-            position: components["schemas"]["ShipPoint"];
-            /**
-             * Kind
-             * @default null
-             */
-            kind: string | null;
-            /**
-             * Capacity Lbf
-             * @default null
-             */
-            capacity_lbf: number | null;
-        };
         /** RecommendResponse */
         RecommendResponse: {
             /**
@@ -7243,27 +7484,6 @@ export interface components {
             /** Notes */
             notes?: string[];
         };
-        /** ShipPoint */
-        ShipPoint: {
-            /**
-             * X Ft
-             * @description Forward from the ship reference origin.
-             * @default null
-             */
-            x_ft: number | null;
-            /**
-             * Y Ft
-             * @description Port from the ship reference origin.
-             * @default null
-             */
-            y_ft: number | null;
-            /**
-             * Z Ft
-             * @description Up from the declared reference waterline/loading.
-             * @default null
-             */
-            z_ft: number | null;
-        };
         /** SimControlMessage */
         SimControlMessage: {
             /**
@@ -7283,59 +7503,6 @@ export interface components {
             kind: "fender_contact" | "line_overload" | "speed_exceeded" | "all_fast";
             /** Detail */
             detail: string;
-        };
-        /**
-         * SimLifecycle
-         * @description Server lifecycle metadata; defining this schema does not enable a new runtime protocol.
-         */
-        SimLifecycle: {
-            /**
-             * Type
-             * @default session_lifecycle
-             * @constant
-             */
-            type: "session_lifecycle";
-            /**
-             * Schema Version
-             * @default rm0-v1
-             * @constant
-             */
-            schema_version: "rm0-v1";
-            /** Session Id */
-            session_id: string;
-            /**
-             * Run Id
-             * @description Changes on reset; sequence remains monotonic for the session.
-             */
-            run_id: string;
-            /** Sequence */
-            sequence: number;
-            /** T S */
-            t_s: number;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "created" | "running" | "paused" | "reset" | "ended" | "error";
-            /**
-             * Scene Id
-             * @default null
-             */
-            scene_id: string | null;
-            /**
-             * Scene Revision
-             * @default null
-             */
-            scene_revision: string | null;
-            /**
-             * Message
-             * @default null
-             */
-            message: string | null;
-            /** @default null */
-            validity: components["schemas"]["Validity"] | null;
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
         };
         /** SimLineEventMessage */
         SimLineEventMessage: {
@@ -7359,151 +7526,17 @@ export interface components {
             event: "secured" | "tensioned" | "released";
         };
         /**
-         * SimRecording
-         * @description Bounded display recording. Sequence gaps mean decimation, never missing physics integration steps.
+         * SimSpeedMessage
+         * @description Client message: simulated seconds per wall second. The physics step never changes.
          */
-        SimRecording: {
+        SimSpeedMessage: {
             /**
-             * Schema Version
-             * @default rm0-v1
+             * Type
              * @constant
              */
-            schema_version: "rm0-v1";
-            /** Recording Id */
-            recording_id: string;
-            /** Session Id */
-            session_id: string;
-            /** Scene Id */
-            scene_id: string;
-            /** Scene Revision */
-            scene_revision: string;
-            /**
-             * Duration S
-             * @description Recorded simulation duration, excluding paused wall time.
-             * @default null
-             */
-            duration_s: number | null;
-            sampling: components["schemas"]["SimSamplingPolicy"];
-            /** Frames */
-            frames: components["schemas"]["SimFrame"][];
-            /** Lifecycle */
-            lifecycle?: components["schemas"]["SimLifecycle"][];
-            /** @default null */
-            validity: components["schemas"]["Validity"] | null;
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-        };
-        /** SimSamplingPolicy */
-        SimSamplingPolicy: {
-            /**
-             * Physics Dt S
-             * @description Integrator step if fixed; rendering never controls it.
-             * @default null
-             */
-            physics_dt_s: number | null;
-            /**
-             * Display Interval S
-             * @default null
-             */
-            display_interval_s: number | null;
-            /**
-             * Max Pending Frames
-             * @default null
-             */
-            max_pending_frames: number | null;
-            /**
-             * Slow Client Policy
-             * @default drop_display_frames
-             * @constant
-             */
-            slow_client_policy: "drop_display_frames";
-            /**
-             * Description
-             * @default Keep the newest display frame; never skip or slow physics. Sequence gaps disclose dropped frames.
-             */
-            description: string;
-        };
-        /**
-         * SimScene
-         * @description Static scene fetched once. Producers publish a new revision whenever scene content changes.
-         */
-        SimScene: {
-            /**
-             * Availability
-             * @default unknown
-             * @enum {string}
-             */
-            availability: "available" | "unavailable" | "not_simulated" | "unknown";
-            /** @default null */
-            provenance: components["schemas"]["MotionProvenance"] | null;
-            /**
-             * @description Absent means unknown, never valid.
-             * @default null
-             */
-            validity: components["schemas"]["Validity"] | null;
-            /**
-             * Schema Version
-             * @default rm0-v1
-             * @constant
-             */
-            schema_version: "rm0-v1";
-            /** Scene Id */
-            scene_id: string;
-            /** Revision */
-            revision: string;
-            /** Berth Id */
-            berth_id: string;
-            /** Ship Class Id */
-            ship_class_id: string;
-            /** Loading */
-            loading: string;
-            /**
-             * Face Bearing True Deg
-             * @default null
-             */
-            face_bearing_true_deg: number | null;
-            /**
-             * Deck Height Mllw Ft
-             * @description Fixed pier-deck elevation above MLLW.
-             * @default null
-             */
-            deck_height_mllw_ft: number | null;
-            /**
-             * Ship Reference
-             * @description Origin used by ship geometry and frame motion.
-             * @default midships at the reference waterline
-             */
-            ship_reference: string;
-            /**
-             * Berth Outline
-             * @default null
-             */
-            berth_outline: components["schemas"]["BerthPosition"][] | components["schemas"]["BerthPosition"][] | null;
-            /**
-             * Ship Hull Outline
-             * @default null
-             */
-            ship_hull_outline: components["schemas"]["ShipPoint"][] | components["schemas"]["ShipPoint"][] | null;
-            /**
-             * Ship Fittings
-             * @default null
-             */
-            ship_fittings: components["schemas"]["MotionSceneShipFitting"][] | null;
-            /**
-             * Pier Fittings
-             * @default null
-             */
-            pier_fittings: components["schemas"]["MotionScenePierFitting"][] | null;
-            /**
-             * Fenders
-             * @default null
-             */
-            fenders: components["schemas"]["MotionSceneFender"][] | null;
-            /**
-             * Depth Profile
-             * @default null
-             */
-            depth_profile: components["schemas"]["MotionSceneDepth"][] | null;
+            type: "set_speed";
+            /** Speed */
+            speed: number;
         };
         /**
          * SimTugCommandMessage
@@ -9155,6 +9188,100 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SimSessionCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    session_scene_api_v1_berthing_sessions__session_id__scene_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimScene"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recordings_api_v1_berthing_recordings_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                after_session_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimRecordingList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    session_recording_api_v1_berthing_sessions__session_id__recording_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimRecording"];
                 };
             };
             /** @description Validation Error */

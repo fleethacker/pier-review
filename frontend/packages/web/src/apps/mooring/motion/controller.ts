@@ -409,15 +409,18 @@ export class MotionController {
       return;
     }
     this.stopEverything();
+    const epoch = this.loadEpoch;
     this.lastLifecycleSeq = -1;
     this.simClock.reset();
     this.state.set({ speed: 1, clock: null, forcingRevision: null, forcingSynthetic: null, lifecycleReasons: [], lifecycleInvalid: false });
     this.state.set({ busy: true, error: null, source: 'live', link: 'connecting', frame: null, trail: [], lifecycle: null, lifecycleMessage: null, lastSequence: null, droppedForDisplay: 0, recording: null, playing: false });
     try {
       const scenarioId = await this.host.ensureScenario();
+      if (epoch !== this.loadEpoch || this.disposed) return;
       if (inputKey !== this.host.layoutKey()) throw new Error('Inputs changed while saving the scenario. Start a new session.');
       if (!scenarioId) throw new Error('A scenario is needed to start a session; set up the berth, ship and lines first.');
       const created = unwrap(await modeling.POST('/api/v1/berthing/sessions', { body: { scenario_id: scenarioId, initial_state: initial } }));
+      if (epoch !== this.loadEpoch || this.disposed) return;
       if (inputKey !== this.host.layoutKey()) throw new Error('Inputs changed while creating the session. The new session remains paused; start again.');
       this.sessionLayoutKey = layoutKey;
       this.forcingSyntheticOverride = created.forcing_synthetic ?? null;
@@ -436,12 +439,13 @@ export class MotionController {
         };
         this.state.set({ sessionRecordings: [ref, ...this.s.sessionRecordings].slice(0, MAX_SESSION_RECORDINGS) });
       }
-      await this.loadScene(sceneUrl);
-      if (this.disposed) return;
+      await this.loadScene(sceneUrl, epoch);
+      if (epoch !== this.loadEpoch || this.disposed) return;
       if (inputKey !== this.host.layoutKey()) throw new Error('Inputs changed while loading the scene. The session remains paused; start again.');
       this.connect(created.session_id);
       this.state.set({ busy: false });
     } catch (e) {
+      if (epoch !== this.loadEpoch || this.disposed) return;
       const detail = e instanceof Error ? e.message : String(e);
       this.state.set({
         busy: false,

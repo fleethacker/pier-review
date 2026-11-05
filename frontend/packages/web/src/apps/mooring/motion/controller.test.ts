@@ -495,3 +495,30 @@ it('does not apply an old session recording or its provenance after another reco
   expect(m.s.forcingRevision).not.toBe('old-revision');
   m.dispose();
 });
+
+it.each([false, true])('ignores a session creation completing after a recording selection (reject=%s)', async (reject) => {
+  let release!: () => void;
+  let entered!: () => void;
+  const started = new Promise<void>((resolve) => { entered = resolve; });
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  vi.mocked(modeling.POST).mockImplementationOnce(async () => {
+    entered();
+    await pending;
+    if (reject) throw new Error('Old provider failure');
+    return { data: { session_id: 'old', forcing_synthetic: true, forcing_revision: 'old' } } as never;
+  });
+  const m = make();
+  const creating = m.startSession();
+  await started;
+  await m.loadRecording();
+  const selected = m.s.recording!.id;
+  release();
+  await creating;
+  expect(m.s.source).toBe('recording');
+  expect(m.s.recording?.id).toBe(selected);
+  expect(m.s.sessionId).toBeNull();
+  expect(m.s.forcingRevision).not.toBe('old');
+  expect(m.s.error).toBeNull();
+  expect(stream.handlers).toBeNull();
+  m.dispose();
+});

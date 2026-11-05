@@ -104,3 +104,7 @@ rule table, coefficient or assumption a subject-matter expert must review tomorr
 Gate items 2 and 5 pass through the UI on `dev` (you do not edit the UI; verify with the API flow and `make demo-check`), the four
 scenario outcomes are demonstrable, the agents run with no LLM, `make test` is green with no skips you added, contract is
 regenerated, final report written.
+
+## Advance forecast expansion (user request, 4 November evening)
+
+Execute [the expanded overnight modeling plan](../docs/MODELING_OVERNIGHT_PLAN.md) alongside M0–M8. It includes the existing-UI coverage audit, at-least-24-hour advance arrival planning with coverage past docking, explicit forecast provenance/gaps, reusable data_simulation generators, and cross-agent integration watches.

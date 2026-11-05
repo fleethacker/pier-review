@@ -1003,6 +1003,7 @@ export interface components {
             /**
              * Created At Utc
              * Format: date-time
+             * @description UTC availability cutoff captured after input retrieval; assessment processing may finish later.
              */
             created_at_utc: string;
             /** Berth Id */

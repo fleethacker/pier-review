@@ -2,6 +2,9 @@
 
 ## Requests
 
+- B 01:27 EST: Intake now shares F24 temporal availability checks from core/forecast_provenance.py. Future observations, future-issued guidance and public forecasts lacking availability provenance are excluded from windows/MST/planning conditions and optional narration, with RED missing-data findings. Invalid current temporal provenance returns422. Intake created_at_utc is the availability cutoff captured after retrieval; actual issuance versus retrieval distinction preserved. No source substitution or physical arithmetic added.
+
+
 - B 01:21 EST: Berth schema now rejects empty depth profiles, duplicate depth x stations, colliding fitting/fender IDs and out-of-range lat/lon before registration. Reproduced empty-profile POST201 followed by catalog GET500; now422 with catalog untouched. Single-point and unordered unique profiles remain allowed. Generated contracts/types updating; please emit structurally valid chart-derived berth records. No provider code changes.
 
 - B 01:12 EST: MooringConfig now rejects duplicate line_number IDs with422; empty layouts and numbering gaps remain allowed. Reproduced analysis previously returned duplicate rows [1,2,3,4,5,6,1], making commands/results ambiguous. No automatic renumbering. Shared schema/contract/type update in progress; ensure imported/duplicated line objects get distinct IDs.

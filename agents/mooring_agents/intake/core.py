@@ -6,6 +6,7 @@ from datetime import timedelta
 from mooring.core import access
 from mooring.core.envelopes import new_id, utcnow
 from mooring.core.schemas import EnvironmentSnapshot
+from mooring.core.forecast_provenance import availability_problem
 
 from ..physics.toolkit import PhysicsToolkit, calls_for
 from ..physics.client import ModelingError
@@ -72,6 +73,8 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
     saved_mock = saved_source is not None and saved_source.env_source.mode == "mock"
     current = (await tk.scenario_environment(req.scenario_id) if saved_source is not None
                else await tk.env_now(berth_id, env_scenario_id))
+    if problem := availability_problem(current, utcnow()):
+        raise ModelingError(422, "Current environment is unavailable for assessment: " + problem)
     if env_scenario_id:
         scenario = await tk.environment_scenario(env_scenario_id)
         if scenario.kind == "steady":
@@ -119,6 +122,22 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
             forecast_complete = False
             quality.append(DataQualityIssue(station_id="forecast", issue="missing", severity="RED",
                 detail="Forecast samples do not cover the entire requested horizon without gaps; only available samples were assessed."))
+
+    # Never let unavailable future guidance drive deterministic findings or optional LLM selection.
+    assessed_at = utcnow()
+    available = []
+    unavailable = set()
+    for sample in series:
+        problem = availability_problem(sample, assessed_at)
+        if problem:
+            unavailable.add(problem)
+        else:
+            available.append(sample)
+    if unavailable:
+        forecast_complete = False
+        quality.extend(DataQualityIssue(station_id="forecast", issue="missing", severity="RED",
+            detail="Forecast samples excluded from assessment: " + problem) for problem in sorted(unavailable))
+        series = available or [current]
 
     # Quality can be carried by forecast metadata, not just current station observations.
     flagged = set()
@@ -220,7 +239,7 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
                f"{f' {len(berthing)} berthing window(s) found.' if berthing else ''}")
     if not forecast_complete:
         summary = "Forecast coverage incomplete; available samples only. " + summary
-    report = IntakeReport(report_id=report_id, created_at_utc=utcnow(), berth_id=berth_id, ship_class_id=ship_id,
+    report = IntakeReport(report_id=report_id, created_at_utc=assessed_at, berth_id=berth_id, ship_class_id=ship_id,
                           side_to=side, horizon_hours=req.horizon_hours, current=current, mst=mst, windows=windows,
                           planning_conditions=conditions, berthing_windows=berthing, data_quality=quality,
                           summary=summary, summary_source="deterministic", narration_note=None, backend="mock",

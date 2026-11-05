@@ -1688,6 +1688,7 @@ components:
           type: string
           format: date-time
           title: Created At Utc
+          description: UTC availability cutoff captured after input retrieval; assessment processing may finish later.
         berth_id:
           type: string
           title: Berth Id

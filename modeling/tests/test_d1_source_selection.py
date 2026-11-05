@@ -214,3 +214,85 @@ def test_env_websocket_rejects_invalid_or_unbounded_hot_loop_controls(query):
             with client.websocket_connect(f"/ws/env?{query}") as socket:
                 socket.receive_json()
     assert exc.value.code == 4400
+
+
+@pytest.mark.parametrize("minute,anchor", [(43, 36), (49, 42), (55, 48)])
+def test_availability_and_now_agree_when_latest_component_times_differ(monkeypatch, minute, anchor):
+    checked = NOW.replace(minute=minute)
+    live.configure(Fetcher(recorded_transport(), clock=lambda: checked, sleep=lambda _: None,
+                           retries=0, min_interval_s=0), clock=lambda: checked)
+    monkeypatch.setenv("MOORING_ENV_SOURCE", "auto")
+    monkeypatch.setattr("mooring.core.envelopes.utcnow", lambda: checked)
+    status = environment.availability(BERTH)
+    snapshot = environment.now(BERTH)
+    assert status.complete_snapshot_available
+    assert [row.state for row in status.components[:3]] == ["live"] * 3
+    assert snapshot.source == "live"
+    assert snapshot.valid_at_utc == NOW.replace(minute=anchor)
+    # A joined wind time before the cutoff must not hide a future current row.
+    for field in ("wind_t", "current_t", "level_t"):
+        observed = datetime.strptime(snapshot.metadata.original[field], "%Y-%m-%d %H:%M").replace(tzinfo=UTC)
+        assert observed <= checked
+
+
+def test_fresh_independent_components_need_not_form_a_complete_snapshot():
+    documents = {
+        "wind": load("wind_8638614.json"),
+        "water_level": load("water_level_8638610.json"),
+        "currents": load("currents_cb0402_bin4.json"),
+    }
+    for component, document in documents.items():
+        record = document["data"][0]
+        record["t"] = "2026-01-01 00:40" if component == "currents" else "2026-01-01 00:48"
+        document["data"] = [record]
+    live.configure(Fetcher(recorded_transport(overrides=documents), clock=lambda: NOW,
+                           sleep=lambda _: None, retries=0, min_interval_s=0), clock=lambda: NOW)
+    status = live.component_availability(BERTH, NOW)
+    assert [row.state for row in status.components[:3]] == ["live"] * 3
+    assert not status.complete_snapshot_available
+    assert all(any("Complete snapshot unavailable" in note for note in row.limitations) for row in status.components[:3])
+    with pytest.raises(ProviderError, match="no usable joined"):
+        live.latest(BERTH)
+
+
+def test_auto_replay_age_is_real_but_explicit_historical_replay_keeps_its_clock(monkeypatch):
+    from mooring.moored.risk import alert_for
+
+    checked = datetime(2026, 11, 5, 12, tzinfo=UTC)
+    monkeypatch.setenv("MOORING_ENV_SOURCE", "auto")
+    monkeypatch.setattr("mooring.core.envelopes.utcnow", lambda: checked)
+    monkeypatch.setattr(environment, "live_snapshot", lambda *a, **k: (_ for _ in ()).throw(ProviderError("unavailable", "offline")))
+    snapshot = environment.now(BERTH)
+    assert snapshot.metadata.age_s == (checked - snapshot.valid_at_utc).total_seconds()
+    assert alert_for(snapshot, None).stale
+    historical = environment.replay_snapshot(BERTH, snapshot.valid_at_utc)
+    assert historical.metadata.age_s == 0
+    assert not alert_for(historical, None).stale
+
+
+def test_availability_preserves_acquisition_timestamp_instead_of_reconstructing_it():
+    from types import SimpleNamespace
+
+    acquired = NOW - timedelta(minutes=4)
+    files = {"wind": "wind_8638614.json", "water_level": "water_level_8638610.json",
+             "currents": "currents_cb0402_bin4.json"}
+
+    class Cached:
+        def get(self, params):
+            return SimpleNamespace(doc=load(files[params["product"]]), stale=False,
+                                   age_s=1, retrieved_at_utc=acquired)
+
+    live.configure(Cached(), clock=lambda: NOW)
+    first = live.component_availability(BERTH, NOW)
+    second = live.component_availability(BERTH, NOW + timedelta(seconds=30))
+    assert all(row.retrieved_at_utc == acquired for row in first.components[:3] + second.components[:3])
+
+
+def test_recorded_availability_age_uses_observation_time_not_alignment_bounds(monkeypatch):
+    checked = datetime(2026, 11, 5, 12, tzinfo=UTC)
+    monkeypatch.setenv("MOORING_ENV_SOURCE", "replay")
+    monkeypatch.setattr("mooring.core.envelopes.utcnow", lambda: checked)
+    status = environment.availability(BERTH)
+    current = next(row for row in status.components if row.component == "current")
+    assert current.valid_to_utc == datetime(2026, 1, 1, 0, 56, tzinfo=UTC)
+    assert current.age_s == (checked - current.valid_to_utc).total_seconds()

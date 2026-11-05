@@ -8,7 +8,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from mooring.environment import coops
@@ -36,6 +36,22 @@ def _valid_time(value: str) -> str:
     return datetime.strptime(value, "%Y-%m-%d %H:%M").replace(tzinfo=UTC).isoformat().replace("+00:00", "Z")
 
 
+def _alignment_bounds(value: str) -> dict[str, str]:
+    observed = datetime.fromisoformat(_valid_time(value).replace("Z", "+00:00"))
+    tolerance = timedelta(seconds=coops.ALIGN_TOLERANCE_S)
+    return {
+        "valid_from_utc": (observed - tolerance).isoformat().replace("+00:00", "Z"),
+        "valid_to_utc": (observed + tolerance).isoformat().replace("+00:00", "Z"),
+    }
+
+
+ALIGNMENT_NOTE = (
+    f"Nearest-observation replay alignment is limited to +/-{coops.ALIGN_TOLERANCE_S:g} seconds; "
+    "these are alignment bounds, not provider-declared validity or simultaneous measurements. "
+    "Exact observation times remain in metadata.original (wind_t, current_t, level_t)."
+)
+
+
 def render() -> dict[Path, bytes]:
     names = {
         "wind": "wind_8638614.json",
@@ -61,11 +77,10 @@ def render() -> dict[Path, bytes]:
             {
                 "basis": "observation",
                 "component": "wind",
-                "limitations": ["wind averaging and gust duration are not documented by this response"],
+                "limitations": ["wind averaging and gust duration are not documented by this response", ALIGNMENT_NOTE],
                 "quality": record["quality"],
                 "source": "NOAA CO-OPS station 8638614",
-                "valid_from_utc": _valid_time(original["wind_t"]),
-                "valid_to_utc": _valid_time(original["wind_t"]),
+                **_alignment_bounds(original["wind_t"]),
             },
             {
                 "basis": "observation",
@@ -73,20 +88,19 @@ def render() -> dict[Path, bytes]:
                 "limitations": [
                     "current direction is treated as toward and remains pending authoritative confirmation",
                     "bin 4 depth is approximately 20.6 ft below the surface and may not apply at every vessel draft",
+                    ALIGNMENT_NOTE,
                 ],
                 "quality": record["quality"],
                 "source": "NOAA CO-OPS station cb0402 bin 4",
-                "valid_from_utc": _valid_time(original["current_t"]),
-                "valid_to_utc": _valid_time(original["current_t"]),
+                **_alignment_bounds(original["current_t"]),
             },
             {
                 "basis": "observation",
                 "component": "water_level",
-                "limitations": [],
+                "limitations": [ALIGNMENT_NOTE],
                 "quality": record["quality"],
                 "source": "NOAA CO-OPS station 8638610, MLLW",
-                "valid_from_utc": _valid_time(original["level_t"]),
-                "valid_to_utc": _valid_time(original["level_t"]),
+                **_alignment_bounds(original["level_t"]),
             },
         ]
 
@@ -132,11 +146,13 @@ def render() -> dict[Path, bytes]:
             "Current direction convention remains pending authoritative confirmation.",
             "Current is from cb0402 bin 4 at an assumed depth of 20.6 ft below the surface.",
             "The three stations are spatially separated and representativeness at the berth is unqualified.",
+            ALIGNMENT_NOTE,
             *notes,
         ],
         "normalization": [
             "English-unit CO-OPS values are retained as knots, degrees true and feet MLLW.",
             "Records are joined on wind timestamps with the declared tolerance.",
+            "Component validity intervals describe that bounded alignment; original observation times are retained separately.",
             "No value is extrapolated, looped or synthesized.",
         ],
         "package_id": "noaa-coops-norfolk-2026-01-01-v1",

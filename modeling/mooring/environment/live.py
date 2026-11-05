@@ -44,15 +44,35 @@ def _stations(berth_id: str):
 
 
 def _source(berth_id: str, begin: datetime, end: datetime):
+    inputs = _component_inputs(berth_id, begin, end)
+    for _, _, _, _, error in inputs:
+        if error is not None:
+            raise error
+    return _joined_source(berth_id, inputs)
+
+
+def _joined_source(berth_id, inputs):
     wind, level, current = _stations(berth_id)
-    recs, notes, stale = coops.Coops(fetcher()).window(wind, level, current, begin, end, bin=DEFAULT_BIN, bin_depth_ft=20.6 if current == "cb0402" else None)
-    return ReplaySource(recs, source_kind="live", max_gap_s=900, stale_after_s=1800, station=wind), notes, stale
+    records = {spec[0]: parsed for spec, _, parsed, _, _ in inputs}
+    recs, notes = coops.assemble(
+        records["wind"], records["water_level"], records["current"],
+        wind_station=wind, level_station=level, current_station=current,
+        bin=DEFAULT_BIN, bin_depth_ft=20.6 if current == "cb0402" else None,
+    )
+    stale = any(fetched.stale for _, fetched, _, _, _ in inputs if fetched is not None)
+    return ReplaySource(recs, source_kind="live", max_gap_s=900,
+                        stale_after_s=FRESH_AFTER.total_seconds(), station=wind), notes, stale
 
 
 def latest(berth_id: str, heading_true_deg: float | None = None):
     from mooring.environment import with_relative
     end = _clock()
     src, notes, stale = _source(berth_id, end - LOOKBACK, end)
+    return with_relative(_latest_snapshot(src, notes, stale, end), heading_true_deg)
+
+
+def _latest_snapshot(src, notes, stale, end):
+    """Use the identical eligible joined record and freshness policy for data and status."""
     eligible = [record.t for record in src.records if record.t <= end]
     if not eligible:
         raise coops.ProviderError("no_data", "CO-OPS returned no usable joined observations in the last 3 hours" + (f" ({notes[0]})" if notes else ""))
@@ -61,7 +81,15 @@ def latest(berth_id: str, heading_true_deg: float | None = None):
     snap = src.at(max(eligible), now=end)
     if isinstance(snap, Unavailable):
         raise coops.ProviderError("stale", snap.reason)
-    return with_relative(snap, heading_true_deg)
+    # The wind timestamp is the join anchor. Every constituent observation must
+    # also be fresh, including an older current/level within the join tolerance.
+    for field in ("wind_t", "current_t", "level_t"):
+        value = (snap.metadata.original or {}).get(field)
+        if value:
+            observed = datetime.strptime(value, "%Y-%m-%d %H:%M").replace(tzinfo=UTC)
+            if end - observed > FRESH_AFTER:
+                raise coops.ProviderError("stale", f"joined {field} observation is stale")
+    return snap
 
 
 def _unavailable(component: str, source: str, station_id: str, reason: str, **kw):
@@ -76,12 +104,9 @@ def _unavailable(component: str, source: str, station_id: str, reason: str, **kw
     )
 
 
-def component_availability(berth_id: str, checked_at: datetime | None = None) -> EnvironmentAvailability:
-    """Fetch component statuses independently so one outage does not hide the others."""
-    checked = (checked_at or _clock()).astimezone(UTC)
+def _component_specs(berth_id, begin, checked):
     wind_station, level_station, current_station = _stations(berth_id)
-    begin = checked - LOOKBACK
-    specs = (
+    return (
         (
             "wind",
             wind_station,
@@ -117,9 +142,14 @@ def component_availability(berth_id: str, checked_at: datetime | None = None) ->
             {"vertical_datum": "MLLW", "limitations": []},
         ),
     )
-    rows: list[EnvironmentComponentAvailability] = []
-    valid_times: dict[str, datetime] = {}
-    for component, station, source, params, parser, required, extra in specs:
+
+
+def _component_inputs(berth_id, begin, checked):
+    """Read each component once; exclude future and incomplete rows before joining."""
+    out = []
+    for spec in _component_specs(berth_id, begin, checked):
+        component, station, source, params, parser, required, extra = spec
+        fetched = None
         try:
             fetched = fetcher().get(params)
             records = [
@@ -129,15 +159,30 @@ def component_availability(berth_id: str, checked_at: datetime | None = None) ->
                 and all(item.get(field) is not None for field in required)
             ]
         except coops.ProviderError as exc:
-            rows.append(_unavailable(component, source, station, f"provider {exc.kind}: {exc}", **extra))
+            out.append((spec, fetched, [], None, exc))
+        else:
+            out.append((spec, fetched, records, max(records, key=lambda item: item["t"], default=None), None))
+    return out
+
+
+def component_availability(berth_id: str, checked_at: datetime | None = None) -> EnvironmentAvailability:
+    """Fetch component statuses independently so one outage does not hide the others."""
+    checked = (checked_at or _clock()).astimezone(UTC)
+    inputs = _component_inputs(berth_id, checked - LOOKBACK, checked)
+    rows: list[EnvironmentComponentAvailability] = []
+    for spec, fetched, records, record, error in inputs:
+        component, station, source, _, _, _, extra = spec
+        if error is not None:
+            rows.append(_unavailable(component, source, station, f"provider {error.kind}: {error}", **extra))
             continue
         if not records:
             rows.append(_unavailable(component, source, station, "no usable observation in the lookback window", **extra))
             continue
-        record = max(records, key=lambda item: item["t"])
         valid_at = record["t"]
         age_s = (checked - valid_at).total_seconds()
-        retrieved = checked - timedelta(seconds=max(fetched.age_s, 0.0))
+        # Preserve the actual acquisition completion across cached responses.
+        # Older injected providers may not supply it; unknown stays unknown.
+        retrieved = getattr(fetched, "retrieved_at_utc", None)
         common = dict(
             source=source,
             basis="observation",
@@ -166,25 +211,27 @@ def component_availability(berth_id: str, checked_at: datetime | None = None) ->
             ))
         else:
             rows.append(EnvironmentComponentAvailability(component=component, state="live", reason=None, **common))
-            valid_times[component] = valid_at
 
-    if len(valid_times) == 3:
-        reference = valid_times["wind"]
-        for index, row in enumerate(rows):
-            if row.component in valid_times and abs((valid_times[row.component] - reference).total_seconds()) > coops.ALIGN_TOLERANCE_S:
-                rows[index] = row.model_copy(update={
-                    "state": "unavailable",
-                    "reason": f"latest observation is not aligned with wind within {coops.ALIGN_TOLERANCE_S:g} s",
-                })
+    complete = False
+    if all(row.state == "live" for row in rows):
+        src, notes, stale = _joined_source(berth_id, inputs)
+        try:
+            _latest_snapshot(src, notes, stale, checked)
+        except coops.ProviderError as exc:
+            note = f"Complete snapshot unavailable: {exc.kind}: {exc}"
+            rows = [row.model_copy(update={"limitations": [*row.limitations, note]}) for row in rows]
+        else:
+            complete = True
     rows.extend([
         EnvironmentComponentAvailability(
-            component="forecast", state="unavailable", reason="no composed forecast configured (D2)"
+            component="forecast", state="unavailable",
+            reason="forecast status requires an as-of time and horizon via POST /api/v1/env/forecast/compose"
         ),
         EnvironmentComponentAvailability(
-            component="waves", state="unavailable", reason="no wave provider configured (D4)"
+            component="waves", state="unavailable",
+            reason="wave status requires an as-of time and horizon via POST /api/v1/env/waves/compose"
         ),
     ])
-    complete = all(row.state != "unavailable" for row in rows if row.component in {"wind", "current", "water_level"})
     return EnvironmentAvailability(
         berth_id=berth_id,
         checked_at_utc=checked,

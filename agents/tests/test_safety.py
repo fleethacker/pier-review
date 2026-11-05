@@ -453,3 +453,21 @@ def test_watch_withholds_limits_for_temporally_unavailable_input(monkeypatch, pr
     assert warning.requires_recheck and warning.severity == 'RED'
     assert warning.pct_of_wll_limit is None
     assert any('forecast' in reason.lower() for reason in warning.recheck_reasons)
+
+
+@pytest.mark.parametrize('component', [False, True])
+def test_watch_rejects_an_interval_from_the_first_occurrence_of_a_repeated_hour(monkeypatch, component):
+    from zoneinfo import ZoneInfo
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    zone = ZoneInfo('America/New_York')
+    first = datetime(2026, 11, 1, 1, 45, tzinfo=zone, fold=0)
+    later = datetime(2026, 11, 1, 1, 15, tzinfo=zone, fold=1)
+    monkeypatch.setattr(agent, 'utcnow', lambda: datetime(2026, 11, 1, 7, tzinfo=UTC))
+    interval = {'valid_from_utc': first.replace(minute=0), 'valid_to_utc': first}
+    meta = EnvironmentMetadata(basis='prediction', quality='good', **({} if component else interval))
+    if component:
+        meta.components = [EnvironmentComponentProvenance(component='current', source='fixture',
+            basis='prediction', quality='good', **interval)]
+    sample = env(0).model_copy(update={'valid_at_utc': later, 'metadata': meta})
+    reasons, invalid = agent._watch_recheck(sample, [sample])
+    assert invalid and any('outside' in reason for reason in reasons)

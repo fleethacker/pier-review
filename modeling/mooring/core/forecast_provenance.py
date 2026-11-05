@@ -4,12 +4,15 @@ No physical calculations: observations are not future guidance, and a later
 retrieval is never silently promoted to a provider issue time.
 """
 
+from datetime import UTC
+
 
 def availability_problem(snapshot, as_of):
     if as_of.tzinfo is None or as_of.utcoffset() is None:
         return 'Planning as-of timestamp must be timezone-aware'
     if snapshot.valid_at_utc.tzinfo is None or snapshot.valid_at_utc.utcoffset() is None:
         return 'Snapshot timestamp must be timezone-aware'
+    as_of = as_of.astimezone(UTC)
     meta = snapshot.metadata
     future = snapshot.valid_at_utc > as_of
     public_forecast = snapshot.source == 'forecast' or (snapshot.source == 'replay' and future)

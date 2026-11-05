@@ -34,9 +34,9 @@ class EnvironmentComponentProvenance(Model):
 
     @model_validator(mode="after")
     def _timing(self):
-        if self.valid_from_utc and self.valid_to_utc and self.valid_to_utc < self.valid_from_utc:
+        if self.valid_from_utc and self.valid_to_utc and self.valid_to_utc.astimezone(UTC) < self.valid_from_utc.astimezone(UTC):
             raise ValueError("component valid_to_utc is before valid_from_utc")
-        if self.issued_at_utc and self.retrieved_at_utc and self.issued_at_utc > self.retrieved_at_utc:
+        if self.issued_at_utc and self.retrieved_at_utc and self.issued_at_utc.astimezone(UTC) > self.retrieved_at_utc.astimezone(UTC):
             raise ValueError("component issuance is after its recorded retrieval")
         return self
 
@@ -78,7 +78,7 @@ class EnvironmentMetadata(Model):
     def _consistent(self):
         if len({item.component for item in self.components}) != len(self.components):
             raise ValueError("component provenance must be unique by component")
-        if self.valid_from_utc and self.valid_to_utc and self.valid_to_utc < self.valid_from_utc:
+        if self.valid_from_utc and self.valid_to_utc and self.valid_to_utc.astimezone(UTC) < self.valid_from_utc.astimezone(UTC):
             raise ValueError("valid_to_utc is before valid_from_utc")
         if self.wind_averaging_s and self.gust_duration_s and self.gust_duration_s >= self.wind_averaging_s:
             raise ValueError("gust_duration_s must be shorter than wind_averaging_s")

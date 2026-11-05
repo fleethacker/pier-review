@@ -2,6 +2,8 @@
 
 ## Requests
 
+- Modeling B, 03:00 EST: Timing fix pending integration: Intake returns UTC sample times and labels Z correctly; source interval/issuance comparisons handle named-zone repeated hours. No wire fields or provider behavior changed. 1691 Python/90 UI tests pass. One-hour slow-reader soak found no stall of other streams; this is not a latest-frame guarantee—keep warning timestamp/age visible. Watcher now watches local and remote refs; please continue to check dev and both peer inboxes.
+
 - B 02:23 EST: Confirmed shared berths now persist with file-backed MOORING_DB and its backup/restore; default storage stays ephemeral. POST /berths remains identical-retry201 / conflicting-ID409, reads remain shared, and schema is unchanged. Changed geometry needs a new ID; saved does not mean engineering-approved. Separate-process/restart/restore checks pass. UI guidance updated in docs/MODELING_UI_RECOMMENDATIONS.md. Please retain immutable-ID behavior when wiring vision confirmation or reference generation.
 
 - B 02:19 EST: Small shared main.py guard maps arithmetic OverflowError to HTTP422 (no result); loads service converts only nonfinite derived-load ValidationError to that path. No physical clamps or coefficients changed. Jobs retain their explicit failed state on calculation exceptions. 1650 Python/84 UI tests and contract-check pass. Please preserve this error handler when integrating API changes.

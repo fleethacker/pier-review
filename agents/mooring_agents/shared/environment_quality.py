@@ -1,4 +1,6 @@
 """Interpret declared component provenance; no physical calculations or source substitution."""
+from datetime import UTC
+
 from mooring.core.schemas import EnvironmentSnapshot
 
 
@@ -7,6 +9,7 @@ def component_issues(snapshot: EnvironmentSnapshot) -> list[tuple[str, str, str,
     metadata = snapshot.metadata
     issues = []
     aware = snapshot.valid_at_utc.tzinfo is not None and snapshot.valid_at_utc.utcoffset() is not None
+    at = snapshot.valid_at_utc.astimezone(UTC) if aware else None
     for item in metadata.components if metadata else []:
         source = f"{item.component}: {item.source}"
         if item.quality in ('poor', 'suspect'):
@@ -18,8 +21,8 @@ def component_issues(snapshot: EnvironmentSnapshot) -> list[tuple[str, str, str,
         if not aware:
             issues.append((source, 'out_of_range', 'RED',
                            'Component provenance cannot be checked against a snapshot without a timezone.'))
-        elif ((item.valid_from_utc and snapshot.valid_at_utc < item.valid_from_utc)
-                or (item.valid_to_utc and snapshot.valid_at_utc > item.valid_to_utc)):
+        elif ((item.valid_from_utc and at < item.valid_from_utc)
+                or (item.valid_to_utc and at > item.valid_to_utc)):
             issues.append((source, 'out_of_range', 'RED',
                            f"A supplied {item.component} sample is outside its declared validity interval."))
         if item.basis == 'prediction' and item.issued_at_utc is None:

@@ -1,7 +1,7 @@
 """Deterministic intake assessment. Detection and planning behavior retained from the mock."""
 
 import math
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 from mooring.core import access
 from mooring.core.envelopes import new_id, utcnow
@@ -75,6 +75,7 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
                else await tk.env_now(berth_id, env_scenario_id))
     if problem := availability_problem(current, utcnow()):
         raise ModelingError(422, "Current environment is unavailable for assessment: " + problem)
+    current = current.model_copy(update={"valid_at_utc": current.valid_at_utc.astimezone(UTC)})
     if env_scenario_id:
         scenario = await tk.environment_scenario(env_scenario_id)
         if scenario.kind == "steady":
@@ -106,6 +107,10 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
             quality.append(DataQualityIssue(station_id="forecast", issue="missing", severity="RED",
                 detail="Forecast unavailable; assessment covers the current snapshot only, not the requested horizon."))
 
+    # Compare elapsed UTC time, including repeated/skipped local hours; preserve caller objects.
+    series = [sample.model_copy(update={"valid_at_utc": sample.valid_at_utc.astimezone(UTC)})
+              if sample.valid_at_utc.tzinfo is not None and sample.valid_at_utc.utcoffset() is not None
+              else sample for sample in series]
     # Assess only ordered, timezone-aware samples; do not silently sort a malformed feed.
     times = [sample.valid_at_utc for sample in series]
     if any(t.tzinfo is None or t.utcoffset() is None for t in times) or any(b <= a for a, b in zip(times, times[1:])):

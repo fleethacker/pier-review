@@ -704,3 +704,32 @@ def test_optional_narration_only_receives_temporally_available_snapshots(monkeyp
     assert report.summary_source == 'llm'
     assert report.summary.startswith('Forecast assessment incomplete;')
     assert all(condition.environment.wind_speed_kt != 99 for condition in report.planning_conditions)
+
+
+def test_offset_inputs_are_converted_before_printing_utc_times():
+    tk = FakeToolkit()
+    offset = timezone(timedelta(hours=-5))
+    tk.current = tk.current.model_copy(update={'valid_at_utc': NOW.astimezone(offset)})
+    tk.series = [sample.model_copy(update={'valid_at_utc': sample.valid_at_utc.astimezone(offset)}) for sample in tk.series]
+    report = run(tk=tk)
+    assert '12:00Z' in report.planning_conditions[0].why
+    assert report.current.valid_at_utc.utcoffset() == timedelta(0)
+    assert tk.current.valid_at_utc.utcoffset() == timedelta(hours=-5)  # no caller mutation
+
+
+def test_repeated_local_hour_does_not_drop_a_forecast_peak(monkeypatch):
+    from zoneinfo import ZoneInfo
+    zone = ZoneInfo('America/New_York')
+    anchor = datetime(2026, 11, 1, 5, tzinfo=UTC)
+    monkeypatch.setattr(core, 'utcnow', lambda: anchor)
+    tk = FakeToolkit(calm=True)
+    tk.current = tk.current.model_copy(update={'valid_at_utc': anchor.astimezone(zone)})
+    tk.series = [tk.current.model_copy(update={
+        'valid_at_utc': (anchor + timedelta(minutes=30*i)).astimezone(zone),
+        'wind_gust_kt': 64 if i == 2 else 8,
+    }) for i in range(5)]
+    report = run(tk=tk)
+    assert not any(q.station_id == 'forecast' and q.issue == 'missing' for q in report.data_quality)
+    assert any(w.severity == 'RED' and w.peak_value == 64 for w in report.windows)
+    assert report.planning_conditions[0].environment.valid_at_utc == anchor + timedelta(hours=1)
+    assert '06:00Z' in report.planning_conditions[0].why

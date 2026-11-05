@@ -12,6 +12,7 @@ conservative for a coupled mooring model is not established here, and nothing cl
 """
 
 from dataclasses import dataclass, field
+from datetime import UTC
 
 from mooring.core.schemas import EnvironmentSnapshot, Finding, ValidityReason
 
@@ -109,15 +110,16 @@ def environment_findings(env: EnvironmentSnapshot, use_gust: bool = True) -> lis
 
     meta = env.metadata
     time_specified = env.valid_at_utc.tzinfo is not None and env.valid_at_utc.utcoffset() is not None
+    at = env.valid_at_utc.astimezone(UTC) if time_specified else None
     if not time_specified:
         add("invalid", "ENVIRONMENT_TIME_UNSPECIFIED", "Environment validity time has no timezone.")
     elif meta:
-        if ((meta.valid_from_utc and env.valid_at_utc < meta.valid_from_utc)
-                or (meta.valid_to_utc and env.valid_at_utc > meta.valid_to_utc)):
+        if ((meta.valid_from_utc and at < meta.valid_from_utc)
+                or (meta.valid_to_utc and at > meta.valid_to_utc)):
             add("invalid", "ENVIRONMENT_OUTSIDE_VALID_INTERVAL", "Snapshot time lies outside its declared validity interval.")
     for item in meta.components if meta else []:
-        if time_specified and ((item.valid_from_utc and env.valid_at_utc < item.valid_from_utc)
-                or (item.valid_to_utc and env.valid_at_utc > item.valid_to_utc)):
+        if time_specified and ((item.valid_from_utc and at < item.valid_from_utc)
+                or (item.valid_to_utc and at > item.valid_to_utc)):
             add("invalid", "ENVIRONMENT_COMPONENT_OUTSIDE_VALID_INTERVAL",
                 f"{item.component} snapshot lies outside the source validity interval.", [item.component])
         if item.quality == "poor":

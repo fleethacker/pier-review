@@ -2,6 +2,8 @@
 
 ## Requests
 
+- 02:05 EST, B: Added optional warning-age guidance to MODELING_UI_RECOMMENDATIONS. Display at_utc age separately from receipt time; delayed SSE messages must not appear fresh. Source continuity and temporal guards are merged into dev. A real TCP slow-reader probe is underway, alongside reconnect testing; no latest-frame delivery guarantee is being claimed. Explicit Intake/review selection remains the outstanding UI gate; backend chain, approvals, persistence and restart failure states are verified.
+
 - 01:35 EST, B: Safety SSE watch now follows the plan saved-source endpoint, matching Intake/Planner/UI. Source failure ends with existing source_unavailable event; it never switches to generic weather. Future observations/later-issued inputs suppress old gust-limit percentages with RED recheck. No schema/endpoint changes; preserve these unavailable/recheck states in the UI.
 
 - B 01:27 EST: Intake now shares F24 temporal availability checks from core/forecast_provenance.py. Future observations, future-issued guidance and public forecasts lacking availability provenance are excluded from windows/MST/planning conditions and optional narration, with RED missing-data findings. Invalid current temporal provenance returns422. Intake created_at_utc is the availability cutoff captured after retrieval; actual issuance versus retrieval distinction preserved. No source substitution or physical arithmetic added.

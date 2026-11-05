@@ -184,7 +184,9 @@ def assess(req: ForecastDockingRequest, ctx=None) -> ForecastDockingResponse:
         request_snapshot['forecast'] = [s.model_dump(mode='json') for s in req.forecast]
     analysis_ids = [c.analysis_result_id for c in conditions if c.analysis_result_id]
     assets = {'ship': ship.model_dump(mode='json'), 'berth': berth.model_dump(mode='json'),
-              'lines': {line.spec_id: refdata.line(line.spec_id).model_dump(mode='json') for line in config.lines},
+              'lines': ({spec.spec_id: spec.model_dump(mode='json') for spec in refdata.lines()}
+                        if req.optimize_lines else
+                        {line.spec_id: refdata.line(line.spec_id).model_dump(mode='json') for line in config.lines}),
               'tugs': {tug.tug_id: tug.model_dump(mode='json') for tug in refdata.tugs()
                        if any(assignment.tug_id == tug.tug_id for assignment in req.tugs)}}
     snapshot = {'request': request_snapshot, 'config': config.model_dump(mode='json'),

@@ -1,4 +1,4 @@
-# DC2 NWS wind forecast qualification
+# DC2 NWS wind forecast adapter (not operationally qualified)
 
 The adapter resolves the berth coordinate through NWS `/points` and follows
 `forecastGridData` to the raw grid forecast. NWS documents this grid as about
@@ -19,3 +19,5 @@ because those require current and water level; public forecast composition is
 therefore gated on DC3 rather than filling absent fields with synthetic zeroes.
 
 Source: [NWS API Web Service](https://www.weather.gov/documentation/services-web-api).
+
+Intervals already active at the requested as-of time are retained and clipped. The adapter splits at every speed, gust and direction boundary, so a gust change within a constant-speed period is not lost. Fixed-length ISO day/hour/minute/second durations are supported; overlapping intervals, invalid units and nonfinite/negative values are rejected. Missing gust remains unavailable. HTTP stale/cache-age provenance is retained for downstream gating.

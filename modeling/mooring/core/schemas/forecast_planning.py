@@ -9,8 +9,87 @@ from .environment import EnvironmentSnapshot
 from .plans import MooringConfig, TugAssignment
 
 
+class ForecastBinding(Model):
+    """Explicit input selection. Provider acquisition remains outside the planner."""
+
+    wire_omitted_defaults = {"source_id": None, "env_scenario_id": None, "revision": None,
+                            "expected_content_hash": None}
+    source: Literal['supplied', 'scenario'] = 'supplied'
+    source_id: str | None = Field(default=None, min_length=1,
+        description="Caller-declared dataset/product identity; not proof of provider authenticity.")
+    env_scenario_id: str | None = Field(default=None, min_length=1)
+    revision: str | None = Field(default=None, min_length=1,
+        description="Declared provider/scenario revision. Content is hashed independently even when this is unchanged.")
+    expected_content_hash: str | None = Field(default=None, pattern=r'^sha256:[0-9a-f]{64}$',
+        description="Optional pin: reject different content instead of silently evaluating a changed revision.")
+
+    @model_validator(mode='after')
+    def selection(self):
+        if (self.source == 'scenario') != (self.env_scenario_id is not None):
+            raise ValueError('Scenario source requires env_scenario_id; supplied source cannot select a scenario')
+        return self
+
+
+class ForecastResolutionManifest(Model):
+    """Immutable identity of the exact series and the requested temporal binding."""
+
+    wire_omitted_defaults = {"source_id": None, "env_scenario_id": None}
+    source: Literal['supplied', 'scenario']
+    source_id: str | None = None
+    env_scenario_id: str | None = None
+    revision: str
+    content_hash: str = Field(pattern=r'^sha256:[0-9a-f]{64}$')
+    binding_hash: str = Field(pattern=r'^sha256:[0-9a-f]{64}$')
+    as_of_utc: AwareDatetime
+    from_utc: AwareDatetime
+    to_utc: AwareDatetime
+    max_gap_min: int = Field(ge=1, le=180)
+
+
+class ForecastResolveRequest(Model):
+    wire_omitted_defaults = {"forecast": None, "forecast_binding": None}
+    berth_id: str
+    as_of_utc: AwareDatetime
+    from_utc: AwareDatetime
+    to_utc: AwareDatetime
+    max_gap_min: int = Field(default=60, ge=1, le=180)
+    step_min: int = Field(default=30, ge=10, le=180,
+        description="Sampling interval for an explicitly selected scenario; supplied series retain every knot.")
+    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721)
+    forecast_binding: ForecastBinding | None = None
+
+    @field_validator('as_of_utc', 'from_utc', 'to_utc')
+    @classmethod
+    def utc_schedule(cls, value):
+        return value.astimezone(UTC)
+
+    @model_validator(mode='after')
+    def selection_and_horizon(self):
+        if self.from_utc < self.as_of_utc or self.to_utc <= self.from_utc:
+            raise ValueError('Forecast horizon must start at/after as_of_utc and end after its start')
+        if self.to_utc > self.as_of_utc + timedelta(hours=120):
+            raise ValueError('Forecast horizon must end within 120 hours of as_of_utc')
+        scenario = self.forecast_binding is not None and self.forecast_binding.source == 'scenario'
+        if scenario == (self.forecast is not None):
+            raise ValueError('Supply exactly one forecast series or a scenario binding')
+        return self
+
+
+class ForecastResolvedResult(Model):
+    forecast_manifest: ForecastResolutionManifest
+    series: list[EnvironmentSnapshot]
+    coverage_complete: bool
+    problems: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class ForecastResolvedResponse(Envelope[ForecastResolvedResult]):
+    pass
+
+
 class ForecastDockingRequest(Model):
-    wire_omitted_defaults = {"allow_short_lead": False}
+    wire_omitted_defaults = {"allow_short_lead": False, "forecast_binding": None,
+                            "forecast_step_min": 30, "forecast": None}
 
     allow_short_lead: bool = Field(default=False,
         description="Explicitly permit reassessment less than 24 hours before arrival. Arrival cannot precede as_of_utc; all forecast provenance/coverage gates remain. Default retains the advance-planning lead requirement.")
@@ -26,7 +105,10 @@ class ForecastDockingRequest(Model):
     arrival_step_min: int = Field(default=60, ge=15, le=360)
     operation_hours: float = Field(default=2, gt=0, le=24)
     holding_hours: float = Field(default=6, ge=0, le=48)
-    forecast: list[EnvironmentSnapshot] = Field(min_length=2, max_length=721)
+    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721)
+    forecast_binding: ForecastBinding | None = None
+    forecast_step_min: int = Field(default=30, ge=10, le=180,
+        description="Sampling interval only for an explicitly selected environment scenario.")
     max_gap_min: int = Field(default=60, ge=1, le=180,
         description='Maximum covered interval between snapshots; this is a sampling assumption, not a guarantee against sub-sample peaks.')
     target_pct_wll: float = Field(default=80, gt=0, le=100)
@@ -42,6 +124,9 @@ class ForecastDockingRequest(Model):
 
     @model_validator(mode='after')
     def times(self):
+        scenario = self.forecast_binding is not None and self.forecast_binding.source == 'scenario'
+        if scenario == (self.forecast is not None):
+            raise ValueError('Supply exactly one forecast series or a scenario binding')
         if self.allow_short_lead and self.arrival_from_utc < self.as_of_utc:
             raise ValueError('Reassessment arrival cannot precede as_of_utc')
         if not self.allow_short_lead and self.arrival_from_utc < self.as_of_utc + timedelta(hours=24):
@@ -50,6 +135,8 @@ class ForecastDockingRequest(Model):
             raise ValueError('arrival_to_utc precedes arrival_from_utc')
         if self.arrival_to_utc + timedelta(hours=self.operation_hours + self.holding_hours) > self.as_of_utc + timedelta(hours=120):
             raise ValueError('Docking and holding must end within the 120-hour planning horizon')
+        if self.forecast is None:
+            return self
         dates = [s.valid_at_utc for s in self.forecast]
         if any(t.tzinfo is None or t.utcoffset() is None for t in dates):
             raise ValueError('Forecast timestamps must be timezone-aware')
@@ -89,7 +176,11 @@ class DockingArrivalWindow(Model):
 
 
 class ForecastDockingResult(Model):
-    wire_omitted_defaults = {"selected_config": None, "installed_at_water_level_mllw_ft": None, "retrieved_at_utc": []}
+    wire_omitted_defaults = {"selected_config": None, "installed_at_water_level_mllw_ft": None, "retrieved_at_utc": [],
+                            "forecast_manifest": None, "result_hash": None}
+    forecast_manifest: ForecastResolutionManifest | None = None
+    result_hash: str | None = Field(default=None, pattern=r'^sha256:[0-9a-f]{64}$',
+        description="Hash of the semantic assessment, excluding newly allocated result IDs and execution timestamps.")
     selected_config: MooringConfig | None = Field(default=None,
         description="Selected arrival's configuration with modeled unstretched paid-out lengths made explicit. Reproduces the static installation assumption; not a deck-handling instruction.")
     installed_at_water_level_mllw_ft: float | None = Field(default=None,

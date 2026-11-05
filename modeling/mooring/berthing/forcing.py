@@ -45,7 +45,7 @@ class ForcingSeries:
             rng = random.Random(spec.seed)
             n = math.ceil(duration/spec.gust_correlation_s)+2
             self.knots = (0.0,)+tuple(rng.gauss(0, spec.gust_sigma_kt) for _ in range(n-1))
-        material = {"spec": spec.model_dump(mode="json"), "duration_s": duration,
+        material = {"spec": spec.model_dump(mode="json"), "duration_s": float(duration),
                     "base": base_env.model_dump(mode="json", exclude={"valid_at_utc"})}
         text = json.dumps(material, sort_keys=True, separators=(",", ":"))
         self.revision = "frc-"+hashlib.sha256(text.encode()).hexdigest()[:12]

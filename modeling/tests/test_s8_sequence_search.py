@@ -70,3 +70,8 @@ def test_crew_shortage_blocks_all_proposals():
     res = sq.propose_sequences(req(line_handling_crews=2, max_candidates=2))
     assert res.outcome != "feasible_found"
     assert all(any(i.code == "INSUFFICIENT_CREWS" and i.severity == "RED" for i in p.issues) for p in res.proposals)
+
+
+def test_search_route_registered():
+    from modeling_api.main import app
+    assert any(getattr(r, "path", "").endswith("/mooring/sequence/search") for r in app.routes)

@@ -26,6 +26,7 @@ from mooring.core.schemas import (
 )
 from mooring.examples import ex
 
+from mooring.core.schemas.sequence_search import SequenceSearchRequest, SequenceSearchResult
 from ..backend import berthing_sim, berthing_tugs, sequence as sequence_impl
 from ..state import API_PREFIX, JOBS, SESSIONS
 
@@ -58,6 +59,15 @@ def sequence(req: Annotated[SequenceRequest, Body(openapi_examples=ex("mooring_s
              summary="Check a proposed line-handling sequence: dependencies, crews, tug provenance and intermediate states")
 def sequence_validate(req: SequenceValidateRequest):
     return sequence_impl.validate_sequence(req)
+
+
+@router.post("/mooring/sequence/search", response_model=SequenceSearchResult, tags=["M7 Planning"],
+             summary="S8: bounded search over line orders with intermediate static checks (draft, unreviewed)")
+def sequence_search(req: SequenceSearchRequest):
+    try:
+        return sequence_impl.propose_sequences(req)
+    except (refdata.NotFound, refdata.InvalidReference) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 # ---- M11 Berthing simulator ----

@@ -74,6 +74,18 @@ By default the environment is the frozen scenario snapshot (unchanged behavior, 
 
 **Uncovered-forcing policy** (`on_uncovered`). Synthetic series cover `[0, duration_s]`; replay covers its first to last sample time. Time before the first sample always fails (including at creation: 422 for sessions). Time after coverage: `stop` (default) ends the run with an invalid RED result and reason `FORCING_UNCOVERED` (a session stops with an error alert until reset); `invalidate` holds the last covered value, marks the run invalid with `FORCING_UNCOVERED`, and frames report the environment validity as invalid. Neither policy extrapolates.
 
+## Using composed forecasts (D2) and offshore waves (D4)
+
+`mooring.berthing.forcing_adapters.composed_forecast_to_forcing(forecast, anchor_utc, *, allow_mock=False, horizon_s=None, max_gap_s=10800)` turns a `ComposedForecast` into a **replay** `ForcingSpec` with simulation t = 0 at `anchor_utc` (`..._detail` also returns a report of used/skipped components). It reads the manifest component series, not `snapshots`, so partial forecasts work.
+
+* Current and water-level points are instantaneous and linearly interpolated. Wind points are intervals: the value is anchored at the interval midpoint, interpolated between midpoints, and held only out to the first/last interval bound. A gap in wind (or an over-`max_gap_s` gap) inside the window raises `ValueError` rather than being bridged. Missing gust in any wind point omits the gust channel.
+* An unavailable, mock-labelled (unless `allow_mock`), poor/suspect or empty component contributes **no channel**: the frame reports it `unavailable` and the physics uses the scenario base value. It is never zero and never substituted.
+* The replay window is the intersection of the contributing components' coverage; an anchor outside it raises `ValueError`. No extrapolation.
+* `ForcingSpec.label` starts `REPLAY (not live)` and carries the manifest `revision` (content hash), anchor and component states, so `forcing_revision` (a hash of the spec) changes with the forecast revision. Frame provenance stays `unknown` (supplied replay samples). Replay is never relabelled live.
+* The simulator base environment's `valid_at_utc` is not moved to the anchor; `t_s` is relative to the anchor.
+
+`mooring.data_simulation.wave_adapter.offshore_waves_to_surrogate(series, at_utc, seed, representation="total"|"partitions")` returns `(WaveSurrogateRequest, report)` from an `OffshoreWaveSeries`, using the latest point at or before `at_utc` (no look-ahead, 3 h hold limit). Total sea **or** partitions, never both; a total beside partitions is only the consistency check. Periods that are not peak/dominant/provider-partition are refused unless `allow_period_proxy`. Spectrum-only series, unavailable series, poor quality or stale points give `spectrum=None`, so the surrogate result is `unavailable` (never zero waves). The source string is labelled "offshore source, not berth forcing".
+
 ## S3 wiring (tug geometry and vertical state)
 
 Tug commands are validated and evolved through `s3_tug_geometry` (`bind_push_point`, `TugLimits.from_specs`, `slew_force`, `tug_contact`, `total_wrench`); force and wrench results are numerically identical to the earlier inline ramp (same bounds, same slew rate, same `x_pp * fy` yaw moment). Tug position, velocity and acceleration remain null (not modeled).

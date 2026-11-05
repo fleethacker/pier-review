@@ -433,7 +433,9 @@ class SimSamplingPolicy(Model):
 
 
 class SimLifecycle(Model):
-    """Server lifecycle metadata; defining this schema does not enable a new runtime protocol."""
+    """Server lifecycle metadata for the rm0-v1 session stream."""
+
+    wire_omitted_defaults = {"speed": None}
 
     type: Literal["session_lifecycle"] = "session_lifecycle"
     schema_version: Literal["rm0-v1"] = "rm0-v1"
@@ -447,6 +449,7 @@ class SimLifecycle(Model):
     message: str | None = None
     validity: Validity | None = None
     provenance: MotionProvenance | None = None
+    speed: float | None = Field(default=None, gt=0, description="Current simulated seconds per wall second.")
 
     @model_validator(mode="after")
     def error_needs_message(self):

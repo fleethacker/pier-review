@@ -16,7 +16,9 @@ from pydantic import TypeAdapter, ValidationError
 from mooring.core.schemas import (
     AnalyzeRequest,
     SimControlMessage,
+    SimLifecycle,
     SimLineEventMessage,
+    SimSpeedMessage,
     SimTugCommandMessage,
     TelemetryBatch,
     TelemetryRecord,
@@ -27,7 +29,7 @@ from .state import SESSIONS
 
 router = APIRouter()
 
-SimClientMessage = TypeAdapter(SimTugCommandMessage | SimLineEventMessage | SimControlMessage)
+SimClientMessage = TypeAdapter(SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage)
 
 
 @router.websocket("/ws/env")
@@ -106,7 +108,7 @@ async def ws_alerts(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", scena
 
 
 @router.websocket("/ws/sim/{session_id}")
-async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0):
+async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence: int = -1):
     # This handler alone is changed; /ws/env is owned by another workstream.
     import anyio
     from mooring.core import access
@@ -152,13 +154,17 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0):
                     await ws.close(code=1008,reason=("Invalid command schema" if isinstance(exc,ValidationError) else str(exc))[:120])
                     return
         async def send_frames():
-            sent=0
+            # Retained lifecycle messages newer than after_sequence, then only the newest frame. A slow client
+            # skips intermediate frames (sequence gaps); it never queues them and never slows physics.
+            sent=0; last_lifecycle=after_sequence; last_frame=-1
             while limit==0 or sent<limit:
                 session.changed.clear()
-                frame=session.latest
-                await asyncio.wait_for(ws.send_json(frame.model_dump(mode="json")),timeout=2.0)
-                sent+=1
-                if limit and sent>=limit: return
+                for message in session.pending_messages(last_lifecycle,last_frame):
+                    await asyncio.wait_for(ws.send_json(message.model_dump(mode="json")),timeout=2.0)
+                    sent+=1
+                    if isinstance(message,SimLifecycle): last_lifecycle=message.sequence
+                    elif message.sequence is not None: last_frame=message.sequence
+                    if limit and sent>=limit: return
                 await session.changed.wait()
         receive_task=asyncio.create_task(receive_commands())
         send_task=asyncio.create_task(send_frames())

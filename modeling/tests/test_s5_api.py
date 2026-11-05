@@ -22,7 +22,6 @@ DEG_M = 6_371_008.8 * 3.141592653589793 / 180
 @pytest.fixture
 def client(monkeypatch):
     reset_db(":memory:")
-    monkeypatch.setenv("MOORING_MAX_BODY_BYTES", "40000000")   # the global 1 MiB default would pre-empt S5's own limits
     return TestClient(app)
 
 
@@ -31,7 +30,6 @@ def authed(monkeypatch):
     reset_db(":memory:")
     monkeypatch.setenv("MOORING_API_KEYS", json.dumps({"alice": "a" * 32, "bob": "b" * 32}))
     monkeypatch.setenv("MOORING_RATE_PER_MINUTE", "10000")
-    monkeypatch.setenv("MOORING_MAX_BODY_BYTES", "40000000")
     monkeypatch.setattr(security, "RATE", security.RateLimit())
     return TestClient(app)
 
@@ -266,3 +264,17 @@ def test_ownership_and_unknown_missions_are_404(authed):
     bm = new_mission(c, B)
     assert c.get(f"{P}/missions/{bm}/media/{img['media_id']}", headers=B).status_code == 404
     assert c.get(f"{P}/missions/{mid}/track").status_code == 401   # no credentials at all
+
+
+def test_upload_routes_have_their_own_bounded_body_limit_and_others_keep_the_default(client, monkeypatch):
+    """Defaults: S5 uploads accept up to MOORING_MAX_UPLOAD_BYTES (32 MiB); every other route keeps 1 MiB."""
+    monkeypatch.delenv("MOORING_MAX_BODY_BYTES", raising=False)
+    monkeypatch.delenv("MOORING_MAX_UPLOAD_BYTES", raising=False)
+    mid = new_mission(client)
+    big_csv = csv_track() + ("#" + "x" * 1023 + "\n") * 3000          # ~3 MB: over the global default, under the upload limit
+    r = upload_track(client, mid, big_csv)
+    assert r.status_code != 413, r.text
+    r = client.post(f"{P}/missions", json={"name": "x" * 2_000_000, "vessel_id": "v"})
+    assert r.status_code == 413
+    monkeypatch.setenv("MOORING_MAX_UPLOAD_BYTES", "1000")
+    assert upload_track(client, mid, csv_track() * 20).status_code == 413

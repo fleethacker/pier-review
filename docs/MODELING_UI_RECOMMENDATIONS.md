@@ -4,7 +4,7 @@ Living handoff from modeling to UI, 4–5 November 2026. These are suggestions f
 
 ## Current integration priorities
 
-The backend supports explicit Intake and independent Safety review, but those explicit steps are still missing from the shared dev UI. Prioritize them before adding more result panels. Keep the held UI branch separate until its compatibility issues are resolved; [UI_COMPATIBILITY_REVIEW.md](overnight/UI_COMPATIBILITY_REVIEW.md) records that review. Advance-arrival planning is available through the supplied-series API; a production public forecast composer remains unavailable.
+The backend supports explicit Intake and independent Safety review, but those explicit steps are still missing from the shared dev UI. Prioritize them before adding more result panels. The user-authorized integration of `ui/frontend-updates` supplies motion, source/capability and berth-draft panels, with compatibility fixes; [UI_COMPATIBILITY_REVIEW.md](overnight/UI_COMPATIBILITY_REVIEW.md) records the review and follow-up. Advance-arrival planning is available through the supplied-series API; a production public forecast composer remains unavailable.
 
 Source confidence and qualification are different: a record labeled `published` does not prove its rating was verified. Use the qualification response and its issues, not a provenance label, for capability claims. Static load/holding results evaluate wind and current only; wave/wake loads and maneuvering response remain outside that assessment. A wave-height display is not evidence that wave forces were included.
 

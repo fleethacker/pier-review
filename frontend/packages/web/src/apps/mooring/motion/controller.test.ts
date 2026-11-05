@@ -273,3 +273,52 @@ describe('live session', () => {
     expect(idle.pause()).toBe(false);
   });
 });
+
+it('rejects inputs changed while the motion scenario is being saved', async () => {
+  let key = 'before';
+  let resolve!: (value: string) => void;
+  const pending = new Promise<string>((r) => { resolve = r; });
+  const m = new MotionController({ ...host, layoutKey: () => key, ensureScenario: () => pending });
+  vi.mocked(modeling.POST).mockClear();
+  const start = m.startSession();
+  key = 'after';
+  resolve('old');
+  await start;
+  expect(modeling.POST).not.toHaveBeenCalled();
+  expect(m.s.error).toMatch(/changed/i);
+  m.dispose();
+});
+
+it('starts a new session when only the initial offset changes', async () => {
+  const m = make();
+  vi.mocked(modeling.POST).mockClear().mockResolvedValue({ data: { session_id: 's' } } as never);
+  await m.startSession(120);
+  stream.handlers!.onStatus('open');
+  await m.startSession(240);
+  expect(modeling.POST).toHaveBeenCalledTimes(2);
+  expect(vi.mocked(modeling.POST).mock.calls.at(-1)?.[1]?.body).toMatchObject({ initial_state: { y_ft: 290 } });
+  m.dispose();
+});
+
+it('does not connect a stale session if inputs change while its scene loads', async () => {
+  let key = 'before';
+  let release!: () => void;
+  let entered!: () => void;
+  const loading = new Promise<void>((r) => { entered = r; });
+  const pending = new Promise<void>((r) => { release = r; });
+  vi.stubGlobal('fetch', vi.fn(async () => {
+    entered();
+    await pending;
+    return { ok: true, json: async () => scene };
+  }));
+  vi.mocked(modeling.POST).mockResolvedValue({ data: { session_id: 's', scene_url: '/scene' } } as never);
+  const m = new MotionController({ ...host, layoutKey: () => key });
+  const start = m.startSession();
+  await loading;
+  key = 'after';
+  release();
+  await start;
+  expect(stream.handlers).toBeNull();
+  expect(m.s.error).toMatch(/changed/i);
+  m.dispose();
+});

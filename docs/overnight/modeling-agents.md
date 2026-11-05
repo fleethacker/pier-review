@@ -2,6 +2,8 @@
 
 ## Log
 
+- 07:28 EST: user authorized integrating `ui/frontend-updates` only and explicitly excluded `frontend-exercise`. Separate `agents/ui-integration` checkout merges current dev with the UI branch without editing the colleague branch/worktree. Nine counterexamples reproduced and fixed: five saved-scenario edits, upload acceptance, async creation, offset reuse and async scene loading. Null vision geometry and source/confidence wording corrected. Full 1,734 Python / 191 UI tests pass; contract/typecheck/lint/build pass. Final scoped demo-check: 20 passed, 0 failed, 0 skipped; real Chrome/real services. Separate four-case initial-analysis browser probe passes with no page errors and invalid loads withheld. First browser attempt had a deprecated GL flag/render error; tested Chrome configuration resolves it. Improved console diagnostics identified a missing favicon, now supplied. Initial harness plan-validity lookup corrected to the cited analysis envelope. Temporary services stopped. Explicit Intake/review UI selection and complete four-case browser chain remain open; no operational qualification claimed.
+
 - 06:48 EST: completed frozen-source TCP soak: 218 full chains, 1,308 cross-owner denials, 13,026.7 seconds, no failures; owned services stopped. Source was 04e7fe9, not the final revision. Latest code passes 1,734 Python and 128 UI tests locally, with contract/typecheck/lint/build checks. PR #102 is pushed; frontend CI passes and Python CI is pending. Final Chrome probes passed; no owned browser test services remain. User may close the laptop: local watches/commands cannot be relied on while it sleeps. Resume from this branch and check PR #102 before publishing the next packet.
 
 - 06:41 EST: Final validity-display fix: unusable analyses no longer supply green line/fitting colors, percentages, offsets or data-key values; edits clear stale map loads immediately, even during dragging or after recheck failure. Sheet sidebar/HTML withhold unusable line margins, directional limits and computed tug requirements, retaining inputs and citations. Fourteen UI and three print counterexamples failed before; valid/limited preservation cases retained.128 UI tests/typecheck/lint/build and1734 Python tests/contract-check pass, no skips/xfails. An existing sheet test now creates its own review instead of depending on another test. Actual Chrome/real APIs: four initial cases, recommendation installation/stale-geometry rejection, risk/wind/timeline reporting and immutable sheet display all pass without page errors; services stopped. A temporary harness dependency-path typo was fixed before that run. Tide explanation now depends on attachment heights/installed length. Held UI branch untouched; UI inbox updated.
@@ -256,6 +258,16 @@ the missing explicit full browser acceptance flow. Detailed UI handoff: [recomme
 
 
 ## Final report
+
+**UI integration addendum:** The user subsequently authorized integrating `ui/frontend-updates` only,
+and explicitly excluded `frontend-exercise`. The separate integration checkout fixes the earlier
+compatibility findings and preserves the overnight modeling/display behavior. Combined verification:
+1,734 Python / 191 UI tests; contract/typecheck/lint/build pass. The new scoped `make demo-check`
+passed 20/20 browser/API checks on the final integration code, with no failures or skips. A separate
+four-case initial-analysis browser check also passed, retaining invalid-load suppression and canonical source resolution.
+This supplies motion, data-source/capability and berth-draft UI panels. Explicit Intake/review selection,
+production public forecast composition and the complete browser acceptance gate remain unfinished.
+The earlier report below describes the pre-integration checkpoint.
 
 Prepared at 06:51 EST, 5 November 2026; monitoring continues until the 08:00 deadline while the local
 machine is available. This section supersedes the pending-PR checkpoint above. PR #102 passed both CI

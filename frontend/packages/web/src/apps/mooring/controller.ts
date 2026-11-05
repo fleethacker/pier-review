@@ -205,13 +205,16 @@ const ANALYZE_DEBOUNCE_MS = 250;
 export class MooringController {
   readonly state = new Store<MooringState>(INITIAL);
   readonly agent: AgentSession = new AgentSession(this);
+  private savedScenarioKey: string | null = null;
   readonly motion: MotionController = new MotionController({
     faceBearingDeg: () => this.s.berth?.face_bearing_true_deg ?? null,
     // A tug can hold several push points and a layout can repeat a line number while it is being edited: list each once.
     tugIds: () => [...new Set(this.s.tugAssignments.map((t) => t.tug_id))],
     lineNumbers: () => [...new Set(this.s.lines.map((l) => l.line_number))],
-    layoutKey: () => JSON.stringify([this.contextKey(), this.s.lines, this.s.tugAssignments]),
-    ensureScenario: async () => this.s.scenarioId ?? this.saveScenario(`Motion session ${new Date().toISOString().slice(11, 16)}Z`),
+    layoutKey: () => this.scenarioKey(),
+    ensureScenario: async () => this.s.scenarioId && this.savedScenarioKey === this.scenarioKey()
+      ? this.s.scenarioId
+      : this.saveScenario(`Motion session ${new Date().toISOString().slice(11, 16)}Z`),
     initialState: (offsetFt) => {
       const { berth, ship, side, shipXFt, standoffOverrideFt } = this.s;
       if (!berth || !ship) return null;
@@ -661,7 +664,13 @@ export class MooringController {
     this.state.set({ scenarios });
   }
 
+  private scenarioKey(): string {
+    return JSON.stringify([this.contextKey(), this.s.lines, this.s.tugAssignments, this.s.env]);
+  }
+
   async saveScenario(name: string): Promise<string | null> {
+    const savedKey = this.scenarioKey();
+    const tugs = this.s.tugAssignments;
     const { ship, berth, side, shipXFt, lines, loading, standoffOverrideFt } = this.s;
     if (!ship || !berth || !this.s.env) return null;
     const env = this.s.env;
@@ -680,7 +689,7 @@ export class MooringController {
           berth_id: berth.berth_id,
           side_to: side,
           env_source: { mode: 'scenario', env_scenario_id: snapshot.env_scenario_id, replay_speed: 1 },
-          tugs: this.s.tugAssignments,
+          tugs,
           config: {
             side_to: side,
             ship_x_ft: shipXFt,
@@ -690,7 +699,10 @@ export class MooringController {
         },
       }),
     );
-    this.state.set({ scenarioId: saved.scenario_id, notice: `Saved scenario “${saved.name}”` });
+    if (savedKey === this.scenarioKey()) {
+      this.savedScenarioKey = savedKey;
+      this.state.set({ scenarioId: saved.scenario_id, notice: `Saved scenario “${saved.name}”` });
+    }
     await this.refreshScenarioList();
     return saved.scenario_id;
   }
@@ -712,6 +724,7 @@ export class MooringController {
       });
       await this.loadSelection({ recommend: false });
       this.state.set({ lines: sc.config?.lines ?? [], tugAssignments: sc.tugs ?? [], scenarioId: sc.scenario_id });
+      this.savedScenarioKey = this.scenarioKey();
       this.pushScene('update');
       this.scheduleAnalyze();
     });

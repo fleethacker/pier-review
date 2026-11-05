@@ -12,14 +12,14 @@ export const IMAGE_KINDS: { value: ImageKind; label: string }[] = [
   { value: 'photo', label: 'Photo' },
 ];
 
-export const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
-const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+export const MAX_IMAGE_BYTES = 8_000_000;
+const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp'];
 
 /** Why a file cannot be sent, or null when it can. */
 export function checkImage(file: { type: string; size: number }): string | null {
-  if (!ACCEPTED.includes(file.type)) return 'Choose a PNG, JPEG, WebP or GIF image.';
+  if (!ACCEPTED.includes(file.type)) return 'Choose a PNG, JPEG or WebP image.';
   if (file.size === 0) return 'That file is empty.';
-  if (file.size > MAX_IMAGE_BYTES) return `That image is larger than ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`;
+  if (file.size > MAX_IMAGE_BYTES) return `That image is larger than ${MAX_IMAGE_BYTES / 1_000_000} MB.`;
   return null;
 }
 

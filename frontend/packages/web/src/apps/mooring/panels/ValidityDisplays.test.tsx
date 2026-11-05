@@ -35,6 +35,7 @@ it.each(['invalid', 'unknown', undefined, 'valid', 'limited'])('sheet margins re
       validity: validity ? { state: validity } : undefined,
       line_plan: [{ line_number: 1, role: 'bow', pct_wll: 12, status: 'GREEN' }] } } };
   render(<ControllerContext.Provider value={{ state: { use: (sel: (s: typeof state) => unknown) => sel(state) },
+    motion: { state: { use: (sel: (s: { open: boolean }) => unknown) => sel({ open: false }) } },
     agent: { state: { use: (sel: (s: typeof agent) => unknown) => sel(agent) } } } as never}><Overlay /></ControllerContext.Provider>);
   if (validity === 'valid' || validity === 'limited') expect(screen.getByText(/12% of WLL/)).toBeTruthy();
   else {

@@ -280,6 +280,8 @@ export class MotionController {
 
   /** Create a session from the current layout and connect to it. Sessions start paused; call `resume()` to run. */
   async startSession(offsetFt = 120): Promise<void> {
+    const inputKey = this.host.layoutKey();
+    const layoutKey = JSON.stringify([inputKey, offsetFt]);
     const initial = this.host.initialState(offsetFt);
     if (!initial) {
       this.state.set({ error: 'Choose a berth and a ship first.' });
@@ -287,7 +289,7 @@ export class MotionController {
     }
     // The simulator allows only a few sessions at once, shared by every client, so reuse the running one when it
     // still matches the layout: a reset returns it to time zero, paused.
-    if (this.s.source === 'live' && this.stream && this.s.link === 'open' && this.sessionLayoutKey === this.host.layoutKey()) {
+    if (this.s.source === 'live' && this.stream && this.s.link === 'open' && this.sessionLayoutKey === layoutKey) {
       this.state.set({ error: null });
       this.reset();
       return;
@@ -296,11 +298,15 @@ export class MotionController {
     this.state.set({ busy: true, error: null, source: 'live', link: 'connecting', frame: null, trail: [], lifecycle: null, lifecycleMessage: null, lastSequence: null, droppedForDisplay: 0, recording: null, playing: false });
     try {
       const scenarioId = await this.host.ensureScenario();
+      if (inputKey !== this.host.layoutKey()) throw new Error('Inputs changed while saving the scenario. Start a new session.');
       if (!scenarioId) throw new Error('A scenario is needed to start a session; set up the berth, ship and lines first.');
       const created = unwrap(await modeling.POST('/api/v1/berthing/sessions', { body: { scenario_id: scenarioId, initial_state: initial } }));
-      this.sessionLayoutKey = this.host.layoutKey();
+      if (inputKey !== this.host.layoutKey()) throw new Error('Inputs changed while creating the session. The new session remains paused; start again.');
+      this.sessionLayoutKey = layoutKey;
       this.state.set({ sessionId: created.session_id });
       await this.loadScene(created.scene_url ? serviceUrl(MODELING_BASE, created.scene_url) : null);
+      if (this.disposed) return;
+      if (inputKey !== this.host.layoutKey()) throw new Error('Inputs changed while loading the scene. The session remains paused; start again.');
       this.connect(created.session_id);
       this.state.set({ busy: false });
     } catch (e) {

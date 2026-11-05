@@ -22,6 +22,7 @@ from ..physics.client import ModelingClient, ModelingError
 from ..physics.toolkit import PhysicsToolkit
 from ..planner.mock import PLANS, PlanRecord, _analyze_body
 from ..shared import llm
+from ..shared.environment_quality import component_issues
 from ..shared.narration import GuardrailError, format_fact, render
 from . import checks
 from .schemas import (DirectionalThreshold, GustWarning, SafetyReview, SafetyReviewRequest, Thresholds)
@@ -273,15 +274,16 @@ def _warning(plan_id: str, env, point: LimitEnvelopePoint | None, factor: float,
 
 def _watch_recheck(env, assessed) -> tuple[list[str], bool]:
     """Compare supplied facts, never recompute or extrapolate a physical threshold in the agent."""
-    reasons = []
-    invalid = False
+    problems = [item for item in component_issues(env) if item[2] in ("AMBER", "RED")]
+    reasons = [item[3] for item in problems]
+    invalid = any(item[2] == "RED" for item in problems)
     fields = ("current_speed_kt", "current_set_true_deg", "water_level_mllw_ft", "air_density_kgm3", "water_density_kgm3")
     if not any(all(getattr(env, field) == getattr(prior, field) for field in fields) for prior in assessed):
         reasons.append("Current, water level or density differs from the reviewed conditions; wind limits have not been recomputed.")
     meta = env.metadata
     if meta and meta.quality in ("suspect", "poor"):
         reasons.append("The environment provider reports suspect or poor quality.")
-        invalid = meta.quality == "poor"
+        invalid = invalid or meta.quality == "poor"
     flags = " ".join(flag for station in env.quality for flag in station.flags).lower()
     if any(word in flags for word in ("missing", "unavailable", "stale", "suspect", "poor", "invalid", "gap")):
         reasons.append("A required environmental source is flagged; review source availability and freshness.")

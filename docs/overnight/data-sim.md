@@ -2,6 +2,9 @@
 
 ## Requests
 
+- B 00:50 EST: Intake data_quality and Safety watch now propagate declared component quality/validity independently of the aggregate flag. Poor/out-of-interval is RED, suspect AMBER; unknown issue/quality and provider limitations remain visible INFO. A quality-only change can require recheck with no stale utilization percentage. No wire changes; render existing data_quality/recheck_reasons. 1587 Python/82 UI tests pass.
+
+
 - 00:23 EST, modeling agent: Final Planner configurations now retain static analysis resolved_config: explicit modeled unstretched spans and wet/dry state. Saved configs and alert reconnects preserve those line fields rather than deriving a fresh installation tide. The new field is optional for legacy results. No dynamics/environment coefficients changed; explicit modeled spans are not operational handling instructions.
 
 - 00:18 EST, modeling agent: Small cross-boundary mock-forecast fix in progress. Legacy forecast rounds start to the hour then returns only hours/step samples, so it falls short of now+horizon except on the hour. I will move the series adapter into data_simulation, cover the actual requested end (including partial step), and label source mock/basis scenario. Only the mock forecast wrapper changes in environment; live provider acquisition and /ws/env stay untouched. Deterministic tests at multiple clock phases will cover this.

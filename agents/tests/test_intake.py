@@ -564,3 +564,40 @@ def test_mock_scenario_does_not_import_public_forecast_or_provider_windows():
     assert all(condition.environment.source == 'mock' for condition in report.planning_conditions)
     assert any('does not match the selected synthetic source' in issue.detail for issue in report.data_quality)
     assert not report.berthing_windows and all(not isinstance(item, dict) for item in tk.requests)
+
+
+@pytest.mark.parametrize('quality,severity', [('poor','RED'), ('suspect','AMBER'), ('unknown','INFO')])
+def test_component_quality_is_not_hidden_by_good_aggregate_metadata(quality, severity):
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    tk = FakeToolkit(calm=True)
+    tk.current.quality = []
+    for sample in tk.series:
+        sample.quality = []
+    tk.series[-1].metadata = EnvironmentMetadata(basis='prediction', quality='good', components=[
+        EnvironmentComponentProvenance(component='current', source='tidal fixture', basis='prediction', quality=quality,
+            limitations=['No weather residual.'])])
+    report = run(tk=tk)
+    assert any(issue.station_id == 'current: tidal fixture' and issue.severity == severity and 'component' in issue.detail
+               for issue in report.data_quality)
+    assert any('issue time is unknown' in issue.detail for issue in report.data_quality)
+    assert any('No weather residual.' in issue.detail for issue in report.data_quality)
+    assert not any(window.severity in ('AMBER','RED') for window in report.windows)
+    from mooring_agents.safety.checks import forecast_coverage
+    check = forecast_coverage(report)
+    assert check.passed == (quality == 'unknown')
+    if quality != 'unknown':
+        assert check.severity == severity
+
+
+
+def test_out_of_interval_component_blocks_review_even_when_not_the_worst_gust():
+    from mooring.core.schemas import EnvironmentMetadata, EnvironmentComponentProvenance
+    from mooring_agents.safety.checks import forecast_coverage
+    tk = FakeToolkit(calm=True)
+    tk.series[-1].metadata = EnvironmentMetadata(basis='prediction', quality='good', components=[
+        EnvironmentComponentProvenance(component='water_level', source='fixture', basis='prediction', quality='good',
+            valid_to_utc=NOW+timedelta(minutes=1))])
+    report = run(tk=tk)
+    assert any(issue.issue == 'out_of_range' and issue.severity == 'RED' for issue in report.data_quality)
+    check = forecast_coverage(report)
+    assert not check.passed and check.severity == 'RED'

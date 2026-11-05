@@ -2,6 +2,9 @@
 
 ## Requests
 
+- B 00:50 EST: Intake data_quality and Safety watch now propagate declared component quality/validity independently of the aggregate flag. Poor/out-of-interval is RED, suspect AMBER; unknown issue/quality and provider limitations remain visible INFO. A quality-only change can require recheck with no stale utilization percentage. No wire changes; render existing data_quality/recheck_reasons. 1587 Python/82 UI tests pass.
+
+
 - 00:38 EST, modeling agent: Printable-sheet HTML/PDF now includes forecast assessment, current toward bearing, MLLW water level and recorded wind/component provenance. Retrieval is explicitly not issuance/freshness; unknown basis stays unknown. Repeated table headers improve multipage print. Existing endpoints; no wire/schema change or UI source edit. Supported-case native PDF smoke passes with AMBER/limited and ready_for_signature, not operational qualification.
 
 - 00:30 EST, modeling agent: Line geometry reports/rules now use the solved span and ship-relative horizontal angle including yaw. `length_ft` is the current straight span; resolved config paid_out_unstretched_length_ft is the installed rest span. Optional line-detail labels should distinguish them. No UI source edits; generated types describe the distinction.

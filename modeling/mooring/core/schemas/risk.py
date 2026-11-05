@@ -1,6 +1,6 @@
 """Risk engine schemas (module M5): Monte Carlo exceedance, forecast timeline, live alerts."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -91,6 +91,8 @@ class TimelineRequest(AnalyzeRequest):
     def timeline_times(self):
         if self.start_utc is not None and (self.start_utc.tzinfo is None or self.start_utc.utcoffset() is None):
             raise ValueError("start_utc must be timezone-aware")
+        if self.start_utc is not None:
+            self.start_utc = self.start_utc.astimezone(UTC)
         if self.forecast is None:
             return self
         if self.start_utc is None:
@@ -98,6 +100,9 @@ class TimelineRequest(AnalyzeRequest):
         times = [s.valid_at_utc for s in self.forecast]
         if any(t.tzinfo is None or t.utcoffset() is None for t in times):
             raise ValueError("Forecast timestamps must be timezone-aware")
+        self.forecast = [sample.model_copy(update={"valid_at_utc": sample.valid_at_utc.astimezone(UTC)})
+                         for sample in self.forecast]
+        times = [sample.valid_at_utc for sample in self.forecast]
         if any(b <= a for a, b in zip(times, times[1:])):
             raise ValueError("Forecast timestamps must be strictly increasing")
         end = self.start_utc + timedelta(hours=self.forecast_hours)

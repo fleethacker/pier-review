@@ -1,6 +1,6 @@
 """Static mooring analysis schemas (module M4) and the NSTM 582 rule registry."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -161,15 +161,21 @@ class TideSweepRequest(AnalyzeRequest):
     def time_coverage(self):
         if any(t.tzinfo is None or t.utcoffset() is None for t in (self.from_utc, self.to_utc)):
             raise ValueError("Tide sweep times require explicit timezones")
+        self.from_utc = self.from_utc.astimezone(UTC)
+        self.to_utc = self.to_utc.astimezone(UTC)
         if not self.from_utc < self.to_utc <= self.from_utc + timedelta(hours=120):
             raise ValueError("Tide sweep duration must be positive and no longer than 120 hours")
         for action in self.tending:
-            if action.at_utc.tzinfo is None or not self.from_utc <= action.at_utc <= self.to_utc:
+            if action.at_utc.tzinfo is None or action.at_utc.utcoffset() is None or not self.from_utc <= action.at_utc <= self.to_utc:
                 raise ValueError("Tending timestamps must lie within the sweep and include a timezone")
+        self.tending = [action.model_copy(update={"at_utc": action.at_utc.astimezone(UTC)}) for action in self.tending]
         if self.water_level_forecast is not None:
             times = [sample.valid_at_utc for sample in self.water_level_forecast]
             if any(t.tzinfo is None or t.utcoffset() is None for t in times):
                 raise ValueError("Water-level sample times require explicit timezones")
+            self.water_level_forecast = [sample.model_copy(update={"valid_at_utc": sample.valid_at_utc.astimezone(UTC)})
+                                         for sample in self.water_level_forecast]
+            times = [sample.valid_at_utc for sample in self.water_level_forecast]
             if any(b <= a for a, b in zip(times, times[1:])):
                 raise ValueError("Water-level sample times must be strictly increasing")
             if times[0] > self.from_utc or times[-1] < self.to_utc:

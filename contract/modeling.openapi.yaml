@@ -9138,6 +9138,216 @@ components:
       - validity
       title: DockingConditionResult
       type: object
+    ElementRisk:
+      additionalProperties: false
+      properties:
+        element_id:
+          title: Element Id
+          type: string
+        p_exceed_wll:
+          description: Probability the element's limit (WLL, or rated capacity for fittings) is exceeded, among valid samples.
+          maximum: 1
+          minimum: 0
+          title: P Exceed Wll
+          type: number
+        p_exceed_mbs:
+          anyOf:
+          - maximum: 1
+            minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          description: Lines only; null for fittings and fenders, which have no MBS.
+          title: P Exceed Mbs
+        tension_p50_lbf:
+          description: Load (lbf) median among valid samples.
+          title: Tension P50 Lbf
+          type: number
+        tension_p95_lbf:
+          title: Tension P95 Lbf
+          type: number
+        p_exceed_wll_ci95:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          default: null
+          description: 95% Wilson interval on p_exceed_wll.
+          title: P Exceed Wll Ci95
+      required:
+      - element_id
+      - p_exceed_wll
+      - tension_p50_lbf
+      - tension_p95_lbf
+      title: ElementRisk
+      type: object
+    ExceedanceResponse:
+      additionalProperties: false
+      properties:
+        result_id:
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+          title: Result Id
+          type: string
+        model:
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+          title: Model
+          type: string
+        model_version:
+          title: Model Version
+          type: string
+        backend:
+          description: '''mock'' until the workstream''s real module lands.'
+          enum:
+          - mock
+          - real
+          title: Backend
+          type: string
+        inputs_hash:
+          description: sha256 of the canonical request JSON.
+          title: Inputs Hash
+          type: string
+        computed_at_utc:
+          format: date-time
+          title: Computed At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        assumptions:
+          items:
+            type: string
+          title: Assumptions
+          type: array
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          title: Warnings
+          type: array
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          default: null
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/ExceedanceResult'
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: ExceedanceResponse
+      type: object
+    ExceedanceResult:
+      additionalProperties: false
+      properties:
+        n_samples:
+          description: Samples requested and run; never silently capped.
+          title: N Samples
+          type: integer
+        p_any_exceeds_wll:
+          description: Instantaneous probability (pointwise), among valid samples.
+          maximum: 1
+          minimum: 0
+          title: P Any Exceeds Wll
+          type: number
+        p_any_exceeds_mbs:
+          maximum: 1
+          minimum: 0
+          title: P Any Exceeds Mbs
+          type: number
+        elements:
+          items:
+            $ref: '#/components/schemas/ElementRisk'
+          title: Elements
+          type: array
+        governing_element:
+          title: Governing Element
+          type: string
+        n_valid:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: N Valid
+        n_failed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          description: Samples whose equilibrium solve failed; never dropped from the accounting.
+          title: N Failed
+        p_any_ci95:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          default: null
+          description: 95% Wilson interval on p_any_exceeds_wll (valid samples).
+          title: P Any Ci95
+        p_any_bounds:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          default: null
+          description: '[exceedances / n, (exceedances + failed) / n]: bounds if every failed sample were safe / exceeding.'
+          title: P Any Bounds
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Seed
+        uncertainty_model:
+          anyOf:
+          - $ref: '#/components/schemas/UncertaintyModel'
+          - type: 'null'
+          default: null
+        pointwise_only:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          description: True when no horizon probability was computed.
+          title: Pointwise Only
+        horizon:
+          anyOf:
+          - $ref: '#/components/schemas/HorizonRisk'
+          - type: 'null'
+          default: null
+        error_criterion:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Error Criterion
+      required:
+      - n_samples
+      - p_any_exceeds_wll
+      - p_any_exceeds_mbs
+      - elements
+      - governing_element
+      title: ExceedanceResult
+      type: object
     ForecastDockingResponse:
       additionalProperties: false
       properties:
@@ -9311,6 +9521,95 @@ components:
       - recheck_triggers
       - limitations
       title: ForecastDockingResult
+      type: object
+    HeldOutValidation:
+      additionalProperties: false
+      description: Calibration check on data not used for fitting.
+      properties:
+        n_heldout:
+          minimum: 0
+          title: N Heldout
+          type: integer
+        nominal_coverage:
+          exclusiveMaximum: 1
+          exclusiveMinimum: 0
+          title: Nominal Coverage
+          type: number
+        observed_coverage:
+          anyOf:
+          - maximum: 1
+            minimum: 0
+            type: number
+          - type: 'null'
+          default: null
+          title: Observed Coverage
+      required:
+      - n_heldout
+      - nominal_coverage
+      title: HeldOutValidation
+      type: object
+    HorizonRisk:
+      additionalProperties: false
+      description: Probability of the event over the horizon, from correlated trajectories (not a combination of pointwise
+        values).
+      properties:
+        event:
+          title: Event
+          type: string
+        n_trajectories:
+          title: N Trajectories
+          type: integer
+        step_min:
+          title: Step Min
+          type: integer
+        horizon_hours:
+          title: Horizon Hours
+          type: number
+        p_event:
+          description: Known exceedances / all trajectories; a lower bound when solves fail. Consult p_event_bounds.
+          maximum: 1
+          minimum: 0
+          title: P Event
+          type: number
+        p_event_ci95:
+          description: 95% Wilson interval widened over both possible outcomes of failed trajectories.
+          items:
+            type: number
+          title: P Event Ci95
+          type: array
+        n_failed:
+          title: N Failed
+          type: integer
+        correlation_time_min:
+          title: Correlation Time Min
+          type: number
+        p_event_bounds:
+          anyOf:
+          - items:
+              type: number
+            type: array
+          - type: 'null'
+          default: null
+          description: '[known exceedances / n, (known exceedances + failed) / n]. Failed trajectories are unknown, never
+            safe.'
+          title: P Event Bounds
+        effective_step_min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          description: Actual uniform sampling interval, no larger than step_min, including both horizon endpoints.
+          title: Effective Step Min
+      required:
+      - event
+      - n_trajectories
+      - step_min
+      - horizon_hours
+      - p_event
+      - p_event_ci95
+      - n_failed
+      - correlation_time_min
+      title: HorizonRisk
       type: object
     JobDoneEvent:
       additionalProperties: false
@@ -9956,6 +10255,277 @@ components:
       - force_lbf
       - direction_rel_deg
       title: SimTugCommandMessage
+      type: object
+    TimelineResponse:
+      additionalProperties: false
+      properties:
+        result_id:
+          description: Stable id; the agent and safety sheet cite numbers by this id.
+          title: Result Id
+          type: string
+        model:
+          description: Module that produced the result, e.g. 'mooring.solver.static'.
+          title: Model
+          type: string
+        model_version:
+          title: Model Version
+          type: string
+        backend:
+          description: '''mock'' until the workstream''s real module lands.'
+          enum:
+          - mock
+          - real
+          title: Backend
+          type: string
+        inputs_hash:
+          description: sha256 of the canonical request JSON.
+          title: Inputs Hash
+          type: string
+        computed_at_utc:
+          format: date-time
+          title: Computed At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        assumptions:
+          items:
+            type: string
+          title: Assumptions
+          type: array
+        warnings:
+          items:
+            $ref: '#/components/schemas/Finding'
+          title: Warnings
+          type: array
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Omitted when unset; absence means UNKNOWN, never valid. New real paths always populate it. 'invalid'
+            requires status RED; 'limited' cannot be GREEN.
+        manifest:
+          anyOf:
+          - $ref: '#/components/schemas/ResultManifest'
+          - type: 'null'
+          default: null
+          description: Dependencies for reproducing the result; omitted when unset to preserve legacy response shapes.
+        result:
+          $ref: '#/components/schemas/TimelineResult'
+      required:
+      - result_id
+      - model
+      - model_version
+      - backend
+      - inputs_hash
+      - computed_at_utc
+      - status
+      - result
+      title: TimelineResponse
+      type: object
+    TimelineResult:
+      additionalProperties: false
+      properties:
+        steps:
+          items:
+            $ref: '#/components/schemas/TimelineStep'
+          title: Steps
+          type: array
+        first_amber_utc:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: First Amber Utc
+        first_red_utc:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          title: First Red Utc
+        recommended_actions:
+          items:
+            type: string
+          title: Recommended Actions
+          type: array
+      required:
+      - steps
+      - first_amber_utc
+      - first_red_utc
+      - recommended_actions
+      title: TimelineResult
+      type: object
+    TimelineStep:
+      additionalProperties: false
+      properties:
+        valid_at_utc:
+          format: date-time
+          title: Valid At Utc
+          type: string
+        status:
+          enum:
+          - GREEN
+          - AMBER
+          - RED
+          title: Status
+          type: string
+        wind_speed_kt:
+          title: Wind Speed Kt
+          type: number
+        wind_gust_kt:
+          title: Wind Gust Kt
+          type: number
+        p_any_exceeds_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          description: Null unless n_samples_per_step > 0; pointwise, not a horizon probability.
+          title: P Any Exceeds Wll
+        governing_element:
+          title: Governing Element
+          type: string
+        max_pct_wll:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          title: Max Pct Wll
+        valid:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          title: Valid
+      required:
+      - valid_at_utc
+      - status
+      - wind_speed_kt
+      - wind_gust_kt
+      - governing_element
+      title: TimelineStep
+      type: object
+    UncertaintyModel:
+      additionalProperties: false
+      description: 'A versioned description of what is random in the environment and how it was obtained.
+
+
+        `qualification` is ''qualified'' only when the minimum-data policy and held-out calibration pass. A synthetic or
+
+        underfit model validates algorithms only: probabilities computed from it are scenario outputs, not risk estimates.'
+      properties:
+        model_id:
+          title: Model Id
+          type: string
+        revision:
+          title: Revision
+          type: string
+        kind:
+          enum:
+          - synthetic
+          - fitted
+          title: Kind
+          type: string
+        station_ids:
+          items:
+            type: string
+          title: Station Ids
+          type: array
+        fit_start_utc:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Fit Start Utc
+        fit_end_utc:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Fit End Utc
+        filters:
+          description: Quality filters applied to the fitting data.
+          items:
+            type: string
+          title: Filters
+          type: array
+        gust_factor_mu:
+          description: Log-mean of gust / sustained wind.
+          title: Gust Factor Mu
+          type: number
+        gust_factor_sigma:
+          minimum: 0
+          title: Gust Factor Sigma
+          type: number
+        direction_sigma_deg:
+          description: Circular standard deviation of wind direction scatter.
+          minimum: 0
+          title: Direction Sigma Deg
+          type: number
+        current_sigma_kt:
+          description: Std. dev. of observed minus predicted current speed.
+          minimum: 0
+          title: Current Sigma Kt
+          type: number
+        correlation_time_min:
+          description: e-folding time of the AR(1) wind and current deviations.
+          exclusiveMinimum: 0
+          title: Correlation Time Min
+          type: number
+        n_events:
+          minimum: 0
+          title: N Events
+          type: integer
+        n_days:
+          minimum: 0
+          title: N Days
+          type: number
+        validation:
+          anyOf:
+          - $ref: '#/components/schemas/HeldOutValidation'
+          - type: 'null'
+          default: null
+        applicability:
+          items:
+            type: string
+          title: Applicability
+          type: array
+        limitations:
+          items:
+            type: string
+          title: Limitations
+          type: array
+        qualification:
+          enum:
+          - qualified
+          - unqualified
+          title: Qualification
+          type: string
+        qualification_reasons:
+          items:
+            type: string
+          title: Qualification Reasons
+          type: array
+      required:
+      - model_id
+      - revision
+      - kind
+      - gust_factor_mu
+      - gust_factor_sigma
+      - direction_sigma_deg
+      - current_sigma_kt
+      - correlation_time_min
+      - n_events
+      - n_days
+      - qualification
+      title: UncertaintyModel
       type: object
 tags:
 - name: M1 Environment

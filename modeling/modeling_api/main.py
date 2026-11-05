@@ -29,6 +29,7 @@ from mooring.core.schemas import (
 )
 
 from mooring.core.schemas.forecast_planning import ForecastDockingResponse
+from mooring.core.schemas.risk import ExceedanceResponse, TimelineResponse
 
 from .routers import approach, berthing, env, loads, moored, qualification, refdata as refdata_router, system, telemetry
 from .backend import overall_backend
@@ -69,7 +70,7 @@ WEBSOCKETS = {
                              "server_messages": "SimFrame (latest state; nominal 10 Hz at default dt)"},
     "/ws/telemetry": {"client_messages": "TelemetryRecord", "server_messages": "TelemetryAccepted"},
 }
-STREAM_MODELS = [ForecastDockingResponse, EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, SimLineEventMessage, SimControlMessage,
+STREAM_MODELS = [ForecastDockingResponse, ExceedanceResponse, TimelineResponse, EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, SimLineEventMessage, SimControlMessage,
                  TelemetryRecord, TelemetryAccepted, JobProgressEvent, JobDoneEvent, SimScene, SimLifecycle,
                  SimRecording]
 

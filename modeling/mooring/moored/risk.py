@@ -68,6 +68,8 @@ def monte_carlo(draw: Callable[[], object], evaluate: Callable[[object], dict | 
     """Generic sampler: `evaluate` returns {element: (load, wll_limit, mbs_limit | None)} or None for a failed sample."""
     tally, per = Tally(n=n), {}
     for i in range(n):
+        if progress and i % 50 == 0:
+            progress(i)
         out = evaluate(draw())
         if out is None:
             tally.failed += 1
@@ -84,8 +86,8 @@ def monte_carlo(draw: Callable[[], object], evaluate: Callable[[object], dict | 
                 hit_mbs = True
         tally.any_wll += hit_wll
         tally.any_mbs += hit_mbs
-        if progress and i % 50 == 0:
-            progress(i)
+    if progress:
+        progress(n)
     return tally, per
 
 
@@ -104,12 +106,18 @@ def _eval_env(system: eq.System, warm: Pose, df: float):
         mbs = rec.model.mbs_eff_lbf
         out[f"line-{rec.ln.line_number}"] = (t, mbs / df, mbs)
     acc_p: dict[str, list[float]] = {}
+    acc_s: dict[str, list[float]] = {}
     for rec, st, t in system.line_tensions(sol.pose):
-        v = acc_p.setdefault(rec.ln.pier_fitting_id, [0.0, 0.0, 0.0])
-        v[0] += t * st.ux; v[1] += t * st.uy; v[2] += t * st.uz
+        for acc, fid in ((acc_p, rec.ln.pier_fitting_id), (acc_s, rec.ln.ship_fitting_id)):
+            v = acc.setdefault(fid, [0.0, 0.0, 0.0])
+            v[0] += t * st.ux; v[1] += t * st.uy; v[2] += t * st.uz
     cap = {f.fitting_id: f.capacity_nominal_lbf for f in system.berth.fittings}
     for fid, v in acc_p.items():
         out[fid] = (math.sqrt(sum(c * c for c in v)), cap[fid], None)
+    ship_cap = {f.fitting_id: f.swl_lbf for f in system.ship.fittings}
+    for fid, v in acc_s.items():
+        if ship_cap[fid]:
+            out[fid] = (math.sqrt(sum(c * c for c in v)), ship_cap[fid], None)
     for fr, d, _ in system.fender_loads(sol.pose):
         if fr.model.rated_energy_ftlbf:
             out[fr.model.fender_id] = (fr.model.energy(d), fr.model.rated_energy_ftlbf, None)
@@ -154,7 +162,7 @@ def exceedance(req: ExceedanceRequest, ctx=None) -> ExceedanceResponse:
     lo, hi = wilson(tally.any_wll, n_valid)
     horizon = None
     if req.include_horizon:
-        horizon = _horizon(req, system, specs, sol0, model, df)
+        horizon = _horizon(req, system, specs, sol0, model, df, ctx)
         if ctx is not None:
             ctx.progress(0.99, "horizon done")
     result = ExceedanceResult(
@@ -170,12 +178,19 @@ def exceedance(req: ExceedanceRequest, ctx=None) -> ExceedanceResponse:
     if tally.failed:
         reasons.append(ValidityReason(code="FAILED_SAMPLES", affected_components=["sampling"],
                                       message=f"{tally.failed} of {tally.n} samples failed to converge; see p_any_bounds."))
+    if horizon is not None and horizon.n_failed:
+        reasons.append(ValidityReason(code="FAILED_TRAJECTORIES", affected_components=["horizon"],
+                                      message=f"{horizon.n_failed} of {horizon.n_trajectories} trajectories are unresolved; p_event is a lower bound, not a complete probability. See p_event_bounds."))
+    no_valid_samples = n_valid == 0 or (horizon is not None and horizon.n_failed == horizon.n_trajectories)
+    if no_valid_samples:
+        reasons.append(ValidityReason(code="NO_VALID_RISK_SAMPLES", affected_components=["sampling"],
+                                      message="No successful samples in at least one requested risk calculation; zero known exceedances does not establish safety."))
     warnings = []
     if horizon is None:
         warnings.append(Finding(rule_id="RISK-HORIZON-UNSUPPORTED", severity="INFO", element_ids=[], reference="S11",
                                 message=f"Pointwise probability only: no probability over the {req.horizon_hours:g} h horizon was computed (set include_horizon)."))
     base_validity = solver_validity(req, base_req, system, sol0, specs)
-    state = "invalid" if base_validity.state == "invalid" else "limited" if reasons or base_validity.state == "limited" else "valid"
+    state = "invalid" if base_validity.state == "invalid" or no_valid_samples else "limited" if reasons or base_validity.state == "limited" else "valid"
     validity = Validity(state=state, reasons=base_validity.reasons + reasons, diagnostics=base_validity.diagnostics)
     status = "RED" if p_any > 0.10 else "AMBER" if p_any > 0.01 else "GREEN"
     return envelope(ExceedanceResponse, model="mooring.risk.monte_carlo", request=req, result=result, backend="real", model_version="1.0.0",
@@ -194,13 +209,19 @@ def solver_validity(req, base_req, system, sol0, specs) -> Validity:
     return solver._validity(base_req, system, sol0, specs, load_findings, wind_basis(base_req.environment, True))
 
 
-def _horizon(req: ExceedanceRequest, system, specs, sol0, model, df) -> HorizonRisk:
-    steps = max(1, int(req.horizon_hours * 60 / req.horizon_step_min))
+def _horizon(req: ExceedanceRequest, system, specs, sol0, model, df, ctx=None) -> HorizonRisk:
+    intervals = max(1, math.ceil(req.horizon_hours * 60 / req.horizon_step_min))
+    effective_step = req.horizon_hours * 60 / intervals
     sampler = unc.Sampler(model, None if req.seed is None else req.seed + 1)
     hits = failed = 0
-    for _ in range(req.n_trajectories):
+    for i in range(req.n_trajectories):
+        if ctx is not None:
+            ctx.check_cancelled()
+            ctx.progress(0.9 + 0.09 * i / req.n_trajectories, f"trajectory {i} of {req.n_trajectories}")
         hit = False
-        for env in sampler.trajectory(req.environment, steps, req.horizon_step_min):
+        for env in sampler.trajectory(req.environment, intervals + 1, effective_step):
+            if ctx is not None:
+                ctx.check_cancelled()
             out = _eval_env(dataclasses.replace(system, env=_with_dynamic(env, req.gust_dynamic_factor)), sol0.pose, df)
             if out is None:
                 failed += 1
@@ -210,12 +231,14 @@ def _horizon(req: ExceedanceRequest, system, specs, sol0, model, df) -> HorizonR
                 hit = True
                 break
         hits += bool(hit)
-    n_valid = req.n_trajectories
-    lo, hi = wilson(hits, n_valid)
-    return HorizonRisk(event="any line (WLL), pier fitting (rated capacity) or fender (rated energy) exceeded at any step",
+    n = req.n_trajectories
+    lo, _ = wilson(hits, n)
+    _, hi = wilson(hits + failed, n)
+    return HorizonRisk(event="any line (WLL), ship/pier fitting (rated capacity) or fender (rated energy) exceeded at a sampled step; unresolved trajectories are unknown",
                        n_trajectories=req.n_trajectories, step_min=req.horizon_step_min, horizon_hours=req.horizon_hours,
-                       p_event=hits / n_valid, p_event_ci95=[round(lo, 6), round(hi, 6)], n_failed=failed,
-                       correlation_time_min=model.correlation_time_min)
+                       p_event=hits / n, p_event_ci95=[round(lo, 6), round(hi, 6)], n_failed=failed,
+                       correlation_time_min=model.correlation_time_min,
+                       p_event_bounds=[hits / n, (hits + failed) / n], effective_step_min=effective_step)
 
 
 def timeline(req: TimelineRequest, ctx=None) -> TimelineResponse:

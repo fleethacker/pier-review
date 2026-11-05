@@ -74,10 +74,11 @@ def _number(raw: str, label: str) -> float:
 def _coordinate(raw: str, hemisphere: str, latitude: bool) -> float:
     value = _number(raw, "GGA coordinate")
     degrees_value = int(value // 100)
-    result = degrees_value + (value - degrees_value * 100) / 60
+    minutes = value - degrees_value * 100
+    result = degrees_value + minutes / 60
     valid_hemi = ("N", "S") if latitude else ("E", "W")
     limit = 90 if latitude else 180
-    if hemisphere not in valid_hemi or not 0 <= result <= limit:
+    if hemisphere not in valid_hemi or not 0 <= minutes < 60 or not 0 <= result <= limit:
         raise NmeaError("OUT_OF_RANGE", "GGA coordinate or hemisphere is invalid")
     return -result if hemisphere in ("S", "W") else result
 
@@ -162,6 +163,10 @@ def true_wind(apparent: Wind, heading_true_deg: float, sog_kt: float, cog_true_d
     with the apparent reading by the caller; this function has no way to check that."""
     if apparent.reference != "relative":
         raise NmeaError("NOT_APPARENT", "true_wind needs a relative (apparent) reading")
+    values = (apparent.angle_from_deg, apparent.speed_kt, heading_true_deg, sog_kt, cog_true_deg)
+    if not all(math.isfinite(value) for value in values) or not 0 <= apparent.angle_from_deg < 360 or apparent.speed_kt < 0 \
+            or not 0 <= heading_true_deg < 360 or not 0 <= sog_kt <= 100 or not 0 <= cog_true_deg < 360:
+        raise NmeaError("OUT_OF_RANGE", "apparent wind, heading, SOG or COG is outside its valid range")
     from_true = math.radians((heading_true_deg + apparent.angle_from_deg) % 360)
     toward = from_true + math.pi
     # components in (east, north): bearing b -> (sin b, cos b)

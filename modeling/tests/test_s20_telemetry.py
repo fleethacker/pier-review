@@ -37,6 +37,8 @@ def test_vtg_gga_and_dpt_declared_subset():
     pos = nmea.decode(sentence("GPGGA,123519,3657.510,N,07619.830,W,1,08,0.9,5.0,M,0.0,M,,"))
     assert pos.latitude == pytest.approx(36.9585) and pos.longitude == pytest.approx(-76.3305)
     assert nmea.decode(sentence("SDDPT,12.3,-0.7")).depth_m == 12.3
+    with pytest.raises(nmea.NmeaError, match="coordinate"):
+        nmea.decode(sentence("GPGGA,123519,3699.000,N,07619.830,W,1,08,0.9,5.0,M,0.0,M,,"))
 
 
 @pytest.mark.parametrize("raw,code", [
@@ -74,6 +76,8 @@ def test_apparent_to_true_wind_with_explicit_frames():
     assert (round(at_rest.angle_from_deg, 6), round(at_rest.speed_kt, 6)) == (90.0, 12.0)
     with pytest.raises(nmea.NmeaError):
         nmea.true_wind(nmea.Wind("true", 10.0, 5.0), 0.0, 0.0, 0.0)
+    with pytest.raises(nmea.NmeaError, match="outside its valid range"):
+        nmea.true_wind(nmea.Wind("relative", 10.0, 5.0), 360.0, 0.0, 0.0)
 
 
 # ---------- ingest ----------

@@ -1,5 +1,8 @@
 # Modeling build-out: status, evidence and blockers
 
+
+Morning evidence (5 November 2026): 1,734 Python tests and 128 UI tests pass; contract/typecheck/lint/build pass. The four-case API chain and targeted real-browser probes pass, but the full explicit UI acceptance gate and `make demo-check` remain incomplete. Public forecast composition is unavailable; supplied-series advance planning works. See the [final modeling report](overnight/modeling-agents.md#final-report) for source-specific soak evidence, commands, qualification limits and next priorities.
+
 Current integrated and pending-review status during the 4–5 November modeling work. See `docs/overnight/modeling-agents.md` for exact PRs and test evidence. Tests and code review are not validation against real ships, piers, ropes or tugs; seed data remains placeholder data.
 
 ## Packet ledger

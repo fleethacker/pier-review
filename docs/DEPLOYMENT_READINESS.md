@@ -92,3 +92,27 @@ A one-hour authenticated local Safety SSE reconnect probe completed with 21,557 
 A separate one-hour authenticated slow-reader probe completed with 14,557 saved-source warnings across 603 connections. One reader paused 300 seconds between reads; the other two continued with maximum observed gap 0.558 seconds. End-of-run service RSS was approximately 82/104 MiB. Temporary services stopped. This demonstrates no observed cross-stream stall in this local workload, with request-rate caps disabled. It does not guarantee latest-frame delivery: a delayed reader can receive older timestamped frames and must display their age.
 
 Risk jobs reject requests whose worst-case total exceeds 25,000 equilibrium solves before queueing (HTTP422). Exceedance counts baseline, instantaneous samples and every possible trajectory endpoint; timelines count all supplied knots or scheduled training steps and their Monte Carlo samples. This application work policy preserves ordinary UI/default requests and never silently reduces samples. It is not a wall-clock deadline or deployment throughput guarantee; geometry complexity, per-principal numerical quotas and production concurrency budgets remain unqualified.
+
+
+### Repeated full-chain local soak (5 November 2026)
+
+A frozen export of `04e7fe92ac3bc594458351c5a05af263f620738a` ran for 13,026.7 seconds
+(3 hours 37 minutes), ending at 11:45 UTC. Two authenticated principals completed 218 real-TCP
+Intake → Planner → independent review → HTML sheet chains: 55 supported, 55 overloaded,
+54 invalid-depth and 54 initially underconstrained cases. All produced their expected outcomes;
+1,308 cross-owner reads returned 404. The initially underconstrained arrangement was repaired
+by search; its initial invalid result was not relabeled. Sheets remained unsigned/unlocked.
+Maximum observed chain duration was 8.575 seconds. Both temporary service processes stopped.
+
+This used a shared file-backed SQLite database, no external providers or LLM, disabled request-rate
+caps and two chains every two minutes. Sampled peak RSS was 116,624/131,760 KiB for modeling/agents.
+The last periodic database-size sample was 113,213,688 bytes; documents accumulated deliberately.
+This is neither a sustained-capacity/retention guarantee nor validation of physical accuracy.
+Later commits did not receive this long soak; their regression and short-smoke evidence is separate.
+
+
+A separate final short TCP check at source `cf1286f775416d81ab74cd08e8b1bd8e916dcec7`
+(PR #102 merged, plus checkpoint documentation) completed eight chains, two per case, and 48
+cross-owner denials in 29.0 seconds. Maximum chain duration was 7.617 seconds. Invalid printed sheets
+withheld line loads and GREEN line statuses. Temporary services stopped. This is final-code smoke
+evidence, not an extension of the earlier frozen-revision soak.

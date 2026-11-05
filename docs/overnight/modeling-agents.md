@@ -2,6 +2,8 @@
 
 ## Log
 
+- 06:48 EST: completed frozen-source TCP soak: 218 full chains, 1,308 cross-owner denials, 13,026.7 seconds, no failures; owned services stopped. Source was 04e7fe9, not the final revision. Latest code passes 1,734 Python and 128 UI tests locally, with contract/typecheck/lint/build checks. PR #102 is pushed; frontend CI passes and Python CI is pending. Final Chrome probes passed; no owned browser test services remain. User may close the laptop: local watches/commands cannot be relied on while it sleeps. Resume from this branch and check PR #102 before publishing the next packet.
+
 - 06:41 EST: Final validity-display fix: unusable analyses no longer supply green line/fitting colors, percentages, offsets or data-key values; edits clear stale map loads immediately, even during dragging or after recheck failure. Sheet sidebar/HTML withhold unusable line margins, directional limits and computed tug requirements, retaining inputs and citations. Fourteen UI and three print counterexamples failed before; valid/limited preservation cases retained.128 UI tests/typecheck/lint/build and1734 Python tests/contract-check pass, no skips/xfails. An existing sheet test now creates its own review instead of depending on another test. Actual Chrome/real APIs: four initial cases, recommendation installation/stale-geometry rejection, risk/wind/timeline reporting and immutable sheet display all pass without page errors; services stopped. A temporary harness dependency-path typo was fixed before that run. Tide explanation now depends on attachment heights/installed length. Held UI branch untouched; UI inbox updated.
 
 - 05:00 EST checkpoint: dev de8a0c6 remains green; no new peer refs or replies. Frozen-source soak at112 chains (28 each) and672 cross-owner denials, still running. Posted actionable coordination updates UI208265910/C208265911, retaining held-branch boundary and pointing to the explicit UI Intake/review and public-composition gaps. Clarified that the execution-plan UI audit is historical, and that F24 does not bundle an approved sequence. No new physics or runtime changes.
@@ -218,3 +220,133 @@
 ## REVIEW_NEEDED
 
 NSTM references, line/pier capacities, wind averaging conversions, tug estimates, sequence durations and intermediate handling assumptions.
+
+
+## Morning handoff (06:48 EST checkpoint)
+
+All implementation is committed and pushed on `agents/overnight`; PR #102 is the last pending
+correctness packet. Earlier packets are merged into `dev`. Do not touch `main`, the shared checkout,
+or the held `ui/frontend-updates` branch. The complete overnight acceptance gate is **not passed**.
+
+Working backend paths include the four named demonstration cases, Intake/Planner/independent Safety,
+HTML/PDF sheets, deterministic berth drafts and confirmation, optional guarded narration, persistent
+owned documents, and supplied-series advance forecast planning with reusable labeled simulation.
+The forecast plan preserves selected paid-out line lengths and installation tide, assesses coverage
+past arrival, and supports explicit short-lead reassessment. It is a static assessment, not an approved
+maneuver or a qualified ship/pier operating envelope.
+
+Remaining integration gaps: explicit Intake and Safety-review selection in the shared UI; `make demo-check`;
+held UI integration; production public-forecast composition and automatic F24-to-review workflow.
+Offline demonstrations use labeled synthetic inputs, not a completed recorded-real environment gate.
+Qualified vessel/berth/rope/tug data, berth-applicable current profiles, wave/wake response and human
+handling/abort acceptance remain prerequisites for operational use.
+
+Resume checklist:
+1. Check PR #102 CI; merge only when green, using its exact head. Fetch and merge `origin/dev` in this worktree.
+2. Run the prepared temporary `/tmp/psp-final-chain-smoke.py` on the merged head; preserve its revision and scope
+   separately from the completed long soak. It owns and stops its isolated test services.
+3. Publish the final report/evidence and continue peer branch/inbox/comment monitoring until 13:00 UTC,
+   if this local machine remains awake. Feature freeze is 12:00 UTC; no new features after that.
+4. Stop the owned watcher (PID 8052, verify its command first) at the deadline. Never stop colleague processes.
+
+Current evidence: 1,734 Python tests, 128 UI tests, no skips/xfails; contract check, TypeScript, lint and build pass.
+Final Chrome probes covered all four initial analyses, recommendation application/recheck, risk/wind/timeline
+semantics and sheet/map consistency, with real local APIs and external network blocked. They do not replace
+the missing explicit full browser acceptance flow. Detailed UI handoff: [recommendations](../MODELING_UI_RECOMMENDATIONS.md).
+
+
+## Final report
+
+Prepared at 06:51 EST, 5 November 2026; monitoring continues until the 08:00 deadline while the local
+machine is available. This section supersedes the pending-PR checkpoint above. PR #102 passed both CI
+jobs and merged into `dev` as `ac228a6`. No changes were made to `main` or the held UI branch.
+
+### What works
+
+- Four named API demonstration chains: supported AMBER/limited with ready-for-signature review;
+  overloaded RED/reject; invalid depth RED/revise; initially underconstrained RED/invalid arrangement
+  repaired by search to AMBER/limited. Ready-for-signature is a review verdict, not an approval or qualification.
+- Deterministic Intake, bounded line/tug planning, independent Safety review, cited HTML/PDF sheets,
+  optional guarded narration, and deterministic metadata-based berth drafts/confirmation.
+- Supplied-series planning at least 24 hours before arrival, coverage checks through the post-arrival
+  period, line installation lengths/tide, and explicit short-lead reassessment. Reusable synthetic
+  generators live in `modeling/mooring/data_simulation/` and label outputs as scenarios.
+- Public provider integrations retain source/age/error semantics. Temporary NOAA/NWS/current/tide
+  probes informed the plan without committing raw downloads or silently replacing missing data.
+- Opt-in authentication, owned persistent documents, restart interruption handling and backup/restore
+  checks. Shared confirmed berths persist with immutable IDs; deployment administration remains open.
+- Shared UI fixes preserve assessed recommendation geometry/assistance, use consistent wind units,
+  label risk assumptions and withhold unusable/stale loads and unrelated map images in sheets.
+
+### Verification and its boundaries
+
+`make test`: **1,734 passed**, no skips or xfails. UI: **128 passed**, plus TypeScript, lint and build.
+`make contract-check` passes; generated contract and UI types are current. PR #102 CI passed both jobs.
+
+The completed 3-hour-37-minute soak used frozen source `04e7fe9`: 218 full chains, 1,308 cross-owner
+404s, no failures, maximum chain time 8.575 seconds. A separate final short run used `cf1286f`
+(PR #102 merged plus checkpoint documentation): eight chains, two of each case, 48 cross-owner 404s,
+29.0 seconds total, maximum chain time 7.617 seconds. It also verified unavailable load cells and no
+GREEN line status in invalid printed sheets. All owned soak services stopped. Full workload/scope and
+memory/storage limitations are in [deployment readiness](../DEPLOYMENT_READINESS.md).
+
+Actual Chrome with real local services and external network blocked passed four initial-case analyses,
+recommendation apply/recheck, risk/wind/timeline displays and sheet/map consistency with no page errors.
+Those targeted checks do **not** establish the complete explicit browser acceptance flow. Separate
+one-hour reconnect/slow-reader tests and restart/backup probes are recorded in deployment readiness.
+
+### Incomplete, limited and deferred
+
+The overnight acceptance gate is **not complete**. Explicit Intake and independent Safety-review
+selection, held UI integration and `make demo-check` remain missing on shared `dev`. The production
+public forecast composer and automatic F24-to-Planner/Safety workflow are unavailable. Offline default
+inputs are synthetic; the recorded-real offline gate is not claimed. Motion/Vision browser acceptance
+requires the UI colleague's completed integration and checks.
+
+Seed assets, synthetic dynamics/wave response, uncertainty probabilities, draft sequence timing and
+broader wind-duration conversions remain unqualified or unsupported as documented. Static assessment
+covers wind/current, not wave/wake forces or an approved docking maneuver. No amount of passing
+software tests establishes an operationally safe ship/pier plan.
+
+### Coordination and next priorities
+
+Branch and inbox watchers, plus GitHub coordination comments, asked colleagues to track `dev` and each
+other's interfaces. No acknowledgment or new peer head was observed at this checkpoint. Messages being
+posted is not evidence that another agent received or acted on them. Watchers need this Mac awake/online.
+
+1. UI colleague: use [UI recommendations](../MODELING_UI_RECOMMENDATIONS.md) and the held-branch
+   [compatibility review](UI_COMPATIBILITY_REVIEW.md); finish the explicit flow and automated browser gate.
+2. Data colleague: compose time-aligned, issued, berth-applicable public guidance; retain missing depth
+   layers and transfer uncertainty as limitations rather than using an unstated nearby/surface substitute.
+3. Obtain one qualified vessel/berth/rope/tug bundle from [data requests](../DATA_REQUESTS.md). Have a
+   pilot/deck officer review line placement, tending, tug release, abort criteria, UKC and traffic assumptions.
+4. Qualify only the intended operating envelope. A fine wave mesh is not the immediate priority; credible
+   berth current/depth, asset ratings, handling limits and explicit wave/wake exclusions are.
+5. Rehearse authentication, retention, backup recovery and provider outages in the intended deployment.
+
+### Exact local commands
+
+From a checkout containing the merged `dev` work, with Python 3.12, uv and Node 20+ installed:
+
+```sh
+make install
+make contract-check
+make test
+cd frontend/packages/web
+npm run typecheck
+npm run lint
+npm test
+npm run build
+cd ../../..
+./app.sh
+```
+
+`app.sh` starts modeling on 8000, agents on 8001 and the UI on 8888; open `http://localhost:8888`.
+Do not run a second backend stack on those ports. On the verified Apple Silicon Mac with native PDF
+libraries in `/opt/homebrew/lib`, use `PDF_LIBRARY_PATH=/opt/homebrew/lib ./app.sh` instead. Missing
+PDF native libraries produce explicit 501; HTML/browser print remains available. For backend-only
+development, `make mock PDF_LIBRARY_PATH=/opt/homebrew/lib` starts the two services. Default unset
+auth is local-demo mode, not a secure deployment configuration. `make demo-check` is not implemented.
+
+Detailed execution scope: [expanded plan](../MODELING_OVERNIGHT_PLAN.md),
+[capability ledger](../MODELING_BUILDOUT_STATUS.md), and [forecast API guide](../FORECAST_DOCKING.md).

@@ -109,7 +109,8 @@ def test_explicit_null_extensions_also_preserve_legacy_wire_shapes():
     assert session.model_dump(mode="json") == LEGACY_SESSION
 
 
-def test_websocket_retains_s17_validity_without_claiming_rm0_motion(monkeypatch):
+def test_websocket_rm0_session_keeps_legacy_fields_and_s17_validity(monkeypatch):
+    """S1 upgraded live sessions to rm0-v1; legacy frame fields and S17 validity must be unchanged."""
     from modeling_api.state import SESSIONS
     from mooring.environment import mock as env_mock
 
@@ -124,18 +125,24 @@ def test_websocket_retains_s17_validity_without_claiming_rm0_motion(monkeypatch)
         session = response.json()
         try:
             assert set(LEGACY_SESSION) <= set(session)
-            assert {"scene_url", "protocol"}.isdisjoint(session)
+            assert session["protocol"] == "rm0-v1"
+            assert session["scene_url"] == f"/api/v1/berthing/sessions/{session['session_id']}/scene"
             assert validity_state(session) == "limited"
-            with client.websocket_connect(session["ws_url"] + "?limit=1") as ws:
-                frame = ws.receive_json()
+            scene = client.get(session["scene_url"])
+            assert scene.status_code == 200, scene.text
+            with client.websocket_connect(session["ws_url"] + "?limit=3") as ws:
+                messages = [ws.receive_json() for _ in range(3)]
         finally:
             SESSIONS.pop(session["session_id"], None)
 
+    assert messages[0]["type"] == "session_lifecycle" and messages[0]["state"] == "created"
+    frame = next(m for m in messages if m.get("type") != "session_lifecycle")
     assert set(LEGACY_FRAME) <= set(frame)
     assert set(frame["pose"]) == set(LEGACY_POSE)
-    assert {"schema_version", "sequence", "session_id", "run_id", "scene_id", "scene_revision", "motion",
-            "tug_states", "environment", "line_states", "fitting_loads", "fender_states", "forces",
-            "provenance", "structured_alerts"}.isdisjoint(frame)
+    assert frame["schema_version"] == "rm0-v1"
+    assert (frame["scene_id"], frame["scene_revision"]) == (scene.json()["scene_id"], scene.json()["revision"])
+    assert frame["provenance"]["kind"] == "estimated"
+    assert {frame["motion"]["dofs"][axis] for axis in ("heave", "roll", "pitch")} == {"not_simulated"}
     assert validity_state(frame) == "limited"
     assert SimFrame.model_validate(frame).model_dump(mode="json") == frame
 

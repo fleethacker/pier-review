@@ -26,6 +26,7 @@ from mooring.core.schemas import (
     SimLifecycle,
     SimRecording,
     SimScene,
+    SimSpeedMessage,
     SimTugCommandMessage,
     TelemetryAccepted,
     TelemetryRecord,
@@ -72,15 +73,19 @@ WEBSOCKETS = {
                    "terminal_close_codes": {"1013": "Environment source unavailable; no replacement snapshot is emitted",
                                             "4404": "Scenario/source/reference not found or not owned",
                                             "4400": "Invalid interval, limit or reference"}},
-    "/ws/sim/{session_id}": {"query": "limit",
-                             "client_messages": "SimTugCommandMessage | SimLineEventMessage | SimControlMessage",
-                             "server_messages": "SimFrame (latest state; nominal 10 Hz at default dt)"},
+    "/ws/sim/{session_id}": {"query": "limit (counts all server messages), after_sequence (resend only newer lifecycle on reconnect)",
+                             "client_messages": "SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage",
+                             "server_messages": "SimLifecycle (type=session_lifecycle; reliable, retained) and SimFrame "
+                                                "(rm0-v1, latest state only; sequence gaps are dropped display frames), "
+                                                "interleaved in session-wide sequence order",
+                             "scene": "GET /api/v1/berthing/sessions/{session_id}/scene",
+                             "recording": "GET /api/v1/berthing/sessions/{session_id}/recording"},
     "/ws/telemetry": {"client_messages": "TelemetryRecord", "server_messages": "TelemetryAccepted"},
 }
 JOB_RESULT_MODELS = [ForecastDockingResponse, ExceedanceResponse, TimelineResponse, RecommendResponse,
                      BerthingSimResponse, ApproachSimResponse]
 STREAM_MODELS = [*JOB_RESULT_MODELS, EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, SimLineEventMessage, SimControlMessage,
-                 TelemetryRecord, TelemetryAccepted, JobProgressEvent, JobDoneEvent, SimScene, SimLifecycle,
+                 SimSpeedMessage, TelemetryRecord, TelemetryAccepted, JobProgressEvent, JobDoneEvent, SimScene, SimLifecycle,
                  SimRecording]
 
 app = FastAPI(title="Mooring Assistant: Modeling API", version="1.0.0", description=DESCRIPTION,
@@ -151,7 +156,7 @@ def openapi_schema() -> dict:
     schema["x-websockets"] = WEBSOCKETS
     schema["x-motion-contract"] = {
         "schema_version": "rm0-v1",
-        "status": "Schemas and mock fixtures only; live producers retain legacy frames until explicitly upgraded.",
+        "status": "Interactive sessions (POST /berthing/sessions, WS /ws/sim) emit rm0-v1 frames, lifecycle, scene and recording from the live simulator (S1). Batch /berthing/simulate series remain legacy frames.",
         "models": ["SimFrame", "SimScene", "SimLifecycle", "SimRecording"],
         "examples": "contract/examples/modeling/sim_*.json",
         "design": "docs/MOTION_FRAME_DESIGN.md",

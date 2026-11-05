@@ -1,0 +1,58 @@
+{
+  "berth_id": "NAVSTA-NORFOLK-P12-N",
+  "checked_at_utc": "2026-11-05T12:00:00Z",
+  "complete_snapshot_available": false,
+  "components": [
+    {
+      "component": "wind",
+      "state": "live",
+      "source": "NOAA CO-OPS 8638614",
+      "basis": "observation",
+      "age_s": 360,
+      "age_basis": "valid_time",
+      "quality": "good",
+      "limitations": [],
+      "reason": null
+    },
+    {
+      "component": "current",
+      "state": "unavailable",
+      "source": "NOAA CO-OPS cb0402 bin 4",
+      "basis": "observation",
+      "age_s": 2400,
+      "age_basis": "valid_time",
+      "quality": "unknown",
+      "limitations": [],
+      "reason": "latest observation is stale"
+    },
+    {
+      "component": "water_level",
+      "state": "live",
+      "source": "NOAA CO-OPS 8638610",
+      "basis": "observation",
+      "age_s": 360,
+      "age_basis": "valid_time",
+      "quality": "good",
+      "limitations": [],
+      "reason": null
+    },
+    {
+      "component": "forecast",
+      "state": "unavailable",
+      "source": null,
+      "basis": null,
+      "quality": "unknown",
+      "limitations": [],
+      "reason": "no composed forecast configured"
+    },
+    {
+      "component": "waves",
+      "state": "unavailable",
+      "source": null,
+      "basis": null,
+      "quality": "unknown",
+      "limitations": [],
+      "reason": "no wave provider configured"
+    }
+  ]
+}

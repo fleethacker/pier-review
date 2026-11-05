@@ -21,8 +21,8 @@ Repository: [fleethacker/pier-review](https://github.com/fleethacker/pier-review
 > rated tug allocation, holding-plan checks, bounded line-plan search, draft sequence checks, risk sampling, bounded jobs
 > and optional SQLite persistence. Risk artifacts remain unqualified. Berthing uses a real integrator with an explicitly
 > synthetic vessel body; approach planning/simulation remain mock. CO-OPS observations and individual NWS/CBOFS/chart readers
-> exist, but a complete public forecast for docking is not yet wired. Public provider/composer work is implemented in open [PR #13](https://github.com/fleethacker/pier-review/pull/13), pending its separate review/merge. Default operation stays offline with labeled
-> synthetic data. Supplied forecast snapshots support planning at least 24 hours before arrival; see
+> exist, but a complete public forecast for docking is not yet wired. Public provider/composer work is implemented in open [PR #13](https://github.com/fleethacker/pier-review/pull/13), pending its separate review/merge. Normal launchers explicitly default to `auto`: complete current observations, then recorded-real replay, then an explicit failure—never synthetic fallback. Use `make mock` only for labeled
+> offline synthetic data. Supplied forecast snapshots support planning at least 24 hours before arrival; see
 > [FORECAST_DOCKING.md](docs/FORECAST_DOCKING.md).
 >
 > Seed-data results are limited, or invalid where inputs or checks fail. `backend=real` does not establish qualification.

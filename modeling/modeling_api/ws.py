@@ -6,6 +6,7 @@ Every channel accepts `limit` (close after N server messages; 0 = run until the 
 import asyncio
 import hmac
 import json
+import math
 import os
 from datetime import datetime, timedelta
 
@@ -13,6 +14,7 @@ from mooring.environment.coops import ProviderError
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import TypeAdapter, ValidationError
 
+from mooring import refdata
 from mooring.core.schemas import (
     AnalyzeRequest,
     SimControlMessage,
@@ -37,32 +39,48 @@ async def ws_env(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", mode: st
                  env_scenario_id: str | None = None, replay_start_utc: datetime | None = None,
                  speed: float = 1.0, interval_s: float = 1.0, limit: int = 0):
     await ws.accept()
+    if mode not in {"live", "replay", "scenario"}:
+        await ws.close(code=4400, reason="Environment mode must be live, replay or scenario")
+        return
+    if mode == "scenario" and not env_scenario_id:
+        await ws.close(code=4400, reason="Scenario mode requires env_scenario_id")
+        return
+    if mode == "replay" and replay_start_utc is None:
+        await ws.close(code=4400, reason="Replay mode requires replay_start_utc")
+        return
+    if (not math.isfinite(speed) or speed <= 0 or not math.isfinite(interval_s) or interval_s < 0
+            or limit < 0 or (limit == 0 and interval_s == 0)):
+        await ws.close(
+            code=4400,
+            reason="Invalid speed/interval/limit; values must be finite and an unbounded stream needs a positive interval",
+        )
+        return
     started = datetime.now().astimezone()
     replay_start = replay_start_utc or (started - timedelta(days=1))
     sent = 0
     try:
         while limit == 0 or sent < limit:
             if mode == "scenario" and env_scenario_id:
-                snap = env.scenario_snapshot(env_scenario_id, datetime.now().astimezone())
+                snap = await asyncio.to_thread(env.scenario_snapshot, env_scenario_id, datetime.now().astimezone(), berth_id)
             elif mode == "replay":
                 elapsed = (datetime.now().astimezone() - started) * speed
-                try:
-                    snap = env.replay_snapshot(berth_id, replay_start + elapsed)
-                except ProviderError as e:
-                    await ws.send_json({"error": e.kind, "detail": str(e)})
-                    await ws.close(code=1013)
-                    return
+                snap = await asyncio.to_thread(env.replay_snapshot, berth_id, replay_start + elapsed)
             else:
-                try:
-                    snap = env.now(berth_id)
-                except ProviderError as e:   # documented provider failure: tell the client and close, never synthesize
-                    await ws.send_json({"error": e.kind, "detail": str(e)})
-                    await ws.close(code=1013)
-                    return
+                snap = await asyncio.to_thread(env.live_snapshot, berth_id)
             await ws.send_json(snap.model_dump(mode="json"))
             sent += 1
             await asyncio.sleep(interval_s)
     except WebSocketDisconnect:
+        return
+    except ProviderError as exc:
+        await ws.send_json({"error": exc.kind, "detail": str(exc)})
+        await ws.close(code=1013)
+        return
+    except refdata.NotFound:
+        await ws.close(code=4404, reason="Environment scenario, berth or reference not found")
+        return
+    except refdata.InvalidReference:
+        await ws.close(code=4400, reason="Invalid environment scenario or berth reference")
         return
     await ws.close()
 

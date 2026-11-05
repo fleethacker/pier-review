@@ -44,8 +44,13 @@ BACKENDS: dict[str, str] = {
 def backend_modules() -> dict[str, str]:
     modules = dict(BACKENDS)
     modules.update(env.provider_modules())
-    if env.source_mode() == "coops":
-        modules["M1 environment"] = "real (CO-OPS observations; forecast unavailable)"
+    mode = env.source_mode()
+    if mode == "coops":
+        modules["M1 environment"] = "real (CO-OPS observations; bound public forecast composition)"
+    elif mode == "replay":
+        modules["M1 environment"] = "real (recorded NOAA observations replay; bound public forecast composition)"
+    elif mode == "auto":
+        modules["M1 environment"] = "real (CO-OPS observations with recorded replay fallback; bound public forecast composition)"
     return modules
 
 

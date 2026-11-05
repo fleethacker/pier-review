@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import AwareDatetime, Field, field_validator, model_validator
 
 from .common import Envelope, Model, MooringServiceType, Validity
-from .environment import EnvironmentSnapshot
+from .environment import MAX_FORECAST_SNAPSHOTS, EnvironmentSnapshot
 from .plans import MooringConfig, TugAssignment
 
 
@@ -85,7 +85,7 @@ class ForecastResolveRequest(Model):
     max_gap_min: int = Field(default=60, ge=1, le=180, json_schema_extra=_optional_wire_schema)
     step_min: int = Field(default=30, ge=10, le=180, json_schema_extra=_optional_wire_schema,
         description="Sampling interval for an explicitly selected scenario; supplied series retain every knot.")
-    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721, json_schema_extra=_optional_wire_schema)
+    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=MAX_FORECAST_SNAPSHOTS, json_schema_extra=_optional_wire_schema)
     forecast_binding: ForecastBinding | None = Field(default=None, json_schema_extra=_optional_wire_schema)
 
     @field_validator('as_of_utc', 'from_utc', 'to_utc')
@@ -141,7 +141,7 @@ class ForecastDockingRequest(Model):
     arrival_step_min: int = Field(default=60, ge=15, le=360)
     operation_hours: float = Field(default=2, gt=0, le=24)
     holding_hours: float = Field(default=6, ge=0, le=48)
-    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721, json_schema_extra=_optional_wire_schema)
+    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=MAX_FORECAST_SNAPSHOTS, json_schema_extra=_optional_wire_schema)
     forecast_binding: ForecastBinding | None = Field(default=None, json_schema_extra=_optional_wire_schema)
     forecast_step_min: int = Field(default=30, ge=10, le=180, json_schema_extra=_optional_wire_schema,
         description="Sampling interval only for an explicitly selected environment scenario.")
@@ -250,7 +250,7 @@ class ForecastRecheckRequest(Model):
     wire_omitted_defaults = {"forecast": None, "forecast_binding": None}
     prior_result_id: str = Field(min_length=1)
     as_of_utc: AwareDatetime
-    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=721, json_schema_extra=_optional_wire_schema)
+    forecast: list[EnvironmentSnapshot] | None = Field(default=None, min_length=2, max_length=MAX_FORECAST_SNAPSHOTS, json_schema_extra=_optional_wire_schema)
     forecast_binding: ForecastBinding | None = Field(default=None, json_schema_extra=_optional_wire_schema)
 
     @field_validator('as_of_utc')

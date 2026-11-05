@@ -30,7 +30,7 @@ def fixture():
 
 def test_samples_nearest_wet_cell_layer_mllw_and_toward_vector():
     issued = datetime(2026, 11, 5, tzinfo=UTC)
-    rows = CBOFSSampler().sample(fixture(), 36.9501, -76.3399, depth_m=5, issued_at=issued, as_of=issued)
+    rows = CBOFSSampler().sample(fixture(), 36.9501, -76.3399, depth_m=6, issued_at=issued, as_of=issued)
     assert rows[0].grid_longitude == -76.33
     assert rows[0].depth_m == 6
     assert rows[0].current_speed_kt == pytest.approx(0.5 * 1.9438444924406)
@@ -61,7 +61,7 @@ def test_invalid_sampling_location_or_depth_is_rejected(latitude, longitude, dep
 def sample(ds, **kwargs):
     issued = datetime(2026, 11, 5, tzinfo=UTC)
     return CBOFSSampler().sample(ds, kwargs.pop("latitude", 36.95), kwargs.pop("longitude", -76.33),
-                                depth_m=kwargs.pop("depth_m", 5), issued_at=issued, as_of=issued, **kwargs)
+                                depth_m=kwargs.pop("depth_m", 6), issued_at=issued, as_of=issued, **kwargs)
 
 
 @pytest.mark.parametrize("name,units", [("u_eastward", "knots"), ("v_northward", "mph"),
@@ -73,9 +73,9 @@ def test_units_are_required_and_never_silently_assumed(name, units):
         sample(ds)
 
 
-@pytest.mark.parametrize("lat,lon,depth", [(40, -76.33, 5), (36.95, -70, 5), (36.95, -76.33, 20)])
+@pytest.mark.parametrize("lat,lon,depth", [(40, -76.33, 6), (36.95, -70, 6), (36.95, -76.33, 20), (36.95, -76.33, 5)])
 def test_no_extrapolation_outside_domain_or_layers(lat, lon, depth):
-    with pytest.raises(ProviderError, match="outside"):
+    with pytest.raises(ProviderError, match="outside|exactly match"):
         sample(fixture(), latitude=lat, longitude=lon, depth_m=depth)
 
 
@@ -178,3 +178,160 @@ def test_encoded_fill_value_and_depth_orientation_are_honored():
     ds.Depth.attrs["positive"] = "up"
     with pytest.raises(ProviderError, match="positive down"):
         sample(ds)
+
+
+@pytest.mark.parametrize("point_count", [2, 721])
+def test_bounded_acquisition_process_publishes_verified_decoded_cache(tmp_path, point_count):
+    from mooring.environment.cbofs_artifact import acquire_artifact, load_artifact
+
+    source = tmp_path / "source.nc"
+    times = np.datetime64("2026-11-05T00:00") + np.arange(point_count) * np.timedelta64(6, "m")
+    fixture().isel(time=[0] * point_count).assign_coords(time=times).to_netcdf(source, engine="netcdf4")
+    output = tmp_path / "decoded.json"
+    artifact = acquire_artifact(
+        output,
+        source=str(source),
+        latitude=36.95,
+        longitude=-76.33,
+        depth_m=6,
+        layer_id="6m",
+        issued_at_utc=datetime(2026, 11, 5, tzinfo=UTC),
+        retrieved_at_utc=datetime(2026, 11, 5, 0, 30, tzinfo=UTC),
+        publication_evidence="fixture: publication manifest",
+        total_timeout_s=10,
+        max_memory_mb=4096,
+    )
+    assert output.exists() and artifact == load_artifact(output)
+    assert artifact["request"]["depth_m"] == 6
+    assert len(artifact["rows"]) == point_count
+    if point_count == 721:
+        # Larger than an OS pipe buffer: child shutdown must not wait for an unread queue.
+        assert 65_536 < output.stat().st_size < 1_000_000
+
+
+def test_acquisition_byte_limit_preserves_existing_cache_and_cleans_staging(tmp_path):
+    from mooring.environment.cbofs_artifact import acquire_artifact
+
+    source = tmp_path / "source.nc"
+    fixture().to_netcdf(source, engine="netcdf4")
+    output = tmp_path / "decoded.json"
+    output.write_text("existing cache")
+    with pytest.raises(ProviderError, match="exceeds 100 bytes"):
+        acquire_artifact(
+            output, source=str(source), latitude=36.95, longitude=-76.33, depth_m=6, layer_id="6m",
+            issued_at_utc=datetime(2026, 11, 5, tzinfo=UTC),
+            retrieved_at_utc=datetime(2026, 11, 5, 0, 30, tzinfo=UTC),
+            publication_evidence="fixture: publication manifest", total_timeout_s=10,
+            max_artifact_bytes=100, max_memory_mb=4096,
+        )
+    assert output.read_text() == "existing cache"
+    assert set(tmp_path.iterdir()) == {source, output}
+
+
+def test_macos_memory_supervision_enforces_cap_and_bounds_inspection(monkeypatch):
+    from types import SimpleNamespace
+    from mooring.environment import cbofs_artifact as module
+
+    monkeypatch.setattr(module.sys, "platform", "darwin")
+    calls = []
+
+    def inspect(args, **kwargs):
+        calls.append((args, kwargs))
+        return SimpleNamespace(returncode=0, stdout="2049\n")
+
+    monkeypatch.setattr(module.subprocess, "run", inspect)
+    process = SimpleNamespace(pid=123, is_alive=lambda: True)
+    with pytest.raises(ProviderError, match="resident-memory limit"):
+        module._check_resident_memory(process, max_memory_mb=2, remaining=0.25)
+    assert calls[0][0] == ["/bin/ps", "-o", "rss=", "-p", "123"]
+    assert calls[0][1]["timeout"] == 0.25
+
+
+def test_macos_peak_memory_check_does_not_accept_between_poll_overshoot(monkeypatch):
+    import resource
+    from types import SimpleNamespace
+    from mooring.environment import cbofs_artifact as module
+
+    monkeypatch.setattr(module.sys, "platform", "darwin")
+    monkeypatch.setattr(resource, "getrusage", lambda _: SimpleNamespace(ru_maxrss=2 * 1024 * 1024 + 1))
+    with pytest.raises(ProviderError, match="resident-memory limit"):
+        module._memory_limit(2)
+
+
+def test_deadline_kills_unresponsive_worker_and_preserves_cache(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from mooring.environment import cbofs_artifact as module
+
+    events = []
+
+    class Process:
+        pid = 123
+        alive = True
+
+        def start(self): events.append("start")
+        def is_alive(self): return self.alive
+        def terminate(self): events.append("terminate")
+        def kill(self):
+            events.append("kill")
+            self.alive = False
+        def join(self, timeout): events.append(("join", timeout))
+        def close(self): events.append("process close")
+
+    result_queue = SimpleNamespace(close=lambda: events.append("queue close"),
+                                   join_thread=lambda: events.append("queue joined"))
+    context = SimpleNamespace(Queue=lambda **_: result_queue, Process=lambda **_: Process())
+    monkeypatch.setattr(module.multiprocessing, "get_context", lambda _: context)
+    ticks = iter([0, 0, 1])
+    monkeypatch.setattr(module.time, "monotonic", lambda: next(ticks))
+    output = tmp_path / "decoded.json"
+    output.write_text("existing cache")
+    with pytest.raises(ProviderError, match="deadline exceeded"):
+        module.acquire_artifact(
+            output, source="unused", latitude=36.95, longitude=-76.33, depth_m=6, layer_id="6m",
+            issued_at_utc=datetime(2026, 11, 5, tzinfo=UTC),
+            retrieved_at_utc=datetime(2026, 11, 5, tzinfo=UTC),
+            publication_evidence="fixture: unused", total_timeout_s=0.5,
+        )
+    assert events == ["start", "terminate", ("join", 0.5), "kill", ("join", 0.5),
+                      "process close", "queue close", "queue joined"]
+    assert output.read_text() == "existing cache"
+    assert list(tmp_path.iterdir()) == [output]
+
+
+def test_decoded_cache_tampering_and_oversize_fail_closed(tmp_path):
+    import json
+    from mooring.environment.cbofs_artifact import decode_artifact, load_artifact
+
+    source = tmp_path / "source.nc"
+    fixture().to_netcdf(source, engine="netcdf4")
+    artifact = decode_artifact(
+        str(source),
+        latitude=36.95,
+        longitude=-76.33,
+        depth_m=6,
+        layer_id="6m",
+        issued_at_utc=datetime(2026, 11, 5, tzinfo=UTC),
+        retrieved_at_utc=datetime(2026, 11, 5, 0, 30, tzinfo=UTC),
+        publication_evidence="fixture: publication manifest",
+    )
+    artifact["rows"][0]["current_speed_kt"] = 999
+    path = tmp_path / "tampered.json"
+    path.write_text(json.dumps(artifact))
+    with pytest.raises(ProviderError, match="revision mismatch"):
+        load_artifact(path)
+    with pytest.raises(ProviderError, match="exceeds"):
+        load_artifact(path, max_artifact_bytes=10)
+
+
+def test_acquisition_requires_traceable_publication_evidence(tmp_path):
+    from mooring.environment.cbofs_artifact import decode_artifact
+
+    source = tmp_path / "source.nc"
+    fixture().to_netcdf(source, engine="netcdf4")
+    with pytest.raises(ProviderError, match="publication evidence"):
+        decode_artifact(
+            str(source), latitude=36.95, longitude=-76.33, depth_m=6, layer_id="6m",
+            issued_at_utc=datetime(2026, 11, 5, tzinfo=UTC),
+            retrieved_at_utc=datetime(2026, 11, 5, 0, 30, tzinfo=UTC),
+            publication_evidence="trust me",
+        )

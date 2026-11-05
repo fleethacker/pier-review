@@ -4,6 +4,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+export PORT="${PORT:-8888}"
+# Normal application startup makes an explicit honest source choice. Operators can
+# override this with coops, replay or mock; auto never falls through to mock.
+export MOORING_ENV_SOURCE="${MOORING_ENV_SOURCE:-auto}"
+
 # Bootstrap must be supervised before the project Python interpreter exists.
 # Bash job control gives each background installer a process group on macOS and
 # Linux; terminating the launcher also terminates npm/uv and their descendants.

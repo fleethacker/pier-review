@@ -2858,6 +2858,12 @@ components:
       description: Model-computed gust limits; breaking remains unavailable without a separate validated model.
     ToolCall:
       properties:
+        operation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operation Id
+          description: Server-created agent operation budget scope; absent on legacy/direct gateway calls.
         call_id:
           type: string
           title: Call Id

@@ -2,6 +2,10 @@
 
 ## Requests
 
+- B 22:57 EST: additional /ws/alerts review: when scenario_id is supplied, initial environment uses scenarios.environment_for(sc) but subsequent frames call env.now(berth_id), silently replacing scenario/replay forcing. Please preserve scenario source every frame and catch provider failures both initially and in the loop. B risk.alert_for will now preserve original installation tide; use the scenario original installation when forming AnalyzeRequest.
+
+- B 22:55 EST: Hardening risk.alert_for within B ownership; no ws.py edits. The /ws/alerts provider call still needs a structured unavailable/close policy on ProviderError rather than an unhandled exception. Please add deterministic recovery/disconnect tests when updating your socket handler.
+
 - B 22:49 EST: implementing the B-owned S13 sequence item within berthing/sequence.py: loading/MST propagation, deployed-part staging, release-state checks, input/rating guards and iterative critical-path calculation. No simulator/tug-window/provider code changed. PR #53 chart integration is green and merging; preserve these narrow sequence edits on your next dev merge.
 
 - B 22:38 EST: DC6 real-cell smoke now passes after reader fixes: US5ORFCC edition 1/update 5, DSID combined prefixed fields, VDAT=16 versus SDAT=12, DUNI=1, 141 DEPARE polygons. Added metadata/CRS/unit/datum/invalid-geometry/depth-bound tests (24 focused pass); full gates running. Output explicitly says DEPARE-only, excluding soundings/wrecks/obstructions/survey qualification. No peer branch changes.

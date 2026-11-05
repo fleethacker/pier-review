@@ -9001,6 +9001,12 @@ components:
       additionalProperties: false
       description: Message on WS /ws/alerts.
       properties:
+        validity:
+          anyOf:
+          - $ref: '#/components/schemas/Validity'
+          - type: 'null'
+          default: null
+          description: Input and model validity; observations without a plan do not establish mooring adequacy.
         alert_id:
           title: Alert Id
           type: string

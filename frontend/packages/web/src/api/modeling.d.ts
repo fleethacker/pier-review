@@ -5063,6 +5063,11 @@ export interface components {
          * @description Message on WS /ws/alerts.
          */
         Alert: {
+            /**
+             * @description Input and model validity; observations without a plan do not establish mooring adequacy.
+             * @default null
+             */
+            validity: components["schemas"]["Validity"] | null;
             /** Alert Id */
             alert_id: string;
             /**

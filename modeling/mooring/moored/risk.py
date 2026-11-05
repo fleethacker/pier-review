@@ -335,20 +335,49 @@ def timeline(req: TimelineRequest, ctx=None) -> TimelineResponse:
 
 
 def alert_for(env: EnvironmentSnapshot, analyze_req: AnalyzeRequest | None) -> Alert:
-    """Live alert from the current environment: deterministic equilibrium, with event time and freshness."""
+    """Current-condition diagnostics; invalid inputs never produce usable utilization."""
+    from mooring.loads.validity import environment_findings
+
     meta = env.metadata
     stale = bool(meta and meta.age_s is not None and meta.age_s > STALE_AFTER_S) or any(q.age_s > STALE_AFTER_S for q in env.quality)
+    findings = environment_findings(env)
+    if stale:
+        findings.append(("limited", ValidityReason(code="ALERT_ENVIRONMENT_STALE",
+            message="Environment data is stale for the live alert freshness policy.", affected_components=["environment"])))
+    reasons = [reason for _, reason in findings]
+    invalid = any(state == "invalid" for state, _ in findings)
+
+    def emit(severity, message, validity, element=None, provenance="deterministic equilibrium at the current environment; no probability"):
+        return Alert(alert_id=new_id("alr"), at_utc=env.valid_at_utc, severity=severity, element_id=element,
+                     env=env, stale=stale, validity=validity, provenance=provenance,
+                     message=message + (" Environment data is stale." if stale else ""))
+
+    if invalid:
+        return emit("RED", "Environmental inputs are invalid; mooring condition is undetermined.",
+                    Validity(state="invalid", reasons=reasons), provenance="input validation; no usable mooring assessment")
     if analyze_req is None:
-        return Alert(alert_id=new_id("alr"), at_utc=env.valid_at_utc, severity="INFO", element_id=None, env=env, stale=stale,
-                     provenance="observation only; no mooring plan to evaluate",
-                     message=f"Wind {env.wind_speed_kt:.0f} kt gusting {env.wind_gust_kt:.0f} kt from {env.wind_from_true_deg:03.0f}.")
-    system, sol, specs = solver.solve_request(analyze_req.model_copy(update={"environment": env}))
+        reasons.append(ValidityReason(code="ALERT_NO_PLAN", message="No mooring plan was supplied; observations do not establish mooring adequacy."))
+        return emit("AMBER" if findings else "INFO",
+                    f"Observation only: wind {env.wind_speed_kt:.0f} kt gusting {env.wind_gust_kt:.0f} kt from {env.wind_from_true_deg:03.0f}; no plan assessed.",
+                    Validity(state="limited", reasons=reasons), provenance="observation only; no mooring plan to evaluate")
+    installation_tide = analyze_req.installed_at_water_level_mllw_ft
+    if installation_tide is None:
+        installation_tide = analyze_req.environment.water_level_mllw_ft
+    current_req = analyze_req.model_copy(update={"environment": env,
+                                                "installed_at_water_level_mllw_ft": installation_tide})
+    try:
+        system, sol, specs = solver.solve_request(current_req)
+    except (refdata.InvalidReference, refdata.NotFound) as exc:
+        return emit("RED", "Plan inputs cannot be evaluated; mooring condition is undetermined.",
+                    Validity(state="invalid", reasons=[*reasons, ValidityReason(code="ALERT_PLAN_INVALID", message=str(exc))]))
+    validity = solver_validity(current_req, current_req, system, sol, specs)
+    if stale:
+        validity = validity.model_copy(update={"state": "invalid" if validity.state == "invalid" else "limited",
+                                               "reasons": [*validity.reasons, reasons[-1]]})
+    if validity.state == "invalid":
+        return emit("RED", "Mooring assessment is invalid; condition undetermined. No usable utilization is reported.", validity)
     df = design_factor(analyze_req.mst)
-    if not sol.converged:
-        return Alert(alert_id=new_id("alr"), at_utc=env.valid_at_utc, severity="RED", element_id=None, env=env, stale=stale,
-                     provenance="deterministic equilibrium (did not converge)", message="Equilibrium solve failed; condition undetermined.")
     el, pct, mode = max(utilization(system, sol.pose, df), key=lambda e: e[1])
-    sev = "RED" if pct > 100 else "AMBER" if pct > 80 else "INFO"
-    return Alert(alert_id=new_id("alr"), at_utc=env.valid_at_utc, severity=sev, element_id=el, env=env, stale=stale,
-                 provenance="deterministic equilibrium at the current environment; no probability",
-                 message=f"Gust {env.wind_gust_kt:.0f} kt: {el} at {pct:.0f}% of its {mode} limit." + (" Environment data is stale." if stale else ""))
+    sev = "RED" if pct > 100 else "AMBER" if pct > 80 or validity.state == "limited" else "INFO"
+    note = " Limited assessment; review validity reasons." if validity.state == "limited" else ""
+    return emit(sev, f"Gust {env.wind_gust_kt:.0f} kt: {el} at {pct:.0f}% of its {mode} limit." + note, validity, el)

@@ -2,6 +2,8 @@
 
 ## Log
 
+- 22:58 EST: live alert assessments now expose optional validity, suppress utilization for invalid inputs/grounding/missing plan references, label seed assessments limited, and preserve original installation tide as water level changes. Observation-only messages explicitly do not assess mooring adequacy. Ten focused alert tests pass; full suite 1404 passed (no skips/xfails), UI 81 tests/typecheck/lint/build pass; contract/types regenerated. C-owned socket source/failure findings sent to inbox and PR #43; no ws.py changes.
+
 - 22:49 EST: S13 review fixes loading/MST hard-coding, pre-double-up part overcount, unassessed tug release, invalid environment/depth/rating assistance and recursive timing paths. Planner omits invalid tug assistance but still completes a blocked plan. Four real API cases retain expected outcomes (3.08–4.11 s); sheets expose intermediate notes and sequence references. Removed a vacuous unsafe-lead assertion by giving its fixture an explicit breast role. Full suite 1395 passed, no skips/xfails; UI typecheck/lint/81 tests/build pass and contract regenerated.
 
 - 22:38 EST: reviewed DC6 locally against a real NOAA US5ORFCC base+5 updates (temporary files only). Fixed combined/prefixed DSID metadata, distinct VDAT/SDAT, explicit WGS84/metres/MLLW subset, CRS/local-datum guards and malformed geometry/depth rejection. 24 focused tests and full suite 1384 pass (no skips/xfails); UI typecheck/lint/81 tests/build and contract generation pass. Actual reader accepts metadata and 141 polygons. DEPARE-only limitations remain explicit; no clearance qualification.

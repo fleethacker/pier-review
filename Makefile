@@ -2,17 +2,18 @@
 
 # Optional installed native-library path, assigned inside the recipe for macOS make.
 PDF_LIBRARY_PATH ?=
+MOORING_ENV_SOURCE ?= auto
 
 install:            ## Install both Python services into one virtualenv
 	uv sync --all-packages
 
-modeling:           ## Modeling (physics/ML) mock API on :8000, docs at /docs
-	uv run --all-packages uvicorn modeling_api.main:app --reload --port 8000 --reload-dir modeling
+modeling:           ## Modeling (physics/ML) API on :8000, docs at /docs
+	MOORING_ENV_SOURCE="$(MOORING_ENV_SOURCE)" uv run --all-packages uvicorn modeling_api.main:app --reload --port 8000 --reload-dir modeling
 
 agents:             ## Agents mock API on :8001 (calls modeling on :8000)
 	MODELING_API_URL=http://localhost:8000/api/v1 $(if $(PDF_LIBRARY_PATH),DYLD_FALLBACK_LIBRARY_PATH="$(PDF_LIBRARY_PATH)") uv run --all-packages uvicorn mooring_agents.api.main:app --reload --port 8001 --reload-dir agents
 
-mock:               ## Both services; Ctrl-C stops both
+mock:               ## Both services (source defaults to auto); Ctrl-C stops both
 	$(MAKE) -j2 modeling agents
 
 contract:           ## Regenerate contract/*.openapi.yaml and examples from the schemas

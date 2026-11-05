@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Protocol, TypeVar, runtime_checkable
+from typing import Any, Literal, Protocol, TypeVar, runtime_checkable
 
 import httpx
 
@@ -75,13 +75,20 @@ class FixtureProvider:
     """Replay a checked-in JSON fixture through the provider interface."""
 
     path: Path
+    basis: Literal["observation", "prediction", "scenario"]
+    source_kind: Literal["replay", "forecast", "mock"]
     provider_id: str = "recorded-fixture"
 
     def __post_init__(self) -> None:
         from .replay import ReplaySource
 
         raw = json.loads(self.path.read_text(encoding="utf-8"))
-        self._source = ReplaySource(raw)
+        self._source = ReplaySource(
+            raw,
+            station=self.provider_id,
+            basis=self.basis,
+            source_kind=self.source_kind,
+        )
 
     def snapshot(self, at: datetime) -> ProviderResult:
         from .replay import Unavailable as ReplayUnavailable

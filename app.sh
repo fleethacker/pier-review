@@ -7,6 +7,9 @@ cd "$(dirname "$0")"
 
 PORT="${PORT:-8888}"
 export UV_LINK_MODE=copy
+# Normal application startup makes an explicit honest source choice. Operators can
+# override this with coops, replay or mock; auto never falls through to mock.
+export MOORING_ENV_SOURCE="${MOORING_ENV_SOURCE:-auto}"
 
 # --- Node 20 -----------------------------------------------------------------------------------------------------
 node_major() { node -v 2>/dev/null | sed -E 's/^v([0-9]+).*/\1/'; }

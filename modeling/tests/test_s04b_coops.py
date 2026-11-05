@@ -245,7 +245,8 @@ def test_env_now_serves_the_latest_recorded_observation_with_metadata(coops_mode
     assert r.status_code == 200
     j = r.json()
     assert j["source"] == "live" and j["metadata"]["current_bin"] == "4" and j["wind_rel_ship_deg"] is not None
-    assert j["valid_at_utc"].startswith("2026-01-01T00:54") and j["wind_speed_kt"] > 0
+    assert j["valid_at_utc"].startswith("2026-01-01T00:48") and j["wind_speed_kt"] > 0
+    assert datetime.fromisoformat(j["valid_at_utc"]) <= NOW
     # CO-OPS supplied an observation time, not an independent publication/issue timestamp.
     assert j["metadata"]["issued_at_utc"] is None and j["metadata"]["age_s"] >= 0
 
@@ -285,23 +286,24 @@ def test_ws_env_reports_provider_failure_and_does_not_synthesize(coops_mode):
     assert msg["error"] == "unavailable" and "unavailable" in msg["detail"]
 
 
-def test_ws_replay_uses_bundled_fixture_with_explicit_synthetic_basis(monkeypatch):
+def test_ws_replay_uses_manifest_backed_recorded_observations(monkeypatch):
     monkeypatch.delenv("MOORING_ENV_SOURCE", raising=False)
     with client.websocket_connect(
-        "/ws/env?berth_id=NAVSTA-NORFOLK-P12-N&mode=replay&replay_start_utc=2026-03-01T12:00:00Z&interval_s=0&limit=1"
+        "/ws/env?berth_id=NAVSTA-NORFOLK-P12-N&mode=replay&replay_start_utc=2026-01-01T00:00:00Z&interval_s=0&limit=1"
     ) as ws:
         msg = ws.receive_json()
-    assert msg["source"] == "replay" and msg["metadata"]["source"] == "synthetic recorded-format fixture"
-    assert msg["metadata"]["basis"] == "scenario"
+    assert msg["source"] == "replay" and "NOAA CO-OPS" in msg["metadata"]["source"]
+    assert msg["metadata"]["basis"] == "observation"
 
 
 def test_version_reports_provider_modes(coops_mode):
     modules = client.get("/api/v1/version").json()["modules"]
-    assert modules["Provider NOAA CO-OPS"] == "live"
+    assert modules["Provider NOAA CO-OPS"].startswith("live only")
     assert modules["Provider NWS"].startswith("unavailable")
 
 
-def test_default_mode_stays_offline_and_deterministic():
+def test_explicit_mock_mode_stays_offline_and_deterministic(monkeypatch):
+    monkeypatch.setenv("MOORING_ENV_SOURCE", "mock")
     r = client.get("/api/v1/env/now?berth_id=NAVSTA-NORFOLK-P12-N")
     assert r.status_code == 200 and r.json()["source"] == "mock"
 

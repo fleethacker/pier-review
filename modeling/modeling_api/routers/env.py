@@ -31,6 +31,12 @@ def guarded(fn, *a, **kw):
 router = APIRouter(tags=["M1 Environment"])
 
 
+@router.on_event("startup")
+def validate_environment_configuration():
+    """Fail process startup before an unknown source can fall through to synthetic data."""
+    impl.validate_configuration()
+
+
 @router.get("/env/now", response_model=EnvironmentSnapshot, summary="Current environment at a berth")
 def env_now(
     berth_id: str,

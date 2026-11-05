@@ -1,10 +1,10 @@
 """D1 contract-first tests: partial status never weakens the complete snapshot."""
 
 import json
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from fastapi import HTTPException
 from pydantic import ValidationError
 
 from modeling_api.main import openapi_schema
@@ -57,15 +57,15 @@ def test_additive_route_is_published_while_complete_snapshot_route_is_unchanged(
     )
 
 
-def test_contract_first_route_fails_explicitly_until_acquisition_implementation():
-    with pytest.raises(HTTPException) as exc:
-        env_availability("NAVSTA-NORFOLK-P12-N")
-    assert exc.value.status_code == 503
-    assert "not enabled yet" in exc.value.detail
+def test_availability_route_implements_explicit_mock_status(monkeypatch):
+    monkeypatch.setenv("MOORING_ENV_SOURCE", "mock")
+    status = env_availability("NAVSTA-NORFOLK-P12-N")
+    assert status.complete_snapshot_available
+    assert [item.state for item in status.components[:3]] == ["mock", "mock", "mock"]
 
 
-def test_recorded_real_selector_cannot_fall_through_to_synthetic_before_implementation():
-    from mooring import environment, refdata
+def test_recorded_real_selector_serves_observations_not_synthetic_data():
+    from mooring import environment
     from mooring.core.schemas import EnvScenarioCreate
 
     request = EnvScenarioCreate(
@@ -75,5 +75,12 @@ def test_recorded_real_selector_cannot_fall_through_to_synthetic_before_implemen
         replay_end_utc="2026-01-01T00:30:00Z",
         replay_source="recorded_real",
     )
-    with pytest.raises(refdata.InvalidReference, match="not installed yet"):
-        environment.create_scenario(request)
+    scenario = environment.create_scenario(request)
+    snapshot = environment.scenario_snapshot(
+        scenario.env_scenario_id,
+        scenario.created_at_utc + timedelta(minutes=12),
+        "NAVSTA-NORFOLK-P12-N",
+    )
+    assert snapshot.source == "replay"
+    assert snapshot.metadata.basis == "observation"
+    assert snapshot.valid_at_utc.isoformat().startswith("2026-01-01T00:12:00")

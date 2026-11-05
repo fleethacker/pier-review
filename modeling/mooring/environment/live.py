@@ -1,6 +1,6 @@
 """Live (CO-OPS) environment service behind the stable `mooring.environment` interface (S04b).
 
-Selected with MOORING_ENV_SOURCE=coops (default `mock`, so CI and demos stay offline). In this mode:
+Selected with MOORING_ENV_SOURCE=coops. In this mode:
 * `now` returns the latest joined observation from the berth's three stations, or raises `ProviderError`; it never falls
   back to synthetic data.
 * `history` joins the same three products over a window (at most 31 days per call).
@@ -11,7 +11,7 @@ The fetcher and clock are injectable for deterministic tests.
 from datetime import UTC, datetime, timedelta
 
 from mooring import refdata
-from mooring.core.schemas import HistorySeries
+from mooring.core.schemas import EnvironmentAvailability, EnvironmentComponentAvailability, HistorySeries
 from mooring.core.envelopes import utcnow
 
 from . import coops
@@ -19,6 +19,7 @@ from .replay import ReplaySource, Unavailable
 
 DEFAULT_BIN = 4          # cb0402 real-time bin, about 20.6 ft below the surface (verified 4 Nov 2026)
 LOOKBACK = timedelta(hours=3)
+FRESH_AFTER = timedelta(minutes=30)
 
 _fetcher: coops.Fetcher | None = None
 _clock = utcnow
@@ -52,15 +53,144 @@ def latest(berth_id: str, heading_true_deg: float | None = None):
     from mooring.environment import with_relative
     end = _clock()
     src, notes, stale = _source(berth_id, end - LOOKBACK, end)
-    cov = src.coverage
-    if cov is None:
+    eligible = [record.t for record in src.records if record.t <= end]
+    if not eligible:
         raise coops.ProviderError("no_data", "CO-OPS returned no usable joined observations in the last 3 hours" + (f" ({notes[0]})" if notes else ""))
-    snap = src.at(cov[1], now=end)
+    if stale:
+        raise coops.ProviderError("stale", "CO-OPS response came from stale cache")
+    snap = src.at(max(eligible), now=end)
     if isinstance(snap, Unavailable):
         raise coops.ProviderError("stale", snap.reason)
-    if stale:
-        snap = snap.model_copy(update={"metadata": snap.metadata.model_copy(update={"quality": "suspect"})})   # served from a stale cache
     return with_relative(snap, heading_true_deg)
+
+
+def _unavailable(component: str, source: str, station_id: str, reason: str, **kw):
+    return EnvironmentComponentAvailability(
+        component=component,
+        state="unavailable",
+        source=source,
+        basis="observation",
+        station_id=station_id,
+        reason=reason,
+        **kw,
+    )
+
+
+def component_availability(berth_id: str, checked_at: datetime | None = None) -> EnvironmentAvailability:
+    """Fetch component statuses independently so one outage does not hide the others."""
+    checked = (checked_at or _clock()).astimezone(UTC)
+    wind_station, level_station, current_station = _stations(berth_id)
+    begin = checked - LOOKBACK
+    specs = (
+        (
+            "wind",
+            wind_station,
+            f"NOAA CO-OPS station {wind_station}",
+            coops.request_params("wind", wind_station, begin, checked),
+            coops.parse_wind,
+            ("wind_speed_kt", "wind_gust_kt", "wind_from_true_deg"),
+            {"limitations": ["wind averaging and gust duration are not documented by this response"]},
+        ),
+        (
+            "current",
+            current_station,
+            f"NOAA CO-OPS station {current_station} bin {DEFAULT_BIN}",
+            coops.request_params("currents", current_station, begin, checked, bin=DEFAULT_BIN),
+            coops.parse_currents,
+            ("current_speed_kt", "current_set_true_deg"),
+            {
+                "current_depth_ft": 20.6 if current_station == "cb0402" else None,
+                "current_bin": str(DEFAULT_BIN),
+                "limitations": [
+                    "current direction is treated as toward and remains pending authoritative confirmation",
+                    "requested current bin and depth are not silently substituted",
+                ],
+            },
+        ),
+        (
+            "water_level",
+            level_station,
+            f"NOAA CO-OPS station {level_station}, MLLW",
+            coops.request_params("water_level", level_station, begin, checked, datum="MLLW"),
+            coops.parse_water_level,
+            ("water_level_ft",),
+            {"vertical_datum": "MLLW", "limitations": []},
+        ),
+    )
+    rows: list[EnvironmentComponentAvailability] = []
+    valid_times: dict[str, datetime] = {}
+    for component, station, source, params, parser, required, extra in specs:
+        try:
+            fetched = fetcher().get(params)
+            records = [
+                item for item in parser(fetched.doc)
+                if item["t"] <= checked
+                and item.get("quality") != "poor"
+                and all(item.get(field) is not None for field in required)
+            ]
+        except coops.ProviderError as exc:
+            rows.append(_unavailable(component, source, station, f"provider {exc.kind}: {exc}", **extra))
+            continue
+        if not records:
+            rows.append(_unavailable(component, source, station, "no usable observation in the lookback window", **extra))
+            continue
+        record = max(records, key=lambda item: item["t"])
+        valid_at = record["t"]
+        age_s = (checked - valid_at).total_seconds()
+        retrieved = checked - timedelta(seconds=max(fetched.age_s, 0.0))
+        common = dict(
+            source=source,
+            basis="observation",
+            age_s=age_s,
+            age_basis="valid_time",
+            retrieved_at_utc=retrieved,
+            valid_from_utc=valid_at,
+            valid_to_utc=valid_at,
+            quality=record.get("quality", "unknown"),
+            station_id=station,
+            **extra,
+        )
+        if fetched.stale:
+            rows.append(EnvironmentComponentAvailability(
+                component=component,
+                state="unavailable",
+                reason="provider response came from stale cache",
+                **common,
+            ))
+        elif age_s > FRESH_AFTER.total_seconds():
+            rows.append(EnvironmentComponentAvailability(
+                component=component,
+                state="unavailable",
+                reason=f"latest observation is {age_s:.0f} s old; stale after {FRESH_AFTER.total_seconds():.0f} s",
+                **common,
+            ))
+        else:
+            rows.append(EnvironmentComponentAvailability(component=component, state="live", reason=None, **common))
+            valid_times[component] = valid_at
+
+    if len(valid_times) == 3:
+        reference = valid_times["wind"]
+        for index, row in enumerate(rows):
+            if row.component in valid_times and abs((valid_times[row.component] - reference).total_seconds()) > coops.ALIGN_TOLERANCE_S:
+                rows[index] = row.model_copy(update={
+                    "state": "unavailable",
+                    "reason": f"latest observation is not aligned with wind within {coops.ALIGN_TOLERANCE_S:g} s",
+                })
+    rows.extend([
+        EnvironmentComponentAvailability(
+            component="forecast", state="unavailable", reason="no composed forecast configured (D2)"
+        ),
+        EnvironmentComponentAvailability(
+            component="waves", state="unavailable", reason="no wave provider configured (D4)"
+        ),
+    ])
+    complete = all(row.state != "unavailable" for row in rows if row.component in {"wind", "current", "water_level"})
+    return EnvironmentAvailability(
+        berth_id=berth_id,
+        checked_at_utc=checked,
+        complete_snapshot_available=complete,
+        components=rows,
+    )
 
 
 def at(berth_id: str, when: datetime, heading_true_deg: float | None = None):

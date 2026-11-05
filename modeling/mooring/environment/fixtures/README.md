@@ -15,3 +15,16 @@ fixtures likewise establish parser behavior, not observation provenance or opera
 
 `env_availability_partial.json` is the deterministic D1 contract example. It contains status and provenance only,
 not environmental measurements. The missing current is unavailable rather than represented by a numeric zero.
+
+`recorded_real/noaa-coops-norfolk-2026-01-01-v1/` is the offline, recorded-real replay package. Its manifest binds the
+normalized observations to the three source fixtures by SHA-256, declares berth applicability and exact coverage, and
+retains acquisition and engineering limitations. The package revision hashes the complete manifest (apart from the
+revision field itself), so changing applicability or policy metadata invalidates it. Build or verify it without network access:
+
+```bash
+uv run --all-packages python scripts/build_recorded_replay.py
+uv run --all-packages python scripts/build_recorded_replay.py --check
+```
+
+The package covers 2026-01-01 00:00–00:54 UTC and never loops or extrapolates. It is labeled `replay` with an
+`observation` basis. It is demonstration replay data, not a forecast or operational qualification.

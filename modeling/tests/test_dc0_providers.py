@@ -57,9 +57,10 @@ def assert_provider_contract(provider: EnvironmentProvider, at: datetime):
 
 def test_fake_and_fixture_providers_pass_the_same_contract():
     fixture = Path(__file__).parents[1] / "mooring/environment/fixtures/replay_sample.json"
-    recorded = FixtureProvider(fixture)
+    recorded = FixtureProvider(fixture, basis="scenario", source_kind="mock")
     good = recorded.snapshot(T0)
     assert isinstance(good, Available)
+    assert good.value.source == "mock" and good.value.metadata.basis == "scenario"
     for provider in (recorded, FakeProvider(good), FakeProvider(Unavailable("OUTAGE", "down"))):
         assert isinstance(provider, EnvironmentProvider)
         assert_provider_contract(provider, T0)

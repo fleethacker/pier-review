@@ -12,8 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "types": "openapi-typescript ../../../contract/modeling.openapi.yaml -o src/api/modeling.d.ts && openapi-typescript ../../../contract/agents.openapi.yaml -o src/api/agents.d.ts",
-    "typecheck": "tsc --noEmit",
-    "test:e2e": "node e2e/exercise.e2e.mjs"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.3",
@@ -37,8 +36,8 @@
   "dependencies": {
     "@types/node": "^22.14.0",
     "cesium": "^1.133.0",
-    "clsx": "^2.1.1",
     "mapbox-gl": "^3.34.2",
+    "clsx": "^2.1.1",
     "openapi-fetch": "^0.17.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

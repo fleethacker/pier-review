@@ -6,6 +6,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+node_modules/
 .env
 .env.*
 .DS_Store
@@ -18,3 +19,6 @@ docs/overnight/demo-check-logs/
 # trained detector weights and training runs
 data/runs/
 models/*.pt
+
+# local agent scratch and the symlinked node_modules used for local checks
+.claude/

@@ -15,6 +15,7 @@ from typing import Literal
 from pydantic import AwareDatetime, Field, model_validator
 
 from .common import Envelope, Model, Validity
+from .dynamics import ForcingSpec
 from .environment import EnvironmentSnapshot
 from .missions import TrackFix
 from .transit import GeoPoint, PropulsionAssumptions, TransitHelmCommand, TransitTugCommand, TugPoint
@@ -90,11 +91,19 @@ class HazardSettings(Model):
 
 
 class PredictionRequest(Model):
-    wire_omitted_defaults = {"environment": None, "as_of_utc": None}
+    wire_omitted_defaults = {"environment": None, "as_of_utc": None, "forcing": None, "engine": "transit"}
     vessel: ObservedShipState
     environment: EnvironmentSnapshot | None = Field(default=None,
         description="Conditions held over the horizon. Null means explicitly calm (labeled), not unknown.")
     as_of_utc: AwareDatetime | None = Field(default=None, description="Prediction time; default now.")
+    forcing: ForcingSpec | None = Field(default=None, description=(
+        "S7b: time-varying forcing (S2 ForcingSpec), sampled at prediction-relative time (t = 0 is as_of_utc) through "
+        "the S2 resolver around `environment` (null = calm base). Absent = fixed environment, unchanged behavior. A replay "
+        "series that ends before the horizon is rejected (on_uncovered 'stop') or the horizon is truncated, with a validity "
+        "reason ('invalidate'); it is never extrapolated."))
+    engine: Literal["transit", "berthing"] = Field(default="transit", description=(
+        "Requested engine. Never switched automatically. 'berthing' (S1-S3) has no validated state/parameter handoff and is "
+        "answered 501 unsupported."))
     horizon_s: float = Field(default=300, gt=0, le=900)
     tick_s: float = Field(default=10, ge=1, le=60, description="Output spacing of predicted states and footprints.")
     dt_s: float = Field(default=0.2, ge=0.05, le=1.0)
@@ -155,13 +164,34 @@ class PredictionAlternative(Model):
         description="First time clearance falls below min_clearance_ft on the central prediction.")
 
 
+class ForcingCoverage(Model):
+    start_s: float
+    end_s: float
+
+
+class ForcingBasis(Model):
+    """What the environment over the horizon was: fixed, or sampled from an immutable forcing series."""
+
+    kind: Literal["fixed_environment", "time_varying"] = "fixed_environment"
+    revision: str | None = Field(default=None, description="S2 series revision (frc-...); null for a fixed environment.")
+    synthetic: bool = Field(default=False, description="True when the series is generated (steady/ramp/gusts), not observed.")
+    series_kind: str | None = None
+    coverage: ForcingCoverage | None = Field(default=None, description="Prediction-relative seconds the series is defined over.")
+    requested_horizon_s: float | None = None
+    horizon_s: float | None = Field(default=None, description="Horizon actually predicted; less than requested when truncated.")
+    truncated: bool = False
+
+
 class PredictionResult(Model):
+    wire_omitted_defaults = {"forcing_basis": ForcingBasis().model_dump(mode="json")}
     vessel_id: str
     engine: Literal["transit", "berthing"]
     as_of_utc: AwareDatetime
     input_age_s: float = Field(ge=0, description="as_of_utc - observed_utc. Stale inputs reduce validity.")
     hazards_checked: list[HazardKind] = Field(description="Hazard kinds actually checked; unchecked kinds are not clear, just unknown.")
     alternatives: list[PredictionAlternative] = Field(min_length=1, description="'hold' first, then what-ifs in request order.")
+    forcing_basis: ForcingBasis = Field(default_factory=ForcingBasis,
+        description="Omitted on the wire for the default fixed environment; absent means fixed_environment.")
 
 
 class PredictionResponse(Envelope[PredictionResult]):

@@ -18,8 +18,11 @@ from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import nearest_points, unary_union
 
 from mooring import refdata
+from mooring.berthing.forcing import ForcingSeries
 from mooring.core.envelopes import envelope, resolved_inputs_hash
 from mooring.core.schemas import (
+    ForcingBasis,
+    ForcingCoverage,
     GeoPoint,
     HazardApproach,
     PredictedTick,
@@ -37,6 +40,7 @@ from mooring.core.schemas import (
     ValidityReason,
     VesselTransit,
 )
+from mooring.prediction import forced
 from mooring.transit import simulator as sim
 from mooring.transit.geo import LocalPlane
 
@@ -53,8 +57,42 @@ MAX_STATE_KT = 60.0
 WIND_SPEED_FRAC, WIND_DIR_DEG, CURRENT_SPEED_FRAC, CURRENT_DIR_DEG = 0.15, 10.0, 0.20, 15.0
 
 
+ForcingValueError = ValueError
+
+
 class RequestInvalid(ValueError):
     pass
+
+
+class Unsupported(RequestInvalid):
+    """A requested capability is not implemented (HTTP 501). Never answered by silently using another engine."""
+
+
+def _resolve_forcing(req: PredictionRequest):
+    """(series, ForcingBasis, req). req is the private copy; its horizon is truncated when the series ends early and its
+    policy is 'invalidate'. Uncovered horizon with policy 'stop' is rejected. No extrapolation either way."""
+    if req.forcing is None:
+        return None, ForcingBasis(), req
+    spec = req.forcing
+    base = req.environment if req.environment is not None else sim.CALM_ENV
+    horizon = requested = req.horizon_s
+    series = ForcingSeries(spec, base, horizon)
+    if series.start > 1e-9:
+        raise RequestInvalid(f"FORCING_UNCOVERED: forcing series {series.revision} starts at t={series.start:g} s but the prediction "
+                             "starts at t=0 (as_of_utc); the series must cover the snapshot time")
+    if series.end + 1e-9 < horizon:
+        if spec.on_uncovered == "stop":
+            raise RequestInvalid(f"FORCING_UNCOVERED: forcing series {series.revision} covers t={series.start:g}..{series.end:g} s but the "
+                                 f"horizon is {horizon:g} s (on_uncovered='stop'); shorten the horizon or set on_uncovered='invalidate' to truncate")
+        horizon = math.floor(series.end / req.tick_s + 1e-9) * req.tick_s
+        if horizon < req.tick_s:
+            raise RequestInvalid(f"FORCING_UNCOVERED: forcing series {series.revision} covers less than one output tick ({series.end:g} s)")
+        req = req.model_copy(update={"horizon_s": horizon})
+        series = ForcingSeries(spec, base, horizon)
+    basis = ForcingBasis(kind="time_varying", revision=series.revision, synthetic=series.synthetic, series_kind=spec.kind,
+                         coverage=ForcingCoverage(start_s=series.start, end_s=series.end), requested_horizon_s=requested,
+                         horizon_s=req.horizon_s, truncated=req.horizon_s < requested - 1e-9)
+    return series, basis, req
 
 
 @dataclass
@@ -120,6 +158,18 @@ def _perturbed_env(env, rng):
          "current_set_true_deg": (env.current_set_true_deg + CURRENT_DIR_DEG * rng.standard_normal()) % 360}
     d["wind_gust_kt"] = max(env.wind_gust_kt, d["wind_speed_kt"])
     return env.model_copy(update={**d, "wind_rel_ship_deg": None, "current_rel_ship_deg": None})
+
+
+def _perturb_fn(rng):
+    a, b, c, d = (float(x) for x in rng.standard_normal(4))      # same draw order as _perturbed_env
+
+    def apply(env):
+        ws = max(0.0, env.wind_speed_kt * (1 + WIND_SPEED_FRAC * a))
+        return env.model_copy(update={"wind_speed_kt": ws, "wind_from_true_deg": (env.wind_from_true_deg + WIND_DIR_DEG * b) % 360,
+                                      "current_speed_kt": max(0.0, env.current_speed_kt * (1 + CURRENT_SPEED_FRAC * c)),
+                                      "current_set_true_deg": (env.current_set_true_deg + CURRENT_DIR_DEG * d) % 360,
+                                      "wind_gust_kt": max(env.wind_gust_kt, ws), "wind_rel_ship_deg": None, "current_rel_ship_deg": None})
+    return apply
 
 
 @dataclass
@@ -238,7 +288,15 @@ def predict(req: PredictionRequest) -> PredictionResponse:
     # The prediction works on a private deep copy: nothing in the caller's request (which may be built from a live
     # session or replay state) is ever mutated, and nothing here writes to any store.
     req = req.model_copy(deep=True)
+    if req.engine != "transit":
+        raise Unsupported("ENGINE_UNSUPPORTED: only the 'transit' (S6) engine is supported for prediction. The berthing engine (S1-S3) "
+                          "has no validated handoff (frame, unit, state and parameter mapping, operating domain); the engine is never "
+                          "switched automatically, including near a pier.")
     _check_finite(req)
+    try:
+        series, basis, req = _resolve_forcing(req)
+    except ForcingValueError as exc:
+        raise RequestInvalid(str(exc)) from None
     v = req.vessel
     as_of = req.as_of_utc or datetime.now(UTC)
     plane = LocalPlane(v.position.lat, v.position.lon)
@@ -256,9 +314,11 @@ def predict(req: PredictionRequest) -> PredictionResponse:
         k_c, check_c = _split(req.tick_s, CHECK_S)
         k_s, check_s = _split(req.tick_s, SAMPLE_CHECK_S)
 
-        def go(helm, tugs, dt, start, heading, speed, env, sample):
+        def go(helm, tugs, dt, start, heading, speed, env, sample, xform=None):
             treq = _transit_request(req, helm, tugs, dt=dt, start_ll=start, heading=heading, speed_kt=speed, env=env, plane=plane,
                                     sample_s=sample)
+            if series is not None:       # S7b: same integrator, environment re-sampled from the S2 series each step
+                return treq, forced.run(treq, series, xform)
             return treq, sim.run(treq, "predict")
         central = {}
         for aid, _, helm, tugs in sets:
@@ -270,7 +330,7 @@ def predict(req: PredictionRequest) -> PredictionResponse:
     u = v.uncertainty
     env0 = req.environment
     spread = bool((u and (u.position_sd_ft or u.heading_sd_deg or u.speed_sd_kt))
-                  or (env0 and (env0.wind_speed_kt > 0 or env0.current_speed_kt > 0)))
+                  or (env0 and (env0.wind_speed_kt > 0 or env0.current_speed_kt > 0)) or series is not None)
     # With no spread source (or a single sample) every sample would equal the central path: report the uncertainty as
     # unavailable (null corridor, spread and probability) instead of a corridor of zero width.
     n_s = n_req if (n_req >= 2 and spread) else 0
@@ -283,13 +343,17 @@ def predict(req: PredictionRequest) -> PredictionResponse:
             dx, dy = (rng.standard_normal(2) * (u.position_sd_ft * FT)) if u else (0.0, 0.0)
             dh = rng.standard_normal() * u.heading_sd_deg if u else 0.0
             ds = rng.standard_normal() * u.speed_sd_kt if u else 0.0
-            env = _perturbed_env(req.environment, rng)
+            if series is not None:
+                env = _perturb_fn(rng)        # same four draws, applied to the series value at every step
+            else:
+                env = _perturbed_env(req.environment, rng)
             draws.append((dx, dy, dh, ds, env))
         dt_s = max(req.dt_s, SAMPLE_DT_S)
         for aid, _, helm, tugs in sets:       # same draws for every alternative (common random numbers)
             for dx, dy, dh, ds, env in draws:
                 ll = plane.to_geo(dx, dy)
-                _, r = go(helm, tugs, dt_s, ll, (v.heading_true_deg + dh) % 360, max(0.0, speed0 + ds), env, check_s)
+                _, r = go(helm, tugs, dt_s, ll, (v.heading_true_deg + dh) % 360, max(0.0, speed0 + ds),
+                          req.environment if series is not None else env, check_s, env if series is not None else None)
                 samples[aid].append(_track(r, plane))
 
     alts = []
@@ -352,16 +416,16 @@ def predict(req: PredictionRequest) -> PredictionResponse:
     input_age = max(0.0, (as_of - v.observed_utc).total_seconds())
     env_age = req.environment.metadata.age_s if req.environment and req.environment.metadata else None
     validity = _validity(req, central["hold"], input_age, env_age, n_s, dt_s_used=max(req.dt_s, SAMPLE_DT_S) if n_s else None,
-                         checked=checked, n_req=n_req, hz=hz, horizon_s=req.horizon_s)
+                         checked=checked, n_req=n_req, hz=hz, horizon_s=req.horizon_s, basis=basis)
     breach_hold = alts[0].first_breach is not None
     status = "RED" if (validity.state == "invalid" or breach_hold) else "AMBER"
     result = PredictionResult(vessel_id=v.vessel_id, engine="transit", as_of_utc=as_of, input_age_s=round(input_age, 1),
-                              hazards_checked=checked, alternatives=alts)
+                              hazards_checked=checked, alternatives=alts, forcing_basis=basis)
     snapshot = {"request": req.model_dump(mode="json"), "as_of": as_of.isoformat(), "code_version": CODE_VERSION,
                 "ship": ship.model_dump(mode="json"), "transit_requests": {k: t.model_dump(mode="json") for k, (t, _) in central.items()}}
     assumptions = ["Path from the S6 transit simulator run forward from the observed state with the current rudder and engine order held.",
                    "Hull footprint is a parametric planform from catalog LOA and beam centred on the reported position, rotated by heading.",
-                   "Environment held constant over the horizon." if req.environment else "No environment supplied: calm assumed (labeled, not unknown).",
+                   _env_assumption(req, basis) if (req.environment or series is not None) else "No environment supplied: calm assumed (labeled, not unknown).",
                    f"Corridor spread (when sampled): start position/heading/speed per the supplied one-sigma values; wind speed {WIND_SPEED_FRAC:.0%}, "
                    f"wind direction {WIND_DIR_DEG:g} deg, current speed {CURRENT_SPEED_FRAC:.0%}, current direction {CURRENT_DIR_DEG:g} deg (illustrative sd)."]
     return envelope(PredictionResponse, model="mooring.prediction.trajectory", model_version="1.0.0", backend="real", request=req,
@@ -371,10 +435,32 @@ def predict(req: PredictionRequest) -> PredictionResponse:
                                                                 "samples": n_s, "seed": req.uncertainty.seed}))
 
 
-def _validity(req, central_hold, input_age, env_age, n_s, dt_s_used, *, checked=(), n_req=0, hz=None, horizon_s=0.0) -> Validity:
+def _env_assumption(req, basis) -> str:
+    if basis.kind == "fixed_environment":
+        return "Environment held constant over the horizon."
+    return (f"Environment time-varying: forcing series {basis.revision} ({basis.series_kind}, "
+            f"{'synthetic' if basis.synthetic else 'supplied, unverified'}) sampled at prediction-relative time (t = 0 at as_of_utc), "
+            "once per integration step (zero-order hold, not RK4 stage times), around "
+            + ("the supplied environment." if req.environment else "a calm base (none supplied)."))
+
+
+def _validity(req, central_hold, input_age, env_age, n_s, dt_s_used, *, checked=(), n_req=0, hz=None, horizon_s=0.0, basis=None) -> Validity:
     treq, r = central_hold
     inherited = sim.validity_for(treq, r)
-    reasons = [x for x in inherited.reasons if x.code != "SYNTHETIC_EPOCH"]
+    drop = {"SYNTHETIC_EPOCH"} | ({"CALM_ASSUMED"} if basis is not None and basis.kind == "time_varying" else set())
+    reasons = [x for x in inherited.reasons if x.code not in drop]
+    if basis is not None and basis.kind == "time_varying":
+        reasons.append(ValidityReason(code="FORCING_TIME_VARYING", message=(
+            f"Forcing basis time_varying: series {basis.revision} ({basis.series_kind}), covering {basis.coverage.start_s:g}..{basis.coverage.end_s:g} s "
+            "after as_of_utc; sampled once per integration step. The series is "
+            + ("synthetic (generated, not an observation or forecast)." if basis.synthetic else "supplied samples whose origin and accuracy are not verified."))))
+        reasons.append(ValidityReason(code="FORCING_SYNTHETIC" if basis.synthetic else "FORCING_SUPPLIED_UNVERIFIED", message=f"forcing revision {basis.revision}"))
+        if basis.truncated:
+            reasons.append(ValidityReason(code="FORCING_HORIZON_TRUNCATED", message=(
+                f"Requested horizon {basis.requested_horizon_s:g} s exceeds the forcing coverage; the prediction stops at {basis.horizon_s:g} s "
+                "(on_uncovered='invalidate'). Nothing beyond it is predicted or extrapolated.")))
+        if req.forcing is not None and req.forcing.vessel_relative_wind:
+            reasons.append(ValidityReason(code="FORCING_VESSEL_RELATIVE_WIND_IGNORED", message="The transit engine always applies apparent wind itself; the flag has no further effect."))
     v = req.vessel
     msg = f"Input age {input_age:.0f} s (as_of - observed)" + (f"; environment age {env_age:.0f} s" if env_age is not None else "") + "."
     reasons.append(ValidityReason(code="INPUT_AGE", message=msg))

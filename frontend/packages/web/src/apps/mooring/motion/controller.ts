@@ -670,16 +670,22 @@ export class MotionController {
       },
       (link, detail) => {
         if (this.disposed) return;
+        const unconfirmed = (link === 'error' || link === 'closed') && (this.s.command?.status === 'pending' || this.hasPendingOrders());
+        if (unconfirmed) {
+          this.pendingHelm = null; this.pendingLine = null; this.pendingPayloads = null; this.pendingTug = null;
+          this.predictionFailureFrame = this.s.frame;
+          this.invalidatePrediction();
+        }
         this.state.set({ link });
         if (link === 'open' && !first) {
           // The server returns a reconnected session paused; the user must resume explicitly.
           this.state.set({ notice: 'Reconnected. The session comes back paused: press Resume to continue.', lifecycle: 'paused' });
         }
         if (link === 'open') { first = false; if (this.s.open) void this.requestPrediction(); }
-        if (link === 'error') this.state.set({ notice: 'Connection lost; retrying…', ...(this.s.command?.status === 'pending' ? { command: { status: 'unconfirmed' as const, message: 'Connection interrupted. The command is unconfirmed; inspect the reported state before sending again.' } } : {}) });
+        if (link === 'error') this.state.set({ notice: 'Connection lost; retrying…', ...(unconfirmed ? { command: { status: 'unconfirmed' as const, message: 'Connection interrupted. The command is unconfirmed; inspect the reported state before sending again.' } } : {}) });
         if (link === 'closed') this.state.set({
           notice: `${detail?.code === 1008 ? 'Command rejected' : 'Simulation connection closed'}${detail?.reason ? `: ${detail.reason}` : ''}. Load a paused scenario to reconnect.`,
-          ...(this.s.command?.status === 'pending' ? { command: { status: 'unconfirmed' as const, message: 'Connection closed before acknowledgement. The last command is unconfirmed.' } } : {}),
+          ...(unconfirmed ? { command: { status: 'unconfirmed' as const, message: 'Connection closed before acknowledgement. The last command is unconfirmed.' } } : {}),
         });
       },
     );

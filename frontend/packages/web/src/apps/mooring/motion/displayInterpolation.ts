@@ -75,7 +75,7 @@ export class MotionDisplayBuffer {
   push(frame: ViewFrame, receivedAt: number, active: boolean): void {
     const previous = this.samples.at(-1);
     const usable = (f: ViewFrame) => f.badge.validity === 'valid' || f.badge.validity === 'limited';
-    if (!active || !usable(frame) || !previous || !usable(previous.frame) || frame.runId !== previous.frame.runId || frame.sceneId !== previous.frame.sceneId || frame.sceneRevision !== previous.frame.sceneRevision || frame.sessionId !== previous.frame.sessionId || frame.tS <= previous.frame.tS || receivedAt - previous.receivedAt > MAX_INTERPOLATION_GAP_MS) this.samples = [];
+    if (!active || !usable(frame) || !previous || !usable(previous.frame) || frame.runId !== previous.frame.runId || frame.sceneId !== previous.frame.sceneId || frame.sceneRevision !== previous.frame.sceneRevision || frame.sessionId !== previous.frame.sessionId || frame.tS <= previous.frame.tS || receivedAt <= previous.receivedAt || receivedAt - previous.receivedAt > MAX_INTERPOLATION_GAP_MS) this.samples = [];
     this.samples.push({ frame, receivedAt });
     this.samples = this.samples.slice(-8);
   }

@@ -37,6 +37,12 @@ describe('Bounded display interpolation', () => {
     buffer.push(c, 1000, true);
     expect(buffer.sample(c, 1000)).toBe(c);
   });
+  it.each([0, -1])('snaps to finite authoritative geometry when the receive clock advances by %s ms', (interval) => {
+    const buffer = new MotionDisplayBuffer(), a = frame(0, 0), b = frame(0.1, 10);
+    buffer.push(a, 0, true); buffer.push(b, interval, true);
+    expect(buffer.sample(b, interval + 120)).toBe(b);
+    expect(Number.isFinite(buffer.sample(b, interval + 120).ship.x_ft)).toBe(true);
+  });
   it.each(['paused', 'run', 'scene', 'invalid', 'rewind'] as const)('snaps and clears the interpolation history on %s', (event) => {
     const buffer = new MotionDisplayBuffer(), a = frame(0, 0), b = frame(0.1, 10);
     buffer.push(a, 0, true); buffer.push(b, 100, true);

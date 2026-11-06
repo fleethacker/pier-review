@@ -632,6 +632,22 @@ describe('Motion workspace', () => {
     m.dispose(); await vi.advanceTimersByTimeAsync(0);
   });
 
+  it.each(['error', 'closed'])('retires lost command echoes on %s and forecasts only from fresh reconnect state', async (link) => {
+    vi.useFakeTimers(); const fetcher = workspaceFetch(); const m = make();
+    await m.loadWorkspace(configuration); stream.handlers!.onStatus('open');
+    stream.handlers!.onMessage({ ...legacy(0, 1), controls }); flush(); await m.refreshPrediction();
+    m.state.set({ open: true, lifecycle: 'paused' });
+    m.helmCommand(order); m.lineControl({ line_number: 1, attached: false });
+    stream.handlers!.onStatus(link); expect(m.s.command?.status).toBe('unconfirmed');
+    expect(m.s.prediction).toBeNull();
+    stream.handlers!.onStatus('open'); await m.refreshPrediction(); await vi.advanceTimersByTimeAsync(5000);
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(1);
+    stream.handlers!.onMessage({ ...legacy(0, 2), controls }); flush();
+    expect(m.s.command?.status).toBe('unconfirmed');
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(2);
+    m.dispose(); await vi.advanceTimersByTimeAsync(0);
+  });
+
   it('coalesces user previews behind actual in-flight work and never publishes an obsolete result', async () => {
     const baseline = workspaceFetch(); let finish!: (value: unknown) => void; let calls = 0;
     const fetcher = vi.fn((url: string, init?: RequestInit) => {

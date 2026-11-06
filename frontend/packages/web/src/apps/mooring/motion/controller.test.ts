@@ -585,6 +585,23 @@ describe('Motion workspace', () => {
     m.dispose(); await vi.advanceTimersByTimeAsync(0);
   });
 
+  it.each(['error', 'invalid'] as const)('removes future coverage immediately on an %s lifecycle even without a new frame', async (failure) => {
+    vi.useFakeTimers(); const fetcher = workspaceFetch(); const m = make();
+    await m.loadWorkspace(configuration); stream.handlers!.onStatus('open');
+    stream.handlers!.onMessage(legacy(0, 1)); flush(); await m.refreshPrediction();
+    expect(m.s.prediction).not.toBeNull(); m.state.set({ open: true });
+    stream.handlers!.onMessage({ type: 'session_lifecycle', schema_version: 'rm0-v1', session_id: 'motion-1', run_id: 'r1', sequence: 2, t_s: 0, state: failure === 'error' ? 'error' : 'paused', validity: failure === 'invalid' ? { state: 'invalid', reasons: [{ code: 'FAILED', message: 'No valid next state.' }] } : null });
+    expect(m.s.prediction).toBeNull(); expect(m.s.predictionError).toContain('Future coverage is unavailable');
+    await m.refreshPrediction(); await vi.advanceTimersByTimeAsync(5000);
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(1);
+    stream.handlers!.onMessage({ type: 'session_lifecycle', schema_version: 'rm0-v1', session_id: 'motion-1', run_id: 'r1', sequence: 3, t_s: 0, state: 'paused' });
+    await m.refreshPrediction();
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(1);
+    stream.handlers!.onMessage(legacy(0, 4)); flush();
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(2);
+    m.dispose(); await vi.advanceTimersByTimeAsync(0);
+  });
+
   it('waits for queued command acknowledgement before forecasting and preserves an explicit preview intent', async () => {
     vi.useFakeTimers(); const fetcher = workspaceFetch(); const m = make();
     await m.loadWorkspace(configuration); stream.handlers!.onStatus('open'); stream.handlers!.onMessage({ ...legacy(0, 1), controls }); flush();

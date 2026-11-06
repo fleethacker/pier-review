@@ -189,6 +189,7 @@ export class MotionController {
   private predictionFailures = 0;
   private predictionEpoch = 0;
   private predictionContext: Pick<SimLifecycle, 'run_id' | 'scene_id' | 'scene_revision'> | null = null;
+  private predictionFailureFrame: ViewFrame | null = null;
   private pendingHelm: HelmOrder | null = null;
   private pendingLine: { line_number: number; attached?: boolean; paid_out_length_ft?: number } | null = null;
   private pendingPayloads: PayloadItem[] | null = null;
@@ -334,6 +335,7 @@ export class MotionController {
   private stopEverything(): void {
     this.stopPredictions();
     this.predictionContext = null;
+    this.predictionFailureFrame = null;
     this.stateImportEpoch += 1;
     this.acceptedStateSequences.clear();
     this.pendingHelm = null; this.pendingLine = null; this.pendingPayloads = null;
@@ -688,7 +690,9 @@ export class MotionController {
     if (lifecycle.sequence <= this.lastLifecycleSeq) return;
     this.lastLifecycleSeq = lifecycle.sequence;
     this.predictionContext = lifecycle;
-    if (!this.predictionFrameMatchesLifecycle()) this.invalidatePrediction();
+    const invalid = lifecycle.state === 'error' || lifecycle.validity?.state === 'invalid';
+    if (invalid) this.predictionFailureFrame = this.s.frame;
+    if (invalid || !this.predictionFrameMatchesLifecycle()) this.invalidatePrediction();
     this.state.set({
       lifecycle: lifecycle.state,
       lifecycleMessage: lifecycle.message ?? null,
@@ -696,6 +700,7 @@ export class MotionController {
       lifecycleInvalid: lifecycle.validity?.state === 'invalid',
       ...(lifecycle.speed != null ? { speed: lifecycle.speed } : {}),
     });
+    if (invalid) this.state.set({ predictionError: 'Simulation reported an error or invalid state. Future coverage is unavailable until authoritative state recovers.' });
     if (this.s.open) void this.requestPrediction();
   }
 
@@ -860,7 +865,7 @@ export class MotionController {
   /** Coalesce advancing frames at <=1 Hz. Unchanged paused snapshots perform no background work. */
   private async requestPrediction(urgent = false): Promise<void> {
     const s = this.s;
-    if (this.disposed || !s.predictionEnabled || s.stateImportBusy || s.command?.status === 'pending' || this.hasPendingOrders() || !this.predictionFrameMatchesLifecycle() || !s.workspace || !s.sessionId || !s.frame || s.source !== 'live' || s.link !== 'open') return;
+    if (this.disposed || !s.predictionEnabled || s.stateImportBusy || s.lifecycleInvalid || s.lifecycle === 'error' || s.frame === this.predictionFailureFrame || s.command?.status === 'pending' || this.hasPendingOrders() || !this.predictionFrameMatchesLifecycle() || !s.workspace || !s.sessionId || !s.frame || s.source !== 'live' || s.link !== 'open') return;
     const key = this.predictionKey();
     if (key === this.predictionLastKey) return;
     if (this.predictionInFlight) {

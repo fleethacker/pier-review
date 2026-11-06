@@ -306,6 +306,7 @@ def test_line_overload_reports_failure_and_never_mutates_original(make):
 
 @pytest.mark.parametrize("payload", [
     {"horizon_s": float("nan")}, {"horizon_s": float("inf")}, {"horizon_s": 0}, {"horizon_s": 120.01},
+    {"horizon_s": 1e-12},
     {"sample_interval_s": .249}, {"sample_interval_s": float("inf")}, {"dt_s": .1},
     {"what_if_commands": [tug(0).model_dump()]*33},
     {"what_if_commands": [{"type": "helm_command", "port_throttle": 2, "starboard_throttle": 0,

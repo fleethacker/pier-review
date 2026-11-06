@@ -19,7 +19,8 @@ MotionPredictionCommand = Annotated[
 
 
 class MotionPredictionRequest(Model):
-    horizon_s: float = Field(default=60, gt=0, le=120)
+    horizon_s: float = Field(default=60, ge=0.0001, le=120,
+        description="At least the berthing integrator's minimum resolvable step; at most two minutes.")
     sample_interval_s: float = Field(default=1, ge=0.25, le=120,
         description="Display sampling only; the live model's integration step is preserved.")
     what_if_commands: list[MotionPredictionCommand] = Field(default_factory=list, max_length=32,

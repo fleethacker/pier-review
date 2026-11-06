@@ -74,8 +74,9 @@ function Toolbar({ recording, onRecord }: { recording: boolean; onRecord: () => 
   const c = useController();
   const follow = useExercise((s) => s.follow);
   const placing = useExercise((s) => s.placing);
-  const redTeamOpen = useExercise((s) => s.redTeamOpen);
   const storyOpen = useExercise((s) => s.storyOpen);
+  const setupOpen = useExercise((s) => s.setupOpen);
+  const catalogOpen = useExercise((s) => s.catalogOpen);
   const replay = useExercise((s) => s.replay);
   const selectedId = useExercise((s) => s.selectedId);
   const runOverlay = useExercise((s) => s.runOverlay);
@@ -90,34 +91,30 @@ function Toolbar({ recording, onRecord }: { recording: boolean; onRecord: () => 
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 p-3">
-      <div className="pointer-events-auto flex gap-1.5 self-start" role="toolbar" aria-label="Camera">
-        <ToolButton title="Frame every ship" onClick={() => c.fitAll()}>
-          Fit all
+      <div className="pointer-events-auto flex gap-1.5 self-start" role="toolbar" aria-label="Exercise">
+        <ToolButton title="The scenario, the conditions, the forces and the red team" pressed={setupOpen} onClick={() => c.toggleSetup()}>
+          Setup
         </ToolButton>
-        <ToolButton title="Keep the selected ship centered" pressed={follow === 'follow'} onClick={() => c.setFollow(follow === 'follow' ? 'off' : 'follow')}>
-          Follow
-        </ToolButton>
-        <ToolButton title="Follow the selected ship and look the way it points" pressed={follow === 'chase'} onClick={() => c.setFollow(follow === 'chase' ? 'off' : 'chase')}>
-          Chase
-        </ToolButton>
-        <ToolButton title="Circle the selected ship, or the whole group" pressed={follow === 'orbit'} onClick={() => c.setFollow(follow === 'orbit' ? 'off' : 'orbit')}>
-          Orbit
-        </ToolButton>
-        <ToolButton title="Play the whole exercise full screen, with the storyboard coming up as it goes" onClick={() => c.present()}>
-          Present
-        </ToolButton>
-        <ToolButton title="Run the scenario many times with random variation and measure how often things happen" pressed={redTeamOpen} onClick={() => c.toggleRedTeam()}>
-          Red team
+        <ToolButton title="The collection sources feeding this picture, and the record behind each event" pressed={catalogOpen} onClick={() => c.toggleCatalog()}>
+          Data catalog
         </ToolButton>
         <ToolButton title="Pictures and captions that come up beside the units as the run plays" pressed={storyOpen} onClick={() => c.toggleStoryboard()}>
           Storyboard
         </ToolButton>
-        <ToolButton title="Click the map to add waypoints to the selected ship" pressed={placing} onClick={() => c.setPlacing(!placing)}>
-          Add waypoints
+        <ToolButton title="Play the whole exercise full screen, with the storyboard coming up as it goes" onClick={() => c.present()}>
+          Present
+        </ToolButton>
+        <ToolButton title="Keep the selected ship centered" pressed={follow === 'follow'} onClick={() => c.setFollow(follow === 'follow' ? 'off' : 'follow')}>
+          Follow
         </ToolButton>
         <ToolButton title={recording ? 'Stop recording and save the video' : 'Play the scenario from here and record the map as a video'} pressed={recording} onClick={onRecord}>
           {recording ? '● Stop' : 'Record'}
         </ToolButton>
+        {placing && (
+          <ToolButton title="Click the map to add waypoints to the selected ship" pressed onClick={() => c.setPlacing(false)}>
+            Add waypoints
+          </ToolButton>
+        )}
       </div>
       {runOverlay && (
         <div role="status" className="pointer-events-auto max-w-[44rem] space-y-1 border border-mil-border bg-mil-panel/95 px-3 py-2 text-xs text-mil-text">

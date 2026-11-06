@@ -6,7 +6,7 @@ import { ControllerContext } from './context';
 import { ExerciseController, PLAYBACK_RATES, presentationRate } from './controller';
 import { MapCanvas } from './MapCanvas';
 import { PRESET_SCENARIOS } from './scenarios';
-import { Side } from './Side';
+import { SetupDrawer } from './SetupDrawer';
 import { StoryboardPanel } from './StoryboardPanel';
 import { STOCK } from './stockImages';
 import type { ScenarioConfig } from './types';
@@ -276,14 +276,12 @@ describe('the storyboard panel', () => {
 
 describe('the storyboard strip on the page', () => {
   const strip = () => within(screen.getByRole('list', { name: 'Storyboard' }));
-  const showStory = () => fireEvent.click(screen.getByRole('tab', { name: /^Storyboard/ }));
+  /** The strip is always under the map now, so there is nothing to open. */
+  const showStory = () => undefined;
 
-  it('is a tab beside the contacts and events, counting the moments', () => {
+  it('is always under the map, with every moment in it', () => {
     const { c } = mount(<Bottom />);
-    const tab = screen.getByRole('tab', { name: `Storyboard (${c.storyboard().length})` });
-    expect(tab.getAttribute('aria-selected')).toBe('false');
-    fireEvent.click(tab);
-    expect(tab.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByText(`Storyboard · ${c.storyboard().length} moments`)).toBeTruthy();
     expect(strip().getAllByRole('listitem')).toHaveLength(c.storyboard().length);
   });
 
@@ -328,8 +326,10 @@ describe('the storyboard strip on the page', () => {
 });
 
 describe('the view panel', () => {
-  it('turns the bubbles off and on', () => {
-    const { c } = mount(<Side />);
+  it('turns the bubbles off and on, from the setup drawer', () => {
+    const { c } = mount(<SetupDrawer />);
+    act(() => c.toggleSetup(true));
+    fireEvent.click(screen.getByRole('tab', { name: 'Map' }));
     const box = screen.getByRole('checkbox', { name: 'Storyboard bubbles' }) as HTMLInputElement;
     expect(box.checked).toBe(true);
     fireEvent.click(box);

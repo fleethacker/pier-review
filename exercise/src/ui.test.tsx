@@ -28,6 +28,8 @@ vi.mock('./mapView', () => ({
 }));
 
 import { Bottom } from './Bottom';
+import { Contacts } from './Contacts';
+import { SetupDrawer } from './SetupDrawer';
 import { ControllerContext } from './context';
 import { ExerciseController } from './controller';
 import { MapCanvas } from './MapCanvas';
@@ -236,8 +238,10 @@ describe('Sidebar', () => {
 });
 
 describe('Side', () => {
-  it('changes the view options and the map style', () => {
-    const { controller } = withController(<Side />);
+  it('changes the view options and the map style, from the setup drawer', () => {
+    const { controller } = withController(<SetupDrawer />);
+    act(() => controller.toggleSetup(true));
+    fireEvent.click(screen.getByRole('tab', { name: 'Map' }));
     fireEvent.change(screen.getByLabelText('Ship size'), { target: { value: '8' } });
     expect(controller.state.get().view.shipScale).toBe(8);
     fireEvent.change(screen.getByLabelText('Wake length'), { target: { value: '0' } });
@@ -285,18 +289,10 @@ describe('Bottom', () => {
     expect(screen.getByLabelText('Elapsed time').textContent).toBe('T+00:30:00');
   });
 
-  it('lists every ship and, once one is selected, its range and bearing to the others', () => {
-    const { controller } = withController(<Bottom />);
-    expect(screen.getAllByRole('row')).toHaveLength(6);
-    fireEvent.click(screen.getByRole('row', { name: /Carrier 1/ }));
-    expect(controller.state.get().selectedId).toBe('cvn1');
-    const cruiser = screen.getByRole('row', { name: /Cruiser 1/ });
-    expect(cruiser.textContent).toMatch(/\d+\.\d\d \/ \d{3}°/);
-    expect(screen.getByRole('row', { name: /Carrier 1/ }).textContent).toContain('–');
-    fireEvent.click(screen.getByRole('row', { name: /Carrier 1/ }));
-    expect(controller.state.get().selectedId).toBeNull();
-  });
 });
+
+const salvoScenario = () => PRESET_SCENARIOS.find((p) => p.id === 'salvo-defense')!;
+const salvoController = () => new ExerciseController(undefined, salvoScenario());
 
 describe('MapCanvas', () => {
   const VALID = 'pk.eyJ1IjoidGVzdCJ9.abc-DEF_123';
@@ -397,17 +393,6 @@ describe('MapCanvas', () => {
     expect(view.created[0].disposed).toBe(false);
   });
 
-  it('orbits from the toolbar without a selection', async () => {
-    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
-    const { controller } = withController(<MapCanvas />);
-    await waitFor(() => expect(view.created).toHaveLength(1));
-    fireEvent.click(screen.getByRole('button', { name: 'Orbit' }));
-    expect(controller.state.get().follow).toBe('orbit');
-    expect(screen.getByRole('button', { name: 'Orbit' }).getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(screen.getByRole('button', { name: 'Orbit' }));
-    expect(controller.state.get().follow).toBe('off');
-  });
-
   it('fills the screen in presentation mode with a minimal HUD, and gives the page back on Exit or Escape', async () => {
     vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
     const { controller } = withController(<MapCanvas />);
@@ -421,7 +406,7 @@ describe('MapCanvas', () => {
     expect(frame().className).toContain('fixed');
     const hud = within(screen.getByRole('group', { name: 'Presentation controls' }));
     // The editing toolbar is off the screen while presenting.
-    expect(screen.queryByRole('toolbar', { name: 'Camera' })).toBeNull();
+    expect(screen.queryByRole('toolbar', { name: 'Exercise' })).toBeNull();
     // Twice over: the HUD names the exercise and the clock, and the storyboard's opening beat is up at T+0 with the same
     // name and time on its card.
     expect(screen.getAllByText('Carrier group transit')).toHaveLength(2);
@@ -445,33 +430,33 @@ describe('MapCanvas', () => {
     expect(controller.state.get().presenting).toBe(false);
   });
 
-  it('drives the camera and waypoint tools from the toolbar', async () => {
+  it('drives the panels, following and waypoint tools from the toolbar', async () => {
     vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
     const { controller } = withController(<MapCanvas />);
     await waitFor(() => expect(view.created).toHaveLength(1));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Fit all' }));
-    expect(controller.state.get().fitRevision).toBe(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Setup' }));
+    expect(controller.state.get().setupOpen).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Data catalog' }));
+    expect(controller.state.get().catalogOpen).toBe(true);
 
     fireEvent.click(screen.getByRole('button', { name: 'Follow' }));
     expect(controller.state.get().follow).toBe('off');
     expect(controller.state.get().notice).toContain('Select a ship');
 
     act(() => controller.select('cvn1'));
-    fireEvent.click(screen.getByRole('button', { name: 'Chase' }));
-    expect(controller.state.get().follow).toBe('chase');
-    expect(screen.getByRole('button', { name: 'Chase' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Follow' }));
+    expect(controller.state.get().follow).toBe('follow');
+    expect(screen.getByRole('button', { name: 'Follow' }).getAttribute('aria-pressed')).toBe('true');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add waypoints' }));
-    expect(controller.state.get().placing).toBe(true);
+    // Waypoints are started from the forces panel; the toolbar only shows that it is on, and stops it.
+    expect(screen.queryByRole('button', { name: 'Add waypoints' })).toBeNull();
+    act(() => controller.setPlacing(true));
     expect(screen.getByRole('status').textContent).toContain('Carrier 1');
-    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: 'Add waypoints' }));
     expect(controller.state.get().placing).toBe(false);
   });
 });
-
-const salvoScenario = () => PRESET_SCENARIOS.find((p) => p.id === 'salvo-defense')!;
-const salvoController = () => new ExerciseController(undefined, salvoScenario());
 
 describe('Sidebar for aircraft, missiles and mines', () => {
   it('offers only behaviors that make sense for the selected unit', () => {
@@ -643,9 +628,9 @@ describe('Side readout for the new kinds of unit', () => {
   });
 });
 
-describe('Bottom: contacts and events', () => {
+describe('Contacts and the event feed', () => {
   it('shows status, hit points and altitude, and dashes for units that do not exist yet', () => {
-    const { controller } = withController(<Bottom />, salvoController());
+    const { controller } = withController(<Contacts />, salvoController());
     const row = (name: string) => screen.getByRole('row', { name: new RegExp(name) });
     expect(row('Carrier 1').textContent).toContain('Active');
     expect(row('Carrier 1').textContent).toContain('400/400');
@@ -661,10 +646,10 @@ describe('Bottom: contacts and events', () => {
   });
 
   it('lists events in words, and jumps to one and selects the ship involved', () => {
-    const { controller } = withController(<Bottom />, salvoController());
-    fireEvent.click(screen.getByRole('tab', { name: /Events/ }));
+    const { controller } = withController(<Side />, salvoController());
     const list = within(screen.getByRole('list', { name: 'Events' }));
-    expect(list.getAllByRole('button').length).toBe(controller.state.get().active.trajectory.events.length);
+    // Every event has a line to jump to it and a button for the record behind it.
+    expect(list.getAllByRole('button').length).toBe(controller.state.get().active.trajectory.events.length * 2);
     const hit = list.getByRole('button', { name: /Missile 7 hit Carrier 1 \(340 HP left\)/ });
     fireEvent.click(hit);
     expect(controller.clock.timeS).toBe(546 - 8);
@@ -675,12 +660,23 @@ describe('Bottom: contacts and events', () => {
     expect(controller.clock.timeS).toBe(292);
   });
 
-  it('counts events in the tab, and says when there are none', () => {
-    const quiet = withController(<Bottom />);
-    expect(screen.getByRole('tab', { name: 'Events (0)' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('tab', { name: /Events/ }));
-    expect(screen.getByText(/Nothing happens in this run/)).toBeTruthy();
-    quiet.unmount();
+  it('counts how far the feed has got, and says when there is nothing in it', () => {
+    const { controller } = withController(<Side />, salvoController());
+    expect(screen.getByText(`0 of ${controller.state.get().active.trajectory.events.length}`)).toBeTruthy();
+    act(() => controller.seek(controller.state.get().active.scenario.durationS));
+    const all = controller.state.get().active.trajectory.events.length;
+    expect(screen.getByText(`${all} of ${all}`)).toBeTruthy();
+    cleanup();
+    withController(<Side />);
+    expect(screen.getByText(/the feed stays empty/)).toBeTruthy();
+  });
+
+  it('opens the catalog on the record an event came from', () => {
+    const { controller } = withController(<Side />, salvoController());
+    const list = within(screen.getByRole('list', { name: 'Events' }));
+    fireEvent.click(list.getAllByRole('button', { name: /^Source data for the event/ })[0]);
+    expect(controller.state.get().catalogOpen).toBe(true);
+    expect(controller.state.get().catalogEventIndex).toBe(0);
   });
 
   it('marks hits, interceptions and losses on the timeline', () => {
@@ -691,27 +687,20 @@ describe('Bottom: contacts and events', () => {
     expect((ticks[0] as HTMLElement).style.left).toMatch(/%$/);
   });
 
-  it('switches between the tabs', () => {
-    withController(<Bottom />, salvoController());
-    expect(screen.getByRole('tab', { name: 'Contacts' }).getAttribute('aria-selected')).toBe('true');
-    fireEvent.click(screen.getByRole('tab', { name: /Events/ }));
-    expect(screen.queryByRole('row', { name: /Carrier 1/ })).toBeNull();
-    fireEvent.click(screen.getByRole('tab', { name: 'Contacts' }));
-    expect(screen.getByRole('row', { name: /Carrier 1/ })).toBeTruthy();
+  it('keeps the storyboard under the map with no tab to find it', () => {
+    const { controller } = withController(<Bottom />, salvoController());
+    expect(screen.getByRole('list', { name: 'Storyboard' })).toBeTruthy();
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.getByText(`Storyboard · ${controller.storyboard().length} moments`)).toBeTruthy();
   });
 });
 
 describe('MapCanvas red team and replay controls', () => {
-  it('opens and closes the red-team panel from the toolbar', async () => {
-    vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
-    const { controller } = withController(<MapCanvas />, salvoController());
-    await waitFor(() => expect(view.created).toHaveLength(1));
-    const button = screen.getByRole('button', { name: 'Red team' });
-    fireEvent.click(button);
+  it('opens the red-team panel from the setup drawer', () => {
+    const { controller } = withController(<SetupDrawer />, salvoController());
+    act(() => controller.toggleSetup(true));
+    fireEvent.click(screen.getByRole('button', { name: /Red team/ }));
     expect(controller.state.get().redTeamOpen).toBe(true);
-    expect(button.getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(button);
-    expect(controller.state.get().redTeamOpen).toBe(false);
   });
 
   it('says a replay is running, lists its random draws, and offers the way back', async () => {

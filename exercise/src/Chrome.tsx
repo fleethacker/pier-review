@@ -98,7 +98,7 @@ export function Chrome({ def }: { def: AppDefinition }) {
           )}
         </main>
         {Side && (
-          <aside className="hidden w-[320px] shrink-0 overflow-y-auto border-l border-mil-border bg-mil-panel/60 p-3 lg:block">
+          <aside className="flex w-[300px] shrink-0 flex-col overflow-hidden border-l border-mil-border bg-mil-panel/60 xl:w-[340px]">
             <Side />
           </aside>
         )}

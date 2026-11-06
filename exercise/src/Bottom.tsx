@@ -1,19 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { cn } from './lib/cn';
 import { Button } from './ui';
 import { useClockSecond, useController, useExercise } from './context';
 import { PLAYBACK_RATES } from './controller';
-import { bearingTo, distanceM, formatClock, formatLatLon, mToNm } from './geo';
-import { SHIP_CLASSES, SIDE_COLORS } from './ships';
+import { formatClock } from './geo';
 import { momentsAt, scrollIntoViewSafely } from './storyboard';
 import type { StoryMoment } from './types';
-import { unitHp, statesAt } from './sim';
-import { EVENT_COLOR, STATUS_COLOR, STATUS_LABEL, eventFocus, eventText, unitStatus } from './status';
+import { EVENT_COLOR } from './status';
 
 /** One empty array for every scenario with no storyboard: a fresh [] in a selector would re-render without end. */
 const NO_MOMENTS: StoryMoment[] = [];
-
-const bearing = (deg: number) => `${Math.round(deg).toString().padStart(3, '0')}°`;
 
 function PlaybackBar() {
   const c = useController();
@@ -89,106 +85,6 @@ function PlaybackBar() {
   );
 }
 
-const HEAD = 'px-3 py-1.5 text-left text-[9px] font-medium uppercase tracking-widest text-mil-dim';
-
-function Contacts() {
-  const c = useController();
-  const second = useClockSecond();
-  const run = useExercise((s) => s.active);
-  const selectedId = useExercise((s) => s.selectedId);
-  const states = statesAt(run.trajectory, second);
-  const ref = states[run.trajectory.unitIds.indexOf(selectedId ?? '')];
-  return (
-    <div className="min-h-0 flex-1 overflow-auto">
-      <table className="w-full border-collapse text-[11px]">
-        <thead className="sticky top-0 bg-mil-panel">
-          <tr>
-            <th className={HEAD}>Ship</th>
-            <th className={HEAD}>Class</th>
-            <th className={HEAD}>Status</th>
-            <th className={HEAD}>HP</th>
-            <th className={HEAD}>Hdg</th>
-            <th className={HEAD}>STW kt</th>
-            <th className={HEAD}>SOG kt</th>
-            <th className={HEAD}>Alt m</th>
-            <th className={HEAD}>Position</th>
-            <th className={HEAD}>{ref ? 'Rng nm / Brg from selected' : 'Rng / Brg'}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {run.scenario.units.map((u, i) => {
-            const st = states[i];
-            const selected = u.id === selectedId;
-            const cls = SHIP_CLASSES[u.classId];
-            const status = unitStatus(u, st, second, run.trajectory.events);
-            const live = st.active;
-            const dash = '–';
-            return (
-              <tr
-                key={u.id}
-                onClick={() => c.select(selected ? null : u.id)}
-                className={cn('cursor-pointer border-t border-mil-border/50', selected ? 'bg-mil-cyan/10 text-white' : 'text-mil-text hover:text-white', !live && 'opacity-60')}
-              >
-                <td className="px-3 py-1">
-                  <span className="mr-2 inline-block h-2 w-2 rounded-full align-middle" style={{ background: SIDE_COLORS[u.side] }} />
-                  {u.name}
-                </td>
-                <td className="px-3 py-1">{cls.id}</td>
-                <td className={cn('px-3 py-1', STATUS_COLOR[status])}>{STATUS_LABEL[status]}</td>
-                <td className="px-3 py-1 tabular-nums">{!cls.weapon && cls.domain !== 'static' && live ? `${Math.round(st.hp)}/${unitHp(u)}` : dash}</td>
-                <td className="px-3 py-1 tabular-nums">{live ? bearing(st.headingDeg) : dash}</td>
-                <td className="px-3 py-1 tabular-nums">{live ? st.speedKt.toFixed(1) : dash}</td>
-                <td className="px-3 py-1 tabular-nums">{live ? st.sogKt.toFixed(1) : dash}</td>
-                <td className="px-3 py-1 tabular-nums">{live && cls.domain === 'air' ? Math.round(st.altM).toLocaleString('en-US') : dash}</td>
-                <td className="px-3 py-1 tabular-nums">{live ? formatLatLon(st) : dash}</td>
-                <td className="px-3 py-1 tabular-nums">
-                  {ref?.active && live && !selected ? `${mToNm(distanceM(ref, st)).toFixed(2)} / ${bearing(bearingTo(ref, st))}` : dash}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function Events() {
-  const c = useController();
-  const second = useClockSecond();
-  const run = useExercise((s) => s.active);
-  const events = run.trajectory.events;
-  const name = (id: string) => run.scenario.units.find((u) => u.id === id)?.name ?? id;
-  if (events.length === 0) {
-    return <p className="p-4 text-[11px] text-mil-dim">Nothing happens in this run: no launches, hits, interceptions or mines. Add a missile or a mine to see events here.</p>;
-  }
-  return (
-    <div className="min-h-0 flex-1 overflow-auto">
-      <ul aria-label="Events" className="text-[11px]">
-        {events.map((e, i) => {
-          const past = e.tS <= second;
-          return (
-            <li key={i}>
-              <button
-                onClick={() => {
-                  c.seek(Math.max(0, e.tS - 8));
-                  const focus = eventFocus(e, run.scenario.units);
-                  if (focus) c.select(focus);
-                }}
-                className={cn('flex w-full items-center gap-3 border-t border-mil-border/50 px-3 py-1 text-left hover:text-white', past ? 'text-mil-text' : 'text-mil-dim')}
-              >
-                <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: EVENT_COLOR[e.type] }} />
-                <span className="mil-value w-20 shrink-0 tabular-nums">T+{formatClock(e.tS)}</span>
-                <span className="min-w-0 flex-1 truncate">{eventText(e, name)}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
 /**
  * The storyboard as a strip that runs with the clock: every beat in order, the one that is up lit and scrolled to. This is
  * the same storyboard the bubbles on the map come from, laid out so a room can follow it without opening a panel.
@@ -254,26 +150,18 @@ function Story() {
 }
 
 export function Bottom() {
-  const [tab, setTab] = useState<'contacts' | 'events' | 'story'>('contacts');
-  const eventCount = useExercise((s) => s.active.trajectory.events.length);
   const storyCount = useExercise((s) => s.active.scenario.storyboard?.length ?? 0);
+  const c = useController();
   return (
     <div className="flex h-full flex-col">
       <PlaybackBar />
-      <div role="tablist" aria-label="Details" className="flex gap-4 border-b border-mil-border px-3">
-        {(['contacts', 'events', 'story'] as const).map((id) => (
-          <button
-            key={id}
-            role="tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
-            className={cn('border-b-2 py-1.5 font-mono text-[10px] uppercase tracking-wider', tab === id ? 'border-mil-cyan text-mil-cyan' : 'border-transparent text-mil-text hover:text-white')}
-          >
-            {id === 'contacts' ? 'Contacts' : id === 'events' ? `Events (${eventCount})` : `Storyboard${storyCount ? ` (${storyCount})` : ''}`}
-          </button>
-        ))}
+      <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-mil-border px-3 py-1.5">
+        <h2 className="mil-label">Storyboard{storyCount ? ` · ${storyCount} moments` : ''}</h2>
+        <button className="font-mono text-[10px] uppercase tracking-wider text-mil-dim hover:text-mil-cyan" onClick={() => c.toggleStoryboard(true)}>
+          Edit
+        </button>
       </div>
-      {tab === 'contacts' ? <Contacts /> : tab === 'events' ? <Events /> : <Story />}
+      <Story />
     </div>
   );
 }

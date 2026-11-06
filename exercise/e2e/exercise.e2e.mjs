@@ -103,10 +103,22 @@ const workers = [];
 page.on('pageerror', (e) => pageErrors.push(e.message));
 page.on('worker', (w) => workers.push(w.url()));
 
-await step('the page loads straight into the simulator', async () => {
+// Everything that is not the storyboard lives behind the Setup drawer, so most steps open it first.
+const openSetup = async (tab) => {
+  if (await page.getByRole('dialog', { name: 'Setup' }).count() === 0) await page.getByRole('button', { name: 'Setup' }).click();
+  const panel = page.getByRole('dialog', { name: 'Setup' });
+  if (tab) await panel.getByRole('tab', { name: tab }).click();
+  return panel;
+};
+const closeSetup = async () => {
+  if (await page.getByRole('dialog', { name: 'Setup' }).count() > 0) await page.getByRole('button', { name: 'Close setup' }).click();
+};
+
+await step('the page opens on the storyboard, with the feed beside it', async () => {
   await page.goto(base);
-  await page.getByRole('button', { name: 'Red team' }).waitFor();
-  check(await page.getByRole('tab', { name: 'Scenario' }).getAttribute('aria-selected') === 'true', 'the scenario view is not open');
+  await page.getByRole('button', { name: 'Storyboard' }).waitFor();
+  await page.getByRole('list', { name: 'Storyboard' }).waitFor();
+  await page.getByRole('list', { name: 'Events' }).waitFor();
 });
 
 await step('the map loads with a token the server provided (none is built in)', async () => {
@@ -126,15 +138,17 @@ await step('moving the clock and playing do not break the page', async () => {
 });
 
 await step('sensors and detection can be switched on, and a sensor scenario loads', async () => {
-  const select = page.getByLabel('Load');
+  const setup = await openSetup('Scenario');
+  const select = setup.getByLabel('Load');
   await select.selectOption({ label: 'Over the horizon' });
-  const box = page.getByRole('checkbox', { name: 'Sensors and detection' });
+  const box = setup.getByRole('checkbox', { name: 'Sensors and detection' });
   check(await box.isChecked(), 'the preset did not switch sensors on');
   await page.getByText('Held').first().waitFor({ state: 'attached', timeout: 5_000 }).catch(() => undefined);
 });
 
 await step('the red team runs on worker threads and shows results', async () => {
-  await page.getByRole('button', { name: 'Red team' }).click();
+  const setup = await openSetup();
+  await setup.getByRole('button', { name: /Red team/ }).click();
   const dialog = page.getByRole('dialog', { name: 'Red team' });
   const runs = dialog.getByLabel('Runs at each value');
   await runs.fill('20');
@@ -157,7 +171,8 @@ await step('results export to CSV, and the baseline comparison appears', async (
 
 await step('a scenario saves to the shared library and comes back', async () => {
   await page.getByRole('button', { name: 'Close red team' }).click();
-  const library = page.getByLabel('Saved scenarios');
+  const setup = await openSetup('Scenario');
+  const library = setup.getByLabel('Saved scenarios');
   await library.locator('summary').click();
   const where = library.getByRole('combobox');
   await where.waitFor({ timeout: 10_000 });
@@ -169,6 +184,24 @@ await step('a scenario saves to the shared library and comes back', async () => 
   page.once('dialog', (d) => d.accept());
   await library.getByRole('button', { name: 'Delete Over the horizon' }).click();
   await library.getByText(/Deleted/).waitFor();
+});
+
+await step('the data catalog lists the sources and the record behind an event', async () => {
+  await closeSetup();
+  await page.getByRole('button', { name: 'Data catalog' }).click();
+  const catalog = page.getByRole('dialog', { name: 'Data catalog' });
+  await catalog.getByRole('list', { name: 'Data sources' }).waitFor();
+  const sources = await catalog.getByRole('list', { name: 'Data sources' }).getByRole('listitem').count();
+  check(sources > 0, 'the catalog lists no sources');
+  await catalog.getByRole('button', { name: 'Close the data catalog' }).click();
+  // And the other way in: the source of one event from the feed.
+  const first = page.getByRole('list', { name: 'Events' }).getByRole('button', { name: /^Source data for the event/ }).first();
+  if (await first.count()) {
+    await first.click();
+    await page.getByRole('dialog', { name: 'Data catalog' }).getByText(/Source of this event/).waitFor();
+    await page.screenshot({ path: path.join(out, '3-data-catalog.png'), timeout: 170_000 });
+    await page.getByRole('button', { name: 'Close the data catalog' }).click();
+  }
 });
 
 await step('client errors reach the server log', async () => {

@@ -124,6 +124,12 @@ export interface ExerciseState {
   redTeamOpen: boolean;
   /** The storyboard panel is open. */
   storyOpen: boolean;
+  /** The setup drawer is open: everything that is not storyboarding lives behind it. */
+  setupOpen: boolean;
+  /** The data catalog is open. */
+  catalogOpen: boolean;
+  /** The event whose source record the catalog opens on, as an index into the run's events. */
+  catalogEventIndex: number | null;
   /** The beat being edited, which the panel scrolls to. */
   focusedMomentId: string | null;
   /** The map is up and can be photographed for a storyboard moment. */
@@ -169,6 +175,9 @@ export class ExerciseController {
       presenting: false,
       redTeamOpen: false,
       storyOpen: false,
+      setupOpen: false,
+      catalogOpen: false,
+      catalogEventIndex: null,
       focusedMomentId: null,
       canCapture: false,
       mc: MC_IDLE,
@@ -255,7 +264,7 @@ export class ExerciseController {
     const { scenario } = this.state.get().active;
     this.setRate(presentationRate(scenario.durationS));
     this.clock.seek(0);
-    this.state.set({ presenting: true, redTeamOpen: false, storyOpen: false, placing: false });
+    this.state.set({ presenting: true, redTeamOpen: false, storyOpen: false, setupOpen: false, catalogOpen: false, placing: false });
     this.play();
   }
 
@@ -558,6 +567,20 @@ export class ExerciseController {
 
   toggleStoryboard(open?: boolean): void {
     this.state.set((s) => ({ storyOpen: open ?? !s.storyOpen }));
+  }
+
+  /** Open the setup drawer: scenario, environment, forces, the red team — everything the storyboard view keeps out of the way. */
+  toggleSetup(open?: boolean): void {
+    this.state.set((s) => ({ setupOpen: open ?? !s.setupOpen }));
+  }
+
+  toggleCatalog(open?: boolean): void {
+    this.state.set((s) => ({ catalogOpen: open ?? !s.catalogOpen, catalogEventIndex: null }));
+  }
+
+  /** Open the catalog on the record an event came from. */
+  showEventSource(eventIndex: number): void {
+    this.state.set({ catalogOpen: true, catalogEventIndex: eventIndex });
   }
 
   storyboard(): StoryMoment[] {

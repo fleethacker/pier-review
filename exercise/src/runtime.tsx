@@ -1,24 +1,27 @@
 import type { ComponentType } from 'react';
 import type { AppHost, AppInstance } from './lib/app';
-import { Banner } from './Banner';
 import { Bottom } from './Bottom';
+import { DataCatalog } from './DataCatalog';
 import { installErrorReporting } from './clientErrors';
 import { ExerciseController } from './controller';
 import { ControllerContext } from './context';
 import { MapCanvas } from './MapCanvas';
 import { RedTeamPanel } from './RedTeam';
+import { SetupDrawer } from './SetupDrawer';
 import { Side } from './Side';
 import { StoryboardPanel } from './StoryboardPanel';
-import { Sidebar } from './Sidebar';
-import type { ExerciseTab } from './Sidebar';
-import { Store } from './lib/store';
 
-/** The panels that float over the map. Both can be opened, but each sits in the same place, so only one shows at a time. */
+/**
+ * What floats over the map. The storyboard view keeps the map and the event feed; everything else — the scenario and the
+ * red team under Setup, the sources under the catalog — opens here on top of it.
+ */
 function Overlays() {
   return (
     <>
+      <SetupDrawer />
       <RedTeamPanel />
       <StoryboardPanel />
+      <DataCatalog />
     </>
   );
 }
@@ -33,23 +36,16 @@ function withController(controller: ExerciseController, Component: ComponentType
   return Wrapped;
 }
 
-/** Everything the exercise tab is made of. Loaded when the tab is first opened (see index.ts), not with the page. */
+/** Everything the exercise view is made of. A separate chunk, so the page frame paints before the simulator does. */
 export function startExercise(host: AppHost): AppInstance {
   const controller = new ExerciseController(host);
   controller.startLoop();
   const stopReporting = installErrorReporting();
-  const view = new Store<{ tab: ExerciseTab }>({ tab: 'scenario' });
-  const TabbedSidebar = () => <Sidebar tab={view.use((v) => v.tab)} />;
-  TabbedSidebar.displayName = 'ExerciseSidebar';
   return {
+    // No left column: the map runs the width of the page, with the feed on the right and the storyboard underneath.
     Canvas: withController(controller, MapCanvas),
-    Sidebar: withController(controller, TabbedSidebar),
-    setTab: (id) => {
-      if (id === 'scenario' || id === 'environment' || id === 'forces') view.set({ tab: id });
-    },
     Side: withController(controller, Side),
     Bottom: withController(controller, Bottom),
-    Banner: withController(controller, Banner),
     Overlay: withController(controller, Overlays),
     dispose: () => {
       stopReporting();

@@ -1,65 +1,28 @@
-import { Field, Panel, Select } from './ui';
+import { useEffect, useRef } from 'react';
+import { cn } from './lib/cn';
 import { useClockSecond, useController, useExercise } from './context';
-import { formatLatLon } from './geo';
-import { MAP_STYLES } from './mapStyles';
-import type { MapStyleId } from './mapStyles';
+import { formatClock, formatLatLon } from './geo';
 import { SHIP_CLASSES, SIDE_COLORS } from './ships';
 import { unitHp, unitStateAt } from './sim';
-import { STATUS_LABEL, unitStatus } from './status';
+import { EVENT_COLOR, STATUS_LABEL, eventFocus, eventText, unitStatus } from './status';
+import { scrollIntoViewSafely } from './storyboard';
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center gap-2 text-[11px] text-mil-text">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      {label}
-    </label>
-  );
-}
+/**
+ * The right-hand rail: what the selected unit is doing, and under it everything that has happened, arriving as the clock
+ * reaches it. This is the feed a storyboard is built from, so every line carries the two things wanted next — the unit it
+ * is about, and the collected record it came from.
+ */
 
-function ViewPanel() {
-  const c = useController();
-  const view = useExercise((s) => s.view);
-  const mapStyle = useExercise((s) => s.mapStyle);
-  return (
-    <Panel title="View" className="space-y-3 p-4">
-      <Field label="Map">
-        <Select value={mapStyle} onChange={(v) => c.setMapStyle(v as MapStyleId)} options={MAP_STYLES.map((m) => ({ value: m.id, label: m.label }))} />
-      </Field>
-      <label className="block">
-        <span className="mil-label mb-1 flex justify-between">
-          <span>Ship size</span>
-          <span className="text-white">{view.shipScale}×</span>
-        </span>
-        <input type="range" className="w-full" aria-label="Ship size" min={1} max={20} step={1} value={view.shipScale} onChange={(e) => c.setView({ shipScale: Number(e.target.value) })} />
-        <span className="text-[10px] text-mil-dim">1× is true scale. Raise it to see ships when zoomed out.</span>
-      </label>
-      <label className="block">
-        <span className="mil-label mb-1 flex justify-between">
-          <span>Wake length</span>
-          <span className="text-white">{view.trailS === 0 ? 'off' : `${view.trailS} s`}</span>
-        </span>
-        <input type="range" className="w-full" aria-label="Wake length" min={0} max={900} step={30} value={view.trailS} onChange={(e) => c.setView({ trailS: Number(e.target.value) })} />
-      </label>
-      <div className="space-y-1.5">
-        <Toggle label="Ship names" checked={view.showLabels} onChange={(showLabels) => c.setView({ showLabels })} />
-        <Toggle label="Routes and waypoints" checked={view.showRoutes} onChange={(showRoutes) => c.setView({ showRoutes })} />
-        <Toggle label="Sensor range of selected ship" checked={view.showRange} onChange={(showRange) => c.setView({ showRange })} />
-        <Toggle label="Storyboard bubbles" checked={view.showStory} onChange={(showStory) => c.setView({ showStory })} />
-      </div>
-    </Panel>
-  );
-}
-
-function SelectedPanel() {
+function SelectedReadout() {
   const second = useClockSecond();
   const c = useController();
   const unit = useExercise((s) => s.active.scenario.units.find((u) => u.id === s.selectedId) ?? null);
   const run = useExercise((s) => s.active);
   if (!unit) {
     return (
-      <Panel title="Selected ship" className="p-4">
-        <p className="text-[11px] text-mil-dim">Click a ship on the map or in the list to see its readout.</p>
-      </Panel>
+      <p className="shrink-0 border-b border-mil-border px-3 py-2 text-[11px] text-mil-dim">
+        Click a ship on the map or an event below to see its readout.
+      </p>
     );
   }
   const i = run.trajectory.unitIds.indexOf(unit.id);
@@ -91,12 +54,17 @@ function SelectedPanel() {
       : []),
   ];
   return (
-    <Panel title="Selected ship" className="space-y-2 p-4">
-      <div className="flex items-center gap-2 text-sm text-white">
-        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: SIDE_COLORS[unit.side] }} />
-        {unit.name}
+    <div className="max-h-[45%] shrink-0 overflow-y-auto border-b border-mil-border bg-mil-bg/40 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2 text-sm text-white">
+          <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: SIDE_COLORS[unit.side] }} />
+          <span className="truncate">{unit.name}</span>
+        </span>
+        <button className="shrink-0 text-[10px] uppercase tracking-wider text-mil-dim hover:text-white" onClick={() => c.select(null)}>
+          Clear selection
+        </button>
       </div>
-      <dl className="space-y-1 text-[11px]">
+      <dl className="mt-2 space-y-1 text-[11px]">
         {rows.map(([k, v]) => (
           <div key={k} className="flex justify-between gap-3">
             <dt className="text-mil-dim">{k}</dt>
@@ -104,38 +72,72 @@ function SelectedPanel() {
           </div>
         ))}
       </dl>
-      <button className="text-[10px] uppercase tracking-wider text-mil-dim hover:text-white" onClick={() => c.select(null)}>
-        Clear selection
-      </button>
-    </Panel>
-  );
-}
-
-function Key() {
-  return (
-    <Panel title="Key" className="space-y-2 p-4">
-      {(['BLUE', 'RED', 'NEUTRAL'] as const).map((side) => (
-        <div key={side} className="flex items-center gap-2 text-[11px] text-mil-text">
-          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: SIDE_COLORS[side] }} />
-          {side === 'BLUE' ? 'Blue force' : side === 'RED' ? 'Opposing force' : 'Neutral / merchant'}
-        </div>
-      ))}
-      <p className="text-[10px] leading-snug text-mil-dim">
-        The colored glow under each unit is its side. Dashed lines are planned routes; numbered dots are waypoints. Faint
-        dotted lines join a missile to its target, and thin rings mark where a mine would go off. The white trail is the
-        wake or ground track. Orange flashes are hits, white-blue ones shot-down missiles. A dark, burning ship is destroyed.
-        Dimensions, handling and weapons are illustrative, not for operational use.
-      </p>
-    </Panel>
+    </div>
   );
 }
 
 export function Side() {
+  const c = useController();
+  const second = useClockSecond();
+  const run = useExercise((s) => s.active);
+  const selectedId = useExercise((s) => s.selectedId);
+  const events = run.trajectory.events;
+  const name = (id: string) => run.scenario.units.find((u) => u.id === id)?.name ?? id;
+  const list = useRef<HTMLOListElement>(null);
+  // The last event the clock has reached; keep it in view as the run plays.
+  const latest = events.reduce((found, e, i) => (e.tS <= second ? i : found), -1);
+
+  useEffect(() => {
+    if (latest >= 0) scrollIntoViewSafely(list.current?.querySelector(`[data-event="${latest}"]`));
+  }, [latest]);
+
   return (
-    <div className="space-y-3">
-      <ViewPanel />
-      <SelectedPanel />
-      <Key />
+    <div className="flex h-full flex-col">
+      <SelectedReadout />
+      <div className="flex shrink-0 items-baseline justify-between gap-2 px-3 py-2">
+        <h2 className="mil-label">Event feed</h2>
+        <span className="text-[10px] tabular-nums text-mil-dim">
+          {latest + 1} of {events.length}
+        </span>
+      </div>
+      {events.length === 0 ? (
+        <p className="px-3 text-[11px] text-mil-dim">
+          Nothing is detected, fired or struck in this run, so the feed stays empty. Open Setup to add a sensor, a missile or a mine.
+        </p>
+      ) : (
+        <ol ref={list} aria-label="Events" className="min-h-0 flex-1 overflow-y-auto text-[11px]">
+          {events.map((e, i) => {
+            const past = i <= latest;
+            const focus = eventFocus(e, run.scenario.units);
+            const onUnit = focus !== undefined && focus === selectedId;
+            return (
+              <li key={i} data-event={i} className={cn('border-t border-mil-border/50', onUnit && 'bg-mil-cyan/5')}>
+                <div className="flex items-start gap-2 px-3 py-1.5">
+                  <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: EVENT_COLOR[e.type], opacity: past ? 1 : 0.35 }} />
+                  <button
+                    className={cn('min-w-0 flex-1 text-left', past ? 'text-mil-text hover:text-white' : 'text-mil-dim hover:text-mil-text')}
+                    onClick={() => {
+                      c.seek(Math.max(0, e.tS - 8));
+                      if (focus) c.select(focus);
+                    }}
+                  >
+                    <span className="mil-value mr-2 tabular-nums">T+{formatClock(e.tS)}</span>
+                    <span>{eventText(e, name)}</span>
+                  </button>
+                  <button
+                    title="The collected record this came from"
+                    aria-label={`Source data for the event at T+${formatClock(e.tS)}`}
+                    className="shrink-0 border border-mil-border px-1 py-0.5 text-[9px] uppercase tracking-wider text-mil-dim hover:border-mil-cyan/60 hover:text-mil-cyan"
+                    onClick={() => c.showEventSource(i)}
+                  >
+                    Source
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </div>
   );
 }

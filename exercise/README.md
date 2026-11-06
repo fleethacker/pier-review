@@ -42,8 +42,14 @@ e2e/                  the browser check (needs Playwright)
 
 ## What it does
 
-Replay a naval exercise in 3D on a Mapbox map. Ships move across open ocean with wakes, routes,
-formations and conditions you configure. There is no backend; the simulation runs in the browser.
+Gather what an exercise produced into one timeline, play it back in 3D on a Mapbox map, and tell the story of it. The
+page opens on that story: the map across the width of it, the **event feed** down the right as things happen, and the
+**storyboard** along the bottom, always there. Pressing **Source** on any line of the feed opens the **data catalog** at
+the record that line came from — a radar track, a sonar bearing, an emitter report, a tactical message.
+
+The simulation that produces all of it is still here, one click away under **Setup**: the scenario, the conditions, the
+forces, the contact table, what the map draws, and the red team. It is not the point of the page any more, which is why
+it is behind a drawer.
 
 **Mapbox token.** Mapbox GL needs a public access token (`pk.…`). The tab looks for one in this order: the build
 (`VITE_MAPBOX_TOKEN=pk.…` in `exercise/.env` or the environment of whatever builds the app; Vite inlines it, which is
@@ -88,12 +94,12 @@ the tab says so if Mapbox refuses.
 - Submarines and torpedoes: a submarine is drawn as a dark hull and sail, heard rather than seen, and fires torpedoes that run
   under the water. Ship missile defences cannot shoot torpedoes; decoys are the defence.
 - Storyboard: pictures and captions that come up beside units as the run plays. See below.
-- Playback: play, pause, restart, scrub, 1x to 600x. Camera: fit all, follow, chase, orbit (circles the selected ship, or
-  the whole group), and **Present**, which plays the whole exercise: it fills the screen, winds back to the top, picks a
+- Playback: play, pause, restart, scrub, 1x to 600x. **Follow** keeps the selected ship centered, and **Present** plays
+  the whole exercise: it fills the screen, winds back to the top, picks a
   speed that plays the run out in about a minute and a half, and starts, with the storyboard coming up as it goes and the
   caption large enough to read from the back of a room. Pause, scrub and speed are still there, *Play again* restarts it,
-  and Esc or *Exit* leaves. The view opens with a fly-in to the main group. View: ship size exaggeration (so ships read when zoomed
-  out), wake length, names, routes, sensor ring, storyboard bubbles.
+  and Esc or *Exit* leaves. The view opens with a fly-in to the main group. Under Setup → Map: ship size exaggeration
+  (so ships read when zoomed out), wake length, names, routes, sensor ring, storyboard bubbles.
 - Look: the light preset (dawn, day, dusk, night) lights the sea, and at dusk and night the ships' navigation and deck
   lights glow. Dusk and night are the most dramatic; the presets use them.
 
@@ -121,6 +127,18 @@ while placing waypoints, in a replay, and for units that are launched rather tha
 saves the map as a WebM video (the map itself; panels and labels are not in the picture, and it needs a recent Chrome, Edge
 or Firefox). The **Events** tab at the
 bottom lists launches, hits, interceptions and losses in words (click one to jump to it) and the timeline marks them.
+
+## Data catalog: where each event came from
+
+The **Data catalog** button lists the collection sources reporting in the run — surface and airborne radar, acoustic,
+ELINT, tactical comms, full-motion video, overhead passes and the weapon-system log — with how many records each
+carries, over what span, and from which platforms. Pick a source to read its records, or press **Source** on a line of
+the event feed to jump straight to the record behind that event. Every record opens its raw payload: JSON for the
+machine feeds, a formatted message for comms.
+
+None of it is a real observation. Each record is synthesised from the simulation's own geometry and timing at the moment
+in question — the range in a radar track is the distance between those two units at that instant — and every feed states
+what it was derived from. Imagery feeds carry frame metadata only; the simulation produces no pictures.
 
 ## Storyboard: pictures that come up as it plays
 

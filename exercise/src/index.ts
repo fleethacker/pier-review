@@ -5,12 +5,7 @@ import type { AppDefinition } from './lib/app';
 export const exerciseApp: AppDefinition = {
   id: 'exercise',
   title: 'Exercise simulator',
-  description: 'Replay a naval exercise in 3D on a Mapbox map: ships, routes, formations and conditions you can configure.',
-  tabs: [
-    { id: 'scenario', label: 'Scenario' },
-    { id: 'environment', label: 'Environment' },
-    { id: 'forces', label: 'Forces' },
-  ],
+  description: 'Gather what a naval exercise produced into one timeline, play it back on a 3D map, and tell the story of it.',
   physics: ['Ship kinematics and routes', 'Sensors and detection', 'Engagement and damage', 'Monte Carlo red team'],
   async start(host) {
     const { startExercise } = await import('./runtime');

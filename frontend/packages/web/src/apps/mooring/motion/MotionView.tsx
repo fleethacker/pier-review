@@ -60,6 +60,8 @@ export function Badges({ frame, state }: { frame: ViewFrame | null; state: Motio
         </div>
       </details>
       {invalid && <div role="alert" className="text-mil-red"><p className="font-semibold">Invalid state</p>{reasons.map((reason) => <p key={reason}>{reason}</p>)}</div>}
+      {frame && validity === 'unknown' && !invalid && <p role="status" className="text-mil-amber">State validity unavailable</p>}
+      {frame?.assumedFaceBearing && <p role="status" className="text-mil-amber">Berth orientation assumed · no scene bearing supplied</p>}
       {!invalid && reasons.filter((reason) => /stale|missing|uncovered|expired/i.test(reason)).map((reason) => <p role="status" key={reason} className="text-mil-amber">{reason}</p>)}
       {frame?.alerts.filter((alert) => alert.severity === 'RED').map((alert, index) => <p role="alert" key={`${alert.code}-${index}`} className="text-mil-red">{alert.message}</p>)}
       {missingEnvironment.length > 0 && <p role="status" className="text-mil-amber">{missingEnvironment.join(', ')} unavailable{!frame ? ' · waiting for a frame' : ''}</p>}

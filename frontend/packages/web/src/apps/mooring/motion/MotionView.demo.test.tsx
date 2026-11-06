@@ -62,6 +62,15 @@ describe('Motion demo information', () => {
     expect(warning.getAttribute('role')).toBe('status');
   });
 
+  it('keeps unknown state validity and assumed map orientation outside collapsed details', () => {
+    const c = controller();
+    const frame = { ...c.s.frame!, badge: { ...c.s.frame!.badge, validity: 'unknown' as const }, assumedFaceBearing: true };
+    render(<Badges frame={frame} state={c.s} />);
+    expect(screen.getByText('State validity unavailable').closest('details')).toBeNull();
+    expect(screen.getByText('Berth orientation assumed · no scene bearing supplied').closest('details')).toBeNull();
+    expect((screen.getByText('Demo information').closest('details') as HTMLDetailsElement).open).toBe(false);
+  });
+
   it('collapses forecast background while preserving truncation, contact and refresh warnings', () => {
     const c = controller();
     c.state.set({ prediction: { ...prediction, warnings: [{ code: 'PIER_CONTACT', severity: 'RED', message: 'Predicted hull reaches the pier', t_s: 5 }] } });

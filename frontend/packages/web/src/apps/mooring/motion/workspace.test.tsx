@@ -188,10 +188,14 @@ describe('Maneuver workspace', () => {
     expect(screen.getByText(/Hull section unavailable: invalid/)).toBeTruthy();
   });
 
-  it('keeps horizon truncation and unchecked hazards visible on the primary view', () => {
+  it('keeps horizon truncation visible and exposes unchecked hazards in forecast details', () => {
     const c = mounted();
     act(() => c.state.set({ prediction }));
-    expect(screen.getByText(/TRUNCATED prediction/)).toBeTruthy();
+    expect(screen.getByText(/TRUNCATED prediction/).closest('details')).toBeNull();
+    const details = screen.getByText('Forecast details').closest('details')!;
+    expect(details.open).toBe(false);
+    fireEvent.click(screen.getByText('Forecast details'));
+    expect(details.open).toBe(true);
     expect(screen.getByText(/Unchecked: coastline, traffic/)).toBeTruthy();
     expect(screen.getByText(/uncertainty unavailable/)).toBeTruthy();
   });

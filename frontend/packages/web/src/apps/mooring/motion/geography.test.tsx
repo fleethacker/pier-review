@@ -33,6 +33,7 @@ describe('Bounded Motion geography', () => {
     const land = screen.getByLabelText('Supplied land · supplied Polygon');
     expect(land.getAttribute('fill-rule')).toBe('evenodd');
     expect(land.getAttribute('fill')).toBe('#47534d');
+    expect(screen.getByLabelText('Geographic dataset boundary — coverage inside remains partial').getAttribute('fill')).toBe('none');
     expect(result.container.querySelector('rect[fill="#3b4a5c"]')).toBeNull();
     expect(screen.getByText(/runtime land collisions not checked/)).toBeTruthy();
     result.rerender(<MotionCanvas frame={adaptFrame(raw)} scene={{ ...scene, geographic_context: context, berth_outline: [] }} trail={[]} faceBearingDeg={90} basemap="satellite" />);

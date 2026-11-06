@@ -337,6 +337,7 @@ export function MotionView({ controller: c, workspace = false }: { controller: M
   const s = c.state.use((x) => x);
   const [offset, setOffset] = useState(120);
   const [detailsOpen, setDetailsOpen] = useState(true);
+  const [shipViewsOpen, setShipViewsOpen] = useState(true);
   const [canvasView, setCanvasView] = useState<'plan' | 'satellite' | 'street' | SectionView>('satellite');
   const [flow, setFlow] = useState<FlowDisplay>({ wind: true, current: true, animate: typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? !window.matchMedia('(prefers-reduced-motion: reduce)').matches : false });
   const [vectors, setVectors] = useState(true);
@@ -459,6 +460,7 @@ export function MotionView({ controller: c, workspace = false }: { controller: M
               ))}
             </div>
           )}
+          {workspace && !section && <Button size="sm" variant="secondary" onClick={() => setShipViewsOpen(!shipViewsOpen)} aria-expanded={shipViewsOpen} aria-controls="motion-ship-views">{shipViewsOpen ? 'Hide ship views' : 'Show ship views'}</Button>}
           <Button size="sm" variant="secondary" onClick={() => setDetailsOpen(!detailsOpen)} aria-expanded={detailsOpen} aria-controls="motion-readouts">{detailsOpen ? 'Hide details' : 'Show details'}</Button>
           {!workspace && <Button size="sm" variant="ghost" onClick={() => c.close()} aria-keyshortcuts="Escape">Close</Button>}
         </div>
@@ -533,6 +535,10 @@ export function MotionView({ controller: c, workspace = false }: { controller: M
           <Readouts frame={s.frame} />
         </aside>}
       </div>
+
+      {workspace && shipViewsOpen && !section && <section id="motion-ship-views" aria-label="Ship views" className="grid h-[18vh] max-h-[180px] min-h-[112px] shrink-0 grid-cols-3 divide-x divide-mil-border border-t border-mil-border">
+        {(['forward', 'aft', 'side'] as const).map((view) => <div key={view} className="min-h-0 min-w-0 overflow-hidden"><SectionViews s={s} view={view} compact /></div>)}
+      </section>}
 
       <div className={cn('pointer-events-auto max-h-[45vh] shrink-0 overflow-y-auto border-t border-mil-border bg-mil-panel', !s.workspace && 'px-3 py-2')}>
         {s.source === 'live' && s.workspace ? <ManeuverControls key={`${s.sessionId}:${s.frame?.runId}`} c={c} s={s} /> : s.source === 'live' ? <LiveControls c={c} s={s} tugIds={c.tugIds()} lineNumbers={c.lineNumbers()} /> : s.source === 'recording' ? <ReplayControls c={c} s={s} /> : <p className="text-[11px] text-mil-dim">Controls appear once a session or recording is loaded. Space plays or pauses, R resets a live session{workspace ? ', Esc hides details.' : ', Esc closes.'}</p>}

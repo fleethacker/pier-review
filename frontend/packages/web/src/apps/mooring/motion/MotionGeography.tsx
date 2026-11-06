@@ -19,11 +19,14 @@ export function contextPaths(context: Context) {
 
 export const GeographicContextLayer = memo(function GeographicContextLayer({ context, imagery }: { context: Context; imagery: boolean }) {
   const paths = useMemo(() => contextPaths(context), [context]);
+  const coverage = context.coverage_outline;
+  const boundedCoverage = coverage.length > 3 && coverage.every(finite) && coverage[0].x_ft === coverage.at(-1)!.x_ft && coverage[0].y_ft === coverage.at(-1)!.y_ft;
   return <g aria-label="Supplied geographic context — partial coverage, not hazard clearance">
     {paths.map((feature) => <path key={feature.feature_id} aria-label={`${feature.name ?? feature.kind} · supplied ${feature.geometry_type}`} d={feature.d}
       fill={feature.polygon && !imagery ? '#47534d' : 'none'} fillRule="evenodd" fillOpacity={0.95}
       stroke={imagery ? '#e7dcc2' : '#a8b8a1'} strokeOpacity={imagery ? 0.65 : 0.9} strokeWidth={feature.kind === 'shoreline_construction' ? 1.6 : 1}
       vectorEffect="non-scaling-stroke"><title>{feature.name ?? feature.kind} · source date {feature.source_date ?? 'unknown'} · context only</title></path>)}
+    {boundedCoverage && <path aria-label="Geographic dataset boundary — coverage inside remains partial" d={`M ${coverage.map((p) => `${p.x_ft},${p.y_ft}`).join(' L ')} Z`} fill="none" stroke="#c9a2df" strokeWidth="1.5" strokeDasharray="9 6" vectorEffect="non-scaling-stroke"><title>Partial geographic dataset extent, not a physical shoreline or navigable-water boundary.</title></path>}
   </g>;
 });
 

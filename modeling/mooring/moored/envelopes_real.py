@@ -30,7 +30,7 @@ from mooring.mechanics import equilibrium as eq
 from mooring.mechanics.equilibrium import utilization  # noqa: F401  (shared evaluator, re-exported)
 from .solver import MODEL, VERSION, solve_request
 from mooring.tugs.validation import assignment_errors
-from mooring.loads.validity import environment_findings
+from mooring.loads.validity import environment_findings, merge_reasons, wind_basis
 
 FINE_STEP_MIN = 5.0
 ADVISORY_GUST_FRACTION = 0.8  # Application warning policy, not a UFC/NSTM physical coefficient.
@@ -187,7 +187,7 @@ def tide_sweep(req: TideSweepRequest) -> TideSweepResponse:
         lengths[action.line_number] += action.amount_ft if action.action == "slack" else -action.amount_ft
         if lengths[action.line_number] <= 0:
             raise refdata.InvalidReference(f"Tending would make line {action.line_number}'s unstretched length nonpositive")
-    steps, recommended, applied, failed_times = [], [], [], []
+    steps, recommended, failed_times, invalid_times, step_reasons = [], [], [], [], []
     ext: dict[int, dict] = {}
     pose = Pose()
     initial_t = {r.ln.line_number: t for r, _, t in system0.line_tensions(sol0.pose)}
@@ -201,8 +201,12 @@ def tide_sweep(req: TideSweepRequest) -> TideSweepResponse:
             r.model.rest_length_ft = rest0[r.ln.line_number] + adj
         sol = eq.solve(system, pose)
         report = (t-req.from_utc).total_seconds() % (req.step_min*60) == 0 or i == len(levels)-1
-        if not sol.converged:
-            failed_times.append(t.isoformat())
+        step_req = base_req.model_copy(update={"environment": system.env})
+        _, _, step_findings = svc.build_result(step_req, system, sol, specs, run_rules=False)
+        step_validity = svc._validity(step_req, system, sol, specs, step_findings, wind_basis(system.env, True))
+        step_reasons.extend(step_validity.reasons)
+        if step_validity.state == "invalid":
+            (failed_times if not sol.converged else invalid_times).append(t.isoformat())
             if report:
                 steps.append(TideStep(valid_at_utc=t, water_level_mllw_ft=wl, lines=[], valid=False))
             continue
@@ -228,10 +232,10 @@ def tide_sweep(req: TideSweepRequest) -> TideSweepResponse:
                                   lines=[LineTension(line_number=n, tension_lbf=round(tt)) for n, (s, tt, r) in sorted(tens.items())],
                                   max_pct_wll=round(max(pct.values()), 1) if pct else None))
     _, status0, load_findings = svc.build_result(base_req, system0, sol0, specs, run_rules=False)
-    from mooring.loads.validity import wind_basis
     validity = svc._validity(base_req, system0, sol0, specs, load_findings, wind_basis(base_req.environment, True))
     from .tide_inputs import source_reasons
     validity.reasons.extend(source_reasons(req))
+    validity.reasons = merge_reasons(validity.reasons + step_reasons)
     if validity.state == "valid":
         validity.state = "limited"
     if failed_times:
@@ -239,6 +243,12 @@ def tide_sweep(req: TideSweepRequest) -> TideSweepResponse:
         validity = Validity(state="invalid", reasons=validity.reasons + [ValidityReason(
             code="STEP_SOLVE_FAILED", affected_components=["sweep"],
             message=f"Equilibrium did not converge at {len(failed_times)} of {len(levels)} evaluated times ({shown}); those times are undetermined.")],
+            diagnostics=validity.diagnostics)
+    if invalid_times:
+        shown = ", ".join(invalid_times[:3]) + (f" and {len(invalid_times) - 3} more" if len(invalid_times) > 3 else "")
+        validity = Validity(state="invalid", reasons=validity.reasons + [ValidityReason(
+            code="STEP_INPUT_INVALID", affected_components=["sweep"],
+            message=f"Physical inputs were invalid at {len(invalid_times)} of {len(levels)} evaluated times ({shown}); loads at those times are unavailable.")],
             diagnostics=validity.diagnostics)
     peak = max((e["pct"] for e in ext.values()), default=0.0)
     status = "RED" if peak > 100 else "AMBER" if peak > 80 or recommended else "GREEN"

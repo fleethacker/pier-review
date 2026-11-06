@@ -18,6 +18,7 @@ from mooring.core.schemas.ultimate import UltimateDirectionResult, UltimateGustR
 from mooring.mechanics import Pose
 from mooring.mechanics import equilibrium as eq
 from mooring.rules.nstm582 import design_factor
+from mooring.loads.validity import merge_reasons, wind_basis
 from . import solver
 
 MODEL = "mooring.solver.ultimate_gust"
@@ -38,8 +39,10 @@ class Probe:
         return bool(self.ultimate or self.material or self.component)
 
 
-def probe(system: eq.System, warm: Pose, caps: dict[int, tuple[float, float]], df: float) -> Probe:
+def probe(system: eq.System, warm: Pose, caps: dict[int, tuple[float, float]], df: float, validate=None) -> Probe:
     sol = eq.solve(system, warm)
+    if validate is not None:
+        validate(system, sol)
     if not sol.converged:
         return Probe(False)
     p = Probe(True, pose=sol.pose)
@@ -56,10 +59,10 @@ def probe(system: eq.System, warm: Pose, caps: dict[int, tuple[float, float]], d
     return p
 
 
-def search_direction(base: eq.System, caps, df, ratio, from_true, rel, max_kt, step, tol) -> UltimateDirectionResult:
+def search_direction(base: eq.System, caps, df, ratio, from_true, rel, max_kt, step, tol, validate=None) -> UltimateDirectionResult:
     def at(v, warm):
         env = base.env.model_copy(update={"wind_speed_kt": v, "wind_gust_kt": v * ratio, "wind_from_true_deg": from_true})
-        return probe(dataclasses.replace(base, env=env), warm, caps, df)
+        return probe(dataclasses.replace(base, env=env), warm, caps, df, validate)
 
     def res(outcome, **kw):
         return UltimateDirectionResult(wind_rel_deg=rel, wind_from_true_deg=from_true, outcome=outcome, **kw)
@@ -133,6 +136,21 @@ def _unavailable(req, reasons) -> UltimateGustResponse:
                     assumptions=["No ultimate threshold is computed without a complete supplied capacity basis; no capacity or design factor is invented."])
 
 
+class InvalidSearchInputs(Exception):
+    def __init__(self, validity):
+        self.validity = validity
+
+
+def _invalid_inputs(req, validity):
+    basis = req.capacity_basis
+    result = UltimateGustResult(outcome="unavailable", reasons=[r.message for r in validity.reasons],
+                                basis_id=basis.basis_id, evidence_status=basis.evidence_status, citation=basis.citation,
+                                wind_basis=basis.wind_basis)
+    return envelope(UltimateGustResponse, model=MODEL, request=req, result=result, status="RED", backend="real",
+                    model_version=VERSION, validity=validity,
+                    assumptions=["Invalid physical inputs invalidate the entire search; no ultimate gust or margin is established."])
+
+
 def ultimate_gust(req: UltimateGustRequest) -> UltimateGustResponse:
     basis = req.capacity_basis
     if basis is None:
@@ -145,12 +163,27 @@ def ultimate_gust(req: UltimateGustRequest) -> UltimateGustResponse:
     wind = req.environment.wind_speed_kt
     ratio = req.environment.wind_gust_kt / wind if wind > 0 else 1.0
     base, sol0, specs = solver.solve_request(req)
+    input_reasons = []
+
+    def validate(system, sol):
+        candidate = req.model_copy(update={"environment": system.env})
+        _, _, findings = solver.build_result(candidate, system, sol, specs, run_rules=False)
+        # Numerical failure has its own per-direction indeterminate outcome. It must not hide an input failure.
+        validity = solver._validity(candidate, system, sol, specs, findings, wind_basis(system.env, True), include_numerical=False)
+        input_reasons.extend(validity.reasons)
+        if validity.state == "invalid":
+            raise InvalidSearchInputs(validity)
+
     caps = {n: (have[n].ultimate_capacity_lbf, have[n].material_law_max_strain) for n in need}
     df = design_factor(req.mst)
     heading = ship_heading_true(base.berth, req.config.side_to)
-    args = dict(base=base, caps=caps, df=df, ratio=ratio, max_kt=req.max_search_kt, step=req.sampling_step_kt, tol=req.tolerance_kt)
-    dirs = [search_direction(from_true=(heading + rel) % 360, rel=float(rel), **args) for rel in range(0, 360, req.step_deg)]
-    assessed = search_direction(from_true=req.environment.wind_from_true_deg, rel=round((req.environment.wind_from_true_deg - heading) % 360, 4), **args)
+    args = dict(base=base, caps=caps, df=df, ratio=ratio, max_kt=req.max_search_kt, step=req.sampling_step_kt, tol=req.tolerance_kt, validate=validate)
+    try:
+        validate(base, sol0)
+        dirs = [search_direction(from_true=(heading + rel) % 360, rel=float(rel), **args) for rel in range(0, 360, req.step_deg)]
+        assessed = search_direction(from_true=req.environment.wind_from_true_deg, rel=round((req.environment.wind_from_true_deg - heading) % 360, 4), **args)
+    except InvalidSearchInputs as exc:
+        return _invalid_inputs(req, exc.validity)
     every = dirs + [assessed]
     found = [d for d in every if d.threshold_wind_kt is not None]
     complete = len(found) == len(every)
@@ -169,7 +202,7 @@ def ultimate_gust(req: UltimateGustRequest) -> UltimateGustResponse:
                                    message="Reaching modeled ultimate capacity is not a validated prediction of physical rupture; that claim needs its own validation evidence."))
     if basis.evidence_status != "sourced":
         vreasons.append(ValidityReason(code="CAPACITY_BASIS_NOT_SOURCED", affected_components=[basis.basis_id], message="The capacity basis is a synthetic test fixture, not sourced evidence."))
-    validity = Validity(state="limited", reasons=vreasons)
+    validity = Validity(state="limited", reasons=merge_reasons(input_reasons + vreasons))
     ag = assessed.threshold_gust_kt
     result = UltimateGustResult(
         outcome="threshold_found" if governing is not None else "indeterminate", reasons=reasons, basis_id=basis.basis_id,

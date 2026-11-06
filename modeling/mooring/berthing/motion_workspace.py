@@ -12,6 +12,7 @@ from mooring.core.store import DocStore
 from mooring.data_simulation.motion_scenarios import (
     DEMO_SHIPS, NORFOLK_BERTH, TRAINING_TUG_BOW_CLEARANCE_FT, norfolk_route, ship_for_training, training_environment,
 )
+from mooring.data_simulation.shoreline import NORFOLK_BERTHS, validate_initial
 from mooring.templates import template_config
 from mooring.transit.geo import LocalPlane, bearing_deg
 
@@ -24,6 +25,8 @@ def workspace_validity() -> Validity:
             message="Training configuration with unqualified propulsion, hydrodynamics, stability and reference assets."),
         ValidityReason(code="MOTION_NOT_NAVIGATIONAL_GUIDANCE",
             message="Demonstrator only: no pilot approval, complete hazard coverage or engineering qualification."),
+        ValidityReason(code="MOTION_SHORELINE_PARTIAL",
+            message="Initial footprints checked against a bounded NOAA shoreline fixture only; missing geography is unknown and runtime shoreline collision is not modeled."),
     ])
 
 
@@ -82,7 +85,7 @@ def resolve_configuration(spec: MotionWorkspaceSpec) -> MotionWorkspaceSpec:
     """Resolve explicit training defaults without a saved scenario or session."""
     ship, berth = refdata.ship(spec.ship_class_id), refdata.berth(spec.berth_id)
     ship_for_training(ship, spec.loading)  # validates loading without mutating the catalog
-    if not berth.berth_id.startswith("NAVSTA-NORFOLK"):
+    if berth.berth_id not in NORFOLK_BERTHS:
         raise ValueError("Motion workspace geographic demo coverage is Norfolk only")
     if spec.route_id and (spec.route_id != norfolk_route(berth).route_id or berth.berth_id != NORFOLK_BERTH):
         raise ValueError("The selected demonstration route is bound to Norfolk Pier 12 North")
@@ -97,6 +100,7 @@ def resolve_configuration(spec: MotionWorkspaceSpec) -> MotionWorkspaceSpec:
     if spec.controls is None:
         spec.controls = training_controls(ship, spec.loading, berth)
     resolve_tug_controls(spec, ship, berth)
+    validate_initial(berth, ship, initial_state(spec, ship, berth), spec.controls.tug_dynamics)
     if spec.environment_mode == "synthetic":
         spec.environment = training_environment(utcnow(), spec.environment)
     return spec
@@ -141,7 +145,11 @@ def initial_state(spec, ship, berth):
         e2, n2 = plane.to_local(next_point.lat, next_point.lon)
         heading = bearing_deg(e2-east, n2-north)
     else:
-        y = 900.0 if spec.start == "approach" else ship.beam_ft / 2 + max((f.standoff_ft for f in berth.fenders), default=0) + 10
+        # Authored holding station in each face's basin, checked with complete
+        # ship/tug envelopes for all classes/sides. The old North-face y=900
+        # station lies on NOAA's Pier 14 land polygon. This is not a safe-water
+        # claim or a maneuvering minimum; external coverage remains incomplete.
+        y = 300.0 if spec.start == "approach" else ship.beam_ft / 2 + max((f.standoff_ft for f in berth.fenders), default=0) + 10
     return ShipState(x_ft=x, y_ft=y, heading_true_deg=heading)
 
 
@@ -152,6 +160,9 @@ def build_model(row):
     ship = ship_for_training(refdata.ship(spec.ship_class_id), spec.loading)
     berth = refdata.berth(spec.berth_id)
     initial = initial_state(spec, ship, berth)
+    # Recheck persisted rows as well as authoring requests: old saved poses or
+    # supplied tug bodies must not bypass the current geography guard.
+    validate_initial(berth, ship, initial, spec.controls.tug_dynamics if spec.controls else [])
     line_spec = ship.standard_line_outfit[0].spec_id if ship.standard_line_outfit else "NYLON-DB-7IN"
     config = template_config(ship, berth, spec.side_to, berth.face_length_ft/2, line_spec)
     # This private Scenario is not added to the static-planning catalog: its notional
@@ -175,6 +186,7 @@ def build_model(row):
         guidance = RouteGuidance(points, spec.route_id, vessel_length_ft=ship.loa_ft)
     model = BerthingModel(sc, initial, env, dt=spec.dt_s, duration=spec.duration_s, forcing=spec.forcing,
         controls=spec.controls, ship_override=ship, tug_ids=spec.tug_ids, guidance=guidance)
+    model.motion_geography = True
     if spec.initial_lines_attached:
         for number, rec in model.all_lines.items():
             length = model.system.line_state(rec, model.body.pose(model.integrator.state)).length_ft

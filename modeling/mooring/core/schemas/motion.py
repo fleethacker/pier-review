@@ -392,11 +392,43 @@ class MotionSceneDepth(MotionEvidence):
     depth_mllw_ft: float | None = Field(default=None, ge=0)
 
 
+class MotionGeographicFeature(Model):
+    feature_id: str = Field(min_length=1)
+    kind: Literal["land", "shoreline_construction", "coastline"]
+    name: str | None = None
+    geometry_type: Literal["Polygon", "LineString"]
+    rings: list[list[BerthPosition]] = Field(min_length=1, max_length=256,
+        description="Polygon exterior followed by holes, or a single open/closed source line; berth feet.")
+    source_date: str | None = Field(default=None, description="Original feature source date, when supplied; not a survey of current conditions.")
+
+
+class MotionGeographicContext(Model):
+    coordinate_frame: Literal["berth_ft"] = "berth_ft"
+    coverage: Literal["partial"] = "partial"
+    coverage_outline: list[BerthPosition] = Field(min_length=4, max_length=16,
+        description="Closed bounds of this partial fixture. Geography outside is unknown; absence of features is not navigability.")
+    features: list[MotionGeographicFeature] = Field(max_length=1024)
+    source: str = Field(min_length=1)
+    attribution: str = Field(min_length=1)
+    retrieved_at_utc: AwareDatetime
+    limitations: list[str] = Field(max_length=32)
+    runtime_collision_checks: Literal[False] = False
+
+
+class MotionTugDimensions(Model):
+    tug_id: str = Field(min_length=1)
+    length_ft: float = Field(gt=0)
+    beam_ft: float = Field(gt=0)
+    basis: Literal["synthetic"] = "synthetic"
+
+
 class SimScene(MotionEvidence):
     """Static scene fetched once. Producers publish a new revision whenever scene content changes."""
 
+    wire_omitted_defaults = {"geographic_context": None, "tug_dimensions": None}
+
     measurement_fields = ("face_bearing_true_deg", "deck_height_mllw_ft", "berth_outline", "ship_hull_outline",
-                          "ship_fittings", "pier_fittings", "fenders", "depth_profile")
+                          "ship_fittings", "pier_fittings", "fenders", "depth_profile", "geographic_context", "tug_dimensions")
 
     schema_version: Literal["rm0-v1"] = "rm0-v1"
     scene_id: str = Field(min_length=1)
@@ -414,6 +446,8 @@ class SimScene(MotionEvidence):
     pier_fittings: list[MotionScenePierFitting] | None = Field(default=None, max_length=512)
     fenders: list[MotionSceneFender] | None = Field(default=None, max_length=512)
     depth_profile: list[MotionSceneDepth] | None = Field(default=None, max_length=4096)
+    geographic_context: MotionGeographicContext | None = None
+    tug_dimensions: list[MotionTugDimensions] | None = Field(default=None, max_length=8)
 
     @model_validator(mode="after")
     def unique_scene_ids(self):

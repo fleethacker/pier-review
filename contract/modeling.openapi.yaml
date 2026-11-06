@@ -8839,6 +8839,113 @@ components:
       type: object
       title: MotionForces
       description: Forces on the ship in berth axes; all moments use the same instantaneous ship origin.
+    MotionGeographicContext:
+      properties:
+        coordinate_frame:
+          type: string
+          const: berth_ft
+          title: Coordinate Frame
+          default: berth_ft
+        coverage:
+          type: string
+          const: partial
+          title: Coverage
+          default: partial
+        coverage_outline:
+          items:
+            $ref: '#/components/schemas/BerthPosition'
+          type: array
+          maxItems: 16
+          minItems: 4
+          title: Coverage Outline
+          description: Closed bounds of this partial fixture. Geography outside is unknown; absence of features is not navigability.
+        features:
+          items:
+            $ref: '#/components/schemas/MotionGeographicFeature'
+          type: array
+          maxItems: 1024
+          title: Features
+        source:
+          type: string
+          minLength: 1
+          title: Source
+        attribution:
+          type: string
+          minLength: 1
+          title: Attribution
+        retrieved_at_utc:
+          type: string
+          format: date-time
+          title: Retrieved At Utc
+        limitations:
+          items:
+            type: string
+          type: array
+          maxItems: 32
+          title: Limitations
+        runtime_collision_checks:
+          type: boolean
+          const: false
+          title: Runtime Collision Checks
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - coverage_outline
+      - features
+      - source
+      - attribution
+      - retrieved_at_utc
+      - limitations
+      title: MotionGeographicContext
+    MotionGeographicFeature:
+      properties:
+        feature_id:
+          type: string
+          minLength: 1
+          title: Feature Id
+        kind:
+          type: string
+          enum:
+          - land
+          - shoreline_construction
+          - coastline
+          title: Kind
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        geometry_type:
+          type: string
+          enum:
+          - Polygon
+          - LineString
+          title: Geometry Type
+        rings:
+          items:
+            items:
+              $ref: '#/components/schemas/BerthPosition'
+            type: array
+          type: array
+          maxItems: 256
+          minItems: 1
+          title: Rings
+          description: Polygon exterior followed by holes, or a single open/closed source line; berth feet.
+        source_date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Date
+          description: Original feature source date, when supplied; not a survey of current conditions.
+      additionalProperties: false
+      type: object
+      required:
+      - feature_id
+      - kind
+      - geometry_type
+      - rings
+      title: MotionGeographicFeature
     MotionGuidanceState:
       properties:
         active:
@@ -10006,6 +10113,32 @@ components:
       - yaw_radps
       title: MotionStateVector
       description: The model's six-component state. Measured acceleration is intentionally absent.
+    MotionTugDimensions:
+      properties:
+        tug_id:
+          type: string
+          minLength: 1
+          title: Tug Id
+        length_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Length Ft
+        beam_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Beam Ft
+        basis:
+          type: string
+          const: synthetic
+          title: Basis
+          default: synthetic
+      additionalProperties: false
+      type: object
+      required:
+      - tug_id
+      - length_ft
+      - beam_ft
+      title: MotionTugDimensions
     MotionTugDynamicsState:
       properties:
         tug_id:
@@ -14119,6 +14252,18 @@ components:
             maxItems: 4096
           - type: 'null'
           title: Depth Profile
+        geographic_context:
+          anyOf:
+          - $ref: '#/components/schemas/MotionGeographicContext'
+          - type: 'null'
+        tug_dimensions:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionTugDimensions'
+            type: array
+            maxItems: 8
+          - type: 'null'
+          title: Tug Dimensions
       additionalProperties: false
       type: object
       required:

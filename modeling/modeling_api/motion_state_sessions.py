@@ -2,6 +2,7 @@
 from mooring.berthing.motion_state import prepare_state_reseed
 from mooring.core.envelopes import utcnow
 from mooring.core.schemas.motion_state import MotionStateInput
+from mooring.data_simulation.shoreline import ShorelineIntersection, validate_model_state
 
 
 def adopt_state(session, observation: MotionStateInput, *, now_utc=None):
@@ -33,6 +34,10 @@ def adopt_state(session, observation: MotionStateInput, *, now_utc=None):
         # Build the complete replacement before any session mutation. The model
         # rebuilds energy/dense history and preserves current actuator responses.
         replacement = model.reseeded(snapshot.as_integrator_state(), tug_id=tug_id)
+        try:
+            validate_model_state(replacement)
+        except ShorelineIntersection as exc:
+            raise MotionStateRejected("STATE_SHORELINE_INTERSECTION", str(exc)) from None
         evidence = {(s.input.entity, s.input.entity_id): s for s in getattr(model, "state_inputs", [])}
         evidence[(observation.entity, observation.entity_id)] = snapshot
         replacement.state_inputs = list(evidence.values())

@@ -39,6 +39,7 @@ export function Badges({ frame, state }: { frame: ViewFrame | null; state: Motio
   const componentIssues = [frame?.loading?.validity, frame?.controls?.validity].flatMap((v) => v?.state === 'invalid'
     ? (v.reasons ?? []).filter((r) => !r.code.startsWith('SYNTHETIC_')).map((r) => r.message) : []);
   const activeIssues = [...new Set([...componentIssues, ...reasons.filter((reason) => /stale|missing|uncovered|expired|exceeded|failed|failure|intersect|reaches supplied depth/i.test(reason))])];
+  const backgroundReasons = reasons.filter((reason) => !activeIssues.includes(reason));
   const missingEnvironment = !env ? ['environment'] : [!env.wind.available && 'wind', !env.current.available && 'current', !env.water.available && 'water level'].filter(Boolean);
   return (
     <div className="max-h-[20vh] space-y-1 overflow-y-auto text-[10px]" role="group" aria-label="Frame validity and provenance">
@@ -59,7 +60,7 @@ export function Badges({ frame, state }: { frame: ViewFrame | null; state: Motio
             {env && (['wind', 'current', 'water'] as const).map((part) => <div className="contents" key={part}><dt className="capitalize">{part}</dt><dd>{env[part].source ?? 'source not stated'} · {env[part].ageS == null ? 'age not stated' : `${env[part].ageS.toFixed(0)} s old`}{env[part].basis && ` · ${env[part].basis}`}{state.workspace?.scenario.configuration.environment_mode === 'live' ? ' · held snapshot' : ''}</dd></div>)}
             {frame?.assumedFaceBearing && <><dt>Orientation</dt><dd>berth orientation assumed; no scene bearing supplied</dd></>}
           </dl>
-          {reasons.length > 0 && <ul className="space-y-1" aria-label="Model and source details">{reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+          {backgroundReasons.length > 0 && <ul className="space-y-1" aria-label="Model and source details">{backgroundReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
         </div>
       </details>
       {invalid && <div role="alert" className="max-h-20 overflow-y-auto text-mil-red"><p className="font-semibold">Invalid state · inspect active conditions or expand Demo information</p>{activeIssues.map((reason) => <p key={reason}>{reason}</p>)}</div>}

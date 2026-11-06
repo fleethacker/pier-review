@@ -2,6 +2,9 @@
 
 Motion enters the maneuvering workspace directly. Its first catalog scenario is created paused; only Start or Space
 sends `resume`. Reopening the tab reuses the paused session. A new scenario closes and releases the previous session.
+Saved scenarios are available from the maneuver selector and builder. Loading saves an immutable copy. The optional
+propulsion editor resolves a complete configuration from the backend without allocating a session; edited thrust limits,
+rudder limits and actuator slew rates are explicitly synthetic, user-authored inputs.
 
 The controller owns one simulation socket and at most one prediction request. The one-second prediction refresh calls
 the session's backend dynamics. Helm drafts stay local until Apply; Preview sends them only to the prediction clone.

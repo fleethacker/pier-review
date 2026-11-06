@@ -12,7 +12,7 @@ export const workspace = {
   scenario: { motion_scenario_id: 'scenario-1', created_at_utc: '2026-11-05T00:00:00Z', revision: '1', configuration, validity: { state: 'limited', reasons: [] } },
   ship: { class_id: 'DDG-51-FIIA', name: 'Test destroyer', loa_ft: 500, beam_ft: 60, loading_conditions: [{ name: 'full_load', freeboard_ft: 25 }] },
   berth: { berth_id: 'NORFOLK', name: 'Norfolk test berth', origin_lat: 36.95, origin_lon: -76.33 },
-  controls: { propulsion: { rudder_max_deg: 35, bow_thruster_max_lbf: 1000, stern_thruster_max_lbf: 1000 } },
+  controls: { propulsion: { basis: 'synthetic', source: 'Authored test fixture', max_ahead_thrust_lbf: 120000, max_astern_thrust_lbf: 60000, engine_slew_per_s: 0.05, rudder_slew_degps: 3, thruster_slew_per_s: 0.2, rudder_max_deg: 35, bow_thruster_max_lbf: 1000, stern_thruster_max_lbf: 1000 } },
   route: null,
   environment: { source: 'mock', wind_speed_kt: 10, wind_gust_kt: 15, wind_from_true_deg: 270, current_speed_kt: 0.5, current_set_true_deg: 90, water_level_mllw_ft: 2 },
 } as unknown as WorkspaceSession;

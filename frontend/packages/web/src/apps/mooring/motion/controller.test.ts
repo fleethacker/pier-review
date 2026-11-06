@@ -69,7 +69,7 @@ function workspaceFetch() {
   const fetcher = vi.fn(async (url: string, init?: RequestInit) => ({ ok: true, status: 200, json: async () => {
     if (init?.method === 'DELETE') return {};
     if (url.endsWith('/catalog')) return catalog;
-    if (url.endsWith('/scenarios')) return workspace.scenario;
+    if (url.endsWith('/scenarios')) return init?.method === 'POST' ? workspace.scenario : [];
     if (url.endsWith('/sessions')) return workspace;
     if (url.endsWith('/prediction')) return prediction;
     return scene;
@@ -607,6 +607,18 @@ describe('Motion workspace', () => {
     await m.initializeWorkspace();
     expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/sessions'))).toHaveLength(1);
     expect(stream.send.mock.calls.map(([data]) => JSON.parse(data).type)).toEqual(['pause']);
+    m.dispose();
+  });
+
+  it('fetches saved configurations without saving or allocating a simulation', async () => {
+    const fetcher = vi.fn(async () => ({ ok: true, json: async () => [workspace.scenario] }));
+    vi.stubGlobal('fetch', fetcher);
+    const m = make();
+    await Promise.all([m.loadSavedScenarios(), m.loadSavedScenarios()]);
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(expect.stringMatching(/\/motion\/scenarios$/), expect.objectContaining({ method: 'GET' }));
+    expect(m.s.savedScenarios).toEqual([workspace.scenario]);
+    expect(m.s.sessionId).toBeNull();
     m.dispose();
   });
 

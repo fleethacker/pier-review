@@ -17,7 +17,7 @@ import { catalog, controls, loading, prediction, workspace } from './workspace.t
 const dir = path.resolve(__dirname, '../../../../../../../contract/examples/modeling');
 const raw = JSON.parse(readFileSync(path.join(dir, 'sim_frame.json'), 'utf8')) as SimFrame;
 const scene = JSON.parse(readFileSync(path.join(dir, 'sim_scene.json'), 'utf8')) as SimScene;
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 function mounted() {
   const c = new MotionController({ faceBearingDeg: () => 90, tugIds: () => [], lineNumbers: () => [], layoutKey: () => 'test', ensureScenario: async () => null, initialState: () => null });
@@ -138,6 +138,38 @@ describe('Maneuver workspace', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Wind speed (kt)' }), { target: { value: '18' } });
     fireEvent.click(screen.getByRole('button', { name: 'Load paused scenario' }));
     expect(load).toHaveBeenCalledWith(expect.objectContaining({ name: 'Edited maneuver', environment_mode: 'synthetic', environment: expect.objectContaining({ wind_speed_kt: 18 }) }));
+  });
+
+  it('reopens a saved custom configuration and resolves editable propulsion without allocating a session', async () => {
+    const fetcher = vi.fn(async (url: string) => ({ ok: true, json: async () => url.endsWith('/configuration') ? { ...workspace.scenario.configuration, name: 'Saved custom ship', controls: workspace.controls } : [] }));
+    vi.stubGlobal('fetch', fetcher);
+    const c = mounted();
+    const load = vi.spyOn(c, 'loadWorkspace').mockResolvedValue();
+    const saved = { ...workspace.scenario, motion_scenario_id: 'custom-1', configuration: { ...workspace.scenario.configuration, name: 'Saved custom ship', controls: null } };
+    act(() => c.state.set({ savedScenarios: [saved] }));
+    fireEvent.click(screen.getByRole('button', { name: 'Build scenario' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Saved scenarios' }), { target: { value: 'custom-1' } });
+    expect((screen.getByRole('textbox', { name: 'Scenario name' }) as HTMLInputElement).value).toBe('Saved custom ship');
+    fireEvent.click(screen.getByText('Engine, rudder and thruster parameters'));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Resolve training parameters' })));
+    expect(load).not.toHaveBeenCalled();
+    expect(fetcher.mock.calls.some(([url]) => url.endsWith('/sessions'))).toBe(false);
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Ahead thrust per shaft (lbf)' }), { target: { value: '123456.7' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Load paused scenario' }));
+    expect(load).toHaveBeenCalledWith(expect.objectContaining({ name: 'Saved custom ship', controls: expect.objectContaining({ propulsion: expect.objectContaining({ max_ahead_thrust_lbf: 123456.7, basis: 'synthetic', source: expect.stringContaining('User-authored') }) }) }));
+  });
+
+  it('never lets a delayed configuration resolver overwrite later builder edits', async () => {
+    let finish!: (value: unknown) => void;
+    vi.stubGlobal('fetch', vi.fn((url: string) => url.endsWith('/configuration') ? new Promise((r) => { finish = r; }) : Promise.resolve({ ok: true, json: async () => [] })));
+    mounted();
+    fireEvent.click(screen.getByRole('button', { name: 'Build scenario' }));
+    fireEvent.click(screen.getByText('Engine, rudder and thruster parameters'));
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve training parameters' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Scenario name' }), { target: { value: 'Later edit' } });
+    await act(async () => finish({ ok: true, json: async () => ({ ...workspace.scenario.configuration, name: 'Old resolved name', controls: workspace.controls }) }));
+    expect((screen.getByRole('textbox', { name: 'Scenario name' }) as HTMLInputElement).value).toBe('Later edit');
+    expect(screen.queryByRole('spinbutton', { name: 'Ahead thrust per shaft (lbf)' })).toBeNull();
   });
 });
 

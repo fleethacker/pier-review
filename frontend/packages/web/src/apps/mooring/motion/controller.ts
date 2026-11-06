@@ -25,6 +25,9 @@ export interface MotionState {
   catalog: WorkspaceCatalog | null;
   catalogBusy: boolean;
   catalogError: string | null;
+  savedScenarios: WorkspaceScenario[];
+  savedScenariosBusy: boolean;
+  savedScenariosError: string | null;
   workspace: WorkspaceSession | null;
   prediction: Prediction | null;
   predictionBusy: boolean;
@@ -87,6 +90,7 @@ const MAX_SESSION_RECORDINGS = 10;
 
 const INITIAL: MotionState = {
   catalog: null, catalogBusy: false, catalogError: null, workspace: null,
+  savedScenarios: [], savedScenariosBusy: false, savedScenariosError: null,
   prediction: null, predictionBusy: false, predictionError: null, predictionEnabled: true, predictionWhatIf: false, command: null,
   importedState: null, stateImportBusy: false, stateImportError: null,
   open: false,
@@ -188,6 +192,7 @@ export class MotionController {
   private workspaceViewEpoch = 0;
   private stateImportEpoch = 0;
   private acceptedStateSequences = new Map<string, number>();
+  private savedScenariosPromise: Promise<void> | null = null;
 
   constructor(
     private readonly host: MotionHost,
@@ -213,6 +218,7 @@ export class MotionController {
   }
 
   async initializeWorkspace(): Promise<void> {
+    void this.loadSavedScenarios();
     await this.loadCatalog();
     const preset = this.s.catalog?.presets[0];
     if (this.s.open && this.s.source === 'none' && !this.s.busy && preset) await this.loadWorkspace(preset.configuration);
@@ -239,6 +245,20 @@ export class MotionController {
     return this.catalogPromise;
   }
 
+  async loadSavedScenarios(): Promise<void> {
+    if (this.savedScenariosPromise) return this.savedScenariosPromise;
+    this.state.set({ savedScenariosBusy: true, savedScenariosError: null });
+    this.savedScenariosPromise = (async () => {
+      try {
+        const savedScenarios = await motionRequest<WorkspaceScenario[]>('/scenarios');
+        if (!this.disposed) this.state.set((s) => ({ savedScenarios: [...s.savedScenarios, ...savedScenarios.filter((entry) => !s.savedScenarios.some((known) => known.motion_scenario_id === entry.motion_scenario_id))], savedScenariosBusy: false }));
+      } catch (e) {
+        if (!this.disposed) this.state.set({ savedScenariosBusy: false, savedScenariosError: e instanceof Error ? e.message : String(e) });
+      } finally { this.savedScenariosPromise = null; }
+    })();
+    return this.savedScenariosPromise;
+  }
+
   /** Each selection creates a server-owned scenario and a paused session. Only Start sends resume. */
   async loadWorkspace(configuration: WorkspaceSpec): Promise<void> {
     if (credentialState.get().configured) { this.state.set({ error: GATEWAY_REQUIRED }); return; }
@@ -260,6 +280,7 @@ export class MotionController {
       if (epoch !== this.loadEpoch || this.disposed) return;
       const scenario = await motionRequest<WorkspaceScenario>('/scenarios', configuration);
       if (epoch !== this.loadEpoch || this.disposed) return;
+      this.state.set({ savedScenarios: [scenario, ...this.s.savedScenarios.filter((entry) => entry.motion_scenario_id !== scenario.motion_scenario_id)] });
       const workspace = await motionRequest<WorkspaceSession>('/sessions', { motion_scenario_id: scenario.motion_scenario_id });
       if (epoch !== this.loadEpoch || this.disposed) { this.releaseWorkspaceSession(workspace.session.session_id); return; }
       const created = workspace.session;

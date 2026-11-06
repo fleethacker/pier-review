@@ -163,11 +163,15 @@ def predict_motion(model, request: MotionPredictionRequest, *, session_id: str, 
     if target < start+req.horizon_s-EPS:
         reason("PREDICTION_SESSION_END", "Prediction is truncated at the session's configured end time.")
     if m.forcing is not None:
-        if start < m.forcing.start-EPS or start > m.forcing.end+EPS:
+        # An observed-state run restarts simulation t=0 while retaining the
+        # source forcing phase. Coverage must be expressed in this run's clock.
+        coverage_start = m.forcing.start-m.forcing_time_offset_s
+        coverage_end = m.forcing.end-m.forcing_time_offset_s
+        if start < coverage_start-EPS or start > coverage_end+EPS:
             target = start
             reason("PREDICTION_FORCING_UNCOVERED", "Source time is outside forcing coverage; no future rollout is available.", invalid=True)
-        elif target > m.forcing.end+EPS:
-            target = m.forcing.end
+        elif target > coverage_end+EPS:
+            target = coverage_end
             reason("PREDICTION_FORCING_END", "Prediction stops at forcing coverage; uncovered forcing is never extrapolated.")
 
     transition_start, event_start = len(m.transitions), len(m.events)
@@ -180,6 +184,7 @@ def predict_motion(model, request: MotionPredictionRequest, *, session_id: str, 
             raise ValueError("what-if command time is outside the available session/forcing horizon")
         m.schedule(command.model_copy(update={"t_s": when}))
     initial_pending = len(m.pending)
+    initial_sequence = m.sequence
     hazards.check(start, m.integrator.state)
     path = [hazards.point(start, start, m.integrator.state)]
     hazards.check(start, m.integrator.state)
@@ -200,11 +205,16 @@ def predict_motion(model, request: MotionPredictionRequest, *, session_id: str, 
         hazards.check(t1, previous, s1)
         last_t, last_state = t1, s1
 
+    def commands_applied():
+        # Queued arrivals already have sequence IDs. Deterministic guidance
+        # adds its sequence only when it generates a new actuator order.
+        return initial_pending-len(m.pending)+m.sequence-initial_sequence
+
     def used_work():
-        return m.integrator.steps-initial_steps+initial_pending-len(m.pending)
+        return m.integrator.steps-initial_steps+commands_applied()
 
     try:
-        while m.t < target-EPS or (m.pending and m.pending[0][0] <= m.t+1e-9):
+        while m.t < target-EPS or m.commands_due():
             if used_work() >= MAX_WORK:
                 reason("PREDICTION_WORK_LIMIT", "Prediction stopped at its integration/command budget; the remaining horizon is unknown.")
                 break
@@ -272,7 +282,7 @@ def predict_motion(model, request: MotionPredictionRequest, *, session_id: str, 
             severity="AMBER", message="Additional warnings exceeded the output limit; hazard coverage is incomplete.")]
     complete = math.isclose(m.t-start, req.horizon_s, abs_tol=EPS) and not reasons
     work = MotionPredictionWork(integration_steps=m.integrator.steps-initial_steps,
-        commands_applied=initial_pending-len(m.pending), work_limit=MAX_WORK,
+        commands_applied=commands_applied(), work_limit=MAX_WORK,
         integration_dt_s=m.dt, runtime_limit_s=MAX_RUNTIME_S)
     result = MotionPredictionResponse(prediction_id="pending", source=source,
         requested_horizon_s=req.horizon_s, horizon_s=max(0.0, m.t-start), complete=complete, path=path,

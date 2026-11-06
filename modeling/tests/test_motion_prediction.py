@@ -467,3 +467,103 @@ def test_source_identity_is_frozen_after_publication(make):
     r = predict(make(), horizon_s=.25)
     with pytest.raises(ValidationError, match="frozen"):
         r.source.t_s = 123
+
+
+@pytest.mark.parametrize("policy", ["stop", "invalidate"])
+def test_reseeded_forcing_coverage_uses_source_clock_and_final_partial_step(make, policy):
+    forcing = ForcingSpec(kind="replay", on_uncovered=policy, samples=[
+        ForcingSample(t_s=0, water_level_mllw_ft=0), ForcingSample(t_s=3.37, water_level_mllw_ft=1)])
+    original = make(forcing=forcing)
+    original.advance(2)
+    seeded = original.reseeded(original.integrator.state)
+    seeded.advance(.2)
+    # A second adoption accumulates the original source phase rather than
+    # treating the previous run's local clock as the series clock.
+    m = seeded.reseeded(seeded.integrator.state)
+    assert m.forcing_time_offset_s == pytest.approx(2.2)
+    before = mp.snapshot_hash(m)
+    direct = m.clone_for_prediction()
+    direct.advance(1.17)
+    r = predict(m, horizon_s=2, sample_interval_s=.25)
+    assert not r.complete and r.horizon_s == pytest.approx(1.17)
+    assert r.path[-1].t_s == pytest.approx(1.17)
+    assert state_of(r.path[-1]) == pytest.approx(direct.integrator.state, abs=1e-10)
+    assert r.validity.state == "limited"
+    assert "PREDICTION_FORCING_END" in {w.code for w in r.warnings}
+    assert "FORCING_UNCOVERED" not in {v.code for v in r.validity.reasons}
+    assert mp.snapshot_hash(m) == before == r.source.input_hash
+    with pytest.raises(ValueError, match="available session/forcing horizon"):
+        predict(m, horizon_s=2, what_if_commands=[tug(1.5)])
+
+
+def test_reseeded_generated_forcing_does_not_extend_its_original_duration(make):
+    original = make(duration=3, forcing=ForcingSpec(kind="steady", on_uncovered="invalidate"))
+    original.advance(2)
+    m = original.reseeded(original.integrator.state)
+    result = predict(m, horizon_s=2)
+    assert result.horizon_s == pytest.approx(1)
+    assert result.validity.state == "limited" and not result.complete
+    assert "PREDICTION_FORCING_END" in {w.code for w in result.warnings}
+
+
+def coupled_prediction_model(make, side):
+    from mooring.berthing.loading import synthetic_motion_controls
+    from mooring.berthing.tug_dynamics import synthetic_tug_dynamics_config
+    base = make(side=side, y_ft=100)
+    controls = synthetic_motion_controls(base.ship)
+    tug_spec, point, _ = base.anchors["T1"]
+    controls.tug_dynamics = [synthetic_tug_dynamics_config(tug_spec, base.ship, point,
+        base.initial, base.berth.face_bearing_true_deg)]
+    return BerthingModel(base.sc, base.initial, base.env, controls=controls, tug_ids=["T1"], dt=.05, duration=60)
+
+
+@pytest.mark.parametrize("side", ["port", "starboard"])
+def test_tug_what_if_rollout_keeps_coupled_state_and_live_isolation(make, side):
+    from mooring.core.schemas.motion_controls import SimTugMotionCommandMessage
+    m = coupled_prediction_model(make, side)
+    command = SimTugMotionCommandMessage(type="tug_motion_command", tug_id="T1", mode="push",
+        target_velocity_x_fps=0, target_velocity_y_fps=-.5, target_heading_true_deg=180, tow_length_ft=10)
+    m.schedule(command.model_copy(update={"t_s": 0}))
+    m.advance(3.17)
+    m.schedule(command.model_copy(update={"t_s": 5, "target_velocity_y_fps": -.6}))
+    before, original_aux = mp.snapshot_hash(m), m.auxiliary_at()
+    what_if = command.model_copy(update={"t_s": 6.25, "target_velocity_y_fps": -.8})
+    # Exercise the same wire discriminator as the HTTP request.
+    request = MotionPredictionRequest.model_validate({"horizon_s": 9, "sample_interval_s": .5,
+        "what_if_commands": [what_if.model_dump(mode="json")]})
+    direct = m.clone_for_prediction()
+    direct.schedule(what_if)
+    direct.advance(12.17)
+    result = predict(m, **request.model_dump(mode="json"))
+    assert result.complete and result.source.input_hash == before
+    assert state_of(result.path[-1]) == pytest.approx(direct.integrator.state, abs=1e-9)
+    assert result.work.commands_applied == 2
+    assert direct.frame().tug_dynamics[0].connection_state == "push_contact"
+    assert direct.tug_wrench(direct.t)[1] != 0
+    assert direct.auxiliary_at() != original_aux
+    assert mp.snapshot_hash(m) == before and m.auxiliary_at() == original_aux
+    assert m.t == 3.17 and len(m.pending) == 1
+    changed = m.clone_for_prediction()
+    changed.reseed_tug("T1", (*original_aux[:3], 1.5, *original_aux[4:6]))
+    assert mp.snapshot_hash(changed) != before
+    changed = m.clone_for_prediction()
+    changed.tug_dynamics.order(what_if)
+    assert mp.snapshot_hash(changed) != before
+
+
+def test_guidance_orders_count_toward_prediction_work_and_finish_boundary(make, monkeypatch):
+    from mooring.berthing.loading import synthetic_motion_controls
+    from mooring.berthing.route_guidance import RouteGuidance, RoutePoint
+    base = make(y_ft=100)
+    guidance = RouteGuidance([RoutePoint(400, 100, 1, "start"), RoutePoint(1400, 100, 0, "end")], "test")
+    m = BerthingModel(base.sc, base.initial, base.env, controls=synthetic_motion_controls(base.ship),
+        guidance=guidance, tug_ids=[], dt=.1, duration=60)
+    result = predict(m, horizon_s=1)
+    assert result.complete and result.work.commands_applied == 3  # t=0, .5, 1
+    assert result.work.integration_steps == 10
+    assert m.sequence == 0 and m.guidance.next_update_s == 0
+    monkeypatch.setattr(mp, "MAX_WORK", 2)
+    bounded = predict(m, horizon_s=1)
+    assert bounded.horizon_s == pytest.approx(.1) and not bounded.complete
+    assert bounded.work.commands_applied == 1 and bounded.work.integration_steps == 1
+    assert "PREDICTION_WORK_LIMIT" in {w.code for w in bounded.warnings}

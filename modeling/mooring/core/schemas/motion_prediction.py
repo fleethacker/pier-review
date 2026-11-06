@@ -8,12 +8,12 @@ from pydantic import ConfigDict, Field, model_validator
 from .common import Model, Severity, Validity
 from .dynamics import SimEvent, SimLineEventMessage, SimTugCommandMessage, SimulationTransition
 from .motion import MotionPose, MotionVelocity
-from .motion_controls import SimHelmCommandMessage, SimLineControlMessage, SimLoadingCommandMessage
+from .motion_controls import SimHelmCommandMessage, SimLineControlMessage, SimLoadingCommandMessage, SimTugMotionCommandMessage
 
 
 MotionPredictionCommand = Annotated[
     SimHelmCommandMessage | SimTugCommandMessage | SimLineEventMessage
-    | SimLineControlMessage | SimLoadingCommandMessage,
+    | SimLineControlMessage | SimLoadingCommandMessage | SimTugMotionCommandMessage,
     Field(discriminator="type"),
 ]
 

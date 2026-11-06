@@ -29,6 +29,7 @@ describe('Motion demo information', () => {
     const details = summary.parentElement as HTMLDetailsElement;
     expect(details.open).toBe(false);
     expect(summary.textContent).toContain('simulation · synthetic forcing');
+    expect(summary.textContent).toContain(`· ${c.s.frame!.badge.validity}`);
     expect(screen.getByText(/Development model, unqualified/).closest('details')).toBe(details);
     expect(screen.getByText('TRAINING: Authored training configuration').closest('details')).toBe(details);
     fireEvent.click(summary);

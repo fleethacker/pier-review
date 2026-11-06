@@ -42,7 +42,7 @@ export function Badges({ frame, state }: { frame: ViewFrame | null; state: Motio
       <details open={invalid}>
         <summary className="cursor-pointer font-mono text-mil-dim hover:text-mil-text">
           <span className="text-mil-text">Demo information</span>
-          <span> · {state.source === 'live' ? 'simulation' : state.source === 'recording' ? 'replay' : 'idle'}{synthetic ? ' · synthetic forcing' : ''}</span>
+          <span> · {state.source === 'live' ? 'simulation' : state.source === 'recording' ? 'replay' : 'idle'}{synthetic ? ' · synthetic forcing' : ''}{frame && !invalid && validity !== 'unknown' ? ` · ${validity}` : ''}</span>
         </summary>
         <div className="mt-2 space-y-2 border-l border-mil-border pl-3 text-mil-dim">
           <p>Development model, unqualified. Demonstrator decision support, not navigational guidance.</p>

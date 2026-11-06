@@ -9,7 +9,7 @@ handoff defects, not completed integration simply because the underlying endpoin
 reviewers and closure evidence in that ledger before treating the historical implementation rows below as accepted.
 F01–F28 are resolved through source/contract commit `ea62351`; independent review and final local checks pass
 (2,815 Python tests, 1,066 frontend tests, contract/type/lint/build checks). See
-[PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md) for reproducible scope and the PR for CI/merge status.
+[PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md) for reproducible scope and [PR #32](https://github.com/fleethacker/pier-review/pull/32) for CI/merge status.
 The camera seek and unbound-berth corrections in `5c28b56` passed independent browser/probe checks.
 G01–G08 and physical qualification remain open. The archived NOAA prediction example now correctly returns RED/invalid because its declared
 environment interval ends before the prediction clock; this is an intentional validity correction, not a qualified new forecast.

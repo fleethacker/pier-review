@@ -2,7 +2,7 @@
 
 The original whole-product audit reviewed `dev` at `ac73e1fbf21a54efd029608cb140a306f69b4fa4` in an isolated detached checkout. Its source links, reproductions and evidence below remain pinned to that snapshot. The audit itself made no implementation changes.
 
-**Remediation update, 5 November 2026:** F01–F28 are resolved by `fix/product-audit-remediation` through source/contract commit `ea62351`, with independent review, browser reproductions and final checks recorded in [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md). Final local checks: 2,815 Python tests and 1,066 frontend tests passed; contract/type/lint/build checks passed. The PR records CI and merge status. G01–G08 remain open. The initial Domino review deployment used the earlier `dev` snapshot; its target smoke is separate from remediation validation.
+**Remediation update, 5 November 2026:** F01–F28 are resolved by `fix/product-audit-remediation` through source/contract commit `ea62351`, with independent review, browser reproductions and final checks recorded in [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md). Final local checks: 2,815 Python tests and 1,066 frontend tests passed; contract/type/lint/build checks passed. [PR #32](https://github.com/fleethacker/pier-review/pull/32) records CI and merge status. G01–G08 remain open. The initial Domino review deployment used the earlier `dev` snapshot; its target smoke is separate from remediation validation.
 
 **Assessment: the product is not ready for operational docking use.** The original audit reproduced defects in safety-result applicability, physical validity, collision detection, forecast continuity and persisted results. Those defects are addressed by the remediation above; the broader G01–G08 capability and qualification gaps remain. The existing AMBER/limited labels do not excuse discarding an explicit invalid condition. Passing tests establish only the behavior they exercise.
 
@@ -286,7 +286,7 @@ These are separate from the 28 confirmed defects above. **G01–G08 remain open.
 
 ## Acceptance gaps
 
-The T01–T03 descriptions below preserve the original audit. Added rich-session/endpoint regressions, browser camera identity evidence and explicit acquisition-cutoff tests are listed in [the remediation report](PRODUCT_AUDIT_REMEDIATION.md#remaining-acceptance). Final independent acceptance is pending; T04 remains a standing distinction between baseline checks and readiness.
+The T01–T03 descriptions below preserve the original audit. Added rich-session/endpoint regressions, browser camera identity evidence and explicit acquisition-cutoff tests are listed in [the remediation report](PRODUCT_AUDIT_REMEDIATION.md#remaining-acceptance). The scoped independent checks passed; G02 still requires real public acquisition through the browser. T04 remains a standing distinction between baseline checks and readiness.
 
 **T01 — High test gap: forcing equivalence tests select the legacy path.** [modeling/tests/test_s2_forcing.py:51](https://github.com/fleethacker/pier-review/blob/ac73e1fbf21a54efd029608cb140a306f69b4fa4/modeling/tests/test_s2_forcing.py#L51) constructs `Session` without `session_id`; production uses the separate rich-frame path in [modeling/modeling_api/sim_sessions.py:113](https://github.com/fleethacker/pier-review/blob/ac73e1fbf21a54efd029608cb140a306f69b4fa4/modeling/modeling_api/sim_sessions.py#L113). Parameterize both paths and assert availability, validity, provenance and geometry, plus one actual endpoint/WebSocket test with partial/expired forcing. F05/F25 were reproduced despite those tests.
 
@@ -304,7 +304,7 @@ The T01–T03 descriptions below preserve the original audit. Added rich-session
 4. **Finish numerical/display honesty:** F24–F26, with independent contact/geometry checks. Do not tune physical coefficients to make display tests pass.
 5. **Separate software release from operational qualification:** complete G01/G04/G07 with evidence appropriate to the intended operating envelope. A release candidate may be useful for explicitly supervised demonstration, but these findings do not support crew reliance for real docking.
 
-This sequence remains the remediation priority adopted by the master plan. Implementations are now collected on the coordinated remediation branch; final review, integrated checks and the PR into `dev` remain pending. Record acceptance per finding rather than inferring closure from the branch or test total.
+This sequence remains the remediation priority adopted by the master plan. Implementations, independent review and final local checks are recorded in PR #32; its CI/merge state determines integration into `dev`. Record acceptance per finding rather than inferring closure from the branch or test total.
 
 ## Evidence and reproducibility
 

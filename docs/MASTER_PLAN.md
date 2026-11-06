@@ -14,7 +14,7 @@ persistence fixes can proceed in coordinated parallel lanes. The correction orde
 supersede older next-step/status claims below where they conflict; this master plan remains the planning authority.
 **Current remediation state:** F01–F28 are resolved by `fix/product-audit-remediation` through source/contract commit
 `ea62351`. [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md) records independent review, real-browser
-workflow evidence, 2,815 passing Python tests and 1,066 passing frontend tests. CI/merge status belongs to the PR.
+workflow evidence, 2,815 passing Python tests and 1,066 passing frontend tests. CI/merge status belongs to [PR #32](https://github.com/fleethacker/pier-review/pull/32).
 Next work remains G01–G08 and the existing qualification/readiness gates. The initial separate Domino deployment
 used pre-remediation `dev` at `35e0111`; its smoke did not qualify either build for operational use.
 
@@ -111,7 +111,7 @@ Offshore waves remain evidence, not qualified berth forcing.
 
 | Remaining work | Lead and dependency |
 | --- | --- |
-| Product-audit findings F01–F28 and gaps G01–G08 | Start with the [next-steps execution ledger](NEXT_STEPS.md#execution-ledger); F01–F28 implemented pending independent review/final checks; G01–G08 open, with separate acceptance gaps T01–T04 |
+| Product-audit findings F01–F28 and gaps G01–G08 | Start with the [next-steps execution ledger](NEXT_STEPS.md#execution-ledger); F01–F28 resolved with independent review and local checks; PR #32 tracks CI/merge; G01–G08 open, with separate acceptance gaps T01–T04 |
 | Close remaining S5/S6 findings with independent evidence | Snyder backend/physics; Kori UI; [finding ledger](MODELING_BUILDOUT_STATUS.md#pr-10-review-disposition) |
 | S2/S3 cross-review and merge (PR #22); S7 state fidelity, berthing engine, hazard coverage and uncertainty gates | Snyder; S2/S3 implemented on #22 pending review; S7 engine/forcing handoff, D2/D8 as they land; retain current camera limits |
 | D1–D4 source acceptance and U3/U4 integration with merged provider contracts | Cruz source evidence; Kori/Bixler integration |
@@ -820,7 +820,7 @@ Bixler updates this table; everyone else posts in the team channel.
 
 ### Product-audit remediation
 
-Reviewed snapshot: `ac73e1f`, 5 November 2026. **F01–F28 are implemented, pending independent review and final checks**; the
+Reviewed snapshot: `ac73e1f`, 5 November 2026. **F01–F28 are resolved with independent review and final local checks passed**; the
 [execution ledger](NEXT_STEPS.md#execution-ledger) records each lead, independent reviewer and required closure evidence.
 The audit reproduced failures in already-merged features, including stale Safety reviews, dropped forecast/camera
 inputs, invalid physics presented as limited, missed contacts, lost drafts and failed persistence. Historical

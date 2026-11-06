@@ -7,7 +7,7 @@ reproductions and evidence; [MASTER_PLAN.md](MASTER_PLAN.md) remains the authori
 **F01–F28 are resolved by this remediation and independently reviewed. Final integrated local checks pass.**
 Implementation and generated contracts are recorded through `ea62351`; documentation commits follow separately.
 Independent reviewers reproduced additional SSE persistence, Intake semantic-injection, environment-clock and
-camera seek/hazard-binding defects. Each was corrected and rechecked. The PR into `dev` records CI and merge status.
+camera seek/hazard-binding defects. Each was corrected and rechecked. [PR #32](https://github.com/fleethacker/pier-review/pull/32) into `dev` records CI and merge status.
 
 G01–G08 remain open. All model, source, synthetic and demonstrator limitations continue to apply.
 
@@ -60,7 +60,7 @@ F09/F10 include the additional review corrections in `5c28b56`.
   now uses model-generated, explicitly synthetic limited input for those usable-trajectory assertions and adds an
   archived-invalid narration regression in [test_prediction_brief.py](../agents/tests/test_prediction_brief.py).
   All original behavioral assertions remain; the observed-source validity rule was not reverted. The focused suite
-  passed 14 tests; the full rerun is pending. [Commit ea62351](https://github.com/fleethacker/pier-review/commit/ea62351bac9c2ded08b226b6214427b25fc7bd08)
+  passed 14 tests; the final full rerun passed 2,815 tests. [Commit ea62351](https://github.com/fleethacker/pier-review/commit/ea62351bac9c2ded08b226b6214427b25fc7bd08)
   regenerates the input bounds and invalid prediction contract evidence and aligns the Safety narration README.
 - **Safety meaning belongs to code.** Intake and Safety accept only validated selections of complete code-owned
   statements. The LLM does not compute physics, negate a finding or authorize movement. Offline behavior with

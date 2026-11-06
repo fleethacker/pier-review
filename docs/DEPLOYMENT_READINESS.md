@@ -4,7 +4,7 @@
 
 **Product-audit remediation (5 November 2026):** [NEXT_STEPS.md](NEXT_STEPS.md) preserves the `ac73e1f` audit and
 current ledger. F01–F28 have implementations on `fix/product-audit-remediation`, documented through `ea62351` in
-[PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md), with independent review and final local checks passed (2,815 Python and 1,066 frontend tests). CI/merge status is recorded in the PR.
+[PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md), with independent review and final local checks passed (2,815 Python and 1,066 frontend tests). CI/merge status is recorded in [PR #32](https://github.com/fleethacker/pier-review/pull/32).
 The runtime/auth/persistence controls below include that implementation scope; the initial separate Domino deployment used
 pre-remediation `35e0111`. Its smoke checks do not validate a later remediation deployment. G01–G08, including G07's wider deployment,
 identity, retention and recovery gate, remain open.

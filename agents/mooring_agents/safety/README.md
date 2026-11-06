@@ -62,8 +62,9 @@ PDF needs the documented native rendering libraries.
 
 ## Guardrails
 
-- Pass/fail and verdict are code. The LLM writes words only, and every number in them must come from a check or a
-  cited result. Test this.
+- Pass/fail, verdict and every narrated assertion are code-owned. The optional LLM selects 2–3 complete statement
+  IDs; it cannot write prose around facts, negate them or add instructions. The status/verdict headline and every
+  failed check are always included, regardless of the selection. Invalid proposals retain deterministic narration.
 - The review re-runs physics itself; it never trusts the Planner's numbers without re-checking.
 - The disclaimer stays on every sheet: decision aid only; the CO and pilot keep authority.
 

@@ -14,7 +14,7 @@
   ],
   "warnings": [],
   "validity": {
-    "state": "limited",
+    "state": "invalid",
     "reasons": [
       {
         "code": "TRANSIT_SURROGATE_MANEUVERING",
@@ -35,6 +35,27 @@
         "code": "NO_SHIP_INTERACTION",
         "message": "Vessels share one clock but exert no forces on each other; no collision or passing-distance check.",
         "affected_components": []
+      },
+      {
+        "code": "ENVIRONMENT_SUSPECT",
+        "message": "Provider marks environmental inputs as suspect; values are diagnostic, not qualified.",
+        "affected_components": [
+          "environment"
+        ]
+      },
+      {
+        "code": "WIND_BASIS_UNVERIFIED",
+        "message": "Public/sensor wind duration or reference height is undocumented.",
+        "affected_components": [
+          "wind"
+        ]
+      },
+      {
+        "code": "ENVIRONMENT_OUTSIDE_VALID_INTERVAL",
+        "message": "Simulation time 2026-11-05T17:11:00+00:00 is outside the declared validity interval for environment.",
+        "affected_components": [
+          "environment"
+        ]
       },
       {
         "code": "INPUT_AGE",

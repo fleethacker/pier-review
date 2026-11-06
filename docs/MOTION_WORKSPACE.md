@@ -114,3 +114,58 @@ not establish deployment or operational qualification.
 
 Unresolved items stay unchecked until their evidence is recorded. Engineering qualification, calibrated trajectory
 uncertainty, complete hydrographic/traffic coverage and operational navigation approval remain separate project gates.
+
+## Playback and forecast refresh — 6 November 2026
+
+Ship animation and trajectory calculation have different rates. The default demonstration integrates at 0.1-second
+steps, yielding about 10 authoritative state updates per second at 1× playback. A smooth display can interpolate
+between those received states at 30–60 frames per second without calculating a new 60-second forecast at every
+display frame. Interpolation must remain a display operation: no extrapolation beyond received states, no changes to
+the integration clock, and no delayed validity or control feedback.
+
+An isolated before/after/before probe on deployed commit `8e3e9e6`, using the same synthetic DDG reset between phases,
+found prediction-related stream contention. Domino's Small tier reported both CPU request and limit as one core,
+with 4 GiB memory. Each phase lasted 18 seconds; the first second was excluded from frame-rate statistics.
+
+| Prediction requests | Received frames/s | 95th-percentile frame gap | Largest frame gap |
+| --- | ---: | ---: | ---: |
+| Off, first control | 10.00 | 109.6 ms | 122 ms |
+| On, one request per second | 4.93 | 604 ms | 881 ms |
+| Off again | 9.73 | 109.5 ms | 512 ms (two gaps above 250 ms) |
+
+The simulation continued near 1× speed by delivering larger simulation-time jumps. Seventeen prediction requests
+averaged 0.931 seconds end to end; eight completed the full 60-second horizon and the others returned their actual,
+limited 58–60-second coverage. A separate browser probe maintained 60 animation callbacks per second with no long
+tasks, while the Preview button changed disabled state 18 times and the forecast HUD changed 19 times in 18 seconds.
+This distinguishes server delivery contention and UI refresh churn from browser rendering capacity on that test machine;
+it does not distinguish Python scheduling from container CPU throttling without additional process metrics.
+
+Prediction now returns already accepted integrator endpoints without a redundant zero-duration RK4 calculation.
+Its worker yields for 1 ms after approximately 5 ms of work so live simulation and socket delivery get scheduling
+opportunities. This wall-time pacing leaves physics steps and work limits intact, and counts against the existing
+0.8-second prediction budget. Tests compare complete trajectories and energy accounting and verify source immutability
+and honest truncation when the wall-time budget is exhausted.
+
+The primary plan/satellite display interpolates received ship, tug and attachment geometry with a 120 ms presentation
+buffer, targeting 30–60 visible updates per second. It holds at the last received state and resets the buffer across
+feed gaps above 250 ms, scene/run changes and unavailable or invalid states. Pausing or disconnecting stops the
+animation. Authoritative clocks, force values, validity, command feedback and forecast clipping keep using the newest
+received evidence. This does not increase the integration frequency or invent a trajectory between future forecast
+samples. The separate Cesium and sectional views retain their authoritative update behavior.
+
+Forecast refresh is driven by changed state, with at most one request in flight and up to one automatic request per
+second. An unchanged paused snapshot does not repeatedly calculate the same forecast. Background work retains a
+still-current result and does not toggle the headline or disable Preview. A new draft preview supersedes queued intent;
+it does not launch overlapping server work. Sent orders wait for backend acknowledgement before a replacement forecast
+is accepted. While paused, Start/Resume applies queued orders; Preview can inspect an unsent draft before Apply.
+The map keeps the user's viewport stable until an explicit Fit action or a new scene/run.
+
+Independent local browser acceptance measured 58.77 actual ship-polygon updates per second with predictions both on
+and off, with a 16.8 ms p95 geometry-update interval. All 1,872 sampled centers stayed within the envelope of same-run
+authoritative positions already received. Paused intervals and a settled withheld-frame gap produced zero geometry
+updates; no browser exceptions occurred. These checks measure changing hull geometry, rather than merely counting
+animation callbacks. The PR records final CI and the deployment comparison on the existing tier.
+
+These are workload-specific observations, not capacity guarantees. Acceptance for the responsiveness fix must measure
+actual displayed ship movement as well as animation callbacks, preserve forecast expiration and snapshot identity,
+and repeat the target stream comparison before recommending more compute.

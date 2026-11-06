@@ -26,6 +26,13 @@ const PROVENANCE_TEXT: Record<string, string> = {
   legacy: 'LEGACY FRAME: no provenance supplied',
 };
 
+// These two fixed limitations accompany every berthing forecast. Keep their
+// explanation in the disclosure; an escalated RED warning always stays exposed.
+function backgroundForecastWarning(warning: { code: string; severity: string }) {
+  return warning.severity === 'INFO' || (warning.severity === 'AMBER'
+    && ['HAZARD_COVERAGE_INCOMPLETE', 'UNCERTAINTY_UNAVAILABLE'].includes(warning.code));
+}
+
 /** Background qualifications are available on demand; active result conditions stay exposed. */
 export function Badges({ frame, state }: { frame: ViewFrame | null; state: MotionState }) {
   const badge: Badge | null = frame?.badge ?? null;
@@ -486,13 +493,14 @@ export function MotionView({ controller: c, workspace = false }: { controller: M
             <p className={cn('font-semibold uppercase tracking-wider text-mil-text', s.prediction?.validity.state === 'invalid' && 'text-mil-red')}>{s.predictionWhatIf ? 'What-if order preview' : 'Backup camera'}{s.prediction && ` · ${s.prediction.horizon_s.toFixed(0)} s`}{s.prediction?.validity.state === 'invalid' && ' · INVALID'}</p>
             {s.prediction ? <>
               {!s.prediction.complete && <p role="status" className="text-mil-amber">TRUNCATED prediction · {s.prediction.horizon_s.toFixed(0)} s returned</p>}
-              {s.prediction.warnings.filter((w) => w.severity !== 'INFO').map((w) => <p role={w.severity === 'RED' ? 'alert' : 'status'} key={`${w.code}-${w.t_s}`} className={w.severity === 'RED' ? 'text-mil-red' : 'text-mil-amber'}>{w.message}</p>)}
+              {s.prediction.warnings.filter((w) => !backgroundForecastWarning(w)).map((w) => <p role={w.severity === 'RED' ? 'alert' : 'status'} key={`${w.code}-${w.t_s}`} className={w.severity === 'RED' ? 'text-mil-red' : 'text-mil-amber'}>{w.message}</p>)}
+              {s.prediction.hazards_unchecked.length > 0 && <p className="text-[9px] text-mil-dim">Hazard coverage incomplete</p>}
               <details open={s.prediction.validity.state === 'invalid'}><summary className="cursor-pointer text-[9px] hover:text-mil-text">Forecast details</summary><div className="mt-1 space-y-1">
                 <p>Validity: {s.prediction.validity.state} · deterministic footprints</p>
                 <p>Unchecked: {s.prediction.hazards_unchecked.join(', ') || 'coverage not qualified'} · uncertainty unavailable</p>
                 <p>Snapshot t={s.prediction.source.t_s.toFixed(1)} s{s.frame && ` · age ${Math.max(0, s.frame.tS - s.prediction.source.t_s).toFixed(1)} sim s`}</p>
                 {(s.prediction.validity.reasons ?? []).map((r) => <p key={r.code}>{r.message}</p>)}
-                {s.prediction.warnings.filter((w) => w.severity === 'INFO').map((w) => <p key={`${w.code}-${w.t_s}`}>{w.message}</p>)}
+                {s.prediction.warnings.filter(backgroundForecastWarning).map((w) => <p key={`${w.code}-${w.t_s}`}>{w.message}</p>)}
               </div></details>
             </> : <p className={s.predictionEnabled ? 'text-mil-amber' : ''}>{s.predictionError ?? (s.predictionEnabled ? 'Waiting for a backend prediction. Hazard coverage is unknown.' : 'Prediction display off.')}</p>}
             {s.predictionError && s.prediction && <p role="status" className="mt-1 text-mil-amber">Refresh unavailable: {s.predictionError} Showing the last snapshot within its returned horizon.</p>}

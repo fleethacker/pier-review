@@ -104,4 +104,22 @@ describe('Motion demo information', () => {
     act(() => c.state.set({ predictionError: 'Input snapshot expired' }));
     expect(within(coverage).getByText(/Refresh unavailable: Input snapshot expired/).closest('details')).toBeNull();
   });
+
+  it('collapses only fixed forecast background, retaining dynamic AMBER and every RED warning', () => {
+    const c = controller();
+    c.state.set({ prediction: { ...prediction, warnings: [
+      { code: 'HAZARD_COVERAGE_INCOMPLETE', severity: 'AMBER', message: 'Fixed hazard coverage explanation.' },
+      { code: 'UNCERTAINTY_UNAVAILABLE', severity: 'AMBER', message: 'Fixed uncertainty explanation.' },
+      { code: 'FORCING_GAP', severity: 'AMBER', message: 'Forecast inputs end before the requested horizon.' },
+      { code: 'HAZARD_COVERAGE_INCOMPLETE', severity: 'RED', message: 'Escalated hazard issue.' },
+    ] } });
+    render(<MotionView controller={c} workspace />);
+    for (const text of ['Fixed hazard coverage explanation.', 'Fixed uncertainty explanation.']) {
+      const details = screen.getByText(text).closest('details')!;
+      expect(details.open).toBe(false);
+    }
+    for (const text of ['Forecast inputs end before the requested horizon.', 'Escalated hazard issue.', 'Hazard coverage incomplete']) {
+      expect(screen.getByText(text).closest('details')).toBeNull();
+    }
+  });
 });

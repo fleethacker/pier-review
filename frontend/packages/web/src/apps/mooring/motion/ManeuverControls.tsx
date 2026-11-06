@@ -18,7 +18,7 @@ export function ManeuverControls({ c, s }: { c: MotionController; s: MotionState
   if (!control || !s.workspace) return <p className="px-3 py-2 text-[11px] text-mil-dim">Awaiting backend actuator state. Controls are available when this scenario supplies propulsion parameters.</p>;
   const order = draft ?? control.commanded;
   const actual = control.actual;
-  const disabled = s.link !== 'open' || s.busy || s.lifecycleInvalid;
+  const disabled = s.link !== 'open' || s.busy || s.stateImportBusy || s.lifecycleInvalid;
   const update = (k: keyof HelmOrder, v: number) => setDraft({ ...order, [k]: v });
   const spec = s.workspace.controls.propulsion;
   return <div className="bg-mil-panel">
@@ -66,7 +66,7 @@ function TugControls({ c, s, disabled }: { c: MotionController; s: MotionState; 
 function DynamicTugControls({ c, config, state, disabled }: { c: MotionController; config: NonNullable<ControlsConfig['tug_dynamics']>[number]; state: TugDynamicsState; disabled: boolean }) {
   const [order, setOrder] = useState<TugOrder>(() => ({ ...state.commanded }));
   const speed = Math.hypot(order.target_velocity_x_fps, order.target_velocity_y_fps);
-  const valid = [order.target_velocity_x_fps, order.target_velocity_y_fps, order.target_heading_true_deg, order.tow_length_ft].every(Number.isFinite) && speed <= config.max_target_speed_fps && order.target_heading_true_deg >= 0 && order.target_heading_true_deg < 360 && order.tow_length_ft > 0;
+  const valid = [order.target_velocity_x_fps, order.target_velocity_y_fps, order.target_heading_true_deg, order.tow_length_ft].every(Number.isFinite) && speed <= config.max_target_speed_fps && order.target_heading_true_deg >= 0 && order.target_heading_true_deg < 360 && order.tow_length_ft > 0 && order.tow_length_ft <= 10000;
   return <div className="space-y-2 text-[10px]"><div className="flex flex-wrap items-end gap-3"><label className="grid gap-1 text-mil-dim">Connection mode<select aria-label="Tug connection mode" className={inputClass} value={order.mode} onChange={(e) => setOrder({ ...order, mode: e.target.value as TugOrder['mode'] })}><option value="free">Free maneuvering</option><option value="push">Push on contact</option><option value="tow">Tow when taut</option></select></label>
     {([['target_velocity_x_fps', 'Along-pier target (ft/s)', -config.max_target_speed_fps, config.max_target_speed_fps], ['target_velocity_y_fps', 'Off-pier target (ft/s)', -config.max_target_speed_fps, config.max_target_speed_fps], ['target_heading_true_deg', 'Tug heading (° true)', 0, 359.9], ['tow_length_ft', 'Tow length (ft)', 0.1, 10000]] as const).map(([key, label, min, max]) => <label key={key} className="grid gap-1 text-mil-dim">{label}<input className={`${inputClass} w-28`} type="number" min={min} max={max} step={0.1} value={order[key]} onChange={(e) => setOrder({ ...order, [key]: Number(e.target.value) })} /></label>)}
     <Button size="sm" disabled={disabled || !valid} onClick={() => c.tugMotionCommand(config.tug_id, order)}>Apply tug maneuver</Button></div>

@@ -186,6 +186,8 @@ export class MotionController {
   private releasingIds = new Set<string>();
   private unreleasedIds = new Set<string>();
   private workspaceViewEpoch = 0;
+  private stateImportEpoch = 0;
+  private acceptedStateSequences = new Map<string, number>();
 
   constructor(
     private readonly host: MotionHost,
@@ -302,6 +304,8 @@ export class MotionController {
 
   private stopEverything(): void {
     this.stopPredictions();
+    this.stateImportEpoch += 1;
+    this.acceptedStateSequences.clear();
     this.pendingHelm = null; this.pendingLine = null; this.pendingPayloads = null;
     this.pendingTug = null;
     this.state.set({ importedState: null, stateImportBusy: false, stateImportError: null });
@@ -338,6 +342,11 @@ export class MotionController {
   /** Draws one frame now (replay, scrub) or the newest pending frame (live). */
   private show(raw: SimFrame): void {
     const frame = adaptFrame(raw, { faceBearingDeg: this.face() });
+    for (const snapshot of frame.stateInputs) this.rememberStateSequence(snapshot.input);
+    if (this.s.frame && this.s.frame.runId !== frame.runId) {
+      this.pendingHelm = null; this.pendingLine = null; this.pendingPayloads = null; this.pendingTug = null;
+      if (this.s.command?.status === 'pending') this.state.set({ command: { status: 'unconfirmed', message: 'Run changed before backend acknowledgement. Inspect the new run state before sending another order.' } });
+    }
     if (this.s.frame && (this.s.frame.runId !== frame.runId || frame.tS < this.s.frame.tS)) this.invalidatePrediction();
     const existing = this.s.prediction;
     if (existing && frame.tS > existing.source.t_s && frame.tS >= (existing.path.at(-1)?.t_s ?? existing.source.t_s)) {
@@ -664,6 +673,7 @@ export class MotionController {
   }
 
   resume(): boolean {
+    if (this.s.stateImportBusy) return false;
     this.state.set({ notice: null });
     return this.send({ type: 'resume' });
   }
@@ -674,8 +684,9 @@ export class MotionController {
 
   reset(): boolean {
     this.invalidatePrediction();
-    this.pendingHelm = null; this.pendingLine = null; this.pendingPayloads = null;
-    this.state.set({ trail: [], notice: null, command: null });
+    this.stateImportEpoch += 1;
+    this.pendingHelm = null; this.pendingLine = null; this.pendingPayloads = null; this.pendingTug = null;
+    this.state.set({ trail: [], notice: null, command: null, importedState: null, stateImportBusy: false, stateImportError: null });
     return this.send({ type: 'reset' });
   }
 
@@ -717,16 +728,35 @@ export class MotionController {
     const id = this.s.sessionId;
     if (!id || this.s.source !== 'live' || !['created', 'paused', 'reset'].includes(this.s.lifecycle ?? '') || this.s.stateImportBusy) return;
     const epoch = this.loadEpoch;
+    const operation = ++this.stateImportEpoch;
+    const previousRun = this.s.frame?.runId;
     this.invalidatePrediction();
     this.state.set({ stateImportBusy: true, stateImportError: null });
     try {
       const snapshot = await motionRequest<StateSnapshot>(`/sessions/${encodeURIComponent(id)}/state`, input);
       if (epoch !== this.loadEpoch || this.disposed || this.s.sessionId !== snapshot.session_id) return;
+      this.rememberStateSequence(snapshot.input);
+      if (operation !== this.stateImportEpoch) return;
+      if (this.s.frame?.runId !== previousRun && this.s.frame?.runId !== snapshot.run_id) {
+        this.state.set({ stateImportBusy: false, stateImportError: 'Accepted input belongs to a previous run. The displayed run has since changed.' });
+        return;
+      }
       this.state.set({ importedState: snapshot, stateImportBusy: false, command: { status: 'applied', message: 'Supplied state accepted into a new paused run. Start continues backend simulation from this input.' } });
     } catch (e) {
-      if (epoch !== this.loadEpoch || this.disposed) return;
+      if (epoch !== this.loadEpoch || operation !== this.stateImportEpoch || this.disposed) return;
       this.state.set({ stateImportBusy: false, stateImportError: e instanceof Error ? e.message : String(e) });
     }
+  }
+
+  private rememberStateSequence(input: StateInput): void {
+    const key = `${input.entity}:${input.entity_id}`;
+    this.acceptedStateSequences.set(key, Math.max(this.acceptedStateSequences.get(key) ?? 0, input.sequence));
+  }
+
+  nextStateSequence(entity: StateInput['entity'], entityId: string): number {
+    for (const snapshot of this.s.frame?.stateInputs ?? []) this.rememberStateSequence(snapshot.input);
+    if (this.s.importedState) this.rememberStateSequence(this.s.importedState.input);
+    return (this.acceptedStateSequences.get(`${entity}:${entityId}`) ?? 0) + 1;
   }
 
   private commandSent(message: string): void {

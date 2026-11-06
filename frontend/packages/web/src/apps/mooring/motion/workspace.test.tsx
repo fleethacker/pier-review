@@ -73,6 +73,8 @@ describe('Maneuver workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Apply tug maneuver' }));
     expect(send).toHaveBeenCalledWith(tugId, { ...commanded, target_velocity_x_fps: 1.2 });
     expect(direct).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tow length (ft)' }), { target: { value: 10001 } });
+    expect((screen.getByRole('button', { name: 'Apply tug maneuver' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('copies supplied simulator velocities as explicitly synthetic input and leaves measured acceleration unknown', () => {

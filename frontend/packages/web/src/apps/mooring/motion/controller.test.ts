@@ -29,6 +29,7 @@ import { modeling } from '../api';
 import { MotionController, serviceUrl } from './controller';
 import type { MotionHost } from './controller';
 import type { SimFrame, SimRecording, SimScene } from './frames';
+import type { StateInput, StateSnapshot } from './workspace';
 import { catalog, configuration, controls, order, prediction, workspace } from './workspace.test-fixtures';
 
 const dir = path.resolve(__dirname, '../../../../../../../contract/examples/modeling');
@@ -538,6 +539,46 @@ it.each([false, true])('ignores a session creation completing after a recording 
 });
 
 describe('Motion workspace', () => {
+  const observation: StateInput = { entity: 'ship', entity_id: 'DDG-51-FIIA', frame: 'berth', berth_id: 'NORFOLK', source: 'synthetic', observed_at_utc: '2026-11-05T00:00:00Z', sequence: 100, x_ft: 300, y_ft: 80, heading_true_deg: 90, surge_fps: 1, sway_fps: 0, yaw_degps: 0, measured_acceleration: null, quality: 'unknown' };
+
+  it.each(['reset', 'superseded', 'response-first', 'frame-first'] as const)('accepts only the current state import when %s', async (mode) => {
+    const baseline = workspaceFetch();
+    let finish!: (v: unknown) => void;
+    const pending = new Promise((r) => { finish = r; });
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => url.endsWith('/state') ? pending : baseline(url, init)));
+    const m = make(); await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    m.state.set({ lifecycle: 'paused' });
+    const importing = m.importState(observation);
+    expect(m.resume()).toBe(false);
+    if (mode === 'reset') m.reset();
+    if (mode !== 'response-first') { stream.handlers!.onMessage(legacy(0, 2, mode === 'frame-first' ? 'imported-run' : 'later-run')); flush(); }
+    finish({ ok: true, json: async () => ({ session_id: 'motion-1', run_id: 'imported-run', input: observation }) });
+    await importing;
+    if (mode === 'reset' || mode === 'superseded') {
+      expect(m.s.importedState).toBeNull();
+      expect(m.s.command).toBeNull();
+    } else {
+      expect(m.s.importedState?.run_id).toBe('imported-run');
+      expect(m.s.command?.status).toBe('applied');
+    }
+    expect(m.s.stateImportBusy).toBe(false);
+    expect(m.nextStateSequence('ship', observation.entity_id)).toBe(101);
+    m.dispose();
+  });
+
+  it('keeps imported sequence history per entity across reset, including frame-supplied evidence', async () => {
+    workspaceFetch(); const m = make(); await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open');
+    const stateInputs = [{ input: observation }, { input: { ...observation, entity: 'tug', entity_id: 'T1', sequence: 1 } }] as StateSnapshot[];
+    stream.handlers!.onMessage({ ...legacy(0, 1), state_inputs: stateInputs }); flush();
+    expect(m.nextStateSequence('ship', observation.entity_id)).toBe(101);
+    expect(m.nextStateSequence('tug', 'T1')).toBe(2);
+    m.reset(); stream.handlers!.onMessage(legacy(0, 2, 'reset-run')); flush();
+    expect(m.nextStateSequence('ship', observation.entity_id)).toBe(101);
+    m.dispose();
+  });
+
   it('keeps direct entry through StrictMode and immediate remounts, then pauses on departure', async () => {
     const m = make(); m.open();
     const close = vi.spyOn(m, 'close');

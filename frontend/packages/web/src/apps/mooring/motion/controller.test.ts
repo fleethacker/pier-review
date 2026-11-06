@@ -863,6 +863,28 @@ describe('Motion workspace', () => {
     m.dispose();
   });
 
+  it.each([false, true])('requires manual authority as well as matching helm values (configured automatic=%s)', async (configured) => {
+    workspaceFetch(); const m = make();
+    await m.loadWorkspace(configuration);
+    m.state.set({ workspace: { ...workspace, scenario: { ...workspace.scenario, configuration: { ...configuration, route_follow: configured } } } });
+    stream.handlers!.onStatus('open');
+    const guidance = { source: 'synthetic' as const, active: true, route_id: 'route', waypoint_index: 1, waypoint_name: 'Channel', target_speed_kt: 10, cross_track_ft: 0, remaining_ft: 10000, completed: false };
+    const sameOrder = { ...controls, commanded: order };
+    stream.handlers!.onMessage({ ...legacy(0, 1), controls: sameOrder, guidance }); flush();
+    m.helmCommand(order);
+    // AUTO may coincidentally issue the same values before the queued manual command applies.
+    stream.handlers!.onMessage({ ...legacy(0, 2), controls: sameOrder, guidance }); flush();
+    expect(m.s.command?.status).toBe('pending');
+    if (configured) {
+      stream.handlers!.onMessage({ ...legacy(0, 3), controls: sameOrder }); flush();
+      expect(m.s.command?.status).toBe('pending');
+    }
+    stream.handlers!.onMessage({ ...legacy(1, 4), controls: sameOrder, guidance: { ...guidance, active: false } }); flush();
+    expect(m.s.command?.status).toBe('applied');
+    expect(m.s.frame?.controls?.actual.port_throttle).toBe(0);
+    m.dispose();
+  });
+
   it('limits prediction to one request at a time and rejects a response invalidated by reset', async () => {
     const baseline = workspaceFetch();
     let finish!: (v: unknown) => void;

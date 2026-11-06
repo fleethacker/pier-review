@@ -384,7 +384,10 @@ export class MotionController {
     if (existing && frame.tS > existing.source.t_s && frame.tS >= (existing.path.at(-1)?.t_s ?? existing.source.t_s)) {
       this.state.set({ prediction: null, predictionError: 'Prediction horizon expired. Waiting for a fresh backend snapshot; future coverage is unavailable.' });
     }
-    if (this.pendingHelm && frame.controls && Object.entries(this.pendingHelm).every(([k, v]) => Math.abs(frame.controls!.commanded[k as keyof HelmOrder] - v) < 1e-6)) {
+    // An automatic controller can issue identical values. Manual takeover is
+    // confirmed only when the backend also reports that guidance relinquished it.
+    const manualAuthority = frame.guidance ? !frame.guidance.active : !this.s.workspace?.scenario.configuration.route_follow;
+    if (this.pendingHelm && manualAuthority && frame.controls && Object.entries(this.pendingHelm).every(([k, v]) => Math.abs(frame.controls!.commanded[k as keyof HelmOrder] - v) < 1e-6)) {
       this.pendingHelm = null;
       this.state.set({ command: { status: 'applied', message: 'Helm order acknowledged by the backend. Actual actuator values follow their response rates.' } });
     }

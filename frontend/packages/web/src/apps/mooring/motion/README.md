@@ -17,6 +17,10 @@ Flow texture uses active-frame wind/current direction and simulation time. Its d
 model. Animation starts disabled for `prefers-reduced-motion`; paused simulation freezes the texture. Sectional views use
 backend loading, attitude, draft, payload and local depth fields. Unknown clearance is never zero.
 
+Live environment acquisition supplies a held snapshot for one run, with source, valid time and available acquisition age;
+it is not a continuous feed. The synthetic route controller can remain active after reaching its holding point. Applying a
+manual helm order disables both route following and holding; neither establishes hazard clearance.
+
 The layout follows information grouping and separation in
 [IMO MSC.191(79), §5.1](https://wwwcdn.imo.org/localresources/en/KnowledgeCentre/IndexofIMOResolutions/MSCResolutions/MSC.191%2879%29.pdf)
 and terminology/usability guidance in

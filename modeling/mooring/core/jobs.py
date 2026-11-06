@@ -367,28 +367,32 @@ class JobStore:
                          created_at_utc=j.created, finished_at_utc=finished,
                          result=j.result if state == "succeeded" else None, error=j.error if done else None)
 
+    def event_snapshot(self, job: Job, sent: int):
+        """Blocking snapshot for worker threads, including deadline and durable-state checks."""
+        self._retry_persistence(job)
+        self._check_deadline(job)
+        with job.lock:
+            return list(enumerate(job.log))[sent:], job.task_state, job.error, len(job.log)
+
     async def stream(self, job_id: str, last_event_id: int | None = None) -> AsyncIterator[str]:
         """SSE: `progress` events, any job-specific events, then `done`.
 
         Task jobs number every event. A client that reconnects with `Last-Event-ID` resumes after that event, so
         nothing is replayed and `done` is delivered once per connection that has not seen it."""
-        j = self.get(job_id)
+        j = await asyncio.to_thread(self.get, job_id)
         if j is None:
             return
         if j.task:
             sent = (last_event_id + 1) if last_event_id is not None else 0
             while True:
-                self._check_deadline(j)
-                with j.lock:
-                    pending = list(enumerate(j.log))[sent:]
+                pending, state, _, count = await asyncio.to_thread(self.event_snapshot, j, sent)
                 for i, (name, data) in pending:
                     yield sse(name, data, event_id=i)
                     sent = i + 1
                     if name == "done":
                         return
-                with j.lock:
-                    if j.task_state in TERMINAL and sent >= len(j.log):
-                        return  # reconnected after `done`: nothing left to deliver
+                if state in TERMINAL and sent >= count:
+                    return  # reconnected after `done`: nothing left to deliver
                 await asyncio.sleep(0.02)
         sent = 0
         while True:

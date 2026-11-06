@@ -1,5 +1,6 @@
 """Berth Map agent endpoints."""
 
+import asyncio
 import json
 from typing import Annotated
 
@@ -52,12 +53,15 @@ async def vision_analyze(tk: VisionTools, image: Annotated[UploadFile, File(desc
 @router.post("/berth-vision/{job_id}/confirm", response_model=BerthCreated, status_code=201,
              summary="Save the human-confirmed berth to the modeling service")
 async def vision_confirm(job_id: str, req: VisionConfirm, tk: VisionTools):
-    job = JOBS.get(job_id)
-    if job is None or job_id not in VISION_RESULTS:
-        raise refdata.NotFound(f"Vision job '{job_id}' not found")
-    if job.state != "succeeded":
-        raise ModelingError(409, "Vision job has not succeeded")
-    original = VISION_RESULTS[job_id]["result"]["draft_berth"]
+    def saved_draft():
+        job = JOBS.get(job_id)
+        if job is None or job_id not in VISION_RESULTS:
+            raise refdata.NotFound(f"Vision job '{job_id}' not found")
+        if job.state != "succeeded":
+            raise ModelingError(409, "Vision job has not succeeded")
+        return VISION_RESULTS[job_id]["result"]["draft_berth"]
+
+    original = await asyncio.to_thread(saved_draft)
     if req.berth.berth_id != original["berth_id"]:
         raise ModelingError(422, "Confirmation must preserve the draft berth id; it cannot replace another berth")
     from mooring.core.schemas import Provenance

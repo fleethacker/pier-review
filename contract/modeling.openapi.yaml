@@ -4348,6 +4348,7 @@ components:
         ramp_to_wind_kt:
           anyOf:
           - type: number
+            minimum: 0.0
           - type: 'null'
           title: Ramp To Wind Kt
           description: 'kind=''ramp'': wind at the end of the ramp.'
@@ -4447,6 +4448,7 @@ components:
         ramp_to_wind_kt:
           anyOf:
           - type: number
+            minimum: 0.0
           - type: 'null'
           title: Ramp To Wind Kt
           description: 'kind=''ramp'': wind at the end of the ramp.'

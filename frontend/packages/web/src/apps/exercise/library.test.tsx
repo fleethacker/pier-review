@@ -294,3 +294,54 @@ describe('reporting errors to the server', () => {
     expect(bodies).toHaveLength(2);
   });
 });
+
+describe('saved identity across tab unmounts (F13)', () => {
+  it('retains the unsaved baseline when a custom scenario panel is remounted', async () => {
+    vi.stubGlobal('fetch', async () => { throw new TypeError('offline'); });
+    const original = { ...PRESET_SCENARIOS[0], id: 'custom-alpha', name: 'Alpha' };
+    const c = new ExerciseController(undefined, original);
+    saveLocal('beta', { ...original, id: 'custom-beta', name: 'Beta' });
+    const panel = () => <ControllerContext.Provider value={c}><Library /></ControllerContext.Provider>;
+    const view = render(panel());
+    view.rerender(<></>);
+    act(() => c.patchEnvironment({ windKt: original.environment.windKt + 1 }));
+    view.rerender(panel());
+    fireEvent.click(screen.getByText('Saved scenarios'));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    fireEvent.click(await screen.findByRole('button', { name: 'Load Beta' }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.stringContaining('unsaved changes')));
+    expect(c.state.get().scenario.name).toBe('Alpha');
+    expect(c.state.get().scenario.environment.windKt).toBe(original.environment.windKt + 1);
+    c.dispose();
+  });
+  it('retains the loaded shared revision through a tab round trip and refuses a stale save', async () => {
+    const scenario = { ...PRESET_SCENARIOS[0], id: 'custom-alpha', name: 'Alpha' };
+    const puts: { baseUpdatedAt?: string }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (init?.method === 'PUT') {
+        puts.push(JSON.parse(init.body as string));
+        return json({ detail: 'Someone saved this scenario after you opened it.' }, 409);
+      }
+      if (url.endsWith('/scenarios')) return json([{ id: 'alpha', name: 'Alpha', units: scenario.units.length, updatedAt: 'rev-old' }]);
+      return json({ scenario, updatedAt: 'rev-old' });
+    });
+    const c = new ExerciseController();
+    const panel = () => <ControllerContext.Provider value={c}><Library /></ControllerContext.Provider>;
+    const view = render(panel());
+    fireEvent.click(screen.getByText('Saved scenarios'));
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'shared' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Load Alpha' }));
+    await waitFor(() => expect(c.state.get().scenario.id).toBe('custom-alpha'));
+    view.rerender(<></>);
+    act(() => c.patchEnvironment({ windKt: scenario.environment.windKt + 2 }));
+    view.rerender(panel());
+    fireEvent.click(screen.getByText('Saved scenarios'));
+    expect((await screen.findByRole('combobox') as HTMLSelectElement).value).toBe('shared');
+    fireEvent.click(screen.getByRole('button', { name: 'Save “Alpha”' }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('after you opened it'));
+    expect(puts).toHaveLength(1);
+    expect(puts[0].baseUpdatedAt).toBe('rev-old');
+    expect(c.state.get().scenario.environment.windKt).toBe(scenario.environment.windKt + 2);
+    c.dispose();
+  });
+});

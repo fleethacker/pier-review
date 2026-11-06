@@ -297,9 +297,9 @@ def test_output_frames_fall_exactly_on_the_requested_sample_times():
     v = vessel(speed=8.0, heading=90.0, route=[{"lat": 37.0, "lon": -75.9, "speed_kt": 8.0}])
     r = run([v], dur=101.0, dt=0.3, sample=2.0)                               # 0.3 does not divide 2.0
     ts = [f.t_s for f in r.frames]
-    assert ts == pytest.approx([2.0 * k for k in range(51)], abs=1e-9)         # 0..100, no off-grid frame, last frame <= duration
+    assert ts == pytest.approx([*[2.0 * k for k in range(51)], 101.0], abs=1e-9)  # regular samples plus the full horizon
     assert r.sample_s == 2.0 and r.dt_s == pytest.approx(2.0 / 7) and r.dt_s <= 0.3
-    assert r.vessels[0].track[-1].t_utc.timestamp() - r.vessels[0].track[0].t_utc.timestamp() == pytest.approx(100.0)
+    assert r.vessels[0].track[-1].t_utc.timestamp() - r.vessels[0].track[0].t_utc.timestamp() == pytest.approx(101.0)
     assert S.effective_step(0.2, 2.0) == (pytest.approx(0.2), 10) and S.effective_step(1.0, 0.5)[0] == 0.5
     res = S.simulate_transit(request([v], dur=101.0, dt=0.3, sample=2.0), "samp-1", "/api/v1")
     assert res.manifest.numerical_settings["sample_interval_s"] == 2.0

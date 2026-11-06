@@ -15,6 +15,7 @@ export function AdvancePanel() {
   const problems = c.advance.problems();
   const result = a.response?.result;
   const manifest = result?.forecast_manifest;
+  const retrievalCutoff = c.advance.latestRetrievalCutoff();
   const selected = result?.selected_arrival_utc ?? null;
 
   return (
@@ -73,6 +74,12 @@ export function AdvancePanel() {
           onClick={() => void c.advance.fetchPublicSeries()}>
           {a.seriesState === 'loading' && a.seriesMode === 'public' ? 'Fetching public forecast…' : 'Fetch public forecast'}
         </Button>
+        {retrievalCutoff && <div className="space-y-1 text-mil-amber">
+          <p>Providers were retrieved at {retrievalCutoff}, after the selected cutoff. Using this cutoff changes the assessment time; arrival and holding times stay unchanged and must still meet the 24 h lead.</p>
+          <Button size="sm" variant="secondary" disabled={a.seriesState === 'loading'} onClick={() => void c.advance.retryAtRetrievalCutoff()}>
+            Use retrieval cutoff and retry
+          </Button>
+        </div>}
         <p className="text-mil-dim">Selected source: {a.seriesMode === 'public' ? 'public predictions' : 'synthetic training'}.</p>
         {a.series?.manifest && <PublicProvenance manifest={a.series.manifest} resolved={a.series.resolved} />}
         <div className="mil-label pt-2">Optional synthetic training</div>

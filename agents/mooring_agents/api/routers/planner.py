@@ -90,32 +90,29 @@ def plan_events(plan_id: str, follow: bool = True,
         sent = last_event_id + 1 if last_event_id is not None else 0
         last_heartbeat = asyncio.get_running_loop().time()
         while True:
-            JOBS.get(job.job_id)  # enforce cooperative deadline while streaming
-            with job.lock:
-                pending = list(enumerate(job.log))[sent:]
+            pending, state, error, count = await asyncio.to_thread(JOBS.event_snapshot, job, sent)
             for index, (name, data) in pending:
                 sent = index + 1
                 if name == 'done':
-                    rec = planner.PLANS.get(plan_id)
+                    rec = await asyncio.to_thread(planner.PLANS.get, plan_id)
                     data = AgentDoneEvent(plan_id=plan_id,
-                        status=rec.plan.status if job.state == 'succeeded' and rec else 'RED',
-                        state=job.state, error=job.error).model_dump(mode='json')
+                        status=rec.plan.status if state == 'succeeded' and rec else 'RED',
+                        state=state, error=error).model_dump(mode='json')
                 yield sse(name, data, event_id=index)
-            if job.state in TERMINAL and sent >= len(job.log):
+            if state in TERMINAL and sent >= count:
                 break
             now = asyncio.get_running_loop().time()
             if now - last_heartbeat >= 15:
                 yield ': keepalive\n\n'
                 last_heartbeat = now
             await asyncio.sleep(0.02)
-        if not follow or job.state != 'succeeded':
+        if not follow or state != 'succeeded':
             return
-        rec = planner.PLANS[plan_id]
-        offset = len(job.log)
+        offset = count
         msent = max(0, sent - offset)
         idle = 0.0
         while idle < 600:
-            rec = planner.PLANS[plan_id]
+            rec = await asyncio.to_thread(planner.PLANS.__getitem__, plan_id)
             while msent < len(rec.messages):
                 name, data = rec.messages[msent]
                 yield sse(name, data, event_id=offset + msent)
@@ -131,7 +128,7 @@ def plan_events(plan_id: str, follow: bool = True,
 @router.post('/agent/plans/{plan_id}/messages', response_model=AgentMessageAccepted, status_code=202,
              summary='Ask a follow-up; the answer streams as a message event')
 async def plan_message(plan_id: str, req: AgentMessage, tk: PlannerTools):
-    rec, _ = plan_record(plan_id)
+    rec, _ = await asyncio.to_thread(plan_record, plan_id)
     tk.plan_id = plan_id
     msg = await planner.answer(rec, req.text, tk)
     return AgentMessageAccepted(message_id=msg.message_id)

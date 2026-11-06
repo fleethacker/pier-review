@@ -1,4 +1,5 @@
 import createClient from 'openapi-fetch';
+import { runtimeAuthHeaders } from '../../lib/credentials';
 import type { paths as ModelingPaths } from '../../api/modeling';
 import type { paths as AgentPaths } from '../../api/agents';
 import type { JobAccepted, JobStatus } from './types';
@@ -13,19 +14,15 @@ function resolveBase(configured: string | undefined, fallback: string): string {
 export const MODELING_BASE = resolveBase(import.meta.env.VITE_MODELING_URL, 'api/modeling');
 export const AGENTS_BASE = resolveBase(import.meta.env.VITE_AGENTS_URL, 'api/agents');
 
-/**
- * Optional bearer token for services started with MOORING_AUTH_REQUIRED=1, from VITE_API_BEARER_TOKEN. It is baked into
- * the bundle, so use it for local and trusted-network runs only. It covers REST and job polling; browsers cannot attach
- * headers to WebSocket or EventSource connections, so the live streams, the planner's SSE steps and motion sessions still
- * need a trusted gateway in front of an authenticated deployment.
- */
-export function authHeaders(): Record<string, string> {
-  const token = import.meta.env.VITE_API_BEARER_TOKEN;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+/** Runtime credential, entered by the current user; never a build-time environment variable. */
+export const authHeaders = runtimeAuthHeaders;
 
-export const modeling = createClient<ModelingPaths>({ baseUrl: MODELING_BASE, headers: authHeaders() });
-export const agents = createClient<AgentPaths>({ baseUrl: AGENTS_BASE, headers: authHeaders() });
+export const modeling = createClient<ModelingPaths>({ baseUrl: MODELING_BASE });
+export const agents = createClient<AgentPaths>({ baseUrl: AGENTS_BASE });
+for (const client of [modeling, agents]) client.use({ onRequest({ request }) {
+  for (const [name, value] of Object.entries(authHeaders())) request.headers.set(name, value);
+  return request;
+} });
 
 export function wsUrl(base: string, path: string, query: Record<string, string | number | undefined>): string {
   const url = new URL(`${base}${path}`);

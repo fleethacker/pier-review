@@ -1,5 +1,6 @@
 """S20: declared NMEA 0183 subset, validating ingest, bounded storage and source arbitration. Synthetic fixtures."""
 
+import json
 import math
 from datetime import UTC, datetime, timedelta
 
@@ -140,8 +141,8 @@ def run(records, i=None):
 def test_good_records_are_adopted_with_provenance_and_independent_channels():
     r, i = run([nm(seq=1), lc(), lc(sensor_id="LC-3", line_number=3, calibration_rev="cal-4", tension_lbf=12_000.0, seq=1)])
     assert r.accepted == 3 and r.rejected == 0
-    assert i.latest["load_cell:LC-2"].record.tension_lbf == 31_000.0 and i.latest["load_cell:LC-3"].record.tension_lbf == 12_000.0   # no overwrite
-    assert "checksum verified" in i.latest["ship_nmea:MWV"].provenance and i.latest["load_cell:LC-2"].record.received_utc == NOW
+    assert i.latest[("local-demo", "DDG-1", "load_cell:LC-2")].record.tension_lbf == 31_000.0 and i.latest[("local-demo", "DDG-1", "load_cell:LC-3")].record.tension_lbf == 12_000.0   # no overwrite
+    assert "checksum verified" in i.latest[("local-demo", None, "ship_nmea:MWV")].provenance and i.latest[("local-demo", "DDG-1", "load_cell:LC-2")].record.received_utc == NOW
 
 
 @pytest.mark.parametrize("rec,code", [
@@ -176,14 +177,17 @@ def test_duplicate_replayed_and_out_of_order_messages():
     assert dup.rejections[0].code == "DUPLICATE_OR_REPLAY"
     older = run([lc(seq=6, t_utc=NOW - timedelta(seconds=30))], i)[0]
     assert older.rejections[0].code == "OUT_OF_ORDER"
-    assert i.latest["load_cell:LC-2"].record.seq == 5 and len(i.history["load_cell:LC-2"]) == 1
+    key = ("local-demo", "DDG-1", "load_cell:LC-2")
+    assert i.latest[key].record.seq == 5 and len(i.history[key]) == 1
+    assert (key, 6) not in i.seen  # Rejected ordering never reserves a sequence.
+    assert run([lc(seq=6, t_utc=NOW)], i)[0].accepted == 1
 
 
 def test_storage_is_bounded():
     i = ing.Ingest(SENSORS, clock=lambda: NOW)
     for k in range(ing.HISTORY + 50):
         run([lc(seq=k, t_utc=NOW)], i)
-    assert len(i.history["load_cell:LC-2"]) == ing.HISTORY
+    assert len(i.history[("local-demo", "DDG-1", "load_cell:LC-2")]) == ing.HISTORY
     with pytest.raises(ing.BatchTooLarge):
         run([lc(seq=10_000 + k) for k in range(ing.MAX_BATCH + 1)], i)
 
@@ -271,3 +275,105 @@ def test_non_ascii_telemetry_key_is_rejected_without_server_error(monkeypatch):
         with client.websocket_connect("/ws/telemetry", headers=headers):
             pass
     assert denied.value.code == 1008
+
+
+@pytest.fixture
+def authorized_ingest(monkeypatch):
+    state = ing.Ingest(SENSORS, clock=lambda: NOW)
+    monkeypatch.setattr(ing, "DEFAULT", state)
+    monkeypatch.setenv("MOORING_AUTH_REQUIRED", "1")
+    monkeypatch.setenv("MOORING_API_KEYS", json.dumps({"alice": "a" * 32, "bob": "b" * 32}))
+    monkeypatch.setenv("MOORING_TELEMETRY_VESSELS", json.dumps({"alice": ["DDG-1"], "bob": ["CG-2"]}))
+    monkeypatch.setenv("MOORING_RATE_PER_MINUTE", "0")
+    monkeypatch.delenv("MOORING_TELEMETRY_KEY", raising=False)
+    return state
+
+
+def authorized_headers(owner):
+    return {"Authorization": "Bearer " + ("a" if owner == "alice" else "b") * 32}
+
+
+def test_http_authorizes_vessels_before_sequence_or_time_can_poison_state(authorized_ingest):
+    state = authorized_ingest
+
+    def post(owner, record):
+        response = client.post("/api/v1/telemetry/batch", headers=authorized_headers(owner),
+                               json={"records": [record.model_dump(mode="json")]})
+        assert response.status_code == 202
+        return response.json()
+
+    hdt = sentence("HEHDT,123.4,T")
+    assert post("alice", nm(hdt, seq=1, vessel_id="DDG-1"))["accepted"] == 1
+    forged = nm(hdt, seq=2, vessel_id="DDG-1").model_copy(update={"t_utc": NOW + timedelta(seconds=59)})
+    rejected = post("bob", forged)
+    assert rejected["accepted"] == 0 and rejected["rejections"][0]["code"] == "VESSEL_NOT_AUTHORIZED"
+    valid = nm(hdt, seq=2, vessel_id="DDG-1").model_copy(update={"t_utc": NOW + timedelta(seconds=1)})
+    assert post("alice", valid)["accepted"] == 1
+    assert post("bob", nm(hdt, seq=1, vessel_id="CG-2"))["accepted"] == 1
+    assert post("bob", lc())["rejections"][0]["code"] == "VESSEL_NOT_AUTHORIZED"
+    assert post("alice", lc())["accepted"] == 1
+    assert set(state.latest) == {("alice", "DDG-1", "ship_nmea:HDT"), ("bob", "CG-2", "ship_nmea:HDT"),
+                                 ("alice", "DDG-1", "load_cell:LC-2")}
+    assert [item.record.seq for item in state.history[("alice", "DDG-1", "ship_nmea:HDT")]] == [1, 2]
+    assert state.last_t[("bob", "CG-2", "ship_nmea:HDT")] == NOW
+    assert (("bob", "DDG-1", "ship_nmea:HDT"), 2) not in state.seen
+
+
+def test_websocket_uses_authenticated_principal_and_same_vessel_policy(authorized_ingest):
+    state = authorized_ingest
+    with client.websocket_connect("/ws/telemetry?limit=3", headers=authorized_headers("bob")) as ws:
+        ws.send_json(nm(seq=4, vessel_id="DDG-1").model_dump(mode="json"))
+        denied = ws.receive_json()
+        assert denied["accepted"] == 0 and denied["rejections"][0]["code"] == "VESSEL_NOT_AUTHORIZED"
+        ws.send_json(nm(seq=4).model_dump(mode="json"))
+        assert ws.receive_json()["rejections"][0]["code"] == "VESSEL_NOT_AUTHORIZED"
+        assert state.latest == {} and state.seen == {}
+        ws.send_json(nm(seq=4, vessel_id="CG-2").model_dump(mode="json"))
+        assert ws.receive_json()["accepted"] == 1
+    with client.websocket_connect("/ws/telemetry?limit=1", headers=authorized_headers("alice")) as ws:
+        ws.send_json(nm(seq=4, vessel_id="DDG-1").model_dump(mode="json"))
+        assert ws.receive_json()["accepted"] == 1
+    assert set(state.latest) == {("alice", "DDG-1", "ship_nmea:MWV"), ("bob", "CG-2", "ship_nmea:MWV")}
+
+
+@pytest.mark.parametrize("mapping", [None, "", "{secret:bad}", "[]", '{"alice":"DDG-1"}',
+                                    '{"alice":["DDG-1"],"alice":["CG-2"]}',
+                                    "x" * (ing.MAX_AUTH_CONFIG_CHARS + 1),
+                                    '{"alice":[' + "[" * 1200 + "0" + "]" * 1200 + "]}"])
+def test_missing_or_invalid_vessel_policy_fails_closed_without_leaking_configuration(authorized_ingest, monkeypatch, mapping):
+    if mapping is None:
+        monkeypatch.delenv("MOORING_TELEMETRY_VESSELS", raising=False)
+    else:
+        monkeypatch.setenv("MOORING_TELEMETRY_VESSELS", mapping)
+    response = client.post("/api/v1/telemetry/batch", headers=authorized_headers("alice"),
+                           json={"records": [nm(seq=1, vessel_id="DDG-1").model_dump(mode="json")]})
+    assert response.status_code == 202
+    assert response.json()["accepted"] == 0
+    assert response.json()["rejections"] == [{"index": 0, "code": "AUTHORIZATION_UNAVAILABLE",
+                                              "message": "Telemetry vessel authorization is not configured correctly"}]
+    assert authorized_ingest.latest == {} and authorized_ingest.seen == {}
+
+
+def test_authorized_same_vessel_still_has_separate_principal_state(authorized_ingest, monkeypatch):
+    monkeypatch.setenv("MOORING_TELEMETRY_VESSELS", '{"alice":["DDG-1"],"bob":["DDG-1"]}')
+    for owner, offset in (("alice", 59), ("bob", 0)):
+        record = nm(vessel_id="DDG-1", seq=1).model_copy(update={"t_utc": NOW + timedelta(seconds=offset)})
+        response = client.post("/api/v1/telemetry/batch", headers=authorized_headers(owner),
+                               json={"records": [record.model_dump(mode="json")]})
+        assert response.status_code == 202 and response.json()["accepted"] == 1
+    assert len(authorized_ingest.history) == 2
+
+
+def test_local_demo_keeps_vessels_and_legacy_unassigned_channel_separate(monkeypatch):
+    monkeypatch.delenv("MOORING_TELEMETRY_VESSELS", raising=False)
+    result, state = run([nm(seq=1, vessel_id="DDG-1"), nm(seq=1, vessel_id="CG-2"), nm(seq=1)])
+    assert result.accepted == 3 and len(state.latest) == 3
+    assert set(state.latest) == {("local-demo", vessel, "ship_nmea:MWV") for vessel in ("DDG-1", "CG-2", None)}
+
+
+def test_new_channel_capacity_rejects_without_evicting_existing_order(monkeypatch):
+    monkeypatch.setattr(ing, "MAX_CHANNELS", 1)
+    result, state = run([nm(seq=1, vessel_id="DDG-1"), nm(seq=1, vessel_id="CG-2")])
+    assert result.accepted == 1 and result.rejections[0].code == "CHANNEL_LIMIT"
+    assert len(state.latest) == len(state.history) == len(state.last_t) == len(state.seen) == 1
+    assert run([nm(seq=2, vessel_id="DDG-1")], state)[0].accepted == 1

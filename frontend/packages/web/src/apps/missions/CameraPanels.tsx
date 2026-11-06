@@ -32,6 +32,7 @@ export function CameraStatus() {
   const err = useMissions((s) => s.camError);
   const whatIf = useMissions((s) => s.camWhatIf);
   const at = useMissions((s) => s.camAtMs);
+  const playbackLag = useMissions((s) => s.camSource === 'transit' && s.camInputTimeS != null ? Math.max(0, s.clock.t - s.camInputTimeS) : 0);
   const age = useAgeS(at);
   if (!res)
     return (
@@ -48,6 +49,8 @@ export function CameraStatus() {
   const missing = missingHazards(res);
   return (
     <div className="space-y-2">
+      <p className="text-[11px] text-mil-text">Prediction for {res.result.vessel_id} at {res.result.as_of_utc}</p>
+      {playbackLag > 1 && <p role="status" className="text-[11px] text-mil-amber">Prediction is {Math.round(playbackLag)} simulated seconds behind playback; refresh pending.</p>}
       {sample && (
         <p
           role="status"
@@ -183,9 +186,12 @@ export function CameraSide() {
 export function CameraBanner() {
   const res = useMissions((s) => s.camResult);
   const sample = useMissions((s) => s.camSample);
-  if (!res) return null;
+  const error = useMissions((s) => s.camError);
+  const playbackLag = useMissions((s) => s.camSource === 'transit' && s.camInputTimeS != null ? Math.max(0, s.clock.t - s.camInputTimeS) : 0);
+  if (!res) return <span role="status" className="text-[10px] text-mil-amber">{error ?? 'Waiting for a prediction for the selected vessel.'}</span>;
   const hold = res.result.alternatives.find((a) => a.alt_id === 'hold');
   const b = bannerText(hold);
+  const missing = missingHazards(res);
   return (
     <span
       role="status"
@@ -197,8 +203,9 @@ export function CameraBanner() {
       )}
     >
       {sample ? 'Sample prediction: ' : ''}
-      {b.text}
-      {res.validity?.reasons?.some((r) => r.code.startsWith('HAZARD_COVERAGE_')) ? ' · Hazard coverage incomplete or unknown; no all-clear.' : ''}
+      Prediction for {res.result.vessel_id} at {res.result.as_of_utc} · {b.text}
+      {playbackLag > 1 ? ` · Prediction is ${Math.round(playbackLag)} simulated seconds behind playback; refresh pending.` : ''}
+      {missing.length ? ` · Hazards not checked: ${missing.join(', ')}; no all-clear.` : res.validity?.reasons?.some((r) => r.code.startsWith('HAZARD_COVERAGE_')) ? ' · Hazard coverage incomplete or unknown; no all-clear.' : ''}
       {hold && !hold.corridor ? ' · Uncertainty unavailable.' : ''}
     </span>
   );

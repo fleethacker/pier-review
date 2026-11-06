@@ -1,51 +1,53 @@
 # Next steps: product-review remediation
 
-Reviewed `dev` at `ac73e1fbf21a54efd029608cb140a306f69b4fa4` in an isolated detached checkout. Source links are pinned to that commit. This is a whole-product review, not a last-PR review. The review made no implementation changes. This document publishes the findings as open work; publishing it closes none of them.
+The original whole-product audit reviewed `dev` at `ac73e1fbf21a54efd029608cb140a306f69b4fa4` in an isolated detached checkout. Its source links, reproductions and evidence below remain pinned to that snapshot. The audit itself made no implementation changes.
 
-**Assessment: this build is not ready for operational docking use.** Reproduced defects affect safety-result applicability, physical validity, collision detection, forecast continuity and persisted results. Several return plausible numbers or reassuring text for the wrong conditions. The existing AMBER/limited labels do not excuse discarding an explicit invalid condition. Passing tests establish only the behavior they exercise.
+**Remediation update, 5 November 2026:** F01–F28 are resolved by `fix/product-audit-remediation` through source/contract commit `ea62351`, with independent review, browser reproductions and final checks recorded in [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md). Final local checks: 2,815 Python tests and 1,066 frontend tests passed; contract/type/lint/build checks passed. [PR #32](https://github.com/fleethacker/pier-review/pull/32) records CI and merge status. G01–G08 remain open. The initial Domino review deployment used the earlier `dev` snapshot; its target smoke is separate from remediation validation.
+
+**Assessment: the product is not ready for operational docking use.** The original audit reproduced defects in safety-result applicability, physical validity, collision detection, forecast continuity and persisted results. Those defects are addressed by the remediation above; the broader G01–G08 capability and qualification gaps remain. The existing AMBER/limited labels do not excuse discarding an explicit invalid condition. Passing tests establish only the behavior they exercise.
 
 Independent passes covered modeling correctness, UX/accessibility, security, API compatibility, reliability and test strategy. Additional real-browser probes followed workflows across services. Probes were offline or used isolated loopback services, synthetic inputs and disposable synthetic credentials. No live providers, real LLM, deployment host or vessel qualification was tested. This review identifies concrete failures; it is not a claim of exhaustive verification of every code path.
 
-Severity indicates remediation priority. High findings should block operational claims or the affected deployment/workflow. Medium findings remain required corrections. The single Low finding needs a manual retention operation. Known missing features are separated below. Execution ownership follows the master plan and the ledger below. Owners coordinate collaborators before editing shared files; no work is claimed as started by publishing this plan.
+Severity indicates remediation priority. High findings should block operational claims or the affected deployment/workflow until their acceptance evidence is recorded. Medium findings remain required corrections. The single Low finding concerns manual retention. Known missing features are separated below. Execution ownership follows the master plan and the ledger below; owners coordinate collaborators before editing shared files.
 
 ## Execution ledger
 
 This is the detailed remediation companion to [MASTER_PLAN.md](MASTER_PLAN.md), which remains the authority for
-priorities and ownership. **All 28 findings are open: 14 High, 13 Medium, 1 Low.** G01–G08 below track eight broader
+priorities and ownership. **All 28 findings are resolved with regression and independent review evidence: 14 High, 13 Medium, 1 Low.** G01–G08 below track eight broader
 capability/workflow gaps; T01–T03 identify test-design gaps, and T04 preserves the baseline/readiness distinction.
 These IDs are separate from legacy S/P/U/D/A/R packet IDs. Do not close a finding merely because its original
 feature PR was merged or the unchanged baseline suite passes.
 
 | ID | Severity | Next change | Lead | Independent reviewer | Status / closure evidence |
 | --- | --- | --- | --- | --- | --- |
-| [F01](#f01) | High | Stale review/sheet applicability | Kori | Bixler | Open; no fix PR |
-| [F02](#f02) | High | Forecast binding across the UI agent chain | Kori + Bixler | Snyder + Cruz | Open; no fix PR |
-| [F03](#f03) | High | Per-tide physical validity | Snyder M-PLAN | Snyder M-SIM | Open; no fix PR |
-| [F04](#f04) | High | Ultimate-gust validity | Snyder M-PLAN | Snyder M-SIM | Open; no fix PR |
-| [F05](#f05) | High | Rich forcing availability/provenance | Snyder M-SIM | Snyder M-PLAN | Open; no fix PR |
-| [F06](#f06) | High | Complete prediction horizon | Snyder M-SIM | Snyder M-PLAN | Open; no fix PR |
-| [F07](#f07) | High | Zero-margin collision detection | Snyder M-SIM | Snyder M-PLAN | Open; no fix PR |
-| [F08](#f08) | High | Prediction environmental validity | Snyder M-SIM + Cruz | Snyder M-PLAN | Open; no fix PR |
-| [F09](#f09) | High | Camera vessel identity | Kori | Bixler + Snyder | Open; no fix PR |
-| [F10](#f10) | High | Camera forcing/traffic handoff | Kori | Snyder | Open; no fix PR |
-| [F11](#f11) | High | Code-owned safety meaning | Bixler | Snyder | Open; no fix PR |
-| [F12](#f12) | High | Runtime browser identity; no bundled key | Bixler + Kori | Snyder | Open; no fix PR |
-| [F13](#f13) | High | Exercise draft/revision retention | Kori | Bixler | Open; no fix PR |
-| [F14](#f14) | High | Nonblocking alert computation | Snyder | Bixler | Open; no fix PR |
-| [F15](#f15) | Medium | Durable job completion | Snyder | Bixler | Open; no fix PR |
-| [F16](#f16) | Medium | Dirty-recording retry/eviction | Snyder M-SIM | Snyder M-PLAN | Open; no fix PR |
-| [F17](#f17) | Medium | Bounded provider cache | Cruz | Snyder | Open; no fix PR |
-| [F18](#f18) | Medium | Final job deadline check | Snyder | Bixler | Open; no fix PR |
-| [F19](#f19) | Low | Retention preserves occupied capacity | Snyder | Bixler | Open; no fix PR |
-| [F20](#f20) | Medium | Replay forecast timeline compatibility | Cruz | Snyder | Open; no fix PR |
-| [F21](#f21) | Medium | Nonnegative wind-ramp validation | Cruz | Snyder | Open; no fix PR |
-| [F22](#f22) | Medium | Vessel-scoped telemetry authorization/state | Cruz | Bixler | Open; no fix PR |
-| [F23](#f23) | Medium | Preserve failed report drafts | Kori | Bixler | Open; no fix PR |
-| [F24](#f24) | Medium | Contact-point impact velocity | Snyder M-SIM | Snyder M-PLAN | Open; no fix PR |
-| [F25](#f25) | Medium | Frame-time line endpoint heights | Snyder M-SIM | Snyder M-PLAN | Open; no fix PR |
-| [F26](#f26) | Medium | No zero-spread uncertainty claim | Snyder M-SIM | Snyder M-PLAN | Open; no fix PR |
-| [F27](#f27) | Medium | Spreadsheet-safe CSV text | Kori | Bixler | Open; no fix PR |
-| [F28](#f28) | Medium | Keyboard vessel selection | Kori | Bixler | Open; no fix PR |
+| [F01](#f01) | High | Stale review/sheet applicability | Kori | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f01) |
+| [F02](#f02) | High | Forecast binding across the UI agent chain | Kori + Bixler | Snyder + Cruz | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f02) |
+| [F03](#f03) | High | Per-tide physical validity | Snyder M-PLAN | Snyder M-SIM | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f03) |
+| [F04](#f04) | High | Ultimate-gust validity | Snyder M-PLAN | Snyder M-SIM | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f04) |
+| [F05](#f05) | High | Rich forcing availability/provenance | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f05) |
+| [F06](#f06) | High | Complete prediction horizon | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f06) |
+| [F07](#f07) | High | Zero-margin collision detection | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f07) |
+| [F08](#f08) | High | Prediction environmental validity | Snyder M-SIM + Cruz | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f08) |
+| [F09](#f09) | High | Camera vessel identity | Kori | Bixler + Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f09) |
+| [F10](#f10) | High | Camera forcing/traffic handoff | Kori | Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f10) |
+| [F11](#f11) | High | Code-owned safety meaning | Bixler | Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f11) |
+| [F12](#f12) | High | Runtime browser identity; no bundled key | Bixler + Kori | Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f12) |
+| [F13](#f13) | High | Exercise draft/revision retention | Kori | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f13) |
+| [F14](#f14) | High | Nonblocking alert computation | Snyder | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f14) |
+| [F15](#f15) | Medium | Durable job completion | Snyder | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f15) |
+| [F16](#f16) | Medium | Dirty-recording retry/eviction | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f16) |
+| [F17](#f17) | Medium | Bounded provider cache | Cruz | Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f17) |
+| [F18](#f18) | Medium | Final job deadline check | Snyder | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f18) |
+| [F19](#f19) | Low | Retention preserves occupied capacity | Snyder | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f19) |
+| [F20](#f20) | Medium | Replay forecast timeline compatibility | Cruz | Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f20) |
+| [F21](#f21) | Medium | Nonnegative wind-ramp validation | Cruz | Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f21) |
+| [F22](#f22) | Medium | Vessel-scoped telemetry authorization/state | Cruz | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f22) |
+| [F23](#f23) | Medium | Preserve failed report drafts | Kori | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f23) |
+| [F24](#f24) | Medium | Contact-point impact velocity | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f24) |
+| [F25](#f25) | Medium | Frame-time line endpoint heights | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f25) |
+| [F26](#f26) | Medium | No zero-spread uncertainty claim | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f26) |
+| [F27](#f27) | Medium | Spreadsheet-safe CSV text | Kori | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f27) |
+| [F28](#f28) | Medium | Keyboard vessel selection | Kori | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f28) |
 
 ### Starting work and recording closure
 
@@ -269,7 +271,7 @@ Required correction: persist origin/revision/draft baseline in controller state;
 
 ## Missing capabilities and incomplete product workflows
 
-These are separate from the 28 confirmed defects above. Several are accurately disclosed in existing docs. They still prevent the end product from meeting the crew-facing goal; disclosure is not implementation.
+These are separate from the 28 confirmed defects above. **G01–G08 remain open.** The table records the audit-baseline gaps; remediation progress and remaining acceptance are tracked in [the remediation report](PRODUCT_AUDIT_REMEDIATION.md#remaining-acceptance). Acquisition retry and runtime credentials now have implementations, but neither closes its broader end-to-end gap. The separately deployed Domino HTTP/SSE/WS smoke is narrower than G07's recovery, identity and qualification gate.
 
 | Gap | Current implementation / consequence | Required next acceptance and owner |
 | --- | --- | --- |
@@ -283,6 +285,8 @@ These are separate from the 28 confirmed defects above. Several are accurately d
 | G08: immutable evidence throughout UI | Track/storyboard atomic revision tokens, saved-sheet graphic consumer completion and full public-source revision propagation still have handoffs recorded in the UI delivery note. Existing IDs/count checks cannot prove an atomic evidence snapshot. | Snyder + Bixler + Kori: publish/consume shared immutable revisions and test late updates without substituting current canvas or mixed track/storyboard evidence. [frontend/KORI_UI_DELIVERY.md:71](https://github.com/fleethacker/pier-review/blob/ac73e1fbf21a54efd029608cb140a306f69b4fa4/frontend/KORI_UI_DELIVERY.md#L71). |
 
 ## Acceptance gaps
+
+The T01–T03 descriptions below preserve the original audit. Added rich-session/endpoint regressions, browser camera identity evidence and explicit acquisition-cutoff tests are listed in [the remediation report](PRODUCT_AUDIT_REMEDIATION.md#remaining-acceptance). The scoped independent checks passed; G02 still requires real public acquisition through the browser. T04 remains a standing distinction between baseline checks and readiness.
 
 **T01 — High test gap: forcing equivalence tests select the legacy path.** [modeling/tests/test_s2_forcing.py:51](https://github.com/fleethacker/pier-review/blob/ac73e1fbf21a54efd029608cb140a306f69b4fa4/modeling/tests/test_s2_forcing.py#L51) constructs `Session` without `session_id`; production uses the separate rich-frame path in [modeling/modeling_api/sim_sessions.py:113](https://github.com/fleethacker/pier-review/blob/ac73e1fbf21a54efd029608cb140a306f69b4fa4/modeling/modeling_api/sim_sessions.py#L113). Parameterize both paths and assert availability, validity, provenance and geometry, plus one actual endpoint/WebSocket test with partial/expired forcing. F05/F25 were reproduced despite those tests.
 
@@ -300,7 +304,7 @@ These are separate from the 28 confirmed defects above. Several are accurately d
 4. **Finish numerical/display honesty:** F24–F26, with independent contact/geometry checks. Do not tune physical coefficients to make display tests pass.
 5. **Separate software release from operational qualification:** complete G01/G04/G07 with evidence appropriate to the intended operating envelope. A release candidate may be useful for explicitly supervised demonstration, but these findings do not support crew reliance for real docking.
 
-This sequence is the current remediation priority adopted by the master plan. Each implementation still needs its own scoped PR and review; this documentation change implements no fixes.
+This sequence remains the remediation priority adopted by the master plan. Implementations, independent review and final local checks are recorded in PR #32; its CI/merge state determines integration into `dev`. Record acceptance per finding rather than inferring closure from the branch or test total.
 
 ## Evidence and reproducibility
 

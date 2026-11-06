@@ -14,7 +14,7 @@ another vessel's state, so adding a vessel cannot change another's trajectory.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from mooring import refdata
@@ -38,7 +38,7 @@ from mooring.core.schemas import (
 )
 from mooring.core.store import DocStore, save_snapshot
 from mooring.loads import compute_loads
-from mooring.loads.validity import wind_basis
+from mooring.loads.validity import environment_findings, merge_reasons, wind_basis
 
 from . import coefficients as C
 from .autopilot import Autopilot
@@ -388,11 +388,11 @@ def predict_constant_commands(vt, env, horizon_s: float, rudder_deg: float, engi
     dt, every = effective_step(dt, sample_s)
     out = [(0.0, v.state_model(0.0))]
     rud = math.radians(rudder_deg)
-    for k in range(1, int(horizon_s / dt + 1e-9) + 1):
-        v.advance(v.t, dt, rud, engine_order, 0.0)
-        if k % every == 0:
+    for _, t, step_dt, emit in integration_schedule(horizon_s, dt, every):
+        v.advance(v.t, step_dt, rud, engine_order, 0.0)
+        if emit:
             v.wind = v.wind_wrench(v.s)
-            out.append((k * dt, v.state_model(k * dt)))
+            out.append((t, v.state_model(t)))
     return out
 
 
@@ -408,6 +408,8 @@ class Run:
     sample_s: float
     t_end: float
     dt_s: float = 0.0
+    environment_issues: list[tuple[str, ValidityReason]] = field(default_factory=list)
+    environment_spread: bool = False
 
 
 def prepare(req):
@@ -430,16 +432,39 @@ def effective_step(dt: float, sample: float) -> tuple[float, int]:
     return sample / every, every
 
 
+def integration_schedule(duration: float, dt: float, every: int):
+    """Shared fixed/forced clock: retain the final partial step and output, even below one sample interval."""
+    for k in range(1, math.ceil(duration / dt) + 1):
+        start, end = (k - 1) * dt, min(k * dt, duration)
+        if end > start:
+            yield k, end, min(dt, duration - start), k % every == 0 or end == duration
+
+
+def environment_evidence(env, *, at_utc=None):
+    """Validate at an optional simulation instant without changing the observation or its provenance.
+
+    The shared checker evaluates intervals at ``valid_at_utc``. A private validation view supplies the actual
+    simulation time; it is never used as forcing data, persisted, or returned as a retimestamped observation.
+    """
+    if env is None:
+        return []
+    checked = env if at_utc is None else env.model_copy(update={"valid_at_utc": at_utc})
+    findings = environment_findings(checked, use_gust=False)
+    if at_utc is not None:
+        for _, reason in findings:
+            if reason.code in {"ENVIRONMENT_OUTSIDE_VALID_INTERVAL", "ENVIRONMENT_COMPONENT_OUTSIDE_VALID_INTERVAL"}:
+                subject = ", ".join(reason.affected_components) or "environment"
+                reason.message = f"Simulation time {at_utc.isoformat()} is outside the declared validity interval for {subject}."
+    return findings + [("limited", reason) for reason in wind_basis(env, False).reasons]
+
+
 def run(req, job_id: str = "local", ctx=None) -> Run:
     plane, env, rho, vessels = prepare(req)
     sample = req.sample_interval_s or DEFAULT_SAMPLE_S
     dt, every = effective_step(req.dt_s, sample)
-    n_frames = int(math.floor(req.duration_s / sample + 1e-9))      # last frame at floor(duration/sample) x sample <= duration
-    nsteps = n_frames * every
     start = req.start_utc or EPOCH
 
-    def emit(k):
-        t = k * sample
+    def emit(t):
         for v in vessels:
             v.wind = v.wind_wrench(v.s)            # forces consistent with the reported state (also frame 0)
             st = v.state_model(t)
@@ -453,24 +478,35 @@ def run(req, job_id: str = "local", ctx=None) -> Run:
     frames: list[TransitFrame] = []
     emit(0)
     last = 0
-    for step in range(1, nsteps + 1):
+    for step, t, step_dt, report in integration_schedule(req.duration_s, dt, every):
         for v in vessels:
-            v.step(dt)
-        last = step
-        if step % every == 0:
-            emit(step // every)
+            v.step(step_dt)
+        last = t
+        if report:
+            emit(t)
             if all(v.invalid or v.status != "underway" for v in vessels):
                 break                               # everything finished: stop at a sample boundary, never between frames
         if step % 500 == 0 and ctx is not None:
             ctx.check_cancelled()
-            ctx.progress(step / nsteps, "Integrated simulation time")
+            ctx.progress(t / req.duration_s, "Integrated simulation time")
     return_run = Run(frames, sorted((e for v in vessels for e in v.events), key=lambda e: (e.t_s, e.vessel_id)),
-                     vessels, plane, start, req.start_utc is None, sample, last * dt)
+                     vessels, plane, start, req.start_utc is None, sample, last)
     return_run.dt_s = dt
     return return_run
 
 
 def validity_for(req, r: Run) -> Validity:
+    environmental = environment_evidence(req.environment) + r.environment_issues
+    if not r.synthetic_epoch:
+        # A held snapshot needs coverage of the actual run, not just validity at its observation timestamp.
+        for at in (r.start_utc, r.start_utc + timedelta(seconds=r.t_end)):
+            environmental.extend(environment_evidence(req.environment, at_utc=at))
+    elif req.environment and req.environment.metadata:
+        meta = req.environment.metadata
+        if any(item.valid_from_utc or item.valid_to_utc for item in [meta, *meta.components]):
+            environmental.append(("limited", ValidityReason(code="ENVIRONMENT_RUN_TIME_UNSPECIFIED", affected_components=["environment"],
+                message="No real simulation start UTC was supplied; environmental validity intervals cannot be checked against the synthetic track epoch.")))
+    invalid_environment = any(state == "invalid" for state, _ in environmental)
     reasons = [
         ValidityReason(code="TRANSIT_SURROGATE_MANEUVERING", message="Hull forces are Clarke et al. (1983) regression derivatives plus assumed "
                        "cross-flow drag and an MMG-style rudder; not identified or validated for any ship; not for navigation."),
@@ -479,6 +515,7 @@ def validity_for(req, r: Run) -> Validity:
         ValidityReason(code="DEEP_WATER_NO_SQUAT_OR_BANK", message="Deep water assumed: no squat, shallow-water, bank or channel effects, no under-keel clearance check."),
         ValidityReason(code="NO_SHIP_INTERACTION", message="Vessels share one clock but exert no forces on each other; no collision or passing-distance check."),
     ]
+    reasons.extend(reason for _, reason in environmental)
     if any(v.vt.mode == "tug_assisted" for v in r.vessels):
         reasons.append(ValidityReason(code="TUG_KINEMATICS_NOT_MODELED", message="Tugs are force sources at hull points; tug hulls, lines and "
                        "their motion are not simulated; reported tug positions are hull contact points."))
@@ -491,8 +528,8 @@ def validity_for(req, r: Run) -> Validity:
     if any(v.invalid for v in r.vessels):
         reasons.append(ValidityReason(code="TRANSIT_INTEGRATION_FAILED", message="A vessel's integration failed; its later output is not meaningful.",
                                       affected_components=[v.vt.vessel_id for v in r.vessels if v.invalid]))
-        return Validity(state="invalid", reasons=reasons)
-    return Validity(state="limited", reasons=reasons)
+        return Validity(state="invalid", reasons=merge_reasons(reasons))
+    return Validity(state="invalid" if invalid_environment else "limited", reasons=merge_reasons(reasons))
 
 
 def simulate_transit(req, job_id, base_path, ctx=None):

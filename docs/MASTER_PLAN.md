@@ -6,14 +6,17 @@ overnight logs' "next steps" and "tomorrow" sections, the expanded modeling plan
 conflicts with another document, this one wins. Detailed packet specifications stay where they are (see [Document map](#document-map)).
 
 **Current next steps — product audit, 5 November 2026:** the adversarial review of `dev` at `ac73e1f` found
-**28 open findings (14 High, 13 Medium, 1 Low)**, eight broader capability/workflow gaps and three test-design gaps.
+**28 findings (14 High, 13 Medium, 1 Low)**, eight broader capability/workflow gaps and three test-design gaps.
 [NEXT_STEPS.md](NEXT_STEPS.md) is this plan's detailed remediation ledger: stable F/G/T IDs, reproductions, pinned
 source references, named leads/reviewers and closure requirements. Fix result applicability, forecast continuity,
 physical validity and collision reporting before extending the affected workflows. Security, data-loss and
 persistence fixes can proceed in coordinated parallel lanes. The correction order and assignments in that ledger
 supersede older next-step/status claims below where they conflict; this master plan remains the planning authority.
-Every finding is open until its fix and independent acceptance evidence are recorded. Publishing this plan is not a fix
-or an operational-readiness approval; existing `limited`/synthetic labels remain required.
+**Current remediation state:** F01–F28 are resolved by `fix/product-audit-remediation` through source/contract commit
+`ea62351`. [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md) records independent review, real-browser
+workflow evidence, 2,815 passing Python tests and 1,066 passing frontend tests. CI/merge status belongs to [PR #32](https://github.com/fleethacker/pier-review/pull/32).
+Next work remains G01–G08 and the existing qualification/readiness gates. The initial separate Domino deployment
+used pre-remediation `dev` at `35e0111`; its smoke did not qualify either build for operational use.
 
 Originally written 5 November 2026 against `dev` at `e0e0fcf` (legacy PR #106).
 **Integration status updated 5 November 2026** against `dev` at `684db99`: provider PR #13 and exercise/UI PR #21 are merged.
@@ -108,7 +111,7 @@ Offshore waves remain evidence, not qualified berth forcing.
 
 | Remaining work | Lead and dependency |
 | --- | --- |
-| Product-audit findings F01–F28 and gaps G01–G08 | Start with the [next-steps execution ledger](NEXT_STEPS.md#execution-ledger); all findings open, with separate acceptance gaps T01–T04 |
+| Product-audit findings F01–F28 and gaps G01–G08 | Start with the [next-steps execution ledger](NEXT_STEPS.md#execution-ledger); F01–F28 resolved with independent review and local checks; PR #32 tracks CI/merge; G01–G08 open, with separate acceptance gaps T01–T04 |
 | Close remaining S5/S6 findings with independent evidence | Snyder backend/physics; Kori UI; [finding ledger](MODELING_BUILDOUT_STATUS.md#pr-10-review-disposition) |
 | S2/S3 cross-review and merge (PR #22); S7 state fidelity, berthing engine, hazard coverage and uncertainty gates | Snyder; S2/S3 implemented on #22 pending review; S7 engine/forcing handoff, D2/D8 as they land; retain current camera limits |
 | D1–D4 source acceptance and U3/U4 integration with merged provider contracts | Cruz source evidence; Kori/Bixler integration |
@@ -817,12 +820,15 @@ Bixler updates this table; everyone else posts in the team channel.
 
 ### Product-audit remediation
 
-Reviewed snapshot: `ac73e1f`, 5 November 2026. **F01–F28 are open**; the
+Reviewed snapshot: `ac73e1f`, 5 November 2026. **F01–F28 are resolved with independent review and final local checks passed**; the
 [execution ledger](NEXT_STEPS.md#execution-ledger) records each lead, independent reviewer and required closure evidence.
 The audit reproduced failures in already-merged features, including stale Safety reviews, dropped forecast/camera
 inputs, invalid physics presented as limited, missed contacts, lost drafts and failed persistence. Historical
-implementation rows below do not close those findings. Use [the correction sequence](NEXT_STEPS.md#correction-order-and-ownership)
-and retain G01–G08/T01–T04 as distinct capability and acceptance work.
+implementation rows below do not close those findings. [The remediation report](PRODUCT_AUDIT_REMEDIATION.md) maps each
+finding to commits and regressions, records the additional camera review fixes, and separates local evidence from the
+pre-remediation Domino deployment. Use [the correction sequence](NEXT_STEPS.md#correction-order-and-ownership)
+and retain G01–G08/T01–T04 as distinct capability and acceptance work. Final counts, review disposition and the integration
+PR must be recorded before closure; no operational qualification is implied.
 
 ### Requirements audit follow-up
 
@@ -869,7 +875,7 @@ resuming a packet; a merged feature with unresolved review findings is not accep
 | D5 refit/telemetry; D6 charts/UKC | Cruz | remaining | | Qualification policy, arbitration and source/datum/coverage evidence |
 | D8 own-ship state | Cruz | remaining | | State/age/quality contract; recorded fixtures are not a live vessel-state feed |
 | A1 integrated demo | Bixler | expanded on Bixler branch; combined gate remains | #7, #18 | Saved layouts, forecast handoff, S7 narration, scene/recording/speed/reconnect checks; [current evidence](BIXLER_IMPLEMENTATION.md) |
-| A2 hosting | Bixler | local preparation exists; actual target pending | #7, #18 | Target HTTP/SSE/WS and HTML/PDF evidence required |
+| A2 hosting | Bixler | separate private Domino demonstrator deployed at pre-remediation `35e0111`; broader gate open | #7, #18, #31 | [Target record](DEPLOYMENT_READINESS.md#a2-domino-demo-launch-and-rehearsal): UI/health, HTTP/SSE/WS and login-boundary smoke passed; remediation deployment, target restart/recovery, native PDF and clean-`main` release rehearsal remain |
 | A3 forecast binding | Bixler | supplied/scenario implementation on branch | | Logged canonical resolves through Intake/Planner/Safety/sheet; watch retains source and interval; D2 for public revision discovery |
 | A7 prediction narration | Bixler | deterministic API and local acceptance implemented on branch | | Immutable citations, central-path versus uncalibrated sample breaches, explicit uncovered hazards; camera UI consumption remains |
 | A4 release | Bixler | procedure/draft exist; milestone pending | | No release implied by #15/#17; deliberate `dev` → `main` gate |
@@ -899,6 +905,7 @@ A2 actual hosting and A4 release remain separate gates. This follow-up tests loc
 | --- | --- |
 | **Priorities, owners, sequence** | this file |
 | **Current product findings, next changes, repros and closure ledger** | [NEXT_STEPS.md](NEXT_STEPS.md) — F01–F28, G01–G08, T01–T04 |
+| Product-audit implementation, regression and acceptance record | [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md) |
 | Product roadmap and module list | [PLAN.md](PLAN.md) |
 | Packet definitions S00–S21 (implementation authority for modeling packet scope) | [MODELING_EXECUTION_PLAN.md](MODELING_EXECUTION_PLAN.md) |
 | What is implemented per packet, evidence and blockers | [MODELING_BUILDOUT_STATUS.md](MODELING_BUILDOUT_STATUS.md) |

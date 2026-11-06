@@ -1980,7 +1980,7 @@ components:
           - type: 'null'
           title: Side To
         horizon_hours:
-          type: integer
+          type: number
           title: Horizon Hours
         current:
           $ref: '#/components/schemas/EnvironmentSnapshot'
@@ -2089,9 +2089,9 @@ components:
           - type: 'null'
           title: Side To
         horizon_hours:
-          type: integer
+          type: number
           maximum: 120.0
-          minimum: 1.0
+          exclusiveMinimum: 0.0
           title: Horizon Hours
           default: 24
         env_scenario_id:

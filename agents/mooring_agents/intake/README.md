@@ -38,10 +38,10 @@ a Mooring Service Type (MST) assessment and the conditions to design for.
     - The MST assessment uses `mooring.rules.nstm582.MST_LIMITS` (NSTM Table 582-1-1).
     - Planning conditions: worst gust, strongest current, and now.
 3. **LLM layer:**
-    - Write `summary` for a bridge audience.
+    - Select two to four complete, code-written summary statements for a bridge audience.
     - Rank windows by operational impact (for example, a gust window during the planned berthing time).
-    - Explain data-quality issues.
-    - Optionally propose an extra planning condition, with a reason. The LLM may rank windows and append a forecast condition, but cannot delete or change any deterministic finding; the worst-gust planning condition stays first.
+    - Select code-written explanations of data-quality issues.
+    - Optionally select an extra forecast snapshot with its code-written reason. The LLM may rank windows and append a forecast condition, but cannot delete or change any deterministic finding; the worst-gust planning condition stays first.
 
 ## Guardrails
 
@@ -81,36 +81,46 @@ failures are logged without response payloads or credentials.
 The first summary sentence is always written by code: highest window severity (or
 no windows of concern), required MST, and whether that exceeds the ship's MST.
 Unknown ship MST is stated explicitly. The model returns a private JSON proposal,
-not an IntakeReport, with two to four further sentence templates, window impact
-scores, quality explanations, and at most one forecast index with a reason.
+not an IntakeReport, with two to four distinct `summary_statement_ids`, window
+impact scores, selected quality explanations, and at most one forecast index
+with a selected reason. `statements.summary` provides complete sentences; the
+application emits the selected sentences verbatim after the mandatory headline.
+The model cannot provide, prefix, suffix, negate or otherwise rewrite prose.
 
-Only weather wind/gust/current speeds, directions and water level; window start,
+Only typed weather wind/gust/current speeds, directions and water level; window start,
 end, peak, severity and kind; typed MST fields (not reason prose); and planning
-condition times may be referenced. Densities, observation age, data-quality
-internals, IDs, tool calls and other metadata are excluded. The same environmental
-allowlist applies to an extra planning snapshot. Code adds units (kt, °, ft, or
-the window's own peak unit) and formats UTC times as HH:MMZ DD Mon. The model may
-not write unit tokens, literal numbers, or common spelled-out quantities. It may
-not write severity/reassurance terms (RED, AMBER, GREEN, safe, calm, low risk,
-benign) or MST followed by Roman numerals outside fact references. These checks
-apply to summary sentences, quality explanations and extra-condition reasons.
-They constrain numerical provenance and risk language; they do not prove all
-possible semantic claims in generated prose.
+condition times may populate the code-written statements. Densities, observation
+age, data-quality internals, IDs, tool calls and other metadata are excluded from
+the fact catalog. Code adds units (kt, °, ft, or the window's own peak unit) and
+formats UTC times as HH:MMZ DD Mon. Statement IDs select whole meanings, not
+fragments around which the model can add claims. For example, both “The gust
+window is not {{/windows/0/severity}}” and “Moor immediately” are rejected, as are
+model-written units, density references and fabricated values. No model-authored
+prose is rendered in summary, data-quality detail or an extra condition's `why`.
 
 Every returned report sets `summary_source` to `llm` or `deterministic`.
 `narration_note` is null on success, or a sanitized fallback reason such as
-`provider timeout`, `guardrail: unit token` or `guardrail: fact reference`.
+`provider timeout`, `guardrail: invalid proposal` or `guardrail: statement selection`.
+Legacy free-prose proposals, including unit/risk/fact-reference attacks, now fail
+the strict private schema with `invalid proposal` before any rendering. Unknown,
+repeated or incorrectly bound statement IDs fail with `statement selection`.
 Both fields are optional for backward compatibility with older report payloads.
-The successful LLM source refers to the additional sentences; the first sentence
-is still owned by code. Fallback retains the deterministic summary after the
-same headline.
+The successful LLM source refers to selecting the additional statements; all
+rendered wording and the first sentence are owned by code. Fallback retains the
+deterministic summary after the same headline. Public request/response shapes
+are unchanged by this private proposal revision.
 
 Ranking sorts the original window objects stably by impact score; missing entries
-get zero impact and are never dropped. Quality explanations are appended to the
-original details; issue types, severities and station IDs stay intact. An optional
-condition copies the indexed snapshot from the same forecast fetched by the core,
-never from model-provided environment data. Existing conditions keep their order;
-duplicates are ignored. The whole proposal is validated before applying any part.
+get zero impact and are never dropped. A quality selection contains `issue_index`
+and its matching `quality-INDEX` statement ID; code appends that issue-specific
+explanation to the original details. Issue types, severities and station IDs stay
+intact. An optional condition contains `forecast_index` and its matching
+`forecast-INDEX` reason ID, which identifies the actual snapshot time and the
+purpose of comparison with existing planning conditions. It copies that snapshot
+from the usable forecast fetched by the core, never from model-provided
+environment data. Explanations/reasons cannot be transplanted to other indices.
+Existing conditions keep their order; duplicates are ignored. The whole proposal
+is validated atomically before any changed report is published.
 
 `mock.py` remains only as a compatibility re-export because Planner and Safety
 currently import its report store. Core, agent and compatibility imports share

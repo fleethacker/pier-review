@@ -161,9 +161,10 @@ export function ReportForm() {
         e.preventDefault();
         if (!time || !title.trim() || pairBad) return;
         const t = time.length === 16 ? `${time}:00Z` : `${time}Z`;
-        void c.addReport({ t_utc: t, title: title.trim(), body, ...(la != null && lo != null ? { lat: la, lon: lo } : {}), tags: [] }).then(() => {
-          setTitle('');
-          setBody('');
+        void c.addReport({ t_utc: t, title: title.trim(), body, ...(la != null && lo != null ? { lat: la, lon: lo } : {}), tags: [] }).then((saved) => {
+          if (!saved) return;
+          setTitle((current) => current === title ? '' : current);
+          setBody((current) => current === body ? '' : current);
         });
       }}
     >

@@ -101,6 +101,7 @@ export interface MissionsState {
   presets: TransitPreset[];
   presetId: string | null;
   request: TransitRequest | null;
+  completedRequest: TransitRequest | null;
   requestText: string;
   requestError: string | null;
   running: boolean;
@@ -124,6 +125,7 @@ export interface MissionsState {
   camSample: boolean;
   camError: string | null;
   camAtMs: number | null;
+  camInputTimeS: number | null;
 }
 
 const initial: MissionsState = {
@@ -143,6 +145,7 @@ const initial: MissionsState = {
   presets: [],
   presetId: null,
   request: null,
+  completedRequest: null,
   requestText: '',
   requestError: null,
   running: false,
@@ -164,6 +167,7 @@ const initial: MissionsState = {
   camSample: false,
   camError: null,
   camAtMs: null,
+  camInputTimeS: null,
 };
 
 export function prefersReducedMotion(): boolean {
@@ -229,6 +233,8 @@ export class MissionsController {
   readonly camThrottle = new PredictionThrottle();
   private looks = new Map<string, VesselLook>();
   private lengths = new Map<string, number>();
+  private dimensions = new Map<string, { length_ft: number; beam_ft: number }>();
+  private cameraGeneration = 0;
 
   constructor(private host: AppHost) {
     this.unsubScene = host.store.subscribe(() => {
@@ -253,6 +259,7 @@ export class MissionsController {
     this.missionAbort?.abort();
     this.missionGeneration++;
     this.pause();
+    this.invalidateCamera();
     this.abort?.abort();
     this.camThrottle.cancel();
     this.unsubScene();
@@ -515,15 +522,17 @@ export class MissionsController {
     }
   }
 
-  async addReport(r: ReportCreate): Promise<void> {
+  async addReport(r: ReportCreate): Promise<boolean> {
     const generation = this.missionGeneration;
     const id = this.state.missionId;
-    if (!id) return;
+    if (!id) return false;
     const out = await this.guard('Adding report', () => missionsApi.addReport(id, r));
     if (out && this.missionUnchanged(generation, id)) {
       this.store.setState({ notice: 'Report added.' });
       await this.reload();
+      return true;
     }
+    return false;
   }
 
   // ---- transit ----
@@ -578,9 +587,10 @@ export class MissionsController {
   }
 
   async run(): Promise<void> {
-    const req = this.state.request;
+    const req = this.state.request ? structuredClone(this.state.request) : null;
     if (!req || this.state.requestError || this.state.running) return;
     this.pause();
+    this.invalidateCamera();
     this.abort?.abort();
     this.abort = new AbortController();
     this.store.setState({
@@ -589,6 +599,7 @@ export class MissionsController {
       transitError: null,
       transitNotice: null,
       response: null,
+      completedRequest: null,
       series: null,
       vessels: [],
     });
@@ -610,11 +621,11 @@ export class MissionsController {
           this.store.setState({ sampleTransit: true });
           response = sampleResponse;
           series = sampleSeries;
-          return this.finishRun(response, series);
+          return this.finishRun(response, series, samplePreset.request);
         }
         series = await missionsApi.series(response.result.series_url);
       }
-      this.finishRun(response, series);
+      this.finishRun(response, series, this.state.sampleTransit ? samplePreset.request : req);
     } catch (e) {
       this.store.setState({ transitError: describeError(e) });
     } finally {
@@ -622,9 +633,10 @@ export class MissionsController {
     }
   }
 
-  private finishRun(response: TransitResponse, series: TransitSeries): void {
+  private finishRun(response: TransitResponse, series: TransitSeries, request: TransitRequest): void {
     this.store.setState({
       response,
+      completedRequest: structuredClone(request),
       series,
       clock: { t: 0, playing: false, speed: this.state.clock.speed },
       selectedVesselId: series.frames[0]?.vessels[0]?.vessel_id ?? null,
@@ -654,8 +666,11 @@ export class MissionsController {
             headers: authHeaders(),
           });
           if (!res.ok) return;
-          const loa = ((await res.json()) as { loa_ft?: number }).loa_ft;
+          const ship = (await res.json()) as { loa_ft?: number; beam_ft?: number };
+          const loa = ship.loa_ft;
           if (typeof loa === 'number' && loa > 0) this.lengths.set(id, loa * 0.3048);
+          if (typeof loa === 'number' && loa > 0 && typeof ship.beam_ft === 'number' && ship.beam_ft > 0)
+            this.dimensions.set(id, { length_ft: loa, beam_ft: ship.beam_ft });
         } catch {
           /* keep the fixed glyph */
         }
@@ -672,19 +687,21 @@ export class MissionsController {
       ]),
     );
     this.pushTransit();
+    if (this.camActive() && this.state.camSource === 'transit') void this.requestCamera(true);
   }
 
-  private updateVessels(): void {
+  private updateVessels(forceCamera = false): void {
     const series = this.state.series;
     this.store.setState({ vessels: series ? stateAt(series.frames, this.state.clock.t) : [] });
     this.pushTransit();
-    if (this.camActive() && this.state.camSource === 'transit') void this.requestCamera(false);
+    if (this.camActive() && this.state.camSource === 'transit') void this.requestCamera(forceCamera);
   }
 
   setPlayhead(t: number): void {
+    if (this.state.camSource === 'transit') this.invalidateCamera();
     const end = this.series() ? endTime(this.series()!.frames) : 0;
     this.store.setState({ clock: { ...this.state.clock, t: Math.min(end, Math.max(0, t)) } });
-    this.updateVessels();
+    this.updateVessels(true);
   }
 
   setSpeed(speed: number): void {
@@ -700,6 +717,7 @@ export class MissionsController {
     if (!series || this.timer) return;
     const end = endTime(series.frames);
     const c = this.state.clock;
+    if (c.t >= end) this.setPlayhead(0);
     this.store.setState({ clock: { ...c, t: c.t >= end ? 0 : c.t, playing: true } });
     this.lastTick = Date.now();
     // Reduced motion: step once a second instead of animating smoothly.
@@ -707,10 +725,15 @@ export class MissionsController {
   }
 
   pause(): void {
+    const wasPlaying = this.state.clock.playing;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     if (this.state.clock.playing)
       this.store.setState({ clock: { ...this.state.clock, playing: false } });
+    if (wasPlaying && this.camActive() && this.state.camSource === 'transit') {
+      this.invalidateCamera();
+      void this.requestCamera(true);
+    }
   }
 
   private tick(): void {
@@ -720,14 +743,19 @@ export class MissionsController {
     const dt = (now - this.lastTick) / 1000;
     this.lastTick = now;
     const next = advanceClock(this.state.clock, dt, endTime(series.frames));
+    if (!next.playing && this.state.camSource === 'transit') this.invalidateCamera();
     this.store.setState({ clock: next });
-    this.updateVessels();
+    this.updateVessels(!next.playing);
     if (!next.playing) this.pause();
   }
 
   selectVessel(id: string): void {
+    if (id === this.state.selectedVesselId) return;
+    if (this.state.camSource === 'transit') this.invalidateCamera();
     this.store.setState({ selectedVesselId: id });
     this.followCamera(this.followTargets(this.state.vessels));
+    this.pushTransit();
+    if (this.camActive() && this.state.camSource === 'transit') void this.requestCamera(true);
   }
 
   /** Jump to a transit event. */
@@ -870,13 +898,22 @@ export class MissionsController {
     }
   }
 
+  private invalidateCamera(): void {
+    this.cameraGeneration++;
+    this.camThrottle.cancel();
+    this.store.setState({ camResult: null, camAtMs: null, camInputTimeS: null, camError: null, camSample: false });
+    this.host.store.replaceEntitiesOfKind(CAMERA_ALL_KINDS, []);
+  }
+
   setCamSource(src: 'transit' | 'preset'): void {
+    this.invalidateCamera();
     this.store.setState({ camSource: src, camResult: null, camSample: false, camError: null });
     this.renderScene();
     void this.requestCamera(true);
   }
 
   setCamPreset(id: string): void {
+    this.invalidateCamera();
     this.store.setState({ camPresetId: id });
     if (this.state.camSource === 'preset') {
       this.renderScene();
@@ -885,6 +922,7 @@ export class MissionsController {
   }
 
   setWhatIf(id: string | null): void {
+    this.invalidateCamera();
     this.store.setState({ camWhatIf: id });
     void this.requestCamera(true);
   }
@@ -898,41 +936,83 @@ export class MissionsController {
     }
     const v = st.vessels.find((x) => x.vessel_id === st.selectedVesselId) ?? st.vessels[0];
     if (!v || !st.series) return null;
-    const cls =
-      st.response?.result.vessels.find((x) => x.vessel_id === v.vessel_id)?.ship_class_id ??
-      'DDG-51-FIIA';
+    const input = st.completedRequest;
+    const vesselInput = input?.vessels.find((item) => item.vessel_id === v.vessel_id);
+    const cls = st.response?.result.vessels.find((x) => x.vessel_id === v.vessel_id)?.ship_class_id;
+    if (!cls || !input || !vesselInput) return null;
     const { i0 } = bracket(st.series.frames, st.clock.t);
-    const tUtc = st.series.frames[i0]?.t_utc;
-    const observed = tUtc ?? new Date().toISOString();
-    return buildPredictionRequest(
-      toObservedState(v, cls, observed, st.response?.result_id ?? 'transit'),
-      { whatIfId: st.camWhatIf },
-    );
+    const frame = st.series.frames[i0];
+    const trackStart = st.response?.result.vessels.find((item) => item.vessel_id === v.vessel_id)?.track[0]?.t_utc;
+    // Missing run UTC uses the response's explicitly synthetic track epoch, never today's wall clock.
+    const epoch = frame?.t_utc ? Date.parse(frame.t_utc) - frame.t_s * 1000 : input.start_utc ? Date.parse(input.start_utc)
+      : trackStart ? Date.parse(trackStart) - st.series.frames[0].t_s * 1000 : NaN;
+    if (!Number.isFinite(epoch)) return null;
+    const observed = new Date(epoch + st.clock.t * 1000).toISOString();
+    const others: NonNullable<PredictionRequest['others']> = [];
+    for (const other of st.vessels.filter((item) => item.vessel_id !== v.vessel_id)) {
+      const otherClass = st.response?.result.vessels.find((item) => item.vessel_id === other.vessel_id)?.ship_class_id;
+      const dims = otherClass ? this.dimensions.get(otherClass) : null;
+      // Omit neither known traffic nor its size: wait until catalog dimensions are available.
+      if (!dims) return null;
+      const fix = (item: TransitVesselState, t: number): TrackFix => ({ t_utc: new Date(epoch + t * 1000).toISOString(),
+        lat: item.lat, lon: item.lon, heading_true_deg: item.heading_true_deg, quality: 'unknown', source: `sim:${st.response?.result_id}` });
+      const path = [fix(other, st.clock.t)];
+      for (const f of st.series.frames) {
+        if (f.t_s <= st.clock.t || f.t_s > st.clock.t + 300) continue;
+        const item = f.vessels.find((entry) => entry.vessel_id === other.vessel_id);
+        if (item) path.push(fix(item, f.t_s));
+      }
+      const horizonEnd = st.clock.t + 300;
+      if (endTime(st.series.frames) >= horizonEnd && path.at(-1)?.t_utc !== new Date(epoch + horizonEnd * 1000).toISOString()) {
+        const end = stateAt(st.series.frames, horizonEnd).find((item) => item.vessel_id === other.vessel_id);
+        if (end) path.push(fix(end, horizonEnd)); // interpolate only inside the recorded series
+      }
+      others.push({ vessel_id: other.vessel_id, ...dims, path });
+    }
+    const request = buildPredictionRequest(toObservedState(v, cls, observed, st.response?.result_id ?? 'transit'), { whatIfId: st.camWhatIf });
+    request.vessel.loading = vesselInput.loading;
+    request.environment = input.environment ? structuredClone(input.environment) : null;
+    request.others = others;
+    return request;
   }
 
   /** At most one request per second, one in flight (older ones are dropped, never queued); `force` cancels and restarts. */
   async requestCamera(force: boolean): Promise<void> {
     const req = this.buildCameraRequest();
-    if (!req || this.disposed) return;
+    if (this.disposed) return;
+    if (!req) {
+      this.store.setState({ camError: 'Prediction needs the completed run inputs, UTC epoch and catalog dimensions for every other vessel.', camResult: null });
+      return;
+    }
+    const inputTimeS = this.state.camSource === 'transit' ? this.state.clock.t : null;
+    const generation = this.cameraGeneration;
+    const sourceIdentity = () => JSON.stringify(this.state.camSource === 'preset'
+      ? ['preset', this.state.camPresetId, this.state.camWhatIf]
+      : ['transit', this.state.selectedVesselId, this.state.camWhatIf, this.state.response?.result_id]);
+    const identity = sourceIdentity();
+    const current = () => !this.disposed && generation === this.cameraGeneration && identity === sourceIdentity();
     try {
       const r = await this.camThrottle.run((signal) => postPrediction(req, signal), force);
-      if (!r.ran || r.aborted || !r.value || this.disposed) return;
+      if (!r.ran || r.aborted || !r.value || !current()) return;
+      if (r.value.result.vessel_id !== req.vessel.vessel_id || Date.parse(r.value.result.as_of_utc) !== Date.parse(req.as_of_utc!))
+        throw new Error('Prediction response belongs to a different vessel or input time.');
       this.store.setState({
         camResult: r.value,
+        camInputTimeS: inputTimeS,
         camSample: false,
         camError: null,
         camAtMs: Date.now(),
       });
     } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError') return;
-      if (isUnavailable(e))
+      if (!current() || (e instanceof Error && e.name === 'AbortError')) return;
+      if (isUnavailable(e) && this.state.camSource === 'preset')
         this.store.setState({
           camResult: samplePrediction,
           camSample: true,
           camError: null,
           camAtMs: Date.now(),
         });
-      else this.store.setState({ camError: describeError(e) });
+      else this.store.setState({ camError: describeError(e), camResult: null });
     }
     if (this.disposed) return;
     if (this.state.tab === 'camera' && (this.state.camSource === 'preset' || !this.state.series))

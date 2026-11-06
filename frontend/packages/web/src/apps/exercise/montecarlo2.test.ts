@@ -245,3 +245,13 @@ describe('exporting results', () => {
     expect(reportHtml(s, spec(), b)).not.toContain('Change vs baseline');
   });
 });
+
+describe('CSV text safety (F27)', () => {
+  it.each(['=1+1', '+SUM(1)', '-1+2', '@SUM(1)', '\tformula', '\rformula', '  =1+1'])('neutralizes untrusted label %j while preserving numerical columns', async (label) => {
+    const res = await runMonteCarlo(base(), spec({ runs: 1, outcomes: [{ id: 'q', label, type: 'hit', unitId: 'tgt' }] }), { workers: 0 });
+    const exported = resultCsv(res);
+    expect(exported).toContain(`'${label}`);
+    expect(exported).toContain(`,${res.groups[0].outcomes[0].hits},1,`);
+    expect(exported).toContain(res.groups[0].outcomes[0].p.toFixed(5));
+  });
+});

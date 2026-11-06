@@ -291,13 +291,16 @@ class BerthingModel:
         return abs(s[3]*math.sin(s[2])+s[4]*math.cos(s[2]))
 
     def track_contact(self, s, before=None):
-        """`before` is the state at the start of the step; its speed is the approach speed at first contact."""
+        """First-contact normal speed includes rotation at the fender, using the preceding state."""
         for fr,d,_ in self.system.fender_loads(self.body.pose(s)):
             energy = fr.model.energy(d)
             over = fr.model.rated_energy_ftlbf is not None and energy > fr.model.rated_energy_ftlbf
             if d > 0:
                 # Report the speed at impact, not at peak compression (where the body is nearly stopped).
-                self.impact_speed.setdefault(fr.model.fender_id, self.lateral_speed(before if before is not None else s))
+                previous = before if before is not None else s
+                normal_velocity = (previous[3]*math.sin(previous[2]) + previous[4]*math.cos(previous[2])
+                                   + previous[5]*(fr.model.x_ft-previous[0]))
+                self.impact_speed.setdefault(fr.model.fender_id, abs(normal_velocity))
                 contact = ContactSummary(lateral_speed_fps=self.impact_speed[fr.model.fender_id],
                     energy_ftlbf=energy, fender_id=fr.model.fender_id,
                     pct_rated=100*energy/fr.model.rated_energy_ftlbf if fr.model.rated_energy_ftlbf else 0,

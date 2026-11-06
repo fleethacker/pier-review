@@ -443,3 +443,48 @@ def test_handler_cancellation_joins_session_operations_before_releasing_owner(
                 await asyncio.gather(task, return_exceptions=True)
 
     asyncio.run(exercise())
+
+
+def test_failed_disconnect_save_is_retained_then_retried_before_cross_owner_expiry(setup, fake_rich, monkeypatch):
+    """TTL cannot discard dirty evidence, and another creator must not become its owner."""
+    from mooring.core.jobs import JobQueueFull
+    database = store.Database(':memory:')
+    monkeypatch.setattr(store, '_db', database)
+    monkeypatch.setenv('MOORING_MAX_SESSIONS', '1')
+    monkeypatch.setenv('MOORING_SESSION_IDLE_S', '1')
+    original = sim_sessions.store_recording_json
+    broken = True
+
+    def save(*args):
+        if broken:
+            raise OSError('temporary disk failure')
+        return original(*args)
+
+    monkeypatch.setattr(sim_sessions, 'store_recording_json', save)
+    clock = Clock()
+    try:
+        with owner('alice'):
+            access.claim('session', 'dirty-expiry')
+            session = make(setup, clock, 'dirty-expiry')
+            session.attach('controller')
+            session.detach('controller')
+            assert session.rec_dirty
+        sessions = {session.session_id: session}
+        monkeypatch.setattr(sim_sessions.time, 'monotonic', lambda: 10)
+        with owner('bob'):
+            with pytest.raises(JobQueueFull):
+                sim_sessions.create(sessions, 'blocked', session.model)
+            assert list(sessions) == ['dirty-expiry']
+            broken = False
+            sim_sessions.create(sessions, 'new-session', session.model)
+            assert list(sessions) == ['new-session']
+            assert access.principal.get() == 'bob'
+            assert not access.allowed(sim_sessions.RECORDINGS.namespace, 'dirty-expiry')
+        with owner('alice'):
+            saved = sim_sessions.RECORDINGS['dirty-expiry']
+            assert saved.lifecycle[-1].state == 'paused'
+            assert sim_sessions.RECORDING_INDEX['dirty-expiry'].frame_count == len(saved.frames)
+            assert sim_sessions.SCENES['dirty-expiry'].scene_id == saved.scene_id
+        assert not session.rec_dirty
+    finally:
+        database.close()

@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from modeling_api.main import app
 from mooring import environment
-from mooring.core.schemas import ComposedForecastRequest, EnvScenarioCreate
+from mooring.core.schemas import ComposedForecast, ComposedForecastRequest, EnvScenarioCreate
 from mooring.core.schemas.forecast_planning import ForecastDockingRequest
 from mooring.demo_cases import docking_cases
 from mooring.environment import composed_forecast
@@ -310,6 +310,43 @@ def test_prediction_retrieved_after_as_of_is_unavailable_not_backdated():
     assert by_component["current"].availability.state == "unavailable"
     assert by_component["water_level"].availability.state == "unavailable"
     assert "after as_of_utc" in by_component["current"].availability.reason
+    for name in ("current", "water_level"):
+        assert by_component[name].availability.retrieved_at_utc == AS_OF + timedelta(minutes=1)
+        assert by_component[name].points == []
+
+
+def test_explicit_retrieval_cutoff_retry_reuses_acquisition_with_an_advancing_clock():
+    clock = [AS_OF]
+    calls = []
+    transport = prediction_transport()
+
+    class FixedNWS(FixtureNWS):
+        def forecast(self, latitude, longitude, *, as_of, hours):
+            # One provider publication has fixed periods; changing the caller's
+            # cutoff must not shift the fixture's forecast issuance or grid.
+            return super().forecast(latitude, longitude, as_of=AS_OF, hours=hours + 1)
+
+    def delayed(url, params, timeout):
+        calls.append(params["product"])
+        clock[0] += timedelta(milliseconds=20)
+        return transport(url, params, timeout)
+
+    fetcher = Fetcher(delayed, clock=lambda: clock[0], sleep=lambda _: None, retries=0, min_interval_s=0)
+    fixture = ForecastComposer(nws=FixedNWS(), coops_fetcher=fetcher, clock=lambda: clock[0])
+    first = fixture.compose(request())
+    assert first.manifest.status == "partial" and first.snapshots == []
+    retrievals = [item.availability.retrieved_at_utc for item in first.manifest.components
+                  if item.availability.retrieved_at_utc is not None]
+    assert retrievals == [AS_OF + timedelta(milliseconds=20), AS_OF + timedelta(milliseconds=40)]
+    # The caller explicitly adopts the actual acquisition cutoff. A request made
+    # with the original cutoff must continue to reject those same cached values.
+    clock[0] += timedelta(seconds=1)
+    assert fixture.compose(request()).manifest.status == "partial"
+    retry = fixture.compose(request(as_of_utc=max(retrievals)))
+    assert retry.manifest.status == "complete" and len(calls) == 2
+    again = fixture.compose(request(as_of_utc=max(retrievals)))
+    assert again.model_dump(mode="json") == retry.model_dump(mode="json")
+    assert len(calls) == 2
 
 
 def test_exact_applicable_cbofs_cache_is_used_without_native_access_in_api_worker(tmp_path):
@@ -371,3 +408,78 @@ def test_recorded_observation_scenario_cannot_be_promoted_to_forecast():
     ))
     with pytest.raises(ProviderError, match="cannot be promoted"):
         composer().compose(request(source={"mode": "scenario", "env_scenario_id": scenario.env_scenario_id}))
+
+
+@pytest.mark.parametrize("replay_source", ["synthetic", "recorded_fixture"])
+def test_replay_composition_retimes_training_and_preserves_original_provenance(replay_source):
+    archive_start = datetime(2026, 3, 1, 12, tzinfo=UTC)
+    scenario = environment.create_scenario(EnvScenarioCreate(
+        name="finite training replay", kind="replay", replay_source=replay_source,
+        replay_start_utc=archive_start, replay_end_utc=archive_start + timedelta(hours=1),
+    ))
+    req = request(
+        source={"mode": "scenario", "env_scenario_id": scenario.env_scenario_id},
+        as_of_utc=scenario.created_at_utc, horizon_start_utc=scenario.created_at_utc,
+        horizon_end_utc=scenario.created_at_utc + timedelta(hours=1), step_min=15,
+    )
+    composed_forecast.configure(composer())
+    client = TestClient(app)
+    response = client.post("/api/v1/env/forecast/compose", json=req.model_dump(mode="json"))
+    assert response.status_code == 200, response.text
+    result = ComposedForecast.model_validate(response.json())
+    assert result.manifest.status == "complete"
+    assert len(result.snapshots) == 5
+    for index, item in enumerate(result.snapshots):
+        assert item.valid_at_utc == scenario.created_at_utc + timedelta(minutes=15 * index)
+        assert item.source == "scenario" and item.metadata.basis == "scenario"
+        original = json.loads(item.metadata.original["original_snapshot_json"])
+        archive_time = archive_start + timedelta(minutes=15 * index)
+        assert original["valid_at_utc"] == archive_time.isoformat().replace("+00:00", "Z")
+        assert item.metadata.original["replay_source"] == replay_source
+        if original.get("metadata") and original["metadata"]["valid_to_utc"]:
+            old_end = datetime.fromisoformat(original["metadata"]["valid_to_utc"].replace("Z", "+00:00"))
+            assert item.metadata.valid_to_utc <= old_end + (scenario.created_at_utc - archive_start)
+    again = client.post("/api/v1/env/forecast/compose", json=req.model_dump(mode="json"))
+    assert again.json() == response.json()
+    canonical = client.post("/api/v1/mooring/forecast/resolve", json={
+        "berth_id": BERTH, "as_of_utc": scenario.created_at_utc.isoformat(),
+        "from_utc": req.horizon_start_utc.isoformat(), "to_utc": req.horizon_end_utc.isoformat(),
+        "step_min": 15, "max_gap_min": 15,
+        "forecast_binding": {"source": "scenario", "env_scenario_id": scenario.env_scenario_id},
+    })
+    assert canonical.status_code == 200, canonical.text
+    canonical_samples = canonical.json()["result"]["series"]
+    assert [item["valid_at_utc"] for item in canonical_samples] == [item["valid_at_utc"] for item in response.json()["snapshots"]]
+    assert [item["metadata"]["original"]["original_snapshot_hash"] for item in canonical_samples] == [
+        item.metadata.original["original_snapshot_hash"] for item in result.snapshots]
+    exhausted = req.model_copy(update={"horizon_end_utc": req.horizon_end_utc + timedelta(minutes=15)})
+    end = client.post("/api/v1/env/forecast/compose", json=exhausted.model_dump(mode="json"))
+    assert end.status_code == 200, end.text
+    assert end.json()["manifest"]["status"] == "unavailable" and end.json()["snapshots"] == []
+    assert "exhausted" in end.json()["manifest"]["components"][0]["availability"]["reason"]
+
+
+def test_composer_keeps_its_full_bounded_scenario_grid():
+    scenario = environment.create_scenario(EnvScenarioCreate(name="full grid", kind="steady"))
+    result = composer().compose(request(
+        source={"mode": "scenario", "env_scenario_id": scenario.env_scenario_id},
+        as_of_utc=scenario.created_at_utc, horizon_start_utc=scenario.created_at_utc,
+        horizon_end_utc=scenario.created_at_utc + timedelta(hours=120), step_min=6,
+    ))
+    assert result.manifest.status == "complete" and len(result.snapshots) == 1201
+
+
+def test_negative_ramp_target_is_rejected_before_storage_and_zero_is_sampleable():
+    client = TestClient(app)
+    payload = {"name": "ramp", "kind": "ramp", "wind_speed_kt": 10,
+               "ramp_to_wind_kt": -1, "ramp_minutes": 30}
+    rejected = client.post("/api/v1/env/scenarios", json=payload)
+    assert rejected.status_code == 422
+    assert any(error["loc"][-1] == "ramp_to_wind_kt" for error in rejected.json()["detail"])
+    payload["ramp_to_wind_kt"] = 0
+    accepted = client.post("/api/v1/env/scenarios", json=payload)
+    assert accepted.status_code == 201
+    scenario = environment.get_scenario(accepted.json()["env_scenario_id"])
+    snapshots = [environment.scenario_snapshot(scenario.env_scenario_id, scenario.created_at_utc + timedelta(minutes=minutes))
+                 for minutes in (0, 30, 60)]
+    assert [item.wind_speed_kt for item in snapshots] == [10, 0, 0]

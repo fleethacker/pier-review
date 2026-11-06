@@ -71,13 +71,14 @@ def solve_request(req: AnalyzeRequest, *, start: Pose = Pose(), force_rel_tol: f
     return system, solution, specs
 
 
-def _validity(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs, load_findings, basis) -> Validity:
+def _validity(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs, load_findings, basis, *, include_nonconvergence=True) -> Validity:
     invalid: list[ValidityReason] = []
     limited: list[ValidityReason] = []
     # numerical
     if not sol.converged:
-        invalid.append(ValidityReason(code="NO_EQUILIBRIUM_FOUND", affected_components=sol.active_bounds or ["pose"],
-                                      message=f"{sol.failure}. This is a numerical outcome, not a proof that no equilibrium exists."))
+        if include_nonconvergence:
+            invalid.append(ValidityReason(code="NO_EQUILIBRIUM_FOUND", affected_components=sol.active_bounds or ["pose"],
+                                          message=f"{sol.failure}. This is a numerical outcome, not a proof that no equilibrium exists."))
     elif sol.rank < 3:
         limited.append(ValidityReason(code="UNDERCONSTRAINED_SUPPORT", affected_components=["pose"],
                                       message=f"Support stiffness has rank {sol.rank} of 3: the equilibrium is not unique (some motions are unrestrained)."))

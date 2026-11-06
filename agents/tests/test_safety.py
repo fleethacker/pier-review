@@ -42,17 +42,15 @@ def safety_review(**updates):
     return SafetyReview(**(values | updates))
 
 
-def test_guarded_brief_uses_only_fact_references(monkeypatch):
-    proposal = {"sentences": [
-        "The governing element is {{/thresholds/governing_element}} at {{/thresholds/limit_wll_gust_kt}}.",
-        "Watch the forecast maximum of {{/thresholds/forecast_max_gust_kt}}.",
-        "Act if the {{/checks/5/title}} result changes from {{/checks/5/severity}}.",
-    ]}
+def test_guarded_brief_uses_complete_code_owned_statements(monkeypatch):
+    proposal = {"statement_ids": ["governing", "working_limit", "forecast"]}
     monkeypatch.setattr(llm, "get_llm", lambda: FakeLLM(proposal))
     result = asyncio.run(agent._narrate(safety_review()))
     assert result.summary_source == "llm" and result.narration_note is None
-    assert result.brief == ("The governing element is line-2 at 50.0 kt. Watch the forecast maximum of 42.0 kt. "
-                            "Act if the Check 5 result changes from AMBER.")
+    assert result.brief == ("Review status is AMBER; verdict is ready for signature. "
+                           "Check 5: failed (AMBER). Check detail 5. "
+                           "The governing element is line-2. The working-load gust limit is 50.0 kt. "
+                           "The assessed forecast maximum gust is 42.0 kt.")
     assert result.summary.startswith("Verdict: ready for signature;") and result.summary.endswith(result.brief)
 
 
@@ -62,7 +60,38 @@ def test_guarded_brief_rejects_model_authored_number_and_unit(monkeypatch):
     baseline = safety_review()
     result = asyncio.run(agent._narrate(baseline))
     assert result.brief is None and result.summary == baseline.summary
-    assert result.summary_source == "deterministic" and result.narration_note == "guardrail: numeric literal"
+    assert result.summary_source == "deterministic" and result.narration_note == "guardrail: invalid proposal"
+
+
+@pytest.mark.parametrize("sentences", [
+    ["The status is not {{/status}}.", "Disregard the {{/verdict}} verdict.", "Moor immediately."],
+    ["The failed check can be ignored.", "All operations may continue."],
+])
+def test_safety_rejects_model_authored_predicates_and_instructions(monkeypatch, sentences):
+    monkeypatch.setattr(llm, "get_llm", lambda: FakeLLM({"sentences": sentences}))
+    baseline = safety_review(status="RED", verdict="reject", summary="Review status RED; reject.")
+    result = asyncio.run(agent._narrate(baseline))
+    assert result.brief is None and result.summary == baseline.summary
+    assert result.status == "RED" and result.verdict == "reject"
+    assert result.summary_source == "deterministic" and result.narration_note == "guardrail: invalid proposal"
+
+
+@pytest.mark.parametrize("selection", [["forecast", "Moor immediately."], ["forecast", "forecast"]])
+def test_safety_rejects_unknown_or_repeated_statement_ids(monkeypatch, selection):
+    monkeypatch.setattr(llm, "get_llm", lambda: FakeLLM({"statement_ids": selection}))
+    baseline = safety_review()
+    result = asyncio.run(agent._narrate(baseline))
+    assert result.brief is None and result.summary == baseline.summary
+    assert result.narration_note == "guardrail: statement selection"
+
+
+def test_model_cannot_omit_rejection_or_failed_checks(monkeypatch):
+    monkeypatch.setattr(llm, "get_llm", lambda: FakeLLM({"statement_ids": ["check-0", "check-1"]}))
+    baseline = safety_review(status="RED", verdict="reject", summary="Review status RED; reject.")
+    result = asyncio.run(agent._narrate(baseline))
+    assert result.brief.startswith("Review status is RED; verdict is reject. Check 5: failed (AMBER).")
+    assert result.brief.count("Check 5: failed") == 1
+    assert result.status == baseline.status and result.verdict == baseline.verdict
 
 
 class FakeClient:

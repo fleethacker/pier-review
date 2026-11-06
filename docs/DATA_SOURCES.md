@@ -41,6 +41,21 @@ gusts, late retrieval, stale cache, gaps, depth mismatch and provider outages pr
 Only aligned, fully populated prediction times are emitted as `EnvironmentSnapshot`s. The legacy forecast GET remains
 synthetic and works only in explicit mock mode.
 
+When a CO-OPS prediction is first retrieved after the selected as-of cutoff, its component remains unavailable
+with no prediction points. `availability.retrieved_at_utc` records that retrieval completion separately from the
+reason text. A caller may explicitly select the latest reported retrieval time as a new cutoff and retry the same
+source/horizon/depth/bin request. The fresh provider cache then reuses the original bytes and retrieval times; the
+service never advances the cutoff, backdates availability or extends forecast coverage automatically. Retrieval
+still does not establish issue time or freshness. Provider caches retain at most 128 entries and 32 MiB of wire
+bytes per client by default, evict least-recently-used entries under pressure, and remove entries beyond their
+fresh/stale retention period. Only retained entries within `max_stale_s` can provide a labeled stale fallback;
+the forecast composer continues to reject that fallback as forecast forcing.
+
+Explicit scenario composition uses the canonical training sampler. Synthetic and recorded-fixture replays shift
+archive time to the scenario clock, retain the original normalized snapshot and hash, and never extend a source
+validity interval or loop past the declared replay end. The result remains scenario/training data, not public
+guidance. Recorded-real observations cannot be promoted into the public forecast composer.
+
 `POST /api/v1/env/waves/compose` independently acquires NDBC 44099 observations and a 44014 comparison, and reads a
 validated decoded GFS-Wave artifact when one is configured. Each role can fail without zero-filling or changing another
 role. Total sea, provider partitions and native spectra remain alternative representations. Every output is labeled

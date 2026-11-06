@@ -108,11 +108,15 @@ def install(monkeypatch, proposal):
 
 
 def proposal(**updates):
-    return dict(summary_sentences=[
-        "Gusts reach {{/planning_conditions/0/environment/wind_gust_kt}}.",
-        "The peak occurs at {{/planning_conditions/0/environment/valid_at_utc}}.",
-        "Prepare the mooring plan for MST {{/mst/mst_required}} conditions and verify the stale observations.",
-    ], window_priorities=[], data_quality_explanations=[], extra_condition=None) | updates
+    return dict(summary_statement_ids=["peak-gust", "peak-time", "mooring-review"],
+                window_priorities=[], data_quality_explanations=[], extra_condition=None) | updates
+
+
+def prose_proposal(sentence):
+    """Old private prose proposals must now be rejected before any rendering."""
+    data = proposal()
+    del data["summary_statement_ids"]
+    return data | {"summary_sentences": [sentence, "Review the forecast before planning."]}
 
 
 def _without_additive_nulls(value):
@@ -163,12 +167,12 @@ def test_safe_narration_rank_ties_and_forecast_selection(monkeypatch):
     n = len(baseline.windows)
     fake = install(monkeypatch, proposal(
         window_priorities=[dict(window_index=n - 1, impact=10), dict(window_index=0, impact=10)],
-        data_quality_explanations=[dict(issue_index=0, explanation="Verify this observation before relying on it for mooring.")],
-        extra_condition=dict(forecast_index=1, why="Check the forecast interval at {{forecast/1/valid_at_utc}} before berthing."),
+        data_quality_explanations=[dict(issue_index=0, statement_id="quality-0")],
+        extra_condition=dict(forecast_index=1, reason_id="forecast-1"),
     ))
     tk = FakeToolkit()
     result = run(tk=tk)
-    assert result.summary.startswith(agent._headline(baseline) + " Gusts reach 64.0 kt.")
+    assert result.summary.startswith(agent._headline(baseline) + " Gusts reach 64.0 kt in the peak-gust planning condition.")
     assert result.summary_source == "llm" and result.narration_note is None
     assert len(re.split(r"(?<=[.!?])\s+", result.summary)) == 4
     structured_tokens = set(re.findall(r"\d+(?:\.\d+)?", " ".join(agent._facts(result.model_dump(exclude={"summary"})).values())))
@@ -177,7 +181,7 @@ def test_safe_narration_rank_ties_and_forecast_selection(monkeypatch):
     assert result.mst == baseline.mst
     assert result.planning_conditions[:-1] == baseline.planning_conditions
     assert result.planning_conditions[-1].environment == tk.series[1]
-    assert "forecast interval" in result.planning_conditions[-1].why
+    assert "forecast snapshot at 13:00Z 04 Nov" in result.planning_conditions[-1].why
     assert result.data_quality[0].detail.startswith(baseline.data_quality[0].detail)
     assert "Verify" in result.data_quality[0].detail
     assert [(q.station_id, q.issue, q.severity) for q in result.data_quality] == [(q.station_id, q.issue, q.severity) for q in baseline.data_quality]
@@ -186,6 +190,10 @@ def test_safe_narration_rank_ties_and_forecast_selection(monkeypatch):
     assert tools is None and messages[0].role == "system"
     context = json.loads(messages[1].content)
     assert context["forecast"] == [s.model_dump(mode="json") for s in tk.series]
+    assert result.summary == agent._headline(baseline) + " " + " ".join(
+        context["statements"]["summary"][key] for key in proposal()["summary_statement_ids"])
+    assert result.data_quality[0].detail == baseline.data_quality[0].detail + " " + context["statements"]["data_quality"]["quality-0"]
+    assert result.planning_conditions[-1].why == context["statements"]["extra_conditions"]["forecast-1"]
     # Numeric output comes from exact structured fields, not model-authored literals.
     assert "64.0" == str(result.planning_conditions[0].environment.wind_gust_kt)
     assert result.planning_conditions[0].environment.valid_at_utc.strftime("%H:%MZ %d %b") in result.summary
@@ -196,7 +204,7 @@ def test_safe_narration_rank_ties_and_forecast_selection(monkeypatch):
     {"windows": [dict(kind="gust", severity="INFO")]},
     {"window_priorities": [dict(window_index=0, impact=1, severity="AMBER")]},
     {"mst": {"mst_required": "I"}},
-    {"extra_condition": dict(forecast_index=999, why="A safer interval.")},
+    {"extra_condition": dict(forecast_index=999, reason_id="forecast-999")},
     {"extra_condition": dict(forecast_index=1, why="At 99 kt.")},
     {"extra_condition": dict(forecast_index=1, why="Check it.", environment={"wind_gust_kt": 0})},
     {"window_priorities": [dict(window_index=0, impact=1), dict(window_index=0, impact=2)]},
@@ -207,6 +215,71 @@ def test_malicious_structured_changes_are_overridden(monkeypatch, attack):
     baseline = run()
     install(monkeypatch, proposal(**attack))
     assert normalized(run()) == normalized(baseline)
+
+
+@pytest.mark.parametrize("attack", ["The gust window is not {{/windows/0/severity}}.", "Moor immediately."])
+@pytest.mark.parametrize("location", ["summary", "quality", "why"])
+@pytest.mark.parametrize("legacy_prose", [False, True])
+def test_semantic_injection_is_rejected_atomically_in_every_narrative_path(monkeypatch, attack, location, legacy_prose):
+    baseline = run()
+    assert baseline.mst.mst_required == "II" and any(w.severity == "RED" for w in baseline.windows)
+    # Valid changes alongside the attack must not escape partial validation.
+    data = proposal(
+        window_priorities=[dict(window_index=len(baseline.windows) - 1, impact=10)],
+        data_quality_explanations=[dict(issue_index=0, statement_id="quality-0")],
+        extra_condition=dict(forecast_index=1, reason_id="forecast-1"),
+    )
+    if legacy_prose:
+        # Every other field uses the formerly valid private protocol, so these
+        # are genuine regressions for the old summary, quality and why bypasses.
+        del data["summary_statement_ids"]
+        data["summary_sentences"] = ["Gusts reach {{/current/wind_gust_kt}}.",
+                                     "The peak occurs at {{/planning_conditions/0/environment/valid_at_utc}}."]
+        data["data_quality_explanations"] = [dict(issue_index=0, explanation="Verify the observations before planning.")]
+        data["extra_condition"] = dict(forecast_index=1, why="Review the forecast snapshot at {{forecast/1/valid_at_utc}}.")
+    if location == "summary":
+        if legacy_prose:
+            # Reproduces the reviewer's previously accepted RED/MST-II bypass.
+            data["summary_sentences"] = [attack, "Moor immediately."]
+        else:
+            data["summary_statement_ids"] = [attack, "mooring-review"]
+    elif location == "quality":
+        data["data_quality_explanations"] = [dict(issue_index=0, **{
+            "explanation" if legacy_prose else "statement_id": attack})]
+    else:
+        data["extra_condition"] = dict(forecast_index=1, **{"why" if legacy_prose else "reason_id": attack})
+    install(monkeypatch, data)
+    result = run()
+    assert normalized(result) == normalized(baseline)
+    assert result.summary_source == "deterministic"
+    assert result.narration_note == ("guardrail: invalid proposal" if legacy_prose else "guardrail: statement selection")
+    assert "not RED" not in result.summary and "Moor immediately" not in result.model_dump_json()
+
+
+@pytest.mark.parametrize("change", [
+    {"summary_statement_ids": ["peak-gust", "peak-gust"]},
+    {"summary_statement_ids": ["peak-gust m/s", "mooring-review"]},
+    {"summary_statement_ids": ["{{/current/air_density_kgm3}}", "mooring-review"]},
+    {"summary_statement_ids": ["quality-0", "mooring-review"]},
+    {"data_quality_explanations": [dict(issue_index=0, statement_id="quality-1")]},
+    {"data_quality_explanations": [dict(issue_index=0, statement_id="mooring-review")]},
+    {"extra_condition": dict(forecast_index=1, reason_id="forecast-2")},
+    {"extra_condition": dict(forecast_index=1, reason_id="peak-gust")},
+])
+def test_statement_selections_cannot_repeat_invent_or_rebind_meaning(monkeypatch, change):
+    baseline = run()
+    install(monkeypatch, proposal(**change))
+    result = run()
+    assert normalized(result) == normalized(baseline)
+    assert result.summary_source == "deterministic" and result.narration_note == "guardrail: statement selection"
+
+
+def test_model_cannot_supply_a_replacement_statement_catalog(monkeypatch):
+    baseline = run()
+    install(monkeypatch, proposal(statements={"summary": {"peak-gust": "Moor immediately."}}))
+    result = run()
+    assert normalized(result) == normalized(baseline)
+    assert result.summary_source == "deterministic" and result.narration_note == "guardrail: invalid proposal"
 
 
 def test_omitted_windows_cannot_be_dropped(monkeypatch):
@@ -226,9 +299,7 @@ def test_omitted_windows_cannot_be_dropped(monkeypatch):
 ])
 def test_invented_numbers_or_unsafe_references_fall_back(monkeypatch, sentence):
     baseline = run()
-    payload = proposal()
-    payload["summary_sentences"][0] = sentence
-    install(monkeypatch, payload)
+    install(monkeypatch, prose_proposal(sentence))
     assert normalized(run()) == normalized(baseline)
 
 
@@ -241,8 +312,10 @@ def test_provider_and_parse_failures_fall_back(monkeypatch, payload):
 
 def test_duplicate_forecast_condition_is_not_added(monkeypatch):
     baseline = run()
-    install(monkeypatch, proposal(extra_condition=dict(forecast_index=0, why="Design for the forecast peak.")))
-    assert run().planning_conditions == baseline.planning_conditions
+    install(monkeypatch, proposal(extra_condition=dict(forecast_index=0, reason_id="forecast-0")))
+    result = run()
+    assert result.summary_source == "llm"
+    assert result.planning_conditions == baseline.planning_conditions
 
 
 def test_threshold_boundaries():
@@ -323,14 +396,12 @@ def test_model_cannot_replace_risk_headline(monkeypatch, sentence):
     baseline = run()
     assert baseline.mst.mst_required == "II"
     assert any(w.severity == "RED" for w in baseline.windows)
-    data = proposal()
-    data["summary_sentences"][0] = sentence
-    install(monkeypatch, data)
+    install(monkeypatch, prose_proposal(sentence))
     result = run()
     assert result.summary == baseline.summary
     assert result.summary.startswith("Highest window severity is RED; MST required is II; it does not exceed the ship's MST II; input quality is AMBER; review is required before relying on this assessment.")
     assert result.summary_source == "deterministic"
-    assert result.narration_note == "guardrail: risk language"
+    assert result.narration_note == "guardrail: invalid proposal"
 
 
 def test_risk_headline_covers_calm_exceedance_and_unknown_ship():
@@ -351,27 +422,20 @@ def test_risk_headline_covers_calm_exceedance_and_unknown_ship():
 def test_units_cannot_be_supplied_by_model(monkeypatch, suffix, position):
     ref = "{{/current/wind_gust_kt}}"
     sentence = f"Gusts reach {ref} {suffix}." if position == "after" else f"Gusts reach {suffix} {ref}."
-    data = proposal()
-    data["summary_sentences"][0] = sentence
-    install(monkeypatch, data)
+    install(monkeypatch, prose_proposal(sentence))
     result = run()
     assert result.summary_source == "deterministic"
-    assert result.narration_note == "guardrail: unit token"
+    assert result.narration_note == "guardrail: invalid proposal"
     assert sentence not in result.summary
 
 
 def test_units_times_and_severity_references_are_code_owned(monkeypatch):
-    install(monkeypatch, proposal(summary_sentences=[
-        "Gusts reach {{/current/wind_gust_kt}} from {{/current/wind_from_true_deg}}.",
-        "Water level is {{/current/water_level_mllw_ft}}.",
-        "The {{/windows/0/severity}} window peaks at {{/windows/0/peak_value}} and starts at {{/windows/0/start_utc}}.",
-        "Plan for MST {{/mst/mst_required}}.",
-    ]))
+    install(monkeypatch, proposal(summary_statement_ids=["current-wind", "current-water-level", "window-0", "mooring-review"]))
     result = run()
     assert result.summary_source == "llm" and result.narration_note is None
     assert "64.0 kt from 37.0°" in result.summary
-    assert "Water level is 0.0 ft." in result.summary
-    assert "RED window peaks at 64.0 kt and starts at 12:00Z 04 Nov." in result.summary
+    assert "Water level is 0.0 ft relative to MLLW." in result.summary
+    assert "RED gust window runs from 12:00Z 04 Nov to 12:00Z 04 Nov, with a peak of 64.0 kt." in result.summary
     assert len(re.split(r"(?<=[.!?])\s+", result.summary)) == 5
     assert agent._format_fact("end_utc", datetime(2026, 11, 4, 7, tzinfo=timezone(timedelta(hours=-5)))) == "12:00Z 04 Nov"
 
@@ -385,19 +449,17 @@ def test_units_times_and_severity_references_are_code_owned(monkeypatch):
 def test_fact_allowlist_rejects_internal_fields(monkeypatch, path):
     baseline = run()
     assert path not in agent._facts(baseline.model_dump())
-    data = proposal()
-    data["summary_sentences"][0] = "The observation is {{" + path + "}}."
-    install(monkeypatch, data)
+    install(monkeypatch, prose_proposal("The observation is {{" + path + "}}."))
     result = run()
     assert result.summary_source == "deterministic"
-    assert result.narration_note == "guardrail: fact reference"
+    assert result.narration_note == "guardrail: invalid proposal"
     assert result.summary == baseline.summary
 
 
 def test_extra_forecast_facts_use_same_allowlist(monkeypatch):
     install(monkeypatch, proposal(extra_condition={"forecast_index": 1, "why": "Density is {{forecast/1/air_density_kgm3}}."}))
     result = run()
-    assert result.summary_source == "deterministic" and result.narration_note == "guardrail: fact reference"
+    assert result.summary_source == "deterministic" and result.narration_note == "guardrail: invalid proposal"
 
 
 @pytest.mark.parametrize("payload,note", [
@@ -414,7 +476,8 @@ def test_fallback_provenance_is_explicit_and_sanitized(monkeypatch, payload, not
 
 @pytest.mark.parametrize("count,expected", [(1, "deterministic"), (2, "llm"), (4, "llm"), (5, "deterministic")])
 def test_model_contributes_only_two_to_four_sentences(monkeypatch, count, expected):
-    install(monkeypatch, proposal(summary_sentences=["Verify the observations before planning."] * count))
+    choices = ["peak-gust", "peak-time", "current-wind", "current-current", "current-water-level"]
+    install(monkeypatch, proposal(summary_statement_ids=choices[:count]))
     result = run()
     assert result.summary_source == expected
     if expected == "llm":
@@ -454,15 +517,17 @@ def test_incomplete_or_tool_response_records_guardrail(monkeypatch, tool_call):
     assert result.narration_note == "guardrail: incomplete response or tool call"
 
 
-@pytest.mark.parametrize("sentence", [
-    "Gusts reach {{/current/wind_gust_kt}} during the window.",
-    "The strongest window is rated {{/windows/0/severity}}.",
-    "The required service type is {{/mst/mst_required}}.",
-    "Expect the strongest gusts when the wind backs toward the pier.",
+@pytest.mark.parametrize("statement_id,expected", [
+    ("current-wind", "Current wind is 64.0 kt with gusts of 64.0 kt from 37.0°."),
+    ("window-0", "The RED gust window runs from 12:00Z 04 Nov to 12:00Z 04 Nov, with a peak of 64.0 kt."),
+    ("peak-time", "The peak-gust planning condition is at 12:00Z 04 Nov."),
+    ("current-current", "Current flow is 2.0 kt toward 127.0°."),
 ])
-def test_legitimate_narration_still_passes(sentence):
-    facts = {"/current/wind_gust_kt": "14.0 kt", "/windows/0/severity": "RED", "/mst/mst_required": "II"}
-    assert agent._render(sentence, facts, sentence=True)
+def test_legitimate_complete_statements_still_pass(monkeypatch, statement_id, expected):
+    install(monkeypatch, proposal(summary_statement_ids=[statement_id, "mooring-review"]))
+    result = run()
+    assert result.summary_source == "llm" and result.narration_note is None
+    assert result.summary.endswith(expected + " This environmental assessment informs mooring planning and does not authorize docking.")
 
 
 
@@ -615,8 +680,7 @@ def test_code_headline_preserves_quality_qualification(monkeypatch, use_llm, qua
     tk.series[-1].metadata = EnvironmentMetadata(basis="prediction", quality="good", components=[
         EnvironmentComponentProvenance(component="current", source="fixture", basis="prediction", quality=quality)])
     if use_llm:
-        install(monkeypatch, proposal(summary_sentences=["Review the observations before planning.",
-                                                        "Confirm the available forecast with the mooring team."]))
+        install(monkeypatch, proposal(summary_statement_ids=["current-wind", "mooring-review"]))
     report = run(tk=tk)
     headline = report.summary.split(".", 1)[0]
     assert "No windows of concern" in headline
@@ -696,7 +760,7 @@ def test_optional_narration_only_receives_temporally_available_snapshots(monkeyp
     tk = FakeToolkit(calm=True)
     tk.series[1] = tk.series[1].model_copy(update={'source': 'live', 'wind_speed_kt': 99, 'wind_gust_kt': 99})
     fake = install(monkeypatch, proposal(extra_condition={'forecast_index': 1,
-                                                        'why': 'Review this additional forecast condition.'}))
+                                                        'reason_id': 'forecast-1'}))
     report = run(tk=tk)
     payload = json.loads(fake.calls[0][0][-1].content)
     assert len(payload['forecast']) == 2

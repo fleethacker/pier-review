@@ -54,13 +54,13 @@ export function isoMinute(ms: number): string {
   return new Date(Math.floor(ms / 60_000) * 60_000).toISOString().replace(/:00\.000Z$/, ':00Z');
 }
 
-/** Defaults: as-of now (to the hour), arrival window 24–30 h ahead hourly, 2 h docking, 6 h holding, 80% WLL target. */
+/** Defaults: as-of now (to the hour), arrival window 25–31 h ahead hourly (one hour for acquisition), 2 h docking, 6 h holding, 80% WLL target. */
 export function defaultInputs(nowMs: number): AdvanceInputs {
   const asOf = Math.floor(nowMs / HOUR_MS) * HOUR_MS;
   return {
     asOfUtc: isoMinute(asOf),
-    arrivalFromUtc: isoMinute(asOf + MIN_LEAD_HOURS * HOUR_MS),
-    arrivalToUtc: isoMinute(asOf + (MIN_LEAD_HOURS + 6) * HOUR_MS),
+    arrivalFromUtc: isoMinute(asOf + (MIN_LEAD_HOURS + 1) * HOUR_MS),
+    arrivalToUtc: isoMinute(asOf + (MIN_LEAD_HOURS + 7) * HOUR_MS),
     arrivalStepMin: 60,
     operationHours: 2,
     holdingHours: 6,
@@ -175,7 +175,9 @@ export interface PublicSeriesInputs {
 
 /** No current depth or station bin can be inferred safely from ship draft or another berth. */
 export function publicRequest(berthId: string, i: AdvanceInputs, source: PublicSeriesInputs): ComposeRequest | null {
-  if (!berthId || inputProblems(i).length || source.currentDepthFt == null ||
+  // Acquisition may retain its original horizon after an explicit cutoff update; the planning run still enforces 24 h lead.
+  if (!berthId || inputProblems(i).some((problem) => !problem.startsWith('Earliest arrival must be at least')) ||
+    Date.parse(i.arrivalFromUtc) < Date.parse(i.asOfUtc) || source.currentDepthFt == null ||
     !Number.isFinite(source.currentDepthFt) || source.currentDepthFt < 0 || !source.currentBin.trim()) return null;
   return {
     berth_id: berthId, source: { mode: 'public' }, as_of_utc: i.asOfUtc,

@@ -2,12 +2,17 @@
 
 > Priorities and owners for remaining work: [MASTER_PLAN.md](MASTER_PLAN.md). This file is the capability ledger.
 
-**Product audit, 5 November 2026 (`ac73e1f`):** [NEXT_STEPS.md](NEXT_STEPS.md) records 28 open product findings,
+**Product audit, 5 November 2026 (`ac73e1f`):** [NEXT_STEPS.md](NEXT_STEPS.md) preserves 28 product findings,
 including modeling validity/contact failures (F03–F08, F24–F26), rich-frame evidence loss (F05/F25), API/source
 compatibility (F20/F21) and runtime/persistence/telemetry failures (F14–F22). F01/F02/F09/F10 are cross-service UI
 handoff defects, not completed integration simply because the underlying endpoints exist. Follow the named leads,
 reviewers and closure evidence in that ledger before treating the historical implementation rows below as accepted.
-This documentation update fixes no code and does not change qualification status.
+F01–F28 are resolved through source/contract commit `ea62351`; independent review and final local checks pass
+(2,815 Python tests, 1,066 frontend tests, contract/type/lint/build checks). See
+[PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md) for reproducible scope and [PR #32](https://github.com/fleethacker/pier-review/pull/32) for CI/merge status.
+The camera seek and unbound-berth corrections in `5c28b56` passed independent browser/probe checks.
+G01–G08 and physical qualification remain open. The archived NOAA prediction example now correctly returns RED/invalid because its declared
+environment interval ends before the prediction clock; this is an intentional validity correction, not a qualified new forecast.
 
 **Reconciled 5 November 2026 against `dev` at `3ababad` (PR #18).** Snyder maintains modeling evidence;
 Cruz supplies source/telemetry/chart evidence, Kori supplies browser evidence, and Bixler maintains the integrated
@@ -55,7 +60,7 @@ current ownership/order; this ledger records implementation and remaining techni
 | S17 interactive / master S1 | implemented; rich runtime and review fixes merged (#6) | rm0-v1 frames, scene, lifecycle, speed, reconnect and saved recordings; same timed trajectory as batch; authoritative clock; pause/reset/reconnect; bounded commands, slew/capacity, ownership and latest-frame backpressure | Ephemeral single-process sessions, possible scheduling lag under load; no vessel qualification or subject-matter acceptance. |
 | S18/S19 approach | **not started** | | Needs chart source/edition, datum transformations and a sourced squat formulation. Mock remains and is labeled. |
 | S20 telemetry | S20a/b implemented | NMEA MWV/HDT/VTG/GGA/DPT declared subset, sensor registry validation, bounded storage, arbitration policy, optional HTTP/WS key | No AIS/NMEA 2000. Arbitration is not wired to the environment endpoints. No rate limiter beyond batch size. |
-| S21 readiness | implemented local controls; deployment gate open | Opt-in bearer auth/ownership, HTTP limits, JSON events/metrics, SQLite backup/restore and v1 migration tests; `docs/DEPLOYMENT_READINESS.md` | No deployment load/security review, TLS/proxy/identity lifecycle, UI credential integration or automated retention/backup. Agents bearer propagation and ownership tests now pass. **Not ready for live use.** |
+| S21 readiness | implemented local controls; deployment gate open | Opt-in bearer auth/ownership, HTTP limits, JSON events/metrics, SQLite backup/restore and v1 migration tests; remediation adds per-tab runtime HTTP/fetch-SSE credentials; `docs/DEPLOYMENT_READINESS.md` | Native browser WebSockets still require a trusted gateway. No deployment load/security review, identity lifecycle or automated retention/backup. Separate pre-remediation Domino smoke does not validate remediation code or per-user resource isolation. **Not ready for live use.** |
 
 ## Current master-plan additions
 
@@ -109,6 +114,13 @@ evidence) are untouched here and remain open. "Closed on branch" means fixed wit
 or independently reviewed.
 
 ## Test evidence
+
+The remediation report records the newer local evidence separately: an earlier integrated Python run reported
+2,776 passed; frontend checks subsequently reported 1,065 passed in 72 files with typecheck/lint/build passing, before
+the latest camera review follow-ups. The final integrated rerun, exact skip/xfail accounting and independent acceptance
+are pending. The first final Python rerun reported 2,808 passed and 6 A7 narration fixture failures. Those fixtures
+were corrected in `a978b57` with 14 focused tests passing; a further full rerun is pending, as explained in the report. The scoped no-browser smoke reported 21 passed, 0 failed and 4 skipped; it is not a readiness pass.
+See [the evidence scope](PRODUCT_AUDIT_REMEDIATION.md#validation-evidence) rather than treating these provisional counts as release approval.
 
 Use the exact implementation PR and CI run for test counts, skips and xfails. This documentation reconciliation
 intentionally skipped tests/CI at Snyder's request; it does not produce new runtime or release evidence.

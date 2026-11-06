@@ -93,7 +93,7 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
         if scenario.kind == "steady":
             # The declared source is constant by definition. Never freeze ramps or replay series.
             series = [current.model_copy(update={"valid_at_utc": current.valid_at_utc + timedelta(minutes=FORECAST_STEP_MIN * i)})
-                      for i in range(req.horizon_hours * (60 // FORECAST_STEP_MIN) + 1)]
+                      for i in range(int(req.horizon_hours) * (60 // FORECAST_STEP_MIN) + 1)]
         else:
             forecast_complete = False
             series = [current]
@@ -101,7 +101,7 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
                 detail=f"The {scenario.kind} scenario has no forecast-series interface; only the current snapshot was assessed. Future conditions were not held constant."))
     else:
         try:
-            series = (await tk.forecast(berth_id, req.horizon_hours, FORECAST_STEP_MIN)).series
+            series = (await tk.forecast(berth_id, int(req.horizon_hours), FORECAST_STEP_MIN)).series
         except ModelingError as exc:
             if exc.status not in (429, 502, 503, 504):
                 raise
@@ -216,7 +216,7 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
     mst = MstAssessment(mst_required=mst_req, ship_mst=ship.mst_class if ship else None, exceeds_ship_mst=exceeds,
                         max_wind_kt=round(max_wind, 1), max_broadside_current_kt=round(max_cur, 2) if heading is not None else None,
                         reason=f"Max sustained {max_wind:.0f} kt and {'broadside ' if heading is not None else ''}"
-                               f"current {max_cur:.1f} kt over {req.horizon_hours} h fit MST {mst_req}.")
+                               f"current {max_cur:.1f} kt over {req.horizon_hours:g} h fit MST {mst_req}.")
 
     worst_gust = max(series, key=lambda s: s.wind_gust_kt)
     worst_cur = max(series, key=broadside)
@@ -252,16 +252,16 @@ async def assess_with_forecast(req: IntakeRequest, tk: PhysicsToolkit) -> tuple[
                                             detail="Synthetic data from the mock environment service."))
 
     if not forecast_complete:
-        mst.reason = "Forecast coverage incomplete. " + mst.reason.replace(f"over {req.horizon_hours} h",
+        mst.reason = "Forecast coverage incomplete. " + mst.reason.replace(f"over {req.horizon_hours:g} h",
             "at the current snapshot only" if len(series) == 1 else "over available samples only")
     reds = [w for w in windows if w.severity == "RED"]
-    summary = (f"Next {req.horizon_hours} h at {berth.name}: {len(windows)} window(s) of concern"
+    summary = (f"Next {req.horizon_hours:g} h at {berth.name}: {len(windows)} window(s) of concern"
                f"{f', {len(reds)} severe' if reds else ''}. Gusts peak {worst_gust.wind_gust_kt:.0f} kt; "
                f"MST {mst_req} conditions{'; exceeds ship MST' if exceeds else ''}."
                f"{f' {len(berthing)} berthing window(s) found.' if berthing else ''}")
     if resolution is not None:
         manifest = resolution.result.forecast_manifest
-        summary = summary.replace(f"Next {req.horizon_hours} h", f"Bound forecast {manifest.from_utc.isoformat()} to {manifest.to_utc.isoformat()}", 1)
+        summary = summary.replace(f"Next {req.horizon_hours:g} h", f"Bound forecast {manifest.from_utc.isoformat()} to {manifest.to_utc.isoformat()}", 1)
     if not forecast_complete:
         summary = "Forecast coverage incomplete; available samples only. " + summary
     report = IntakeReport(report_id=report_id, created_at_utc=assessed_at, berth_id=berth_id, ship_class_id=ship_id,

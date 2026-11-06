@@ -15,7 +15,6 @@ import type {
 
 export const CAMERA_DISCLAIMER =
   'surrogate maneuvering model; decision support, not navigational guidance';
-export const CAMERA_BERTH = 'NAVSTA-NORFOLK-P12-N';
 export const REFRESH_MIN_MS = 1000;
 export const FOOTPRINT_EVERY_S = 30;
 export const HOLD_ID = 'hold';
@@ -116,7 +115,7 @@ export function buildPredictionRequest(
     dt_s: 0.2,
     alternatives: w ? [structuredClone(w.alt)] : [],
     uncertainty: { samples: o.samples ?? 8, seed: 7, model: 's10_gust_current', percentile: 90 },
-    hazards: { berth_id: CAMERA_BERTH, coastline: true, min_clearance_ft: 50 },
+    hazards: { berth_id: null, coastline: true, min_clearance_ft: 50 },
   };
 }
 
@@ -160,7 +159,7 @@ export function limitedText(res: PredictionResponse): string {
 
 export function missingHazards(res: PredictionResponse): string[] {
   const checked = new Set<string>(res.result.hazards_checked);
-  return (['coastline'] as const).filter((k) => !checked.has(k));
+  return (['pier', 'fender', 'coastline'] as const).filter((k) => !checked.has(k));
 }
 
 export interface CameraLook {

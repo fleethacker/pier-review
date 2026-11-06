@@ -27,7 +27,7 @@ from ..shared import llm
 from ..shared.environment_quality import component_issues
 from ..shared.forecast import bound_samples, resolve_forecast, same_forecast
 from ..shared.layout import review_geometry_matches
-from ..shared.narration import GuardrailError, format_fact, render
+from ..shared.narration import GuardrailError, format_fact
 from . import checks
 from .schemas import (DirectionalThreshold, GustWarning, SafetyReview, SafetyReviewRequest, Thresholds)
 
@@ -44,7 +44,7 @@ class _ProposalModel(BaseModel):
 
 
 class BriefProposal(_ProposalModel):
-    sentences: list[str] = Field(min_length=2, max_length=3)
+    statement_ids: list[str] = Field(min_length=2, max_length=3)
 
 
 def plan_record(plan_id: str) -> PlanRecord:
@@ -63,25 +63,21 @@ def _headline(verdict: str, passed: int, total: int, limiting_gust: float | None
     return f"Verdict: {verdict.replace('_', ' ')}; {passed} of {total} checks passed; limiting gust is {limit}."
 
 
-def _brief_facts(review: SafetyReview) -> dict[str, str]:
-    facts = {
-        "/verdict": review.verdict.replace("_", " "),
-        "/status": review.status,
-        "/checks/passed": str(sum(check.passed for check in review.checks)),
-        "/checks/total": str(len(review.checks)),
-    }
+def _brief_statements(review: SafetyReview) -> dict[str, str]:
+    """Complete code-owned statements: a model cannot negate facts or add instructions."""
+    statements = {}
     threshold = review.thresholds
-    for field in ("governing_element", "limit_wll_gust_kt", "limit_breaking_gust_kt", "forecast_max_gust_kt",
-                  "wind_rel_deg"):
-        value = getattr(threshold, field)
-        if value is not None:
-            facts[f"/thresholds/{field}"] = format_fact(field, value)
+    if threshold.governing_element is not None:
+        statements["governing"] = f"The governing element is {threshold.governing_element}."
+    if threshold.limit_wll_gust_kt is not None:
+        statements["working_limit"] = f"The working-load gust limit is {format_fact('limit_wll_gust_kt', threshold.limit_wll_gust_kt)}."
+    if threshold.forecast_max_gust_kt is not None:
+        statements["forecast"] = f"The assessed forecast maximum gust is {format_fact('forecast_max_gust_kt', threshold.forecast_max_gust_kt)}."
     for index, check in enumerate(review.checks):
-        facts[f"/checks/{index}/title"] = check.title
-        facts[f"/checks/{index}/detail"] = check.detail
-        facts[f"/checks/{index}/severity"] = check.severity
-        facts[f"/checks/{index}/passed"] = format_fact("passed", check.passed)
-    return facts
+        statements[f"check-{index}"] = (
+            f"{check.title}: {'passed' if check.passed else 'failed'} ({check.severity}). {check.detail}"
+        )
+    return statements
 
 
 async def _narrate(review: SafetyReview) -> SafetyReview:
@@ -90,9 +86,9 @@ async def _narrate(review: SafetyReview) -> SafetyReview:
     except llm.LLMNotConfigured:
         return review.model_copy(update={"summary_source": "deterministic",
                                          "narration_note": "provider not configured or unavailable"})
-    facts = _brief_facts(review)
+    statements = _brief_statements(review)
     payload = {"checks": [check.model_dump(mode="json") for check in review.checks],
-               "thresholds": review.thresholds.model_dump(mode="json"), "facts": facts,
+               "thresholds": review.thresholds.model_dump(mode="json"), "statements": statements,
                "response_schema": BriefProposal.model_json_schema()}
     messages = [llm.Message(role="system", content=files(__package__).joinpath("prompts/brief.txt").read_text()),
                 llm.Message(role="user", content=json.dumps(payload))]
@@ -108,7 +104,14 @@ async def _narrate(review: SafetyReview) -> SafetyReview:
         if reply.tool_uses or reply.stop_reason not in ("stop", "completed"):
             raise GuardrailError("incomplete response or tool call")
         proposal = BriefProposal.model_validate_json(reply.text)
-        brief = " ".join(render(sentence, facts, sentence=True) for sentence in proposal.sentences)
+        selected = proposal.statement_ids
+        if len(set(selected)) != len(selected) or any(key not in statements for key in selected):
+            raise GuardrailError("statement selection")
+        # The headline and every failed check are mandatory, even if the model selects only passing checks.
+        mandatory = [f"check-{index}" for index, check in enumerate(review.checks) if not check.passed]
+        ordered = list(dict.fromkeys([*mandatory, *selected]))
+        headline = f"Review status is {review.status}; verdict is {review.verdict.replace('_', ' ')}."
+        brief = " ".join([headline, *(statements[key] for key in ordered)])
     except GuardrailError as exc:
         note = f"guardrail: {exc}"
         logger.warning("Safety narration rejected (%s); retaining deterministic review", note)

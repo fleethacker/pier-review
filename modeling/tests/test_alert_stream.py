@@ -104,3 +104,103 @@ def test_unsupported_scenario_mode_never_substitutes_live_feed(monkeypatch, mode
         with pytest.raises(WebSocketDisconnect) as err:
             sock.receive_json()
     assert err.value.code == 4400
+
+
+@pytest.mark.parametrize('blocked_stage', ['provider', 'calculation'])
+def test_blocked_alert_work_does_not_block_http_or_the_event_loop(monkeypatch, blocked_stage):
+    import asyncio
+    import threading
+    import httpx
+    from mooring.core import access
+    entered, release = threading.Event(), threading.Event()
+    timed_out = []
+    seen = []
+    baseline = EnvironmentSnapshot.model_validate(EXAMPLES['mooring_analyze']['environment'])
+
+    def block():
+        seen.append(access.principal.get())
+        entered.set()
+        if not release.wait(3):
+            timed_out.append(True)
+
+    def source(_):
+        if blocked_stage == 'provider': block()
+        return baseline
+
+    def alert(env, req):
+        if blocked_stage == 'calculation': block()
+        return Alert(alert_id='offloaded', at_utc=env.valid_at_utc, severity='AMBER',
+                     element_id=None, message='Fixture', env=env)
+
+    class Socket:
+        messages = []
+        async def accept(self): pass
+        async def send_json(self, message): self.messages.append(message)
+        async def close(self, **kwargs): pass
+
+    monkeypatch.setattr(channels.env, 'now', source)
+    monkeypatch.setattr(channels.risk, 'alert_for', alert)
+
+    async def exercise():
+        token = access.principal.set('alert-owner')
+        socket = Socket()
+        task = asyncio.create_task(channels.ws_alerts(socket, limit=1))
+        try:
+            assert await asyncio.to_thread(entered.wait, 2)
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as http:
+                health = await asyncio.wait_for(http.get(P + '/health'), 1)
+            assert health.status_code == 200
+            assert not timed_out and not release.is_set()
+            release.set()
+            await asyncio.wait_for(task, 2)
+            assert socket.messages[0]['alert_id'] == 'offloaded'
+            assert seen == ['alert-owner']
+        finally:
+            release.set()
+            await asyncio.gather(task, return_exceptions=True)
+            access.principal.reset(token)
+
+    asyncio.run(exercise())
+
+
+def test_alert_timeout_keeps_worker_slot_until_thread_finishes(monkeypatch):
+    import asyncio
+    import threading
+    entered, release, exited = threading.Event(), threading.Event(), threading.Event()
+    slots = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(channels, '_ALERT_SLOTS', slots)
+    monkeypatch.setattr(channels, 'ALERT_TIMEOUT_S', 0.05)
+
+    def source(_):
+        entered.set()
+        try:
+            assert release.wait(3)
+            raise ProviderError('unavailable', 'late provider result')
+        finally:
+            exited.set()
+
+    class Socket:
+        closed = None
+        async def accept(self): pass
+        async def send_json(self, message): pytest.fail('A timed-out source must not publish an alert')
+        async def close(self, **kwargs): self.closed = kwargs
+
+    monkeypatch.setattr(channels.env, 'now', source)
+
+    async def exercise():
+        socket = Socket()
+        try:
+            await asyncio.wait_for(channels.ws_alerts(socket, limit=1), 1)
+            assert entered.is_set() and socket.closed['code'] == 1013
+            assert not slots.acquire(blocking=False)
+            second = Socket()
+            await channels.ws_alerts(second, limit=1)
+            assert second.closed['code'] == 1013
+        finally:
+            release.set()
+            assert await asyncio.to_thread(exited.wait, 2)
+            # Callback release runs immediately after worker exit, without a sleep/poll loop.
+            assert await asyncio.to_thread(slots.acquire, True, 2)
+            slots.release()
+
+    asyncio.run(exercise())

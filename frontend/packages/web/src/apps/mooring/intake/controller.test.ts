@@ -91,3 +91,44 @@ it('does not submit after inputs change during scenario saving', async () => {
   expect(agents.POST).not.toHaveBeenCalled();
   expect(c.intake.state.get().phase).toBe('idle');
 });
+
+
+it('carries the immutable selected arrival and fractional holding interval into Intake then Planner (F02)', async () => {
+  const forecast = { berth_id: 'B', as_of_utc: '2026-11-05T12:00:00Z', from_utc: '2026-11-06T15:00:00Z',
+    to_utc: '2026-11-06T17:30:00Z', forecast: [{ wind_gust_kt: 64 }, { wind_gust_kt: 50 }],
+    forecast_binding: { source: 'supplied', source_id: 'selected-source', revision: 'r7', expected_content_hash: `sha256:${'a'.repeat(64)}` } } as never;
+  c.setForecastSelection(forecast);
+  vi.stubGlobal('EventSource', class { addEventListener() {} close() {} });
+  await c.intake.run();
+  expect(agents.POST).toHaveBeenCalledWith('/api/v1/intake/reports', expect.objectContaining({
+    body: { scenario_id: 'selected-scenario', horizon_hours: 2.5, forecast_request: forecast },
+  }));
+  vi.mocked(agents.POST).mockResolvedValue({ data: { plan_id: 'p1', events_url: '/events' } } as never);
+  await c.agent.run();
+  expect(agents.POST).toHaveBeenLastCalledWith('/api/v1/agent/plans', expect.objectContaining({ body: expect.objectContaining({ intake_report_id: report.report_id }) }));
+  c.advance.setInputs({ holdingHours: 8 });
+  expect(c.forecastSelection).toBeNull();
+  expect(c.intake.reportId()).toBeNull();
+  expect(c.agent.state.get().planId).toBeNull();
+});
+
+
+it('direct Planner action assesses an applied forecast first instead of silently using steady conditions', async () => {
+  vi.stubGlobal('EventSource', class { addEventListener() {} close() {} });
+  c.setForecastSelection({ berth_id: 'B', as_of_utc: '2026-11-05T12:00:00Z', from_utc: '2026-11-06T15:00:00Z',
+    to_utc: '2026-11-06T17:30:00Z', forecast: [{ wind_gust_kt: 64 }, { wind_gust_kt: 50 }],
+    forecast_binding: { source: 'supplied', source_id: 'selected-source', revision: 'r7' } } as never);
+  vi.mocked(agents.POST).mockImplementation((async (path: string) => ({ data: path === '/api/v1/intake/reports' ? accepted : { plan_id: 'p1', events_url: '/events' } })) as never);
+  await c.agent.run();
+  expect(vi.mocked(agents.POST).mock.calls.map((call) => call[0])).toEqual(['/api/v1/intake/reports', '/api/v1/agent/plans']);
+  expect(agents.POST).toHaveBeenLastCalledWith('/api/v1/agent/plans', expect.objectContaining({ body: expect.objectContaining({ intake_report_id: report.report_id }) }));
+});
+
+it('does not submit a steady-condition plan after its selected-forecast Intake fails', async () => {
+  c.setForecastSelection({ from_utc: '2026-11-06T15:00:00Z', to_utc: '2026-11-06T17:30:00Z' } as never);
+  vi.mocked(awaitJob).mockRejectedValue(new Error('Selected forecast has a gap'));
+  await c.agent.run();
+  expect(vi.mocked(agents.POST).mock.calls.map((call) => call[0])).toEqual(['/api/v1/intake/reports']);
+  expect(c.agent.state.get()).toMatchObject({ phase: 'error', planId: null });
+  expect(c.agent.state.get().error).toContain('Selected forecast has a gap');
+});

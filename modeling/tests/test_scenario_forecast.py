@@ -263,6 +263,8 @@ def test_sampler_returning_current_snapshot_instead_of_requested_time_is_rejecte
     ({'to_utc': AS_OF.replace(tzinfo=None)}, 'timezone-aware'),
     ({'step_min': 0}, 'step'), ({'step_min': 181}, 'step'), ({'step_min': True}, 'step'),
     ({'to_utc': AS_OF+timedelta(minutes=721), 'step_min': 1}, '721 samples'),
+    ({'max_samples': 0}, 'sample limit'), ({'max_samples': 1202}, 'sample limit'),
+    ({'max_samples': True}, 'sample limit'), ({'max_samples': 1.5}, 'sample limit'),
 ])
 def test_invalid_schedule_and_work_limit_are_rejected(options, match):
     with pytest.raises(refdata.InvalidReference, match=match):

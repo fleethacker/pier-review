@@ -836,7 +836,7 @@ class EnvScenarioCreate(Model):
     current_speed_kt: float = Field(default=0, ge=0)
     current_set_true_deg: float = Field(default=0, ge=0, lt=360)
     water_level_mllw_ft: float = 0.0
-    ramp_to_wind_kt: float | None = Field(default=None, description="kind='ramp': wind at the end of the ramp.")
+    ramp_to_wind_kt: float | None = Field(default=None, ge=0, description="kind='ramp': wind at the end of the ramp.")
     ramp_minutes: float | None = Field(default=None, gt=0)
     replay_start_utc: AwareDatetime | None = Field(default=None, description="kind='replay': historical window start.")
     replay_end_utc: AwareDatetime | None = None

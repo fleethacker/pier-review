@@ -1,4 +1,5 @@
 import { Store } from '../../lib/store';
+import { openAgentEvents } from './events';
 import { agents, AGENTS_BASE, awaitJob, modeling, unwrap, describeError } from './api';
 import type { MooringController } from './controller';
 import type {
@@ -82,14 +83,25 @@ export const REVIEW_TARGET_PCT_WLL = 80;
 /** The planning agent and safety sheet flow. Reads and writes the mooring plan through the controller. */
 export class AgentSession {
   readonly state = new Store<AgentState>(INITIAL);
-  private source: EventSource | null = null;
+  private source: ReturnType<typeof openAgentEvents> | null = null;
   private disposed = false;
   private context: string | null = null;
   private sheetRequest = 0;
   private reviewRequest = 0;
   private planRequest = 0;
+  private applying = false;
+  private invalidated = false;
+  private unsubscribe: () => void;
 
-  constructor(private readonly parent: MooringController) {}
+  constructor(private readonly parent: MooringController) {
+    this.unsubscribe = parent.state.subscribe(() => {
+      if (this.applying || this.invalidated || this.context === null || this.context === parent.planningKey()) return;
+      this.resetForSelection();
+      this.invalidated = true;
+      this.state.set({ error: 'Layout, assistance, forecast or environment changed. Run a new plan and safety review.' });
+      if (parent.state.get().overlay?.kind === 'sheet') parent.openOverlay(null);
+    });
+  }
 
   private get s(): AgentState {
     return this.state.get();
@@ -97,6 +109,7 @@ export class AgentSession {
 
   dispose(): void {
     this.disposed = true;
+    this.unsubscribe();
     this.planRequest++;
     this.sheetRequest++;
     this.reviewRequest++;
@@ -111,7 +124,9 @@ export class AgentSession {
     this.source?.close();
     this.source = null;
     this.context = null;
+    this.invalidated = false;
     this.state.set({ ...INITIAL, objective: this.s.objective, targetMarginPct: this.s.targetMarginPct });
+    if (this.parent.state.get().overlay?.kind === 'sheet') this.parent.openOverlay(null);
   }
 
   setObjective(objective: Objective): void {
@@ -129,7 +144,8 @@ export class AgentSession {
     this.sheetRequest++;
     this.reviewRequest++;
     this.source?.close();
-    this.context = this.parent.contextKey();
+    this.context = this.parent.planningKey();
+    this.invalidated = false;
     this.state.set({
       undo: null,
       phase: 'saving',
@@ -144,11 +160,17 @@ export class AgentSession {
       sheet: INITIAL.sheet,
     });
     try {
-      const inputs = this.parent.scenarioKey();
-      const intakeReportId = this.parent.intake.reportId();
+      const inputs = this.parent.planningKey();
+      let intakeReportId = this.parent.intake.reportId();
+      if (this.parent.forecastSelection && !intakeReportId) {
+        await this.parent.intake.run();
+        if (!current()) return;
+        intakeReportId = this.parent.intake.reportId();
+        if (!intakeReportId) throw new Error(this.parent.intake.state.get().error ?? 'The selected forecast must be assessed before planning.');
+      }
       const scenarioId = await this.parent.ensureScenario(`Agent run ${new Date().toISOString().slice(11, 19)}Z`);
       if (!current()) return;
-      if (inputs !== this.parent.scenarioKey()) throw new Error('Inputs changed while saving. Run a new plan.');
+      if (inputs !== this.parent.planningKey()) throw new Error('Inputs changed while saving. Run a new plan.');
       if (!scenarioId) throw new Error('Choose a ship and berth first.');
       const accepted = unwrap(
         await agents.POST('/api/v1/agent/plans', {
@@ -171,7 +193,7 @@ export class AgentSession {
 
   private listen(eventsUrl: string, planId: string): void {
     this.source?.close();
-    const source = new EventSource(`${AGENTS_BASE}${eventsUrl}`);
+    const source = openAgentEvents(`${AGENTS_BASE}${eventsUrl}`);
     this.source = source;
     const request = this.planRequest;
     const current = () => !this.disposed && this.source === source && request === this.planRequest;
@@ -200,7 +222,7 @@ export class AgentSession {
     });
     source.onerror = () => {
       // EventSource retries by itself; only give up if the stream never produced anything.
-      if (current() && source.readyState === EventSource.CLOSED && this.s.phase === 'running') {
+      if (current() && source.readyState === 2 && this.s.phase === 'running') {
         this.state.set({ phase: 'error', error: 'The agent event stream closed unexpectedly.' });
       }
     };
@@ -221,14 +243,23 @@ export class AgentSession {
   /** Put the agent's lines and tugs on the canvas, keeping what was there so it can be undone. */
   applyPlan(plan: AgentPlan | null = this.s.plan): void {
     if (!plan?.config || !this.applicable()) return;
+    const config = plan.config;
     const { lines, tugAssignments } = this.parent.state.get();
     if (!this.s.undo) this.state.set({ undo: { lines, tugs: tugAssignments } });
-    this.parent.setTugAssignments(plan.holding_tugs ?? []);
-    this.parent.replaceLines(plan.config.lines.map((l) => ({ ...l })));
+    this.applyLayout(() => {
+      this.parent.setTugAssignments(plan.holding_tugs ?? []);
+      this.parent.replaceLines(config.lines.map((l) => ({ ...l })));
+    });
+  }
+
+  private applyLayout(change: () => void): void {
+    this.applying = true;
+    try { change(); this.context = this.parent.planningKey(); }
+    finally { this.applying = false; }
   }
 
   private applicable(): boolean {
-    if (this.context !== null && this.context !== this.parent.contextKey()) {
+    if (this.invalidated || (this.context !== null && this.context !== this.parent.planningKey())) {
       this.state.set({ error: 'Ship, berth, geometry or environment changed. Run a new plan before applying or undoing it.' });
       return false;
     }
@@ -240,20 +271,24 @@ export class AgentSession {
     if (!p || !this.applicable()) return;
     const { lines, tugAssignments } = this.parent.state.get();
     if (!this.s.undo) this.state.set({ undo: { lines, tugs: tugAssignments } });
-    this.parent.replaceLines(p.config.lines.map((l) => ({ ...l })));
+    this.applyLayout(() => this.parent.replaceLines(p.config.lines.map((l) => ({ ...l }))));
   }
 
   undo(): void {
     const u = this.s.undo;
     if (!u || !this.applicable()) return;
-    this.parent.setTugAssignments(u.tugs);
-    this.parent.replaceLines(u.lines);
-    this.state.set({ undo: null });
+    this.applyLayout(() => { this.parent.setTugAssignments(u.tugs); this.parent.replaceLines(u.lines); });
+    this.reviewRequest++;
+    this.sheetRequest++;
+    this.state.set({ review: INITIAL.review, sheet: INITIAL.sheet });
+    this.resetForSelection();
+    this.invalidated = true;
+    this.state.set({ error: 'The plan was undone. Run a new plan and safety review for this layout.' });
   }
 
   async ask(text: string): Promise<void> {
     const planId = this.s.planId;
-    if (!planId || !text.trim() || this.s.phase !== 'done') return;
+    if (!planId || !text.trim() || this.s.phase !== 'done' || !this.applicable()) return;
     const request = ++this.planRequest;
     const current = () => !this.disposed && request === this.planRequest && this.s.planId === planId;
     this.source?.close();
@@ -285,7 +320,7 @@ export class AgentSession {
   /** Ask the Safety agent to review the finished plan independently, with the Intake report the Planner used. */
   async review(): Promise<void> {
     const planId = this.s.planId;
-    if (!planId || this.s.phase !== 'done' || this.s.review.state === 'running') return;
+    if (!planId || this.s.phase !== 'done' || this.s.review.state === 'running' || !this.applicable()) return;
     const request = ++this.reviewRequest;
     this.sheetRequest++;
     const current = () => !this.disposed && request === this.reviewRequest && this.s.planId === planId;
@@ -324,7 +359,7 @@ export class AgentSession {
   async createSheet(): Promise<void> {
     const planId = this.s.planId;
     const review = this.s.review.review;
-    if (!planId) return;
+    if (!planId || !this.applicable()) return;
     if (!review || this.s.review.state !== 'ready' || review.plan_id !== planId) {
       this.setSheet({ state: 'error', error: 'Run the independent safety review before building the sheet.' });
       return;
@@ -365,7 +400,7 @@ export class AgentSession {
 
   async approve(role: Role, name: string, decision: Approval['decision'], comment: string): Promise<void> {
     const sheet = this.s.sheet.sheet;
-    if (!sheet) return;
+    if (!sheet || !this.applicable()) return;
     const request = ++this.sheetRequest;
     try {
       unwrap(

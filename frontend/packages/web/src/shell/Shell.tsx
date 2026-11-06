@@ -8,6 +8,8 @@ import { CesiumCanvas } from './CesiumCanvas';
 import { Inspector } from './Inspector';
 import { Landing } from './Landing';
 import { ViewControls } from './ViewControls';
+import { RuntimeAccess } from './RuntimeAccess';
+import { credentialState } from '../lib/credentials';
 
 export const PRODUCT_NAME = 'Pier Review';
 
@@ -92,6 +94,12 @@ export function Shell({ store }: { store?: SceneStore }) {
       map.clear();
     };
   }, []);
+
+  useEffect(() => credentialState.subscribe(() => {
+    for (const entry of running.current.values()) entry.instance?.dispose();
+    running.current.clear();
+    setVersion((version) => version + 1);
+  }), []);
 
   const go = useCallback((next: Route) => {
     setRoute(next);
@@ -223,6 +231,7 @@ function Header({ onHome, appTitle, children }: { onHome?: () => void; appTitle?
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-4 gap-y-1">{children}</div>
+      <RuntimeAccess />
     </header>
   );
 }

@@ -83,6 +83,52 @@ def client(responses, **policy):
 OK = HttpPayload(200, b'{"ok":true}', {})
 
 
+def test_cache_evicts_least_recently_used_and_preserves_retained_stale_fallback():
+    c, clock, calls = client([OK], retries=0, min_interval_s=0, cache_ttl_s=10,
+                            max_stale_s=60, cache_max_entries=2)
+    for key in ("a", "b", "a", "c"):
+        c.get(key)
+    assert len(calls) == 3 and len(c._cache) == 2
+    assert {key[0] for key in c._cache} == {"a", "c"}
+    c.transport = lambda *args: (_ for _ in ()).throw(TimeoutError("down"))
+    clock.value += timedelta(seconds=30)
+    stale = c.get("a")
+    assert stale.stale and stale.retrieved_at_utc == T0
+    with pytest.raises(ProviderError):
+        c.get("b")  # Eviction never manufactures a fallback for another key.
+    clock.value += timedelta(seconds=31)
+    with pytest.raises(ProviderError):
+        c.get("a")
+    assert c._cache == {} and c._cache_bytes == 0
+
+
+def test_cache_byte_budget_invalidation_and_oversized_response():
+    c, _, _ = client([HttpPayload(200, b"x" * 64, {})], min_interval_s=0,
+                     cache_max_bytes=140)
+    for key in ("a", "b", "c"):
+        c.get(key)
+    assert len(c._cache) == 2 and c._cache_bytes <= 140
+    c.invalidate("b")
+    assert len(c._cache) == 1 and c._cache_bytes == 65
+    c.transport = lambda *args: HttpPayload(200, b"x" * 200, {})
+    assert len(c.get("large").content) == 200
+    assert len(c._cache) == 1 and c._cache_bytes <= 140
+
+
+@pytest.mark.parametrize("field,value", [("cache_max_entries", 0), ("cache_max_entries", 1.5),
+                                         ("cache_max_bytes", -1), ("cache_max_bytes", True)])
+def test_cache_policy_requires_positive_integer_limits(field, value):
+    with pytest.raises(ValueError, match="cache"):
+        HttpPolicy(**{field: value})
+
+
+def test_cache_retains_fresh_payload_when_ttl_exceeds_max_stale():
+    c, clock, calls = client([OK], cache_ttl_s=60, max_stale_s=10, min_interval_s=0)
+    c.get("a")
+    clock.value += timedelta(seconds=30)
+    assert c.get("a").from_cache and len(calls) == 1
+
+
 def test_timeout_retry_exhaustion_and_descriptive_user_agent():
     c, clock, calls = client([TimeoutError("slow")], retries=2, backoff_s=1, min_interval_s=0, breaker_failures=5)
     with pytest.raises(ProviderError, match="3 attempts"):

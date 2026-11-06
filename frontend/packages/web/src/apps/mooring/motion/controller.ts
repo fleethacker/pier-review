@@ -1,4 +1,5 @@
 import { Store } from '../../../lib/store';
+import { credentialState, GATEWAY_REQUIRED } from '../../../lib/credentials';
 import { authHeaders, modeling, MODELING_BASE, unwrap, wsUrl } from '../api';
 import { openJsonStream } from '../streams';
 import type { StreamHandle, StreamStatus } from '../streams';
@@ -394,6 +395,7 @@ export class MotionController {
 
   /** Create a session from the current layout and connect to it. Sessions start paused; call `resume()` to run. */
   async startSession(offsetFt = 120): Promise<void> {
+    if (credentialState.get().configured) { this.state.set({ error: GATEWAY_REQUIRED }); return; }
     const inputKey = this.host.layoutKey();
     const layoutKey = JSON.stringify([inputKey, offsetFt]);
     const initial = this.host.initialState(offsetFt);

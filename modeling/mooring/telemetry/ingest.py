@@ -11,6 +11,7 @@ replaces a qualified forecast: where it disagrees with one beyond the stated tol
 higher-priority source wins.
 """
 
+import json
 import os
 import threading
 from collections import OrderedDict, deque
@@ -18,6 +19,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from mooring.core.envelopes import utcnow
+from mooring.core import access
 from mooring.core.schemas import EnvironmentSnapshot, TelemetryAccepted, TelemetryBatch, TelemetryRecord, TelemetryRejection
 
 from . import nmea
@@ -27,6 +29,44 @@ MAX_SKEW_FUTURE_S = 60.0
 MAX_AGE_S = 600.0
 HISTORY = 100
 SEEN_LIMIT = 10_000
+MAX_CHANNELS = 4096
+MAX_AUTH_CONFIG_CHARS = 65_536
+MAX_AUTH_PRINCIPALS = 512
+MAX_VESSELS_PER_PRINCIPAL = 256
+MAX_ID_LENGTH = 128
+
+ChannelKey = tuple[str, str | None, str]  # authenticated principal, vessel, source/channel
+
+
+def _unique_keys(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate configuration key")
+        result[key] = value
+    return result
+
+
+def _vessel_authorization(owner: str) -> tuple[frozenset[str] | None, tuple[str, str] | None]:
+    """Fail closed under API authentication; local-demo identity is not verified."""
+    if not access.enforced.get():
+        return None, None
+    raw = os.environ.get("MOORING_TELEMETRY_VESSELS", "")
+    try:
+        if not raw or len(raw) > MAX_AUTH_CONFIG_CHARS:
+            raise ValueError()
+        mapping = json.loads(raw, object_pairs_hook=_unique_keys)
+        if not isinstance(mapping, dict) or len(mapping) > MAX_AUTH_PRINCIPALS:
+            raise ValueError()
+        for principal, vessels in mapping.items():
+            if (not isinstance(principal, str) or not 0 < len(principal) <= MAX_ID_LENGTH
+                    or not isinstance(vessels, list) or len(vessels) > MAX_VESSELS_PER_PRINCIPAL
+                    or any(not isinstance(vessel, str) or not 0 < len(vessel) <= MAX_ID_LENGTH for vessel in vessels)):
+                raise ValueError()
+        return frozenset(mapping.get(owner, [])), None
+    except (ValueError, TypeError, RecursionError):
+        # Never echo environment configuration, parser fragments or other owners.
+        return None, ("AUTHORIZATION_UNAVAILABLE", "Telemetry vessel authorization is not configured correctly")
 
 
 @dataclass(frozen=True)
@@ -55,10 +95,10 @@ class Ingest:
         self.sensors = {s.sensor_id: s for s in (sensors or [])}
         self.clock = clock
         self.lock = threading.Lock()
-        self.latest: dict[str, Adopted] = {}
-        self.history: dict[str, deque] = {}
-        self.seen: OrderedDict[tuple[str, int], None] = OrderedDict()
-        self.last_t: dict[str, datetime] = {}
+        self.latest: dict[ChannelKey, Adopted] = {}
+        self.history: dict[ChannelKey, deque] = {}
+        self.seen: OrderedDict[tuple[ChannelKey, int], None] = OrderedDict()
+        self.last_t: dict[ChannelKey, datetime] = {}
 
     def _reject(self, rej: list[TelemetryRejection], i: int, code: str, msg: str) -> None:
         rej.append(TelemetryRejection(index=i, code=code, message=msg))
@@ -69,21 +109,38 @@ class Ingest:
         accepted = 0
         if len(batch.records) > MAX_BATCH:
             raise BatchTooLarge(f"batch of {len(batch.records)} records exceeds the limit of {MAX_BATCH}")
+        owner = access.principal.get()
+        allowed, authorization_error = _vessel_authorization(owner)
         with self.lock:
             for i, r in enumerate(batch.records):
-                code_msg = self._check(r, now)
+                if authorization_error:
+                    self._reject(rej, i, *authorization_error)
+                    continue
+                if allowed is not None and r.vessel_id not in allowed:
+                    self._reject(rej, i, "VESSEL_NOT_AUTHORIZED", "An explicitly authorized vessel_id is required")
+                    continue
+                channel = f"ship_nmea:{(r.sentence or '')[3:6]}" if r.source == "ship_nmea" else f"{r.source}:{r.sensor_id}"
+                key = (owner, r.vessel_id, channel)
+                code_msg = self._check(r, now, key)
                 if code_msg:
                     self._reject(rej, i, *code_msg)
                     continue
-                key, adopted = self._adopt(r, now)
+                if key not in self.latest and len(self.latest) >= MAX_CHANNELS:
+                    self._reject(rej, i, "CHANNEL_LIMIT", "Telemetry channel capacity is exhausted")
+                    continue
+                adopted = self._adopt(r, now)
                 self.latest[key] = adopted
                 self.history.setdefault(key, deque(maxlen=HISTORY)).append(adopted)
                 self.last_t[key] = r.t_utc
+                if r.seq is not None:
+                    self.seen[(key, r.seq)] = None
+                    if len(self.seen) > SEEN_LIMIT:
+                        self.seen.popitem(last=False)
                 accepted += 1
         return TelemetryAccepted(accepted=accepted, rejected=len(rej), errors=[f"record {x.index}: {x.code}: {x.message}" for x in rej], rejections=rej)
 
     # ----- checks -----
-    def _check(self, r: TelemetryRecord, now: datetime) -> tuple[str, str] | None:
+    def _check(self, r: TelemetryRecord, now: datetime, key: ChannelKey) -> tuple[str, str] | None:
         t = r.t_utc if r.t_utc.tzinfo else None
         if t is None:
             return "NAIVE_TIMESTAMP", "t_utc needs a timezone"
@@ -98,26 +155,23 @@ class Ingest:
                 nmea.decode(r.sentence)
             except nmea.NmeaError as e:
                 return e.code, str(e)
-            return self._order(r, f"ship_nmea:{r.sentence[3:6]}", t)
+            return self._order(r, key, t)
         if r.source == "load_cell":
-            return self._load_cell(r, t, now)
+            return self._load_cell(r, t, now, key)
         if r.source == "ais":
             return "AIS_UNSUPPORTED", "AIS decoding is not supported"
         return "UNKNOWN_SOURCE", f"unknown source {r.source!r}"
 
-    def _order(self, r: TelemetryRecord, key: str, t: datetime) -> tuple[str, str] | None:
+    def _order(self, r: TelemetryRecord, key: ChannelKey, t: datetime) -> tuple[str, str] | None:
         if r.seq is not None:
             if (key, r.seq) in self.seen:
                 return "DUPLICATE_OR_REPLAY", f"sequence {r.seq} already received on {key}"
-            self.seen[(key, r.seq)] = None
-            if len(self.seen) > SEEN_LIMIT:
-                self.seen.popitem(last=False)
         last = self.last_t.get(key)
         if last is not None and t < last:
             return "OUT_OF_ORDER", f"{t.isoformat()} is older than the last accepted reading {last.isoformat()} on {key}"
         return None
 
-    def _load_cell(self, r: TelemetryRecord, t: datetime, now: datetime):
+    def _load_cell(self, r: TelemetryRecord, t: datetime, now: datetime, key: ChannelKey):
         if r.sensor_id is None or r.vessel_id is None or r.tension_lbf is None or r.calibration_rev is None:
             return "MISSING_FIELDS", "load_cell records need sensor_id, vessel_id, calibration_rev and tension_lbf"
         s = self.sensors.get(r.sensor_id)
@@ -135,14 +189,14 @@ class Ingest:
             return "CALIBRATION_EXPIRED", "reading time is outside the calibration validity period"
         if not (s.min_lbf <= r.tension_lbf <= s.max_lbf):
             return "OUT_OF_BOUNDS", f"{r.tension_lbf:g} lbf is outside [{s.min_lbf:g}, {s.max_lbf:g}]"
-        return self._order(r, f"load_cell:{s.sensor_id}", t)
+        return self._order(r, key, t)
 
     def _adopt(self, r: TelemetryRecord, now: datetime):
         if r.source == "ship_nmea":
             decoded = nmea.decode(r.sentence)
-            return f"ship_nmea:{r.sentence[3:6]}", Adopted(r.model_copy(update={"received_utc": now}), now, "good", f"NMEA 0183 {r.sentence[3:6]} checksum verified", decoded)
+            return Adopted(r.model_copy(update={"received_utc": now}), now, "good", f"NMEA 0183 {r.sentence[3:6]} checksum verified", decoded)
         s = self.sensors[r.sensor_id]
-        return f"load_cell:{s.sensor_id}", Adopted(r.model_copy(update={"received_utc": now}), now, "good", f"sensor {s.sensor_id} calibration {s.calibration_rev}")
+        return Adopted(r.model_copy(update={"received_utc": now}), now, "good", f"sensor {s.sensor_id} calibration {s.calibration_rev}")
 
 
 class BatchTooLarge(ValueError):

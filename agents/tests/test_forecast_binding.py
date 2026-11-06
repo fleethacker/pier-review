@@ -316,3 +316,23 @@ def test_bound_documents_reopen_with_the_same_manifest_and_source_bytes(chain, m
         assert planner.PLANS[record.plan.plan_id].plan.forecast_request == report.forecast_request
     finally:
         database.close()
+
+
+def test_fractional_operation_horizon_preserves_exact_forecast_binding(monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail("A bound fractional horizon must not fetch a different forecast")
+    monkeypatch.setattr(environment, "now", forbidden)
+    monkeypatch.setattr(environment, "forecast", forbidden)
+    req = request()
+    req.to_utc = req.from_utc + timedelta(hours=1.5)
+    report = asyncio.run(intake.assess(IntakeRequest(berth_id=req.berth_id, horizon_hours=1.5,
+        forecast_request=req), PhysicsToolkit(client(), "intake")))
+    assert report.horizon_hours == 1.5
+    assert report.forecast_manifest.to_utc == req.to_utc
+    assert report.forecast_manifest.from_utc == req.from_utc
+    assert report.forecast_request == req
+
+
+def test_fractional_unbound_horizon_is_rejected_instead_of_rounding():
+    with pytest.raises(ValidationError, match="explicit forecast_request"):
+        IntakeRequest(horizon_hours=1.5)

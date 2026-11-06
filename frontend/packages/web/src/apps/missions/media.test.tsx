@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setRuntimeCredential } from '../../lib/credentials';
 import { fetchMissionBlob } from './api';
 import { AuthenticatedImage, GeoJsonDownload } from './media';
 
@@ -13,13 +14,14 @@ const deferred = <T,>() => {
 };
 
 beforeEach(() => {
-  vi.stubEnv('VITE_API_BEARER_TOKEN', 'test-secret');
+  setRuntimeCredential('test-secret');
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(blobResponse()));
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn().mockReturnValue('blob:test-image') });
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
 });
 afterEach(() => {
   cleanup();
+  setRuntimeCredential('');
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();

@@ -163,7 +163,9 @@ def test_latency():
 def test_validity_stale_input_and_coastline():
     r = engine.predict(presets.approach_request(samples=0, alternatives=False, observed_s_ago=600))
     codes = [x.code for x in r.validity.reasons]
-    assert r.validity.state == "limited" and r.backend == "real" and r.model == "mooring.prediction.trajectory"
+    # The archived NOAA observation's declared interval ends at 16:54, before this 17:11 prediction.
+    assert r.validity.state == "invalid" and r.status == "RED" and r.backend == "real" and r.model == "mooring.prediction.trajectory"
+    assert "ENVIRONMENT_OUTSIDE_VALID_INTERVAL" in codes
     assert {"INPUT_AGE", "STALE_INPUT", "COASTLINE_NOT_CHECKED"} <= set(codes) and "pier" in r.result.hazards_checked
     assert "coastline" not in r.result.hazards_checked and r.result.input_age_s == 600
     assert r.manifest.resolved_inputs_hash
@@ -194,7 +196,8 @@ def test_examples_deterministic_and_real():
     a, b = build(), build()
     assert a == b
     resp = a["predict_trajectory_response"]
-    assert "MOCK" not in str(resp) and resp["backend"] == "real" and resp["validity"]["state"] == "limited"
+    assert "MOCK" not in str(resp) and resp["backend"] == "real" and resp["validity"]["state"] == "invalid"
+    assert resp["status"] == "RED" and "ENVIRONMENT_OUTSIDE_VALID_INTERVAL" in {r["code"] for r in resp["validity"]["reasons"]}
     PredictionRequest.model_validate(a["predict_trajectory_request"])
     env = a["predict_trajectory_request"]["environment"]
     assert env["source"] and env["metadata"]["basis"] == "observation"

@@ -1,4 +1,5 @@
 import { Store } from '../../lib/store';
+import { credentialState, GATEWAY_REQUIRED } from '../../lib/credentials';
 import type { AppHost } from '../../scene/app';
 import type { SceneEdit, SceneState } from '../../scene/types';
 import { canDropConnection } from '../../scene/linkEditing';
@@ -29,6 +30,7 @@ import {
   superstructure,
 } from './mapping';
 import type {
+  ModelingSchemas,
   AnalyzeRequest,
   AnalyzeResponse,
   Berth,
@@ -231,6 +233,21 @@ export class MooringController {
   /** While true the Cesium scene belongs to the motion view, and layout redraws are held back. */
   private motionHoldsScene = false;
   private savedScenarioKey: string | null = null;
+  private selectedForecast: ModelingSchemas['ForecastResolveRequest'] | null = null;
+
+  get forecastSelection(): ModelingSchemas['ForecastResolveRequest'] | null {
+    return this.selectedForecast ? structuredClone(this.selectedForecast) : null;
+  }
+
+  /** Binding used by Intake, Planner and Safety, independent of the current snapshot controls. */
+  setForecastSelection(request: ModelingSchemas['ForecastResolveRequest'] | null): void {
+    this.selectedForecast = request ? structuredClone(request) : null;
+    this.state.set({});
+  }
+
+  planningKey(): string {
+    return JSON.stringify([this.scenarioKey(), this.selectedForecast]);
+  }
   readonly motion: MotionController = new MotionController({
     map: {
       enter: () => {
@@ -464,6 +481,7 @@ export class MooringController {
   }
 
   async setBerth(berthId: string): Promise<void> {
+    this.setForecastSelection(null);
     ++this.scenarioLoadSeq;
     void this.setEnvMode('manual');
     this.alertStream?.close();
@@ -859,6 +877,7 @@ export class MooringController {
   }
 
   async loadScenario(id: string): Promise<void> {
+    this.setForecastSelection(null);
     // A previous automatic plan must not apply while this newer selection waits for its scenario/environment.
     this.recommendAbort?.abort();
     this.agent.resetForSelection();
@@ -899,6 +918,7 @@ export class MooringController {
     kind: EnvMode,
     opts: { replayStartUtc?: string; speed?: number; rampToKt?: number; rampMinutes?: number } = {},
   ): Promise<void> {
+    if (kind !== 'manual' && credentialState.get().configured) { this.state.set({ notice: GATEWAY_REQUIRED }); return; }
     this.envStream?.close();
     this.envStream = null;
     if (kind === 'manual') {
@@ -961,6 +981,7 @@ export class MooringController {
   }
 
   startAlerts(): void {
+    if (credentialState.get().configured) { this.state.set({ alertsStatus: 'error', notice: GATEWAY_REQUIRED }); return; }
     this.alertStream?.close();
     this.state.set({ alerts: [], alertsStatus: 'connecting' });
     this.alertStream = openJsonStream<Alert>(

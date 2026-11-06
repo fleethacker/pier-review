@@ -11,7 +11,8 @@ from fastapi.testclient import TestClient
 from modeling_api.main import app as modeling_app
 from mooring.core import access
 from mooring.core.envelopes import RESULTS, new_id
-from mooring.core.schemas.prediction import PredictionResponse
+from mooring.core.schemas.prediction import PredictionRequest, PredictionResponse
+from mooring.prediction import engine
 from mooring_agents.api import security
 from mooring_agents.api.main import app, get_client
 from mooring_agents.physics.client import ModelingClient, ModelingError
@@ -19,12 +20,35 @@ from mooring_agents.physics.toolkit import PhysicsToolkit
 from mooring_agents.prediction.brief import explain
 
 
+@pytest.fixture(scope="module")
+def synthetic_prediction():
+    # Narration of usable results needs a usable source. The archived NOAA example
+    # is now correctly invalid because its observation interval predates prediction.
+    path = Path(__file__).resolve().parents[2] / "contract/examples/modeling/predict_trajectory_request.json"
+    body = json.loads(path.read_text())
+    body.update(horizon_s=30, tick_s=10, uncertainty={"samples": 4, "seed": 42})
+    body["environment"] = dict(valid_at_utc=body["as_of_utc"], source="scenario",
+        wind_speed_kt=12, wind_gust_kt=16, wind_from_true_deg=210,
+        current_speed_kt=0.6, current_set_true_deg=350, water_level_mllw_ft=1)
+    response = engine.predict(PredictionRequest.model_validate(body))
+    assert response.validity.state == "limited"
+    return response
+
+
 @pytest.fixture
-def prediction():
+def prediction(synthetic_prediction):
+    return synthetic_prediction.model_copy(deep=True, update={"result_id": new_id("res")})
+
+
+def test_archived_expired_observation_stays_invalid_and_is_not_narrated_as_a_trajectory():
     path = Path(__file__).resolve().parents[2] / "contract/examples/modeling/predict_trajectory_response.json"
-    data = json.loads(path.read_text())
-    data["result_id"] = new_id("res")
-    return PredictionResponse.model_validate(data)
+    archived = PredictionResponse.model_validate_json(path.read_text())
+    assert archived.validity.state == "invalid"
+    assert "ENVIRONMENT_OUTSIDE_VALID_INTERVAL" in {r.code for r in archived.validity.reasons}
+    brief = explain(archived)
+    assert brief.validity == archived.validity
+    assert all(a.final_tick is None and a.closest_approach is None and a.first_breach is None
+               and "unavailable" in a.explanation for a in brief.alternatives)
 
 
 def test_brief_preserves_model_evidence_and_saved_age(prediction):

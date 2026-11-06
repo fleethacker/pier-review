@@ -64,6 +64,13 @@ class Integrator:
         start, state = self.previous
         if not start-1e-9 <= t <= self.t+1e-9:
             raise ValueError("sample must lie in the most recent integration step")
+        # Accepted endpoints are already authoritative. Besides doing needless
+        # RK4 work, resampling them would reevaluate forces after a boundary
+        # command may have changed the model used for interior sampling.
+        if t <= start:
+            return state
+        if t == self.t:
+            return self.state
         return self.step(start,state,self.previous_auxiliary_state,max(0,t-start))[0]
 
     def sample_auxiliary(self, t):
@@ -72,4 +79,6 @@ class Integrator:
             raise ValueError("sample must lie in the most recent integration step")
         if abs(t-self.t) < 1e-10:
             return self.auxiliary_state
+        if t <= start:
+            return self.previous_auxiliary_state
         return self.step(start,state,self.previous_auxiliary_state,max(0,t-start))[1]

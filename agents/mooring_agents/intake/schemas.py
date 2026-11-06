@@ -26,11 +26,13 @@ class IntakeRequest(Model):
     berth_id: str | None = None
     ship_class_id: str | None = None
     side_to: SideTo | None = None
-    horizon_hours: int = Field(default=24, ge=1, le=120)
+    horizon_hours: float = Field(default=24, gt=0, le=120, allow_inf_nan=False)
     env_scenario_id: str | None = Field(default=None, description="Use a synthetic environment instead of live data.")
 
     @model_validator(mode="after")
     def bound_horizon(self):
+        if self.forecast_request is None and not float(self.horizon_hours).is_integer():
+            raise ValueError("Fractional horizon_hours requires an explicit forecast_request")
         if self.forecast_request is not None:
             if self.forecast_request.to_utc - self.forecast_request.from_utc != timedelta(hours=self.horizon_hours):
                 raise ValueError("Forecast interval must equal horizon_hours")
@@ -89,7 +91,7 @@ class IntakeReport(Model):
     berth_id: str
     ship_class_id: str | None
     side_to: SideTo | None
-    horizon_hours: int
+    horizon_hours: float
     current: EnvironmentSnapshot
     mst: MstAssessment
     windows: list[ConcernWindow]

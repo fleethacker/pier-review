@@ -4981,6 +4981,72 @@ export interface components {
             lines?: components["schemas"]["MotionWrench"] | null;
             fenders?: components["schemas"]["MotionWrench"] | null;
         };
+        /** MotionGeographicContext */
+        MotionGeographicContext: {
+            /**
+             * Coordinate Frame
+             * @default berth_ft
+             * @constant
+             */
+            coordinate_frame: "berth_ft";
+            /**
+             * Coverage
+             * @default partial
+             * @constant
+             */
+            coverage: "partial";
+            /**
+             * Coverage Outline
+             * @description Closed bounds of this partial fixture. Geography outside is unknown; absence of features is not navigability.
+             */
+            coverage_outline: components["schemas"]["BerthPosition"][];
+            /** Features */
+            features: components["schemas"]["MotionGeographicFeature"][];
+            /** Source */
+            source: string;
+            /** Attribution */
+            attribution: string;
+            /**
+             * Retrieved At Utc
+             * Format: date-time
+             */
+            retrieved_at_utc: string;
+            /** Limitations */
+            limitations: string[];
+            /**
+             * Runtime Collision Checks
+             * @default false
+             * @constant
+             */
+            runtime_collision_checks: false;
+        };
+        /** MotionGeographicFeature */
+        MotionGeographicFeature: {
+            /** Feature Id */
+            feature_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "land" | "shoreline_construction" | "coastline";
+            /** Name */
+            name?: string | null;
+            /**
+             * Geometry Type
+             * @enum {string}
+             */
+            geometry_type: "Polygon" | "LineString";
+            /**
+             * Rings
+             * @description Polygon exterior followed by holes, or a single open/closed source line; berth feet.
+             */
+            rings: components["schemas"]["BerthPosition"][][];
+            /**
+             * Source Date
+             * @description Original feature source date, when supplied; not a survey of current conditions.
+             */
+            source_date?: string | null;
+        };
         /** MotionGuidanceState */
         MotionGuidanceState: {
             /** Active */
@@ -5596,6 +5662,21 @@ export interface components {
             sway_fps: number;
             /** Yaw Radps */
             yaw_radps: number;
+        };
+        /** MotionTugDimensions */
+        MotionTugDimensions: {
+            /** Tug Id */
+            tug_id: string;
+            /** Length Ft */
+            length_ft: number;
+            /** Beam Ft */
+            beam_ft: number;
+            /**
+             * Basis
+             * @default synthetic
+             * @constant
+             */
+            basis: "synthetic";
         };
         /** MotionTugDynamicsState */
         MotionTugDynamicsState: {
@@ -7893,6 +7974,9 @@ export interface components {
             fenders?: components["schemas"]["MotionSceneFender"][] | null;
             /** Depth Profile */
             depth_profile?: components["schemas"]["MotionSceneDepth"][] | null;
+            geographic_context?: components["schemas"]["MotionGeographicContext"] | null;
+            /** Tug Dimensions */
+            tug_dimensions?: components["schemas"]["MotionTugDimensions"][] | null;
         };
         /** SimSeries */
         SimSeries: {

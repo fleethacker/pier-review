@@ -92,17 +92,17 @@ function Toolbar() {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 p-3">
       <div className="pointer-events-auto flex gap-1.5 self-start" role="toolbar" aria-label="Exercise">
-        <ToolButton title="The scenario, the conditions and the forces" pressed={setupOpen && setupTab !== 'simulation'} onClick={() => c.toggleSetup()}>
-          Setup
-        </ToolButton>
-        <ToolButton title="What the simulation underneath can be asked to do: the red team, and recording the run" pressed={setupOpen && setupTab === 'simulation'} onClick={() => c.openSetup('simulation')}>
-          Simulation
-        </ToolButton>
         <ToolButton title="The collection sources feeding this picture, and the record behind each event" pressed={catalogOpen} onClick={() => c.toggleCatalog()}>
           Data catalog
         </ToolButton>
+        <ToolButton title="The scenario, the conditions and the forces" pressed={setupOpen && setupTab !== 'simulation'} onClick={() => c.toggleSetup()}>
+          Setup
+        </ToolButton>
         <ToolButton title="Pictures and captions that come up beside the units as the run plays" pressed={storyOpen} onClick={() => c.toggleStoryboard()}>
           Storyboard
+        </ToolButton>
+        <ToolButton title="What the simulation underneath can be asked to do: the red team, and recording the run" pressed={setupOpen && setupTab === 'simulation'} onClick={() => c.openSetup('simulation')}>
+          Simulation
         </ToolButton>
         <ToolButton title="Play the whole exercise full screen, with the storyboard coming up as it goes" onClick={() => c.present()}>
           Present

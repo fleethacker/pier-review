@@ -21,7 +21,7 @@ import threading
 from contextvars import copy_context
 from collections.abc import AsyncIterator, Callable
 from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 
 from pydantic import BaseModel
@@ -95,6 +95,7 @@ class Job:
     lock: threading.RLock = field(default_factory=threading.RLock)
     future: Future | None = None
     completed_callbacks: int = 0
+    persistence_pending: bool = False
 
     # ---- legacy ----
     @property
@@ -177,7 +178,11 @@ class JobStore:
             job = Job(jid, kind, utcnow(), task=True, deadline_s=deadline_s or self.default_deadline_s)
             job.on_done = on_done  # type: ignore[assignment]
             self.jobs[jid] = job
-            self._persist(job)
+            try:
+                self._persist(job)
+            except Exception:
+                del self.jobs[jid]
+                raise
             job.future = self._pool.submit(copy_context().run, self._run, job, fn)
             metrics.event("job_submitted",job_id=jid,kind=kind)
         return self._accepted(jid, kind)
@@ -190,6 +195,7 @@ class JobStore:
         try:
             out = fn(JobContext(job))
             payload = out.model_dump(mode="json") if isinstance(out, BaseModel) else out
+            JobContext(job).check_cancelled()
             self._finish(job, "succeeded", result=payload)
         except JobCancelled:
             self._finish(job, "cancelled", error="cancelled")
@@ -201,13 +207,33 @@ class JobStore:
         with job.lock:
             if job.task_state in TERMINAL:
                 return False
-            job.task_state, job.finished, job.error = state, utcnow(), error
-            job.result = result if state == "succeeded" else None
-            job.log.append(("done", {"job_id": job.job_id, "state": state}))
-            job.cancel_event.set() if state != "succeeded" else None
+            finished = utcnow()
+            if state == "succeeded" and job.deadline_s and job.started and (finished-job.started).total_seconds() > job.deadline_s:
+                state, error = "failed", f"deadline of {job.deadline_s:g} s exceeded"
+            candidate = replace(job, task_state=state, finished=finished, error=error,
+                                result=result if state == "succeeded" else None,
+                                log=[*job.log, ("done", {"job_id": job.job_id, "state": state})])
+            # Persist a separate candidate: no reader can observe success before the write commits.
+            try:
+                self._persist(candidate)
+            except Exception as exc:
+                state = "failed"
+                candidate.task_state, candidate.result = state, None
+                candidate.error = f"Job persistence failed ({type(exc).__name__}); result was not published"
+                candidate.log[-1] = ("done", {"job_id": job.job_id, "state": state})
+                metrics.event("job_persistence_failed", job_id=job.job_id, error_type=type(exc).__name__)
+                try:
+                    self._persist(candidate)
+                except Exception:
+                    candidate.persistence_pending = True
+            job.finished, job.error = candidate.finished, candidate.error
+            job.result, job.log = candidate.result, candidate.log
+            job.persistence_pending = candidate.persistence_pending
+            job.task_state = candidate.task_state
+            if state != "succeeded":
+                job.cancel_event.set()
             callback, job.on_done = job.on_done, None
             job.completed_callbacks += 1
-        self._persist(job)
         metrics.add("jobs_"+state)
         if state == "cancelled": metrics.add("cancellations")
         duration = (job.finished-(job.started or job.created)).total_seconds()
@@ -272,18 +298,35 @@ class JobStore:
                       "WHERE namespace=? AND state IN ('queued','running')", (utcnow().isoformat(), self.namespace))
         return n
 
+    def _retry_persistence(self, job: Job) -> None:
+        with job.lock:
+            if job.persistence_pending:
+                try:
+                    self._persist(job)
+                except Exception:
+                    return
+                job.persistence_pending = False
+
     def purge(self, older_than_s: float) -> int:
-        """Retention: drop finished job records older than the limit. Stored results are kept."""
+        """Drop old terminal records only after their worker exits and their state is durable."""
         cutoff = (utcnow() - timedelta(seconds=older_than_s)).isoformat()
-        for jid in [j.job_id for j in self.jobs.values() if j.task and j.finished and j.finished.isoformat() < cutoff]:
-            del self.jobs[jid]
-        if not self.persist:
-            return 0
-        d = store.db()
-        with d.lock:
-            n = len(d.execute("SELECT job_id FROM jobs WHERE namespace=? AND finished_at_utc IS NOT NULL AND finished_at_utc < ?", (self.namespace, cutoff)))
-            d.execute("DELETE FROM jobs WHERE namespace=? AND finished_at_utc IS NOT NULL AND finished_at_utc < ?", (self.namespace, cutoff))
-        return n
+        with self._guard:
+            retained = set()
+            for jid, job in list(self.jobs.items()):
+                self._retry_persistence(job)
+                if job.persistence_pending or (job.future is not None and not job.future.done()):
+                    retained.add(jid)
+                elif job.task and job.finished and job.finished.isoformat() < cutoff:
+                    del self.jobs[jid]
+            if not self.persist:
+                return 0
+            d = store.db()
+            with d.lock:
+                rows = d.execute("SELECT job_id FROM jobs WHERE namespace=? AND finished_at_utc IS NOT NULL AND finished_at_utc < ?", (self.namespace, cutoff))
+                eligible = [jid for (jid,) in rows if jid not in retained]
+                for jid in eligible:
+                    d.execute("DELETE FROM jobs WHERE namespace=? AND job_id=?", (self.namespace, jid))
+            return len(eligible)
 
     def _from_db(self, job_id: str) -> Job | None:
         if not self.persist:
@@ -306,6 +349,7 @@ class JobStore:
         if not access.allowed("job",job_id): return None
         job = self.jobs.get(job_id) or self._from_db(job_id)
         if job is not None:
+            self._retry_persistence(job)
             self._check_deadline(job)
         return job
 

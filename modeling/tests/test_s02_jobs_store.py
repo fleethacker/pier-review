@@ -286,3 +286,128 @@ def test_v3_job_migration_assigns_legacy_rows_to_modeling(tmp_path):
         assert recovered.status('legacy').error == 'interrupted by restart'
     finally:
         store.reset_db(':memory:')
+
+
+def test_job_never_publishes_success_when_terminal_persistence_fails(monkeypatch, tmp_path):
+    """A disk fault must not expose a successful result or lose completion callbacks."""
+    store.reset_db(str(tmp_path / 'fault.sqlite'))
+    js = JobStore('/api', workers=1, persist=True)
+    original = js._persist
+    failing = threading.Event()
+    failing.set()
+    calls = []
+
+    def persist(job):
+        if job.finished and failing.is_set():
+            raise OSError('disk unavailable')
+        original(job)
+
+    monkeypatch.setattr(js, '_persist', persist)
+    try:
+        acc = js.submit_task('fault', lambda ctx: {'secret_result': 'must not escape'},
+                             on_done=lambda job: calls.append((job.state, job.result)))
+        js.jobs[acc.job_id].future.result(timeout=3)
+        status = js.status(acc.job_id)
+        assert status.state == 'failed' and status.result is None
+        assert 'persistence failed' in status.error
+        assert calls == [('failed', None)]
+        assert js.jobs[acc.job_id].persistence_pending
+        assert js.purge(-1) == 0  # a dirty terminal record cannot be evicted
+        assert acc.job_id in js.jobs
+        assert [name for _, name in sse_events(js, acc.job_id)] == ['done']
+        failing.clear()
+        assert js.status(acc.job_id).state == 'failed'  # retry persists failure, never the original result
+        assert not js.jobs[acc.job_id].persistence_pending
+        restored = JobStore('/api', persist=True).status(acc.job_id)
+        assert restored.state == 'failed' and restored.result is None
+        assert calls == [('failed', None)]
+    finally:
+        failing.clear()
+        js.shutdown()
+        store.reset_db(':memory:')
+
+
+def test_success_stays_running_until_durable_commit(monkeypatch):
+    js = JobStore('/api', workers=1)
+    entered, release = threading.Event(), threading.Event()
+
+    def persist(job):
+        if job.finished:
+            entered.set()
+            assert release.wait(3)
+
+    monkeypatch.setattr(js, '_persist', persist)
+    try:
+        acc = js.submit_task('commit', lambda ctx: {'ok': True})
+        assert entered.wait(2)
+        # Direct memory is still nonterminal; readers cannot see a half-committed result.
+        assert js.jobs[acc.job_id].state == 'running'
+        assert js.jobs[acc.job_id].result is None
+        release.set()
+        js.jobs[acc.job_id].future.result(timeout=3)
+        assert js.status(acc.job_id).state == 'succeeded'
+    finally:
+        release.set()
+        js.shutdown()
+
+
+def test_late_task_return_fails_deadline_without_status_polling(monkeypatch):
+    from datetime import UTC, datetime, timedelta
+    from mooring.core import jobs
+    now = datetime(2026, 11, 5, tzinfo=UTC)
+    monkeypatch.setattr(jobs, 'utcnow', lambda: now)
+    js = JobStore('/api', workers=1)
+    entered, release = threading.Event(), threading.Event()
+
+    def work(ctx):
+        entered.set()
+        assert release.wait(3)
+        return {'late': True}
+
+    try:
+        acc = js.submit_task('late', work, deadline_s=5)
+        assert entered.wait(2)
+        now += timedelta(seconds=6)
+        release.set()
+        js.jobs[acc.job_id].future.result(timeout=3)
+        assert js.jobs[acc.job_id].task_state == 'failed'
+        assert js.status(acc.job_id).result is None
+        assert 'deadline' in js.status(acc.job_id).error
+    finally:
+        release.set()
+        js.shutdown()
+
+
+@pytest.mark.parametrize('persist', [False, True])
+def test_purge_cannot_free_capacity_while_cancelled_worker_is_still_alive(persist, tmp_path):
+    store.reset_db(str(tmp_path / 'capacity.sqlite'))
+    js = JobStore('/api', workers=1, queue_size=0, persist=persist)
+    entered, release = threading.Event(), threading.Event()
+
+    def work(ctx):
+        entered.set()
+        assert release.wait(3)
+        return {'late': True}
+
+    try:
+        acc = js.submit_task('stuck', work)
+        assert entered.wait(2)
+        job = js.jobs[acc.job_id]
+        js.cancel(acc.job_id)
+        assert js.purge(-1) == 0
+        assert acc.job_id in js.jobs and js.active_count() == 1
+        with pytest.raises(JobQueueFull):
+            js.submit_task('blocked', lambda ctx: {})
+        if persist:
+            assert store.db().execute('SELECT state FROM jobs WHERE job_id=?', (acc.job_id,)) == [('cancelled',)]
+        release.set()
+        job.future.result(timeout=3)
+        js.purge(-1)
+        assert acc.job_id not in js.jobs
+        next_job = js.submit_task('next', lambda ctx: {})
+        js.jobs[next_job.job_id].future.result(timeout=3)
+        assert js.status(next_job.job_id).state == 'succeeded'
+    finally:
+        release.set()
+        js.shutdown()
+        store.reset_db(':memory:')

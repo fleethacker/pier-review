@@ -2,11 +2,12 @@
 
 **The modeling service is not ready for live use.** The local controls below do not establish deployment approval or a completed S21 gate.
 
-**Open product-audit findings (5 November 2026, `ac73e1f`):** use [NEXT_STEPS.md](NEXT_STEPS.md) for the current
-remediation ledger. In particular, bundled browser credentials (F12), event-loop blocking (F14), job/recording
-persistence and deadline/retention failures (F15/F16/F18/F19), unbounded provider cache (F17) and telemetry identity
-mixing (F22) limit the controls described below. The prior successful rehearsals remain scoped historical evidence;
-they do not close these reproduced failures. No finding is fixed or deployment gate passed by this documentation PR.
+**Product-audit remediation (5 November 2026):** [NEXT_STEPS.md](NEXT_STEPS.md) preserves the `ac73e1f` audit and
+current ledger. F01–F28 have implementations on `fix/product-audit-remediation`, documented through `5c28b56` in
+[PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md), pending independent review and final integrated checks.
+The runtime/auth/persistence controls below include that implementation scope; the separate deployed Domino app uses
+pre-remediation `35e0111`. Its smoke checks do not validate remediation code. G01–G08, including G07's wider deployment,
+identity, retention and recovery gate, remain open.
 
 **Execution owners:** Bixler leads A1/A2/A4 rehearsal and release; Kori owns browser/UI acceptance, Snyder modeling/runtime
 limits and Cruz provider availability/freshness. Review responsibilities and dependencies are in the
@@ -25,11 +26,21 @@ the libraries below; browser-exported PDF evidence does not establish server-ren
 
 ## A2: Domino demo launch and rehearsal
 
-**Target rehearsal remains pending.** Validation for this change is local, as requested by Bixler. The supplied
-Domino URL served its management interface; no running-app test or deployment was performed. No target logs
-or clean-`main` deployment evidence were available for this change. The launcher improvements and local lifecycle
-tests do not establish that the hosting proxy supports live streams. Record the deployed commit, app URL, run
-timestamp and check output when completing this gate.
+**A separate private demonstrator was deployed on 5 November 2026 at the user's request, before remediation.**
+[Open the Domino app](https://pubsec-demo.domino-eval.com/apps-internal/6aed3ffcfbb42a578217356f/).
+It uses `dev` at `35e0111257445d66a4d61c667a0fc0fe02472e1d`, whose
+[CI run 42116088787](https://github.com/fleethacker/pier-review/actions/runs/42116088787) passed. App ID:
+`6aed3ffcfbb42a578217356f`; version: `6aed3ffcfbb42a5782173572`; instance: `6aed3ffdfbb42a5782173574`.
+Visibility is private `GRANT_BASED` and undiscoverable. Deployment used the official
+`dominodatalab/domino-ai-plugin` skills and bundled MCP helpers; no credentials are stored in this record.
+
+Target checks observed HTTP 200 for the UI and both proxied health routes, a real browser with no JavaScript errors,
+an `rm0-v1` WebSocket frame, and Planner SSE progress followed by a succeeded `done` event. Anonymous access returned
+HTTP 302 to login. This verifies those proxy paths and the outer login boundary for a shared review demonstrator.
+Internal backend bearer auth is unset; it does not provide per-user resource isolation or verified approval roles.
+Target restart/recovery, native server PDF, engineering qualification and a clean-`main` release rehearsal were not tested.
+The existing launcher still installs dependencies and builds at startup. No remediation deployment or full A2/G07 closure
+is claimed; [the remediation report](PRODUCT_AUDIT_REMEDIATION.md) tracks the separate branch under review.
 
 The updated launcher completed a local offline rehearsal on 5 November 2026: both API proxies, four planning
 chains, forecast planning, browser sheet/print controls and live WebSocket controls passed. All services stopped
@@ -37,7 +48,7 @@ after SIGINT. See [local evidence and screenshots](LOCAL_REHEARSAL.md); server-g
 
 Configure the app command as `./app.sh`, with the repository root as its working directory. The compute environment
 needs `uv`, Python 3.12 (or permission for `uv` to install the pinned version), and **Node >=22.17.0 with npm**.
-The current lockfile requires that Node version; the old Node 20 image needs the documented runtime setup. PR #18 adds `frontend/domino-app.sh` for that environment; Bixler/Kori must verify it on the actual target rather than treating the wrapper as hosting evidence.
+The current lockfile requires that Node version; the old Node 20 image needs the documented runtime setup. PR #18 adds `frontend/domino-app.sh` for that environment. Preserve the exact deployed source and runtime in each new target rehearsal; the successful pre-remediation app launch above does not validate later changes.
 `app.sh` fails with an installation hint when a runtime is missing instead of downloading a Linux-x64 runtime into
 an arbitrary host. Dependency installation uses the committed Python and npm lockfiles and requires package access
 or prepopulated caches. Runtime data and planning can run offline after installation.
@@ -107,13 +118,16 @@ If that cannot be completed, state **HTML print supported; server PDF unavailabl
 | Control | Configuration / implementation | Limits |
 | --- | --- | --- |
 | Durable results | `MOORING_DB`: SQLite WAL, numbered migrations | Results, resolved snapshots, scenarios, confirmed shared berths, batch frames, jobs and ownership; one process/host. Unset is in-memory and lost on restart. |
-| Bounded jobs | `MOORING_WORKERS=2`, `MOORING_QUEUE=16`, `MOORING_JOB_DEADLINE_S` unset | Overload 429 with `Retry-After`. Cancellation/deadlines cooperative. Cancelled workers retain capacity until they exit. Queued/running jobs become failed on restart; not resumed. |
+| Bounded jobs | `MOORING_WORKERS=2`, `MOORING_QUEUE=16`, `MOORING_JOB_DEADLINE_S` unset | Overload 429 with `Retry-After`. Cancellation/deadlines cooperative, with a final deadline check before success. With persistence enabled, success is published only after durable terminal persistence. A failed terminal save exposes failure with no result and retries saving that failure; dirty records are retained. Purge cannot release a still-running worker's capacity. Interrupted jobs fail on restart; not resumed. |
 | API identity | `MOORING_API_KEYS` JSON object mapping principal names to unique bearer keys of at least 32 characters | Constant-time byte comparisons. Applies to HTTP except health, and WebSocket handshakes. No identity provider, roles or revocation service. |
 | Ownership | SQLite ownership records plus worker context propagation | Jobs/status/SSE/cancellation, results, scenarios and simulator sessions separated by principal. Unknown or another owner's ids return 404 / WS 4404. Legacy unowned resources remain inaccessible when enforcement is enabled. |
 | HTTP body cap | `MOORING_MAX_BODY_BYTES=1048576` | 413 before JSON parsing; proxy must also cap upload size/time and connections. Invalid limit configuration returns 503. |
 | Forecast body cap | `MOORING_MAX_FORECAST_BODY_BYTES=4194304` | Resolve, plan and recheck POSTs accept up to 4 MiB by default to retain five days of six-minute forcing and provenance. An explicit `MOORING_MAX_BODY_BYTES` also governs these routes unless separately overridden. Other routes keep their existing limits; oversize forecasts return 413. |
 | HTTP rate cap | `MOORING_RATE_PER_MINUTE=600` with auth; `0` (disabled) in demo mode | Fixed 60-second window per principal, injected clock in tests; 429 plus `Retry-After`. Process-local; counter resets on restart. Explicit 0 disables. |
 | Simulation sessions | [Simulation control and limits](BERTHING_SIMULATION.md) | Bounded count/duration/commands; one controller; disconnect pauses; latest-frame backpressure. Ephemeral, one process. |
+| Recording retention | Failed recording saves remain dirty and are retried before expiry/eviction | Dirty sessions retain capacity until a successful save permits eviction. Persistent storage failure can saturate the session limit; no disk-durability claim is made for unsaved frames or a process crash. |
+| Alert computation | Four-worker pool, 30-second work timeout | Provider lookup and numerical work run off the event loop with caller context. A timed-out thread retains its slot until it exits; timeout does not kill Python threads. This bounds queued work, not host throughput. |
+| Telemetry vessel authorization | `MOORING_TELEMETRY_VESSELS` maps authenticated principals to allowed vessel IDs | With API authentication enforced, ingestion fails closed for missing/malformed policy or unauthorized identity. Latest values, ordering, history and rejected input are scoped by principal/vessel. This is an ingestion boundary, not a qualified camera feed. |
 | Logs | JSON events on logger `mooring.operations` | Job ids, terminal state/duration/result id; stored result id, validity and reason codes. No bodies or credentials. Configure the logger at INFO to retain events. |
 | Metrics | Authenticated `GET /api/v1/metrics` when auth is enabled | Queue depth, active jobs, saturation, cancellation, terminal-job counts and total duration seconds. `solver_failures` counts invalid stored results; failed jobs have a separate counter. Aggregate operational data, shared across authorized principals; no ids. In-process counters, no exporter/histograms. |
 | Backup/restore | `python -m mooring.core.backup backup SOURCE NEW_BACKUP` / `restore BACKUP NEW_DATABASE` | SQLite online backup; integrity check; exclusive new target path, file mode 0600. Restore migrates the copy. Tests preserve result ids/hashes/snapshots/ownership and migrate v1 to current. |
@@ -124,9 +138,24 @@ If that cannot be completed, state **HTML print supported; server PDF unavailabl
 
 **Unset credentials mean open local-demo mode**, not a secure deployment. Bind that mode to loopback. For a fail-closed configuration, set `MOORING_AUTH_REQUIRED=1` and supply `MOORING_API_KEYS` through a secret manager or protected environment (never commit keys). Required-but-missing or malformed key configuration returns 503; missing/incorrect bearer credentials return 401. `/api/v1/health` remains public. Production keys should be randomly generated with sufficient entropy; the length check does not establish entropy.
 
-Clients use `Authorization: Bearer <key>` on HTTP and WebSocket handshakes. Native browser WebSocket clients cannot set arbitrary headers; a trusted gateway or a future secure session-cookie design is needed before enabling this mode for the current browser UI. The agents service forwards the validated caller bearer credential to modeling; configure matching principal/key mappings. Browser credential UX and trusted gateway integration remain unimplemented. The old telemetry key, if configured, is an additional check. No query-string credentials are accepted.
+Clients use `Authorization: Bearer <key>` on HTTP and non-browser WebSocket handshakes. The browser's **Access**
+control accepts a user-supplied runtime credential held only in tab memory; refresh clears it. HTTP, polling,
+authenticated media/downloads and fetch-based Planner SSE use that header. Changing access restarts workspaces,
+so save drafts first. Backend keys must never be placed in `VITE_*` values or URLs.
 
-The agents application now has its own HTTP body/rate controls and resource ownership checks, described below. Middleware authenticates `/ws/env`, `/ws/alerts` and `/ws/telemetry` handshakes and carries ownership context. Alerts now preserve the selected scenario source on every frame and close explicitly on provider failure; their traffic limits/backpressure have not been hardened here. Environment and telemetry lifecycle controls remain separate. Only `/ws/sim` has the new command-rate/size and backpressure controls. Authorized principals can see aggregate metrics; deployment policy must decide whether that is appropriate.
+Native browser WebSockets cannot set arbitrary headers. Direct API-key mode explicitly blocks environment sockets
+and interactive motion-session creation; those flows require a trusted authenticated gateway or a separately reviewed
+secure session design. The agents service forwards the validated caller bearer credential to modeling; configure
+matching principal/key mappings. The private Domino app above uses its outer gateway session with internal backend
+bearer auth unset and is a shared demonstrator. The optional telemetry key is an additional check, not a replacement
+for vessel authorization. No query-string credentials are accepted.
+
+The agents application has its own HTTP body/rate controls and resource ownership checks, described below.
+Middleware authenticates `/ws/env`, `/ws/alerts` and `/ws/telemetry` handshakes and carries ownership context.
+Alerts preserve the selected scenario source on every frame and close explicitly on provider failure; bounded worker
+isolation does not establish a general stream traffic/backpressure policy. Environment and telemetry lifecycle controls
+remain separate. Only `/ws/sim` has the command-rate/size and latest-frame backpressure controls. Authorized principals
+can see aggregate metrics; deployment policy must decide whether that is appropriate.
 
 ## Agent job controls
 
@@ -152,7 +181,7 @@ before parsing, including chunked requests; the image limit remains 8 MB. `AGENT
 
 Confirmed berth records join the shared modeling reference catalog; that catalog still needs an administrator
 policy before deployment. Approval role/name fields are declarations, not verified organizational authority.
-TLS, browser credential handling, role policy, key rotation and an independent security review remain blockers.
+TLS/proxy policy, browser native-stream gateway integration, role policy, key rotation and an independent security review remain blockers.
 Ownership rows use the modeling core store; persistent ownership does not itself persist agent work objects.
 
 ## Backup and restoration rehearsal
@@ -161,7 +190,7 @@ Run the backup helper against the configured SQLite file; it uses SQLite's backu
 
 ## Still missing before live use
 
-* TLS, trusted reverse proxy configuration, identity lifecycle/rotation, frontend authentication UX and gateway integration, role/admin policy, audit retention and independent security review.
+* TLS/trusted reverse proxy policy, identity lifecycle/rotation, native-browser-stream gateway integration, verified role/admin policy, audit retention and independent security review. Runtime per-tab credentials do not implement these policies.
 * Multi-process/multi-host coordination, distributed jobs/sessions/rate limits and deployment load/abuse testing. CPU work shares the GIL; simulation may lag elapsed time under load.
 * Production concurrency, upload time, idle connection, forecast freshness and numerical-work budgets measured against real workloads; per-principal job concurrency quotas.
 * Provider freshness/error dashboards, solver-specific latency distributions, durable metrics/log export and alerts.

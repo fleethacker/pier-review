@@ -2,7 +2,7 @@
 
 State: berth-frame position (x, y) of the midships reference point, heading angle psi (CCW, same convention as
 `ShipFrame`), and body-frame velocities (u surge, v sway to port, r yaw rate). Equations for a diagonal total mass matrix
-M = diag(m11, m22, m33) (rigid body + added mass):
+M = diag(m11, m22, m33) when CG coincides with the reference (rigid body + added mass):
 
     m11 du/dt - m22 v r       = X
     m22 dv/dt + m11 u r       = Y
@@ -11,6 +11,10 @@ M = diag(m11, m22, m33) (rigid body + added mass):
 with passive damping -(D_lin nu + D_quad |nu| nu) added to the external wrench. Integration is classical RK4 at a fixed
 step, shortened near contact, with event times (contact start/end, line taut/slack) located by bisection. Output
 sampling is independent of the integration step.
+
+An explicitly offset CG adds the rigid-body coupling terms -m*yG and m*xG to
+surge/yaw and sway/yaw, plus parallel-axis yaw inertia. Kirchhoff momentum
+equations preserve power balance with the same diagonal added-mass inputs.
 
 What this is not: a validated maneuvering model. Added mass and damping must come from a qualified source for a specific
 hull; none is held in this repository, so no real vessel can be simulated here yet (the coefficients below are inputs).

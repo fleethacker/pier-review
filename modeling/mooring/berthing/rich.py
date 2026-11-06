@@ -145,7 +145,8 @@ def build_scene(model) -> SimScene:
 
 def _tug_states(model, s, t, pose, acceleration=None) -> list[dict]:
     frame, out = model.system.frame, []
-    for tid in sorted(model.anchors if model.tug_attachments else model.ramps):
+    dynamic_ids = set(model.tug_dynamics.ids) if model.tug_dynamics is not None else set()
+    for tid in sorted(set(model.anchors if model.tug_attachments else model.ramps)-dynamic_ids):
         tug, pp, (lo, hi) = model.anchors[tid]
         f, target = model.tug_force(tid, t), model.ramps.get(tid,(0,0,0))[2]
         side_y = _ship_y(model, pp.side)
@@ -174,7 +175,9 @@ def _tug_states(model, s, t, pose, acceleration=None) -> list[dict]:
                     "push_point_id": pp.push_point_id, "contact_position": _pos(px, py), "mode": mode,
                     "contact_state": {"push": "contact", "pull": "line_made_up", "standby": "unknown"}[mode],
                     "capacity_utilization_pct": 100 * abs(f) / limit if limit else None})
-    return out
+    if model.tug_dynamics is not None:
+        out.extend(model.tug_dynamics.rich_states(s,model.auxiliary_at(t)))
+    return sorted(out,key=lambda state:state["tug_id"])
 
 
 def _line_states_and_loads(model, pose):
@@ -325,8 +328,8 @@ def rich_frame(model, *, session_id: str, run_id: str, sequence: int, scene: Sim
     loads = system.loads_at(pose)
     wind = (*frame.vector_to_berth(loads.wind.fx_lbf, loads.wind.fy_lbf, pose), loads.wind.mz_ftlbf)
     current = (*frame.vector_to_berth(loads.current.fx_lbf, loads.current.fy_lbf, pose), loads.current.mz_ftlbf)
-    _, tug_fy, tug_mz = model.tug_wrench(t)
-    tugs = (*frame.vector_to_berth(0.0, tug_fy, pose), tug_mz)
+    tug_fx, tug_fy, tug_mz = model.tug_wrench(t,s)
+    tugs = (*frame.vector_to_berth(tug_fx, tug_fy, pose), tug_mz)
     forces = {
         "wind": _wrench("wind", *wind), "current": _wrench("current", *current),
         "waves": {name: {**_wave(name, "force"), "force": None, "yaw_moment_ftlbf": None} for name in WAVE_NAMES},
@@ -342,7 +345,8 @@ def rich_frame(model, *, session_id: str, run_id: str, sequence: int, scene: Sim
         "Real RK4 integration of a synthetic, unqualified body (arbitrary mass, inertia and damping) with seed catalog data.",
         "Forces are berth-axes planar wrenches about the instantaneous ship origin; vertical components are not modeled.",
         "Acceleration is the inertial acceleration of the ship origin in ship axes (ft/s2, deg/s2): body-frame rates from the equations of motion with the rotation terms (-v*r surge, +u*r sway) added back.",
-        ("Tug kinematics use an explicitly synthetic rigid attachment; independent tug dynamics are unavailable."
+        ("Independent synthetic tug bodies transfer force through modeled compliant push contact or taut towlines."
+         if model.tug_dynamics is not None else "Tug kinematics use an explicitly synthetic rigid attachment; independent tug dynamics are unavailable."
          if model.tug_attachments else "Tug position, velocity and acceleration are unavailable; forces follow commanded slew."),
         "Waves and wakes are unavailable, not zero."]}
 

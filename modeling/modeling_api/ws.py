@@ -34,10 +34,10 @@ from .state import SESSIONS
 
 router = APIRouter()
 
-from mooring.core.schemas.motion_controls import SimHelmCommandMessage, SimLoadingCommandMessage, SimLineControlMessage
+from mooring.core.schemas.motion_controls import SimHelmCommandMessage, SimLoadingCommandMessage, SimLineControlMessage, SimTugMotionCommandMessage
 
 SimClientMessage = TypeAdapter(SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage
-                               | SimHelmCommandMessage | SimLoadingCommandMessage | SimLineControlMessage)
+                               | SimHelmCommandMessage | SimLoadingCommandMessage | SimLineControlMessage | SimTugMotionCommandMessage)
 
 
 @router.websocket("/ws/env")

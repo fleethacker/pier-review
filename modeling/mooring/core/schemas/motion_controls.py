@@ -93,6 +93,49 @@ class LoadingSpec(ParameterEvidence):
         return self
 
 
+class TugInitialState(Model):
+    x_ft: float
+    y_ft: float
+    yaw_deg: float = Field(description="Counterclockwise from berth +x, not true heading.")
+    surge_fps: float
+    sway_fps: float
+    yaw_degps: float
+
+
+class TugDynamicsConfig(ParameterEvidence):
+    tug_id: str = Field(min_length=1)
+    push_point_id: str = Field(min_length=1)
+    mass_slug: float = Field(gt=0)
+    izz_slug_ft2: float = Field(gt=0)
+    length_ft: float = Field(gt=0)
+    beam_ft: float = Field(gt=0)
+    contact_point_x_ft: float
+    tow_point_x_ft: float
+    damping_surge_lbf_per_fps: float = Field(ge=0)
+    damping_sway_lbf_per_fps: float = Field(ge=0)
+    damping_yaw_ftlbf_per_radps: float = Field(ge=0)
+    max_propulsion_lbf: float = Field(gt=0)
+    max_yaw_moment_ftlbf: float = Field(gt=0)
+    propulsion_slew_lbfps: float = Field(gt=0)
+    yaw_slew_ftlbfps: float = Field(gt=0)
+    actuator_response_s: float = Field(gt=0)
+    velocity_response_s: float = Field(gt=0)
+    heading_response_s: float = Field(gt=0)
+    max_target_speed_fps: float = Field(gt=0)
+    max_target_yaw_degps: float = Field(gt=0)
+    contact_stiffness_lbf_per_ft: float = Field(gt=0)
+    contact_damping_lbf_per_fps: float = Field(ge=0)
+    contact_capacity_lbf: float = Field(gt=0)
+    contact_half_width_ft: float = Field(gt=0)
+    max_contact_compression_ft: float = Field(gt=0)
+    tow_stiffness_lbf_per_ft: float = Field(gt=0)
+    tow_damping_lbf_per_fps: float = Field(ge=0)
+    tow_capacity_lbf: float = Field(gt=0)
+    max_tow_extension_ft: float = Field(gt=0)
+    initial_tow_length_ft: float = Field(gt=0)
+    initial_state: TugInitialState
+
+
 class MotionControlsConfig(Model):
     propulsion: PropulsionSpec
     loading: LoadingSpec
@@ -100,6 +143,13 @@ class MotionControlsConfig(Model):
         description="Explicit synthetic rigid attachment stand-off; absent leaves tug kinematics unavailable.")
     tug_slew_s: float | None = Field(default=None, gt=0,
         description="Explicit synthetic tug force ramp time; absent retains legacy demonstration ramp.")
+    tug_dynamics: list[TugDynamicsConfig] = Field(default_factory=list, max_length=16)
+
+    @model_validator(mode="after")
+    def unique_tugs(self):
+        if len({t.tug_id for t in self.tug_dynamics}) != len(self.tug_dynamics):
+            raise ValueError("dynamic tug identifiers must be unique")
+        return self
 
 
 class HelmOrder(Model):
@@ -144,6 +194,39 @@ class SimLineControlMessage(Model):
         if self.attached is None and self.paid_out_length_ft is None:
             raise ValueError("line_control needs attachment or paid-out length")
         return self
+
+
+class TugMotionOrder(Model):
+    mode: Literal["free", "push", "tow"]
+    target_velocity_x_fps: float
+    target_velocity_y_fps: float
+    target_heading_true_deg: float = Field(ge=0, lt=360)
+    tow_length_ft: float = Field(gt=0, le=10000)
+
+
+class SimTugMotionCommandMessage(TugMotionOrder):
+    wire_omitted_defaults = {"t_s": None}
+    type: Literal["tug_motion_command"]
+    t_s: float | None = Field(default=None, ge=0)
+    tug_id: str = Field(min_length=1)
+
+
+class MotionTugDynamicsState(Model):
+    tug_id: str
+    basis: Literal["synthetic", "supplied"]
+    source: str
+    commanded: TugMotionOrder
+    propulsion_surge_lbf: float
+    propulsion_sway_lbf: float
+    propulsion_yaw_moment_ftlbf: float
+    transferred_x_lbf: float
+    transferred_y_lbf: float
+    transferred_yaw_moment_ftlbf: float
+    contact_compression_ft: float
+    tow_extension_ft: float
+    tow_tension_lbf: float
+    connection_state: Literal["free", "no_contact", "push_contact", "tow_slack", "tow_taut"]
+    validity: Validity
 
 
 class MotionActuatorForce(Model):

@@ -392,7 +392,7 @@ class Session:
             # time even when rounding newly earned clock demand down gives an earlier grid point.
             target=max(self.model.t,min(wanted,(math.floor((self.model.t+1e-9)/dt)+cap_steps)*dt))
             self.lag_s=max(0.0,wanted-target)/self.speed  # wall seconds the scheduler is behind; never skipped
-            due=self.model.pending and self.model.pending[0][0]<=self.model.t+1e-9
+            due=self.model.commands_due()
             if target<=self.model.t+1e-9 and not due: return
             try:
                 self.model.advance(target,observe=self.observe if self.rich else (lambda *args: None), max_work=max_steps)
@@ -400,7 +400,7 @@ class Session:
                 self.fail("FORCING_UNCOVERED" if isinstance(exc,berthing_sim.ForcingUncovered) else "DYNAMICS_INTEGRATION_FAILED","Integration stopped; reset or create a new session.",exc); return
             self.lag_s=max(0.0,wanted-self.model.t)/self.speed
             alerts=[f"Simulation lagging wall clock by {self.lag_s:.1f} s at {self.speed:g}x"] if self.lag_s>LAG_ALERT_S else None
-            if self.model.pending and self.model.pending[0][0]<=self.model.t+1e-9:
+            if self.model.commands_due():
                 # Never record a time-boundary sample halfway through its ordered commands. Lag still gets
                 # lifecycle notification while command-only chunks finish that boundary.
                 if alerts and alerts!=self.last_alerts:
@@ -434,7 +434,7 @@ class Session:
                     self.model=berthing_sim.BerthingModel(*self.initial,dt=self.model.dt,duration=self.model.duration,
                         forcing=self.model.forcing_spec, params=self.model.base_params,
                         controls=self.model.controls_config, ship_override=self.model.ship_override,
-                        tug_ids=self.model.requested_tug_ids)
+                        tug_ids=self.model.requested_tug_ids,guidance=self.model.initial_guidance)
                     self.paused=True; self.error=None
                     self.reanchor()
                     if self.rich:

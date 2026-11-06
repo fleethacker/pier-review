@@ -7,7 +7,8 @@ from pydantic import ConfigDict, Field, model_validator
 
 from .common import Envelope, Model, Status, Validity
 from .mooring import FenderResult, LineTension
-from .motion_controls import MotionControlsConfig, MotionControlState, MotionLoadingState, MotionLineControlState
+from .motion_controls import MotionControlsConfig, MotionControlState, MotionLoadingState, MotionLineControlState, MotionTugDynamicsState
+from .motion_guidance import MotionGuidanceState
 from .motion import (
     _require_qualified_motion,
     MotionAlert,
@@ -153,8 +154,9 @@ class SimulationTransition(Model):
 
 
 class SimulationDiagnostics(Model):
-    wire_omitted_defaults = {"loading_event_energy_ftlbf": None}
+    wire_omitted_defaults = {"loading_event_energy_ftlbf": None, "tug_event_energy_ftlbf": None}
     loading_event_energy_ftlbf: float | None = None
+    tug_event_energy_ftlbf: float | None = None
     parameter_set: str
     qualification: Literal["unqualified"] = "unqualified"
     integration_steps: int
@@ -209,12 +211,14 @@ class SimFrame(Model):
     wire_omitted_defaults = dict.fromkeys((
         "schema_version", "sequence", "session_id", "run_id", "scene_id", "scene_revision", "motion",
         "tug_states", "environment", "line_states", "fitting_loads", "fender_states", "forces", "validity",
-        "provenance", "structured_alerts", "diagnostics", "forcing_revision", "controls", "loading", "line_controls",
+        "provenance", "structured_alerts", "diagnostics", "forcing_revision", "controls", "loading", "line_controls", "tug_dynamics", "guidance",
     ))
     diagnostics: SimulationDiagnostics | None = None
     controls: MotionControlState | None = None
     loading: MotionLoadingState | None = None
     line_controls: list[MotionLineControlState] | None = None
+    tug_dynamics: list[MotionTugDynamicsState] | None = None
+    guidance: MotionGuidanceState | None = None
     forcing_revision: str | None = Field(default=None, description="Revision id of the immutable forcing series; with t_s it identifies the forcing in effect.")
 
     t_s: float
@@ -257,7 +261,8 @@ class SimFrame(Model):
             )):
                 raise ValueError("RM0 frames require sequence and nonempty session/run/scene identity")
         for field, keys in (("tug_states", ("tug_id",)), ("line_states", ("line_number",)),
-                            ("fitting_loads", ("owner", "fitting_id")), ("fender_states", ("fender_id",))):
+                            ("fitting_loads", ("owner", "fitting_id")), ("fender_states", ("fender_id",)),
+                            ("tug_dynamics", ("tug_id",)), ("line_controls", ("line_number",))):
             identifiers = [tuple(getattr(item, key) for key in keys) for item in getattr(self, field) or []]
             if len(identifiers) != len(set(identifiers)):
                 raise ValueError(f"{field} identifiers must be unique")

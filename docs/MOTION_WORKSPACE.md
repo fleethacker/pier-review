@@ -9,6 +9,9 @@ Base: `ec41de786a5381482a12c8f40d4ef51ae1eeda01` (PR #32 audit remediation). Coo
 `ws-b/motion-workspace`; individual lanes use their own worktrees. Implementation and targeted acceptance are below;
 the final PR records combined checks, CI and target deployment. `MASTER_PLAN.md` retains project-wide qualification gates.
 
+The follow-up [Norfolk geography and simultaneous ship-view work](MOTION_GEOGRAPHY.md) corrects authored starts,
+map context, projection and demo presentation. Its PR records final acceptance and deployment evidence.
+
 ## Scope and ownership
 
 | Lane | Implementation | Required acceptance |

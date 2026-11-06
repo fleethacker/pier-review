@@ -88,6 +88,8 @@ def create_session(req: MotionWorkspaceSessionRequest):
         scene_url=f"{base}/scene", protocol="rm0-v1", recording_url=f"{base}/recording",
         forcing_revision=model.forcing_revision,
         forcing_synthetic=(row.configuration.environment_mode == "synthetic" or
+                           model.env.source in ("mock", "scenario") or
+                           bool(model.env.metadata and model.env.metadata.basis == "scenario") or
                            bool(model.forcing and model.forcing.synthetic)))
     route = workspace.norfolk_route(model.berth) if row.configuration.route_id else None
     return MotionWorkspaceSessionCreated(session=created, scenario=row, ship=model.ship, berth=model.berth,

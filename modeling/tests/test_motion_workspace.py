@@ -158,6 +158,13 @@ def test_snapshot_keeps_evidence_but_synthetic_edit_relabels_it(client):
     assert "A supplied observation" not in json.dumps(edited)
 
 
+def test_supplied_training_snapshot_retains_synthetic_indicator(client):
+    env = training_environment(datetime(2026, 11, 6, tzinfo=UTC)).model_dump(mode="json")
+    result = session(client, environment_mode="snapshot", environment=env, tug_ids=[])
+    assert result["environment"] == env
+    assert result["session"]["forcing_synthetic"] is True
+
+
 def test_live_provider_failure_is_not_replaced_by_synthetic_values(client, monkeypatch):
     from mooring.environment.errors import ProviderError
     def unavailable(*_):

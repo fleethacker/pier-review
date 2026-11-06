@@ -186,7 +186,9 @@ export function CameraSide() {
 export function CameraBanner() {
   const res = useMissions((s) => s.camResult);
   const sample = useMissions((s) => s.camSample);
-  if (!res) return null;
+  const error = useMissions((s) => s.camError);
+  const playbackLag = useMissions((s) => s.camSource === 'transit' && s.camInputTimeS != null ? Math.max(0, s.clock.t - s.camInputTimeS) : 0);
+  if (!res) return <span role="status" className="text-[10px] text-mil-amber">{error ?? 'Waiting for a prediction for the selected vessel.'}</span>;
   const hold = res.result.alternatives.find((a) => a.alt_id === 'hold');
   const b = bannerText(hold);
   return (
@@ -200,7 +202,8 @@ export function CameraBanner() {
       )}
     >
       {sample ? 'Sample prediction: ' : ''}
-      {b.text}
+      Prediction for {res.result.vessel_id} at {res.result.as_of_utc} · {b.text}
+      {playbackLag > 1 ? ` · Prediction is ${Math.round(playbackLag)} simulated seconds behind playback; refresh pending.` : ''}
       {res.validity?.reasons?.some((r) => r.code.startsWith('HAZARD_COVERAGE_')) ? ' · Hazard coverage incomplete or unknown; no all-clear.' : ''}
       {hold && !hold.corridor ? ' · Uncertainty unavailable.' : ''}
     </span>

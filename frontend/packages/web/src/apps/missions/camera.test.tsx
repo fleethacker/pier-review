@@ -260,7 +260,7 @@ describe('transit camera identity and forcing (F09/F10/T02)', () => {
     expect(built.others![0]).toMatchObject({ vessel_id: 'MOCK-B', length_ft: 500, beam_ft: 60 });
     expect(built.others![0].path[0].t_utc).toBe(built.as_of_utc);
     expect(built.others![0].path.at(-1)!.t_utc).toBe(new Date(Date.parse(built.as_of_utc!) + 300000).toISOString());
-    render(<ControllerContext.Provider value={c}><CameraStatus /></ControllerContext.Provider>);
+    render(<ControllerContext.Provider value={c}><CameraBanner /></ControllerContext.Provider>);
     act(() => c.setCameraOn(true));
     await waitFor(() => expect(pending).toHaveLength(1));
     act(() => c.selectVessel('MOCK-B'));

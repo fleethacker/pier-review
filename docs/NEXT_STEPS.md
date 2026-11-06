@@ -2,9 +2,9 @@
 
 The original whole-product audit reviewed `dev` at `ac73e1fbf21a54efd029608cb140a306f69b4fa4` in an isolated detached checkout. Its source links, reproductions and evidence below remain pinned to that snapshot. The audit itself made no implementation changes.
 
-**Remediation update, 5 November 2026:** F01–F28 have implementations on `fix/product-audit-remediation`, documented through `ea62351` in [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md). All are **implemented, pending independent review and final integrated checks**, not closed. The paused-seek and custom-transit berth review follow-ups are implemented in `5c28b56`; final acceptance remains pending. G01–G08 remain open. The separately deployed Domino app uses the pre-remediation `dev` snapshot; its smoke checks do not validate these fixes.
+**Remediation update, 5 November 2026:** F01–F28 are resolved by `fix/product-audit-remediation` through source/contract commit `ea62351`, with independent review, browser reproductions and final checks recorded in [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md). Final local checks: 2,815 Python tests and 1,066 frontend tests passed; contract/type/lint/build checks passed. The PR records CI and merge status. G01–G08 remain open. The initial Domino review deployment used the earlier `dev` snapshot; its target smoke is separate from remediation validation.
 
-**Assessment: this build is not ready for operational docking use.** Reproduced defects affect safety-result applicability, physical validity, collision detection, forecast continuity and persisted results. Several return plausible numbers or reassuring text for the wrong conditions. The existing AMBER/limited labels do not excuse discarding an explicit invalid condition. Passing tests establish only the behavior they exercise.
+**Assessment: the product is not ready for operational docking use.** The original audit reproduced defects in safety-result applicability, physical validity, collision detection, forecast continuity and persisted results. Those defects are addressed by the remediation above; the broader G01–G08 capability and qualification gaps remain. The existing AMBER/limited labels do not excuse discarding an explicit invalid condition. Passing tests establish only the behavior they exercise.
 
 Independent passes covered modeling correctness, UX/accessibility, security, API compatibility, reliability and test strategy. Additional real-browser probes followed workflows across services. Probes were offline or used isolated loopback services, synthetic inputs and disposable synthetic credentials. No live providers, real LLM, deployment host or vessel qualification was tested. This review identifies concrete failures; it is not a claim of exhaustive verification of every code path.
 
@@ -13,41 +13,41 @@ Severity indicates remediation priority. High findings should block operational 
 ## Execution ledger
 
 This is the detailed remediation companion to [MASTER_PLAN.md](MASTER_PLAN.md), which remains the authority for
-priorities and ownership. **All 28 findings are implemented, pending review and final checks: 14 High, 13 Medium, 1 Low.** G01–G08 below track eight broader
+priorities and ownership. **All 28 findings are resolved with regression and independent review evidence: 14 High, 13 Medium, 1 Low.** G01–G08 below track eight broader
 capability/workflow gaps; T01–T03 identify test-design gaps, and T04 preserves the baseline/readiness distinction.
 These IDs are separate from legacy S/P/U/D/A/R packet IDs. Do not close a finding merely because its original
 feature PR was merged or the unchanged baseline suite passes.
 
 | ID | Severity | Next change | Lead | Independent reviewer | Status / closure evidence |
 | --- | --- | --- | --- | --- | --- |
-| [F01](#f01) | High | Stale review/sheet applicability | Kori | Bixler | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f01) |
-| [F02](#f02) | High | Forecast binding across the UI agent chain | Kori + Bixler | Snyder + Cruz | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f02) |
-| [F03](#f03) | High | Per-tide physical validity | Snyder M-PLAN | Snyder M-SIM | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f03) |
-| [F04](#f04) | High | Ultimate-gust validity | Snyder M-PLAN | Snyder M-SIM | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f04) |
-| [F05](#f05) | High | Rich forcing availability/provenance | Snyder M-SIM | Snyder M-PLAN | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f05) |
-| [F06](#f06) | High | Complete prediction horizon | Snyder M-SIM | Snyder M-PLAN | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f06) |
-| [F07](#f07) | High | Zero-margin collision detection | Snyder M-SIM | Snyder M-PLAN | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f07) |
-| [F08](#f08) | High | Prediction environmental validity | Snyder M-SIM + Cruz | Snyder M-PLAN | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f08) |
-| [F09](#f09) | High | Camera vessel identity | Kori | Bixler + Snyder | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f09) |
-| [F10](#f10) | High | Camera forcing/traffic handoff | Kori | Snyder | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f10) |
-| [F11](#f11) | High | Code-owned safety meaning | Bixler | Snyder | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f11) |
-| [F12](#f12) | High | Runtime browser identity; no bundled key | Bixler + Kori | Snyder | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f12) |
-| [F13](#f13) | High | Exercise draft/revision retention | Kori | Bixler | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f13) |
-| [F14](#f14) | High | Nonblocking alert computation | Snyder | Bixler | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f14) |
-| [F15](#f15) | Medium | Durable job completion | Snyder | Bixler | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f15) |
-| [F16](#f16) | Medium | Dirty-recording retry/eviction | Snyder M-SIM | Snyder M-PLAN | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f16) |
-| [F17](#f17) | Medium | Bounded provider cache | Cruz | Snyder | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f17) |
-| [F18](#f18) | Medium | Final job deadline check | Snyder | Bixler | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f18) |
-| [F19](#f19) | Low | Retention preserves occupied capacity | Snyder | Bixler | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f19) |
-| [F20](#f20) | Medium | Replay forecast timeline compatibility | Cruz | Snyder | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f20) |
-| [F21](#f21) | Medium | Nonnegative wind-ramp validation | Cruz | Snyder | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f21) |
-| [F22](#f22) | Medium | Vessel-scoped telemetry authorization/state | Cruz | Bixler | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f22) |
-| [F23](#f23) | Medium | Preserve failed report drafts | Kori | Bixler | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f23) |
-| [F24](#f24) | Medium | Contact-point impact velocity | Snyder M-SIM | Snyder M-PLAN | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f24) |
-| [F25](#f25) | Medium | Frame-time line endpoint heights | Snyder M-SIM | Snyder M-PLAN | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f25) |
-| [F26](#f26) | Medium | No zero-spread uncertainty claim | Snyder M-SIM | Snyder M-PLAN | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f26) |
-| [F27](#f27) | Medium | Spreadsheet-safe CSV text | Kori | Bixler | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f27) |
-| [F28](#f28) | Medium | Keyboard vessel selection | Kori | Bixler | [Implemented; review/checks pending](PRODUCT_AUDIT_REMEDIATION.md#f28) |
+| [F01](#f01) | High | Stale review/sheet applicability | Kori | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f01) |
+| [F02](#f02) | High | Forecast binding across the UI agent chain | Kori + Bixler | Snyder + Cruz | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f02) |
+| [F03](#f03) | High | Per-tide physical validity | Snyder M-PLAN | Snyder M-SIM | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f03) |
+| [F04](#f04) | High | Ultimate-gust validity | Snyder M-PLAN | Snyder M-SIM | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f04) |
+| [F05](#f05) | High | Rich forcing availability/provenance | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f05) |
+| [F06](#f06) | High | Complete prediction horizon | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f06) |
+| [F07](#f07) | High | Zero-margin collision detection | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f07) |
+| [F08](#f08) | High | Prediction environmental validity | Snyder M-SIM + Cruz | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f08) |
+| [F09](#f09) | High | Camera vessel identity | Kori | Bixler + Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f09) |
+| [F10](#f10) | High | Camera forcing/traffic handoff | Kori | Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f10) |
+| [F11](#f11) | High | Code-owned safety meaning | Bixler | Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f11) |
+| [F12](#f12) | High | Runtime browser identity; no bundled key | Bixler + Kori | Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f12) |
+| [F13](#f13) | High | Exercise draft/revision retention | Kori | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f13) |
+| [F14](#f14) | High | Nonblocking alert computation | Snyder | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f14) |
+| [F15](#f15) | Medium | Durable job completion | Snyder | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f15) |
+| [F16](#f16) | Medium | Dirty-recording retry/eviction | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f16) |
+| [F17](#f17) | Medium | Bounded provider cache | Cruz | Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f17) |
+| [F18](#f18) | Medium | Final job deadline check | Snyder | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f18) |
+| [F19](#f19) | Low | Retention preserves occupied capacity | Snyder | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f19) |
+| [F20](#f20) | Medium | Replay forecast timeline compatibility | Cruz | Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f20) |
+| [F21](#f21) | Medium | Nonnegative wind-ramp validation | Cruz | Snyder | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f21) |
+| [F22](#f22) | Medium | Vessel-scoped telemetry authorization/state | Cruz | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f22) |
+| [F23](#f23) | Medium | Preserve failed report drafts | Kori | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f23) |
+| [F24](#f24) | Medium | Contact-point impact velocity | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f24) |
+| [F25](#f25) | Medium | Frame-time line endpoint heights | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f25) |
+| [F26](#f26) | Medium | No zero-spread uncertainty claim | Snyder M-SIM | Snyder M-PLAN | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f26) |
+| [F27](#f27) | Medium | Spreadsheet-safe CSV text | Kori | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f27) |
+| [F28](#f28) | Medium | Keyboard vessel selection | Kori | Bixler | [Resolved; review/regression evidence](PRODUCT_AUDIT_REMEDIATION.md#f28) |
 
 ### Starting work and recording closure
 

@@ -7,9 +7,10 @@ including modeling validity/contact failures (F03–F08, F24–F26), rich-frame 
 compatibility (F20/F21) and runtime/persistence/telemetry failures (F14–F22). F01/F02/F09/F10 are cross-service UI
 handoff defects, not completed integration simply because the underlying endpoints exist. Follow the named leads,
 reviewers and closure evidence in that ledger before treating the historical implementation rows below as accepted.
-All F01–F28 now have implementations on `fix/product-audit-remediation`, documented through `ea62351` in
-[PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md); independent review and final integrated checks are pending.
-Camera seek-time and custom-transit berth review follow-ups are implemented in `5c28b56`, pending final acceptance.
+F01–F28 are resolved through source/contract commit `ea62351`; independent review and final local checks pass
+(2,815 Python tests, 1,066 frontend tests, contract/type/lint/build checks). See
+[PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md) for reproducible scope and the PR for CI/merge status.
+The camera seek and unbound-berth corrections in `5c28b56` passed independent browser/probe checks.
 G01–G08 and physical qualification remain open. The archived NOAA prediction example now correctly returns RED/invalid because its declared
 environment interval ends before the prediction clock; this is an intentional validity correction, not a qualified new forecast.
 

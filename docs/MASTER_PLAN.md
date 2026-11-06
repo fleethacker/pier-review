@@ -12,12 +12,11 @@ source references, named leads/reviewers and closure requirements. Fix result ap
 physical validity and collision reporting before extending the affected workflows. Security, data-loss and
 persistence fixes can proceed in coordinated parallel lanes. The correction order and assignments in that ledger
 supersede older next-step/status claims below where they conflict; this master plan remains the planning authority.
-**Current remediation state:** all F01–F28 have implementations on `fix/product-audit-remediation`, documented through
-`ea62351` in [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md). They are implemented, pending independent
-review and final integrated checks. The paused-seek and custom-transit berth review follow-ups are implemented in `5c28b56`.
-G01–G08 remain open. No finding is closed until its independent acceptance evidence is recorded. The separate Domino
-deployment uses pre-remediation `dev` at `35e0111`; its target smoke is not validation of this branch or operational approval.
-Existing `limited`/synthetic labels remain required.
+**Current remediation state:** F01–F28 are resolved by `fix/product-audit-remediation` through source/contract commit
+`ea62351`. [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md) records independent review, real-browser
+workflow evidence, 2,815 passing Python tests and 1,066 passing frontend tests. CI/merge status belongs to the PR.
+Next work remains G01–G08 and the existing qualification/readiness gates. The initial separate Domino deployment
+used pre-remediation `dev` at `35e0111`; its smoke did not qualify either build for operational use.
 
 Originally written 5 November 2026 against `dev` at `e0e0fcf` (legacy PR #106).
 **Integration status updated 5 November 2026** against `dev` at `684db99`: provider PR #13 and exercise/UI PR #21 are merged.

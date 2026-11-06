@@ -4,17 +4,16 @@ This report records implementation for the 5 November 2026 whole-product audit o
 `ac73e1fbf21a54efd029608cb140a306f69b4fa4`. [NEXT_STEPS.md](NEXT_STEPS.md) preserves the original pinned sources,
 reproductions and evidence; [MASTER_PLAN.md](MASTER_PLAN.md) remains the authority for ownership and priorities.
 
-**F01–F28 are implemented, pending independent review and final integrated checks. None is closed by this report.**
-The implementation inventory below covers `fix/product-audit-remediation` through `ea62351`, based on its commit
-history and changed regressions. Independent review identified two additional UI failures: paused backward seeking
-could leave a prediction for the wrong input time, and custom transit inherited a hardcoded Norfolk berth. Commit `5c28b56` now forces
-seek refresh/rejects late responses and leaves unbound pier/fender coverage explicitly unknown. The final reviewed
-commit and integrated test results must still be recorded before acceptance.
+**F01–F28 are resolved by this remediation and independently reviewed. Final integrated local checks pass.**
+Implementation and generated contracts are recorded through `ea62351`; documentation commits follow separately.
+Independent reviewers reproduced additional SSE persistence, Intake semantic-injection, environment-clock and
+camera seek/hazard-binding defects. Each was corrected and rechecked. The PR into `dev` records CI and merge status.
+
 G01–G08 remain open. All model, source, synthetic and demonstrator limitations continue to apply.
 
 ## Finding-to-implementation record
 
-Each row has the same status: **implemented, pending independent review and final integrated checks**.
+Each row has the same status: **resolved; regression and independent review evidence recorded**.
 Links identify implementation commits and regression files, not a claim that every acceptance gate has passed.
 F09/F10 include the additional review corrections in `5c28b56`.
 
@@ -88,22 +87,23 @@ F09/F10 include the additional review corrections in `5c28b56`.
 ## Validation evidence
 
 These are coordinator-observed local runs and retained evidence, not new measurements from this documentation edit.
-The final integrated rerun and independent disposition are pending.
+Independent review found no remaining code findings after the follow-up fixes. Final integrated checks below passed; CI and merge are recorded in the PR.
 
 | Evidence | Observed result | Scope / remaining acceptance |
 | --- | --- | --- |
-| Earlier integrated Python suite | 2,776 passed | Historical implementation-stage result. |
-| First final Python rerun | 2,814 tests: 2,808 passed, 6 failed | All six failures were A7 narration tests expecting a usable prediction from the now-invalid archived NOAA fixture. Corrected by `a978b57`; its focused 14 tests passed. A further full rerun is pending; this original run was not green. |
-| Frontend suite and static/build checks | Latest pre-follow-up run: 1,065 passed in 72 files; typecheck, lint and build passed. An earlier run had 1,062 passed. | Final checks must use the reviewed integration commit after the remaining UI changes. |
+| Final `make test` | **2,815 passed**, zero skipped/xfail, 226.89 s | All final source, contract and regression changes. |
+| `make contract-check` and generated frontend types | Passed; no generated-type drift | Regenerated from source; no hand-edited contract. |
+| First final Python rerun | 2,814 tests: 2,808 passed, 6 failed | All six failures were A7 narration tests expecting a usable prediction from the now-invalid archived NOAA fixture. Corrected by `a978b57`; its focused 14 tests passed. The final 2,815-test rerun passed; this original run was not green. |
+| Frontend suite and static/build checks | 1,066 passed in 72 files; typecheck, lint and build passed; zero skips/xfails. | Includes the final seek/unbound-berth corrections in `5c28b56`. |
 | `scripts/demo_check.py --no-browser` | 21 passed, 0 failed, 4 skipped | Browser explicitly excluded, plus three existing readiness coverage blockers: D1/U3 component/startup acceptance, all-four-case independent browser review U1/U4, and varying-forcing UI S2/U5. This is not full readiness. |
-| Focused independent review | Model timing: 65 tests plus 12 independent cases; Intake/Safety: 228 tests with no semantic bypass found; UI: 45 tests and the final seek probe passed | UI independent review is clear. Final integrated disposition and full rerun remain pending. |
+| Focused independent review | Model timing: 65 tests plus 12 independent cases; Intake/Safety: 228 tests with no semantic bypass found; UI: 45 tests and the final seek probe passed | Independent review is clear, including final integrated browser paths below. |
 | Local API integration | Four planning cases, supplied-forecast binding and runtime HTTP/SSE/WS checks passed | Real local services, offline/synthetic conditions; does not replace all-four-case browser or target-host acceptance. |
 | Independent F01/F02 browser chain | Real Advance → Intake → Planner → Safety → sheet passed; forecast content hash survived selection, and Intake through sheet retained the identical full manifest. HTML retained the hash and review ID. After a 150 kt wind / 180 kt gust edit, active review/sheet actions cleared and the saved historical sheet stayed unchanged. Zero page errors. | Explicit synthetic forecast and no LLM; the selected operation narrows Advance's broader arrival window, so its binding hash changes at Intake. Safety retained an honest RED/revise outcome. This is one chain, not all-four-case readiness. |
 | Independent direct-Planner and pending-review browser chain | Advance → direct Planner automatically assessed Intake with the selected content hash. A real Safety response was held unchanged while wind/gust changed to 150/180 kt; delivering it afterward restored neither review nor sheet. Zero page errors. | Real isolated services; response delivery was deliberately delayed. This verifies the pending-response race separately from edits after a completed review. |
 | Browser report-save failure | Draft retained after synthetic HTTP 503 against the real mission workflow | Failure injection, not a production incident. |
 | Browser exercise library | Draft location, unsaved-change guard, loaded revision and visible conflict retained | Synthetic shared-library API fixtures. |
-| Browser camera | Real offline modeling API received explicit noncalm environment and other-vessel traffic; selection changed to CG-OUT with matching rendered identity; keyboard selection passed | Precedes the `5c28b56` seek/unbound-berth corrections; their final browser acceptance remains pending. |
-| Browser refresh observation | Maximum observed gap 1,706.8 ms against the probe's 2,500 ms criterion | Local production browser build; this does **not** establish the master plan's ≥1 Hz target or a deployed-host SLA. |
+| Browser camera | Real offline modeling API received explicit noncalm environment and other-vessel traffic; selection changed to CG-OUT with matching rendered identity; keyboard selection passed | Final production-browser rerun includes `5c28b56`; unbound pier/fender/coastline coverage stays explicitly unknown. |
+| Browser refresh observation | Maximum observed gap 1,613.6 ms against the probe's 2,500 ms criterion | Local production browser build; this does **not** establish the master plan's ≥1 Hz target or a deployed-host SLA. |
 
 The local browser artifacts are in
 `/Users/michaelsnyder/repos/pier-review-audit-evidence-2026-11-05/`:
@@ -112,30 +112,30 @@ The local browser artifacts are in
 `/tmp/pier-product-fixes-smoke.log`. These are local evidence paths, not repository
 artifacts or shared download links. The original audit bundle remains separate and unchanged.
 
-Before closure, the coordinator records the reviewed integration commit, regression/reproduction disposition,
-PR into `dev`, `make test`, `make contract-check`, and frontend
-`npm run typecheck && npm run lint && npm test -- --run && npm run build`, including exact counts,
-skips/xfails and unresolved readiness gaps. Schema/type generation must match the final source.
-A passing test total alone does not close a finding.
+Local commands were `make test`, `make contract-check`, generated frontend types, typecheck, lint,
+`NODE_OPTIONS=--no-experimental-webstorage npm test -- --run`, and `npm run build`. The Node option disables
+Node 26's experimental server-side storage during JSDOM tests; CI uses Node 22. None of the unit tests was skipped
+or marked xfail. The four smoke exclusions above remain explicit and are not operational-readiness approval.
 
-## Separate Domino deployment
+## Initial Domino review deployment
 
 A new private [Domino demonstrator](https://pubsec-demo.domino-eval.com/apps-internal/6aed3ffcfbb42a578217356f/)
-was deployed at the user's request **before these fixes**, using `dev` at
+was first deployed at the user's request **before these fixes**, using `dev` at
 `35e0111257445d66a4d61c667a0fc0fe02472e1d`.
 [CI run 42116088787](https://github.com/fleethacker/pier-review/actions/runs/42116088787) was successful.
 App `6aed3ffcfbb42a578217356f`, version `6aed3ffcfbb42a5782173572`, instance
 `6aed3ffdfbb42a5782173574` are private `GRANT_BASED` and undiscoverable.
 
 Observed target checks: UI and both proxied health endpoints returned HTTP 200; a real browser reported no JavaScript
-errors; an `rm0-v1` WebSocket frame arrived; Planner SSE emitted progress then succeeded `done`; anonymous access
+errors; an `rm0-v1` WebSocket frame arrived; A modeling job SSE stream emitted progress then succeeded `done`; anonymous access
 returned HTTP 302 to login. The official `dominodatalab/domino-ai-plugin` skills and bundled MCP helpers performed
 deployment; no credentials are included here.
 
 This is a shared review demonstrator using the Domino gateway session with internal backend bearer auth unset.
 The existing launcher installs dependencies and builds at startup. Target restart/recovery, native server PDF,
-engineering qualification and clean-`main` release rehearsal were not tested. These checks establish neither
-per-user resource isolation nor acceptance of the remediation branch. See
+engineering qualification and clean-`main` release rehearsal were not tested. These initial-build checks establish neither
+per-user resource isolation nor acceptance of a later remediation deployment. Later deployments must record their
+commit and target checks in the App version notes and remediation PR. See
 [DEPLOYMENT_READINESS.md](DEPLOYMENT_READINESS.md#a2-domino-demo-launch-and-rehearsal) for the operating boundary.
 
 ## Remaining acceptance
@@ -148,7 +148,7 @@ native streaming, recovery, retention and qualification (G07); and immutable evi
 handoffs (G08). Fixes to individual defects do not complete these broader capabilities.
 
 T01 now has parameterized batch/legacy/rich forcing checks and an actual HTTP/WebSocket session regression in
-`test_s2_forcing.py`. T02 has rendered vessel/time identity and local browser refresh evidence, with additional seek/unbound-berth regressions in `5c28b56`; final browser acceptance and the 1 Hz target remain unresolved. T03 has an advancing-clock composer
+`test_s2_forcing.py`. T02 has rendered vessel/time identity and local browser refresh evidence, with additional seek/unbound-berth regressions in `5c28b56`; final browser acceptance passed; the 1 Hz target remains unresolved. T03 has an advancing-clock composer
 retry/cache regression plus UI cutoff-retry/default-lead tests; real public acquisition through the browser remains
 G02 work. T04 remains in force: skipped readiness coverage, synthetic consistency and local smoke results are not
 operational readiness or engineering qualification.

@@ -4,9 +4,9 @@
 
 **Product-audit remediation (5 November 2026):** [NEXT_STEPS.md](NEXT_STEPS.md) preserves the `ac73e1f` audit and
 current ledger. F01–F28 have implementations on `fix/product-audit-remediation`, documented through `ea62351` in
-[PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md), pending independent review and final integrated checks.
-The runtime/auth/persistence controls below include that implementation scope; the separate deployed Domino app uses
-pre-remediation `35e0111`. Its smoke checks do not validate remediation code. G01–G08, including G07's wider deployment,
+[PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md), with independent review and final local checks passed (2,815 Python and 1,066 frontend tests). CI/merge status is recorded in the PR.
+The runtime/auth/persistence controls below include that implementation scope; the initial separate Domino deployment used
+pre-remediation `35e0111`. Its smoke checks do not validate a later remediation deployment. G01–G08, including G07's wider deployment,
 identity, retention and recovery gate, remain open.
 
 **Execution owners:** Bixler leads A1/A2/A4 rehearsal and release; Kori owns browser/UI acceptance, Snyder modeling/runtime
@@ -28,19 +28,19 @@ the libraries below; browser-exported PDF evidence does not establish server-ren
 
 **A separate private demonstrator was deployed on 5 November 2026 at the user's request, before remediation.**
 [Open the Domino app](https://pubsec-demo.domino-eval.com/apps-internal/6aed3ffcfbb42a578217356f/).
-It uses `dev` at `35e0111257445d66a4d61c667a0fc0fe02472e1d`, whose
+Its initial review version used `dev` at `35e0111257445d66a4d61c667a0fc0fe02472e1d`, whose
 [CI run 42116088787](https://github.com/fleethacker/pier-review/actions/runs/42116088787) passed. App ID:
 `6aed3ffcfbb42a578217356f`; version: `6aed3ffcfbb42a5782173572`; instance: `6aed3ffdfbb42a5782173574`.
 Visibility is private `GRANT_BASED` and undiscoverable. Deployment used the official
 `dominodatalab/domino-ai-plugin` skills and bundled MCP helpers; no credentials are stored in this record.
 
 Target checks observed HTTP 200 for the UI and both proxied health routes, a real browser with no JavaScript errors,
-an `rm0-v1` WebSocket frame, and Planner SSE progress followed by a succeeded `done` event. Anonymous access returned
+an `rm0-v1` WebSocket frame, and Job SSE progress followed by a succeeded `done` event. Anonymous access returned
 HTTP 302 to login. This verifies those proxy paths and the outer login boundary for a shared review demonstrator.
 Internal backend bearer auth is unset; it does not provide per-user resource isolation or verified approval roles.
 Target restart/recovery, native server PDF, engineering qualification and a clean-`main` release rehearsal were not tested.
-The existing launcher still installs dependencies and builds at startup. No remediation deployment or full A2/G07 closure
-is claimed; [the remediation report](PRODUCT_AUDIT_REMEDIATION.md) tracks the separate branch under review.
+The existing launcher still installs dependencies and builds at startup. This initial record claims no remediation deployment or full A2/G07 closure; later deployments must record their
+commit and target checks in App version notes and the remediation PR. [The remediation report](PRODUCT_AUDIT_REMEDIATION.md) tracks the fixes and remaining limits.
 
 The updated launcher completed a local offline rehearsal on 5 November 2026: both API proxies, four planning
 chains, forecast planning, browser sheet/print controls and live WebSocket controls passed. All services stopped
@@ -140,7 +140,7 @@ If that cannot be completed, state **HTML print supported; server PDF unavailabl
 
 Clients use `Authorization: Bearer <key>` on HTTP and non-browser WebSocket handshakes. The browser's **Access**
 control accepts a user-supplied runtime credential held only in tab memory; refresh clears it. HTTP, polling,
-authenticated media/downloads and fetch-based Planner SSE use that header. Changing access restarts workspaces,
+authenticated media/downloads and fetch-based Job SSE use that header. Changing access restarts workspaces,
 so save drafts first. Backend keys must never be placed in `VITE_*` values or URLs.
 
 Native browser WebSockets cannot set arbitrary headers. Direct API-key mode explicitly blocks environment sockets

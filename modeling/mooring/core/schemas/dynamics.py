@@ -7,6 +7,7 @@ from pydantic import ConfigDict, Field, model_validator
 
 from .common import Envelope, Model, Status, Validity
 from .mooring import FenderResult, LineTension
+from .motion_controls import MotionControlsConfig, MotionControlState, MotionLoadingState, MotionLineControlState
 from .motion import (
     _require_qualified_motion,
     MotionAlert,
@@ -147,11 +148,13 @@ class ContactSummary(Model):
 
 class SimulationTransition(Model):
     t_s: float
-    kind: Literal["contact_start", "contact_end", "line_taut", "line_slack", "secured", "tensioned", "released"]
+    kind: Literal["contact_start", "contact_end", "line_taut", "line_slack", "secured", "tensioned", "released", "line_paid_out"]
     element_id: str
 
 
 class SimulationDiagnostics(Model):
+    wire_omitted_defaults = {"loading_event_energy_ftlbf": None}
+    loading_event_energy_ftlbf: float | None = None
     parameter_set: str
     qualification: Literal["unqualified"] = "unqualified"
     integration_steps: int
@@ -206,9 +209,12 @@ class SimFrame(Model):
     wire_omitted_defaults = dict.fromkeys((
         "schema_version", "sequence", "session_id", "run_id", "scene_id", "scene_revision", "motion",
         "tug_states", "environment", "line_states", "fitting_loads", "fender_states", "forces", "validity",
-        "provenance", "structured_alerts", "diagnostics", "forcing_revision",
+        "provenance", "structured_alerts", "diagnostics", "forcing_revision", "controls", "loading", "line_controls",
     ))
     diagnostics: SimulationDiagnostics | None = None
+    controls: MotionControlState | None = None
+    loading: MotionLoadingState | None = None
+    line_controls: list[MotionLineControlState] | None = None
     forcing_revision: str | None = Field(default=None, description="Revision id of the immutable forcing series; with t_s it identifies the forcing in effect.")
 
     t_s: float
@@ -341,7 +347,8 @@ class SimRecordingList(Model):
 
 
 class SimSessionCreate(Model):
-    wire_omitted_defaults = {"dt_s": None, "duration_s": None, "record_interval_s": None, "forcing": None}
+    wire_omitted_defaults = {"dt_s": None, "duration_s": None, "record_interval_s": None, "forcing": None, "controls": None}
+    controls: MotionControlsConfig | None = None
     forcing: ForcingSpec | None = Field(default=None, description="Forcing series; absent keeps the frozen scenario environment.")
     dt_s: float | None = Field(default=None, ge=0.0001, le=1)
     duration_s: float | None = Field(default=None, gt=0, le=7200)

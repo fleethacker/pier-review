@@ -77,6 +77,10 @@ class System:
     tugs: list[TugRec]
     ref_len_ft: float
     notes: list[str] = field(default_factory=list)
+    # Optional quasi-static loading attitude. Zero retains legacy planar geometry.
+    ship_vertical_offset_ft: float = 0.0
+    ship_roll_rad: float = 0.0
+    ship_pitch_rad: float = 0.0
 
     # ----- pieces of the balance -----
     def depth_ft(self, pose: Pose) -> float:
@@ -109,7 +113,13 @@ class System:
 
     def line_state(self, rec: LineRec, pose: Pose, water_level: float | None = None) -> LineState:
         wl = self.env.water_level_mllw_ft if water_level is None else water_level
-        return line_state(self.frame, pose, rec.lead_xy, wl + rec.lead_height_ft, rec.pier_xyz)
+        height = self.fitting_height(rec.lead_xy[0], rec.lead_xy[1], rec.lead_height_ft, wl)
+        return line_state(self.frame, pose, rec.lead_xy, height, rec.pier_xyz)
+
+    def fitting_height(self, x: float, y: float, z: float, water_level: float | None = None) -> float:
+        """First-order rigid-body vertical geometry (+roll raises port, +pitch lowers bow)."""
+        wl = self.env.water_level_mllw_ft if water_level is None else water_level
+        return wl + self.ship_vertical_offset_ft + z + self.ship_roll_rad*y - self.ship_pitch_rad*x
 
     def line_tensions(self, pose: Pose) -> list[tuple[LineRec, LineState, float]]:
         out = []

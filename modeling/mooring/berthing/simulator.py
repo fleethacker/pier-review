@@ -6,6 +6,7 @@ Catalog geometry/elastic forces remain seed estimates. This is not a predictive
 vessel simulator, nor an impact/snatch/rupture qualification.
 """
 import math
+import copy
 from dataclasses import asdict
 
 from mooring import refdata, scenarios
@@ -22,6 +23,9 @@ from mooring.tugs.allocation import _bounds
 from .s3_tug_geometry import (TugCommand, TugGeometryError, TugLimits, bind_push_point, slew_force,
                               target_signed, tug_contact, total_wrench)
 from .forcing import ForcingSeries, ForcingUncovered, apparent_wind  # noqa: F401
+from .loading import loading_state, body_params
+from .propulsion import Propulsion
+from mooring.core.schemas.motion_controls import MotionControlsConfig, MotionLineControlState
 
 PARAMETER_SET = "synthetic-demonstration-v1"
 # Arbitrary test-body inputs, NOT estimates for any hull (lbf, ft, s).
@@ -38,10 +42,21 @@ class _AdvanceYield(Exception):
 
 
 class BerthingModel:
-    def __init__(self, sc, initial, env, *, dt=0.1, duration=900, params=PARAMS, forcing=None):
+    def __init__(self, sc, initial, env, *, dt=0.1, duration=900, params=PARAMS, forcing=None,
+                 controls: MotionControlsConfig | None = None, ship_override=None, tug_ids=None):
         self.sc, self.initial, self.env = sc.model_copy(deep=True), initial.model_copy(deep=True), env.model_copy(deep=True)
-        self.ship, self.berth = refdata.ship(sc.ship_class_id), refdata.berth(sc.berth_id)
-        self.cfg = sc.config or MooringConfig(ship_x_ft=initial.x_ft, side_to=sc.side_to, lines=[])
+        self.ship_override = ship_override.model_copy(deep=True) if ship_override is not None else None
+        if ship_override is not None and ship_override.class_id != sc.ship_class_id:
+            raise ValueError("ship override must have the scenario ship class identity")
+        self.ship = (self.ship_override or refdata.ship(sc.ship_class_id)).model_copy(deep=True)
+        self.berth = refdata.berth(sc.berth_id)
+        self.requested_tug_ids = list(tug_ids) if tug_ids is not None else None
+        self.controls_config = controls.model_copy(deep=True) if controls is not None else None
+        self.motion_controls_used = controls is not None
+        self.loading_spec = controls.loading.model_copy(deep=True) if controls is not None else None
+        self.propulsion = Propulsion(controls.propulsion) if controls is not None else None
+        self.base_params = params
+        self.cfg = self.sc.config or MooringConfig(ship_x_ft=initial.x_ft, side_to=sc.side_to, lines=[])
         self.system = build_system(self.ship, self.berth, self.cfg,
             {ln.spec_id: refdata.line(ln.spec_id) for ln in self.cfg.lines}, self.env,
             loading=sc.loading, lines_wet=True)
@@ -50,9 +65,11 @@ class BerthingModel:
             raise ValueError("line numbers must be unique for simulation commands")
         self.system.lines = []  # lines become active only through explicit line events
         self.params = params
+        if self.loading_spec is not None:
+            self.apply_loading(self.loading_spec)
         # Optional immutable forcing series (S2). None keeps the frozen scenario environment exactly as before.
-        self.forcing_spec = forcing
-        self.forcing = ForcingSeries(forcing, self.env, duration) if forcing is not None else None
+        self.forcing_spec = forcing.model_copy(deep=True) if forcing is not None else None
+        self.forcing = ForcingSeries(self.forcing_spec, self.env, duration) if forcing is not None else None
         self.forcing_env, self.forcing_covered = None, True
         self.body = MooredBody(self.system, self.params)
         self.dt, self.duration = dt, duration
@@ -63,9 +80,23 @@ class BerthingModel:
         self.anchors = {}
         points = sorted((p for p in self.ship.push_points if p.side != sc.side_to), key=lambda p: -p.x_ft)
         fleet = refdata.tugs()
+        if tug_ids is not None:
+            if len(tug_ids) != len(set(tug_ids)):
+                raise ValueError("tug identifiers must be unique")
+            known = {tug.tug_id: tug for tug in fleet}
+            if any(tid not in known for tid in tug_ids):
+                raise ValueError("unknown tug identifier")
+            if len(tug_ids) > len(points):
+                raise ValueError("not enough distinct water-side push points for requested tugs")
+            fleet = [known[tid] for tid in tug_ids]
         for tug, point in zip(fleet, points):
             self.anchors[tug.tug_id] = (tug, point, _bounds(self.ship, tug, point, 1.0))
-        self.tug_limits = {tid: TugLimits.from_specs(tug, pp, slew_s=SLEW_SECONDS)
+        self.tug_attachments = {}
+        if controls is not None and controls.tug_standoff_ft is not None:
+            self.tug_attachments = {tid: (pp.x_ft, (1 if pp.side == "port" else -1)*
+                (self.ship.beam_ft/2+controls.tug_standoff_ft)) for tid,(_,pp,_) in self.anchors.items()}
+        slew_s = controls.tug_slew_s if controls is not None and controls.tug_slew_s is not None else SLEW_SECONDS
+        self.tug_limits = {tid: TugLimits.from_specs(tug, pp, slew_s=slew_s)
                            for tid, (tug, pp, _) in self.anchors.items()}
         self.ramps = {}  # id -> (start time, old signed force, new signed force)
         self.pending = []
@@ -73,7 +104,7 @@ class BerthingModel:
         self.transitions, self.events = [], []
         self.contact = None
         self.impact_speed = {}  # fender_id -> lateral speed (ft/s) just before first contact
-        self.max_line_tension = self.work = self.dissipated = self.event_energy = 0.0
+        self.max_line_tension = self.work = self.dissipated = self.event_energy = self.loading_event_energy = 0.0
         self.reasons = [ValidityReason(code="VESSEL_DYNAMICS_UNQUALIFIED",
             message=f"{PARAMETER_SET}: arbitrary synthetic mass/inertia/damping; not identified for {sc.ship_class_id}."),
             ValidityReason(code="DYNAMICS_APPROXIMATIONS", message="Quasi-static M3 environment, fixed water level; no relative-flow, wave, rupture or validated snatch model. Catalog and tug response data are estimates.")]
@@ -92,6 +123,68 @@ class BerthingModel:
         for name, fn in sorted(self.integrator.events.items()):
             if name.startswith("contact:") and fn(0,state)>0:
                 self.transitions.append(SimulationTransition(t_s=0,kind="contact_start",element_id=name.split(":",1)[1]))
+
+    def clone_for_prediction(self):
+        """Independent complete mechanics snapshot; caller must hold the session lock.
+
+        Deepcopy preserves shared record references but Python function closures are
+        not rebound by deepcopy. Rebuild all model-bound integrator callbacks so
+        crossing checks and stage forcing cannot mutate the original simulation.
+        """
+        clone = copy.deepcopy(self)
+        clone.integrator.forces = clone.forces
+        clone.integrator.gap = clone.body.contact_gap
+        clone.integrator.events = clone.crossing_functions()
+        return clone
+
+    def apply_loading(self, spec):
+        """Atomically replace explicit mass/geometry parameters; no velocity overwrite."""
+        loaded = loading_state(spec, self.ship.loa_ft, self.ship.beam_ft)
+        params = body_params(spec, loaded)
+        self.loading_spec, self.params = spec.model_copy(deep=True), params
+        self.system.ship_vertical_offset_ft = -loaded.sinkage_ft
+        self.system.ship_roll_rad = math.radians(loaded.roll_deg)
+        self.system.ship_pitch_rad = math.radians(loaded.pitch_deg)
+        ship = self.ship.model_copy(deep=True)
+        condition = next(x for x in ship.loading_conditions if x.name == self.sc.loading)
+        condition.displacement_lt = loaded.total_weight_lbf/2240
+        condition.draft_fwd_ft, condition.draft_aft_ft = loaded.draft_fwd_ft, loaded.draft_aft_ft
+        self.system.ship = ship
+        if hasattr(self,"body"):
+            self.body.params = params
+            self.integrator.params = params
+
+    def loading_state(self, state=None, t=None):
+        if self.loading_spec is None:
+            return None
+        s, t = state or self.integrator.state, self.t if t is None else t
+        env = self.forcing.at(t)[0] if self.forcing is not None else self.env
+        water = env.water_level_mllw_ft
+        if self.forcing is not None and "water_level_mllw_ft" not in self.forcing.supplied:
+            water = None
+        return loading_state(self.loading_spec, self.ship.loa_ft, self.ship.beam_ft, s, water)
+
+    def current_body(self, s):
+        """Water velocity for rudder incidence only; hull drag remains the existing damping model."""
+        env = self.system.env
+        angle = math.radians(self.berth.face_bearing_true_deg-env.current_set_true_deg)-s[2]
+        speed = env.current_speed_kt*KT_TO_FPS
+        return speed*math.cos(angle), speed*math.sin(angle)
+
+    def propulsion_wrench(self, t, s):
+        return self.propulsion.forces(t,s,self.current_body(s))[0] if self.propulsion is not None else (0.0,0.0,0.0)
+
+    def line_control_states(self, state=None):
+        pose = self.body.pose(state or self.integrator.state)
+        out = []
+        for n,rec in sorted(self.all_lines.items()):
+            length = self.system.line_state(rec,pose).length_ft
+            attached = rec in self.system.lines
+            out.append(MotionLineControlState(line_number=n, attached=attached,
+                paid_out_length_ft=rec.model.rest_length_ft, geometric_length_ft=length,
+                extension_ft=max(0,length-rec.model.rest_length_ft),
+                tension_lbf=rec.model.tension(length) if attached else None))
+        return out
 
     @property
     def t(self): return self.integrator.t
@@ -142,7 +235,7 @@ class BerthingModel:
     def forces(self, t, s):
         self.set_env(t, s)
         w = self.body.forces(t, s)
-        return tuple(a+b for a, b in zip(w, self.tug_wrench(t)))
+        return tuple(a+b+c for a,b,c in zip(w, self.tug_wrench(t), self.propulsion_wrench(t,s)))
 
     def schedule(self, msg):
         if self.t >= self.duration-1e-9:
@@ -163,8 +256,23 @@ class BerthingModel:
                 raise ValueError(str(e)) from e
             if not lo <= target_signed(cmd) <= hi:
                 raise ValueError("tug or hull push-point rating exceeded")
-        elif msg.line_number not in self.all_lines:
-            raise ValueError("line is not in the scenario configuration")
+        elif msg.type == "helm_command":
+            if self.propulsion is None:
+                raise ValueError("session has no explicitly configured propulsion model")
+            if abs(msg.rudder_deg) > self.propulsion.spec.rudder_max_deg:
+                raise ValueError("rudder order exceeds supplied actuator limit")
+        elif msg.type == "loading_command":
+            if self.loading_spec is None:
+                raise ValueError("session has no explicitly configured loading model")
+            if abs(t-self.t) > 1e-9 or any(abs(v)>1e-8 for v in self.integrator.state[3:]):
+                raise ValueError("payload changes require the current simulation time and a stationary ship")
+            spec = self.loading_spec.model_copy(update={"payloads":msg.payloads}, deep=True)
+            loading_state(spec, self.ship.loa_ft, self.ship.beam_ft)
+        elif msg.type in ("line_event", "line_control"):
+            if msg.line_number not in self.all_lines:
+                raise ValueError("line is not in the scenario configuration")
+        else:
+            raise ValueError("unsupported simulation command")
         self.sequence += 1
         self.pending.append((t, self.sequence, msg))
         self.pending.sort(key=lambda item: item[:2])
@@ -178,14 +286,31 @@ class BerthingModel:
             if msg.type == "tug_command":
                 force = target_signed(TugCommand(msg.tug_id, self.anchors[msg.tug_id][1].push_point_id, msg.force_lbf, msg.direction_rel_deg))
                 self.ramps[msg.tug_id] = (self.t, self.tug_force(msg.tug_id, self.t), force)
+            elif msg.type == "helm_command":
+                self.propulsion.order(msg,self.t)
+            elif msg.type == "loading_command":
+                if any(abs(v)>1e-8 for v in self.integrator.state[3:]):
+                    raise ValueError("payload changes require a stationary ship")
+                before = self.body.energy(self.integrator.state)
+                self.apply_loading(self.loading_spec.model_copy(update={"payloads":msg.payloads}, deep=True))
+                self.loading_event_energy += self.body.energy(self.integrator.state)-before
             else:
                 rec = self.all_lines[msg.line_number]
                 pose = self.body.pose(self.integrator.state)
                 was_taut = rec in self.system.lines and rec.model.strain(self.system.line_state(rec, pose).length_ft) > 0
                 before = self.body.energy(self.integrator.state)
-                if msg.event == "released":
+                if msg.type == "line_control":
+                    self.motion_controls_used = True
+                    if msg.paid_out_length_ft is not None:
+                        rec.model.rest_length_ft = msg.paid_out_length_ft
+                    attached = msg.attached
+                    event = "secured" if attached is True else "released" if attached is False else "line_paid_out"
+                else:
+                    attached = msg.event != "released"
+                    event = msg.event
+                if attached is False:
                     self.system.lines = [r for r in self.system.lines if r is not rec]
-                elif rec not in self.system.lines:
+                elif attached is True and rec not in self.system.lines:
                     self.system.lines.append(rec)
                 is_taut = rec in self.system.lines and rec.model.strain(self.system.line_state(rec, pose).length_ft) > 0
                 if was_taut != is_taut:
@@ -193,7 +318,7 @@ class BerthingModel:
                                                                  element_id=f"line-{msg.line_number}"))
                 # 'tensioned' activates the installed rest length, never resets pretension.
                 self.event_energy += self.body.energy(self.integrator.state)-before
-                self.transitions.append(SimulationTransition(t_s=self.t, kind=msg.event, element_id=f"line-{msg.line_number}"))
+                self.transitions.append(SimulationTransition(t_s=self.t, kind=event, element_id=f"line-{msg.line_number}"))
         return applied
 
     def powers(self, t, s):
@@ -201,7 +326,7 @@ class BerthingModel:
         w = self.system.env_wrench(self.body.pose(s))
         c, sn = math.cos(s[2]), math.sin(s[2])
         external = (c*w.fx_lbf+sn*w.fy_lbf, -sn*w.fx_lbf+c*w.fy_lbf, w.mz_ftlbf)
-        power = sum((a+b)*v for a,b,v in zip(external, self.tug_wrench(t), s[3:]))
+        power = sum((a+b+c)*v for a,b,c,v in zip(external, self.tug_wrench(t), self.propulsion_wrench(t,s), s[3:]))
         damp = sum(d*v*v+q*abs(v)**3 for d,q,v in zip(self.params.damping_lin, self.params.damping_quad, s[3:]))
         return power, damp
 
@@ -234,6 +359,9 @@ class BerthingModel:
                     raise ValueError("line breaking strength exceeded; rupture is not modeled")
             self.track_contact(s1, s0)
             self.validity()
+            loaded = self.loading_state(s1,t1)
+            if loaded is not None and loaded.validity.state == "invalid":
+                raise ValueError("under-keel contact possible; seabed contact dynamics not modeled")
             observe(t0,s0,t1,s1)
         def bounded_check():
             check()
@@ -272,11 +400,16 @@ class BerthingModel:
         pose = self.body.pose(self.integrator.state)
         loads = self.system.loads_at(pose)
         from mooring.loads.service import _metadata
-        _, _, validity = _metadata(self.ship, self.sc.loading, self.system.depth_ft(pose),
+        _, _, validity = _metadata(self.system.ship, self.sc.loading, self.system.depth_ft(pose),
             self.system.env.water_density_kgm3, True, self.system.env.current_speed_kt, [loads], self.system.env, True)
         self.invalid |= validity.state == "invalid"
         existing = {r.code for r in self.reasons}
         self.reasons.extend(r for r in validity.reasons if r.code not in existing)
+        loaded = self.loading_state()
+        if loaded is not None:
+            self.invalid |= loaded.validity.state == "invalid"
+            existing = {r.code for r in self.reasons}
+            self.reasons.extend(r for r in loaded.validity.reasons if r.code not in existing)
         return Validity(state="invalid" if self.invalid else "limited", reasons=self.reasons)
 
     def diagnostics(self, state=None):
@@ -284,7 +417,9 @@ class BerthingModel:
         return SimulationDiagnostics(parameter_set=PARAMETER_SET, integration_steps=self.integrator.steps,
             simulated_time_s=self.t, initial_energy_ftlbf=self.initial_energy, final_energy_ftlbf=energy,
             applied_work_ftlbf=self.work, dissipated_energy_ftlbf=self.dissipated, line_event_energy_ftlbf=self.event_energy,
-            energy_residual_ftlbf=energy-self.initial_energy-self.work+self.dissipated-self.event_energy, integration_dt_s=self.dt)
+            loading_event_energy_ftlbf=self.loading_event_energy if self.loading_spec is not None else None,
+            energy_residual_ftlbf=energy-self.initial_energy-self.work+self.dissipated-self.event_energy-self.loading_event_energy,
+            integration_dt_s=self.dt)
 
     @staticmethod
     def lateral_speed(s):
@@ -321,6 +456,9 @@ class BerthingModel:
             fenders.append(FenderResult(fender_id=fr.model.fender_id, reaction_lbf=fr.model.force(d), compression_ft=d,
                                         status="RED" if over else "AMBER"))
         lines = [LineTension(line_number=rec.ln.line_number,tension_lbf=force) for rec,_,force in self.system.line_tensions(pose)]
+        controls = self.propulsion.state(t,s,self.current_body(s)) if self.propulsion is not None else None
+        loaded = self.loading_state(s,t)
+        line_controls = self.line_control_states(s) if self.motion_controls_used else None
         return SimFrame(t_s=t, forcing_revision=self.forcing_revision, environment=environment, pose=ShipState(x_ft=s[0], y_ft=s[1],
             heading_true_deg=(self.berth.face_bearing_true_deg-math.degrees(s[2]))%360,
             u_kt=s[3]/KT_TO_FPS, v_kt=(-s[4] if self.sc.side_to=="starboard" else s[4])/KT_TO_FPS,
@@ -328,12 +466,14 @@ class BerthingModel:
             tugs=[TugState(tug_id=tid, force_lbf=abs(self.tug_force(tid,t)),
                 direction_rel_deg=90 if self.tug_force(tid,t)<0 else 270) for tid in sorted(self.ramps)],
             lines=lines,
-            fenders=fenders, alerts=alerts or [], validity=self.validity())
+            fenders=fenders, alerts=alerts or [], validity=self.validity(), controls=controls,
+            loading=loaded, line_controls=line_controls)
 
 
-def initial_model(scenario_id, initial, *, dt=0.1, duration=900, forcing=None):
+def initial_model(scenario_id, initial, *, dt=0.1, duration=900, forcing=None, controls=None, ship_override=None, tug_ids=None):
     sc = scenarios.get(scenario_id)
-    return BerthingModel(sc, initial, scenarios.environment_for(sc), dt=dt, duration=duration, forcing=forcing)
+    return BerthingModel(sc, initial, scenarios.environment_for(sc), dt=dt, duration=duration, forcing=forcing,
+                         controls=controls, ship_override=ship_override, tug_ids=tug_ids)
 
 
 def simulate_berthing(req, job_id, base_path, ctx=None):

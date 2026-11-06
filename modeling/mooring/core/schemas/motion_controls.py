@@ -18,6 +18,7 @@ class ParameterEvidence(Model):
 class PropulsionSpec(ParameterEvidence):
     max_ahead_thrust_lbf: float = Field(gt=0, description="Per shaft.")
     max_astern_thrust_lbf: float = Field(ge=0, description="Per shaft.")
+    shaft_x_ft: float
     shaft_y_ft: float = Field(ge=0, description="Port shaft +y; starboard shaft -y.")
     engine_slew_per_s: float = Field(gt=0)
     rudder_x_ft: float
@@ -40,9 +41,9 @@ class PayloadItem(Model):
     payload_id: str = Field(min_length=1, max_length=80)
     label: str = Field(min_length=1, max_length=120)
     weight_lbf: float = Field(ge=0, le=1e9)
-    x_ft: float
-    y_ft: float
-    z_ft: float = Field(description="Ship reference waterline origin, +up.")
+    x_ft: float = Field(ge=-10000, le=10000)
+    y_ft: float = Field(ge=-10000, le=10000)
+    z_ft: float = Field(ge=-1000, le=1000, description="Ship reference waterline origin, +up.")
 
 
 class LocalDepthPatch(ParameterEvidence):
@@ -69,7 +70,7 @@ class LoadingSpec(ParameterEvidence):
     base_cg_z_ft: float
     base_draft_ft: float = Field(gt=0)
     base_cb_z_ft: float = Field(description="Baseline center of buoyancy, ship reference waterline origin.")
-    waterplane_area_ft2: float = Field(gt=0)
+    waterplane_area_ft2: float = Field(gt=0, description="Fixed waterplane centered at the ship origin.")
     waterplane_ixx_ft4: float = Field(gt=0)
     waterplane_iyy_ft4: float = Field(gt=0)
     water_density_slug_ft3: float = Field(gt=0)
@@ -95,6 +96,10 @@ class LoadingSpec(ParameterEvidence):
 class MotionControlsConfig(Model):
     propulsion: PropulsionSpec
     loading: LoadingSpec
+    tug_standoff_ft: float | None = Field(default=None, gt=0,
+        description="Explicit synthetic rigid attachment stand-off; absent leaves tug kinematics unavailable.")
+    tug_slew_s: float | None = Field(default=None, gt=0,
+        description="Explicit synthetic tug force ramp time; absent retains legacy demonstration ramp.")
 
 
 class HelmOrder(Model):

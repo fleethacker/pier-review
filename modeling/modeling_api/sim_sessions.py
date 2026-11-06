@@ -167,6 +167,11 @@ class Session:
         self.sequence+=1
         return self.sequence
 
+    def snapshot_model(self):
+        """Atomic independent mechanics snapshot; source identities can be read under this same RLock."""
+        with self.lock:
+            return self.model.clone_for_prediction()
+
     def notify(self):
         # Session mutations run in workers; asyncio.Event itself is not thread-safe.
         if self.event_loop is not None and self.event_loop.is_running():
@@ -426,7 +431,10 @@ class Session:
             self.last_access=now
             if msg.type in ("pause","resume","reset"):
                 if msg.type=="reset":
-                    self.model=berthing_sim.BerthingModel(*self.initial,dt=self.model.dt,duration=self.model.duration,forcing=self.model.forcing_spec)
+                    self.model=berthing_sim.BerthingModel(*self.initial,dt=self.model.dt,duration=self.model.duration,
+                        forcing=self.model.forcing_spec, params=self.model.base_params,
+                        controls=self.model.controls_config, ship_override=self.model.ship_override,
+                        tug_ids=self.model.requested_tug_ids)
                     self.paused=True; self.error=None
                     self.reanchor()
                     if self.rich:
@@ -456,6 +464,15 @@ class Session:
                 self.restate(self.error if self.state=="error" else None)
                 self.notify()
             else:
+                if msg.type == "loading_command":
+                    if not self.paused:
+                        raise ValueError("pause a stationary session before changing payloads")
+                    if msg.t_s is None:
+                        msg=msg.model_copy(update={"t_s":self.model.t})
+                    self.model.schedule(msg)
+                    self.model.apply_pending()
+                    self.publish(); self.record_now(); self.notify()
+                    return
                 # Omitted timestamp targets the next boundary. Explicit times are
                 # ordered by timestamp then arrival sequence, never retroactive.
                 if msg.t_s is None:

@@ -119,17 +119,20 @@ export class AdvanceSession {
   }
 
   setInputs(patch: Partial<AdvanceInputs>): void {
+    this.parent.setForecastSelection(null);
     this.recheckRequest++;
     this.state.set({ inputs: { ...this.s.inputs, ...patch }, recheck: { state: 'idle', error: null, response: null } });
     this.checkStale();
   }
 
   setTraining(patch: Partial<TrainingSeriesInputs>): void {
+    this.parent.setForecastSelection(null);
     this.state.set({ training: { ...this.s.training, ...patch } });
     this.checkStale();
   }
 
   setPublicInputs(patch: Partial<PublicSeriesInputs>): void {
+    this.parent.setForecastSelection(null);
     this.state.set({ publicInputs: { ...this.s.publicInputs, ...patch } });
     this.checkStale();
   }
@@ -149,6 +152,7 @@ export class AdvanceSession {
 
   /** Explicit public acquisition; unavailable components remain visible and are never replaced with training data. */
   async fetchPublicSeries(): Promise<void> {
+    this.parent.setForecastSelection(null);
     const body = this.publicBody();
     const request = ++this.seriesRequest;
     this.recheckRequest++;
@@ -191,8 +195,25 @@ export class AdvanceSession {
     }
   }
 
+  latestRetrievalCutoff(): string | null {
+    const times = (this.s.series?.manifest?.components ?? []).map((component) => component.availability.retrieved_at_utc)
+      .filter((value): value is string => !!value && Number.isFinite(Date.parse(value)));
+    if (!times.length) return null;
+    const latest = times.reduce((a, b) => Date.parse(a) > Date.parse(b) ? a : b);
+    return Date.parse(latest) > Date.parse(this.s.inputs.asOfUtc) ? latest : null;
+  }
+
+  /** Explicit user action only: keep arrival/horizon/depth/bin unchanged, reuse provider cache at its retrieval cutoff. */
+  async retryAtRetrievalCutoff(): Promise<void> {
+    const cutoff = this.latestRetrievalCutoff();
+    if (!cutoff) return;
+    this.setInputs({ asOfUtc: cutoff });
+    await this.fetchPublicSeries();
+  }
+
   /** Seeded synthetic conditions from the current environment, starting at the as-of time. Labeled training data. */
   async generateTrainingSeries(): Promise<void> {
+    this.parent.setForecastSelection(null);
     const { berth, env } = this.parent.state.get();
     if (!berth || !env) {
       this.state.set({ seriesState: 'error', seriesError: 'Choose a berth and environment first.' });
@@ -333,9 +354,26 @@ export class AdvanceSession {
       this.state.set({ error: 'This assessment needs a recheck before its configuration can be applied.' });
       return false;
     }
+    const series = this.s.series;
+    const arrival = result.selected_arrival_utc;
+    const manifest = result.forecast_manifest;
+    if (!series || !arrival || !manifest?.content_hash) {
+      this.state.set({ error: 'The selected assessment has no immutable forecast identity. Reassess before handing it to Intake.' });
+      return false;
+    }
     // Suspend the staleness check while the layout changes to the configuration this assessment selected.
     this.resultKey = null;
     this.parent.replaceLines(selected.lines.map((l) => ({ ...l })));
+    this.parent.setForecastSelection({
+      berth_id: this.parent.state.get().berth?.berth_id ?? this.parent.state.get().berthId,
+      as_of_utc: manifest.as_of_utc,
+      from_utc: arrival,
+      to_utc: new Date(Date.parse(arrival) + (this.s.inputs.operationHours + this.s.inputs.holdingHours) * 3_600_000).toISOString(),
+      max_gap_min: MAX_FORECAST_GAP_MIN,
+      forecast: series.series,
+      forecast_binding: { source: 'supplied', source_id: series.sourceId, revision: series.revision,
+        expected_content_hash: manifest.content_hash },
+    });
     this.resultKey = this.key();
     this.state.set({
       applied: { arrivalUtc: result.selected_arrival_utc ?? null, installedAtFt: result.installed_at_water_level_mllw_ft ?? null },

@@ -175,7 +175,9 @@ export interface PublicSeriesInputs {
 
 /** No current depth or station bin can be inferred safely from ship draft or another berth. */
 export function publicRequest(berthId: string, i: AdvanceInputs, source: PublicSeriesInputs): ComposeRequest | null {
-  if (!berthId || inputProblems(i).length || source.currentDepthFt == null ||
+  // Acquisition may retain its original horizon after an explicit cutoff update; the planning run still enforces 24 h lead.
+  if (!berthId || inputProblems(i).some((problem) => !problem.startsWith('Earliest arrival must be at least')) ||
+    Date.parse(i.arrivalFromUtc) < Date.parse(i.asOfUtc) || source.currentDepthFt == null ||
     !Number.isFinite(source.currentDepthFt) || source.currentDepthFt < 0 || !source.currentBin.trim()) return null;
   return {
     berth_id: berthId, source: { mode: 'public' }, as_of_utc: i.asOfUtc,

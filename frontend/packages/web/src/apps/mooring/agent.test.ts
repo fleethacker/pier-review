@@ -235,3 +235,25 @@ it.each(['resolve', 'reject'])('ignores a late approval %s after a new planning 
   expect(agents.GET).not.toHaveBeenCalled();
   expect(c.agent.state.get().sheet).toEqual({ state: 'idle', error: null, sheet: null, html: null, image: null });
 });
+
+
+it.each(['lines', 'tugs', 'environment', 'geometry'])('invalidates completed review and sheet after a %s edit (F01)', async (kind) => {
+  vi.stubGlobal('EventSource', class { addEventListener() {} close() {} });
+  vi.spyOn(c, 'ensureScenario').mockResolvedValue('s1');
+  vi.mocked(agents.POST).mockResolvedValue({ data: { plan_id: 'p1', events_url: '/events' } } as never);
+  await c.agent.run();
+  c.agent.state.set({ phase: 'done', plan, review: { state: 'ready', progress: 1, error: null, review: { review_id: 'r', plan_id: 'p1' } as never },
+    sheet: { state: 'ready', error: null, sheet: { sheet_id: 's' } as never, html: 'old', image: null } });
+  c.agent.applyPlan();
+  expect(c.agent.state.get().planId).toBe('p1'); // its own accepted layout is still applicable
+  c.openOverlay({ kind: 'sheet', id: 's' });
+  if (kind === 'lines') c.replaceLines([line(9)]);
+  if (kind === 'tugs') c.setTugAssignments([{ ...tug, force_lbf: 999 }]);
+  if (kind === 'environment') c.state.set({ env: { wind_gust_kt: 64 } as never });
+  if (kind === 'geometry') c.state.set({ shipXFt: 701 });
+  expect(c.agent.state.get()).toMatchObject({ planId: null, plan: null, review: { review: null }, sheet: { sheet: null } });
+  expect(c.state.get().overlay).toBeNull();
+  vi.mocked(agents.POST).mockClear();
+  await c.agent.review(); await c.agent.createSheet(); await c.agent.approve('master' as never, 'A', 'approve' as never, '');
+  expect(agents.POST).not.toHaveBeenCalled();
+});

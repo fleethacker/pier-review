@@ -5,12 +5,14 @@ import { dataQualityLine, formatSpan, summaryProvenance, worstSeverity } from '.
 /** Asks the intake agent to assess the environment for the chosen berth, ship and side over the next day. */
 export function IntakePanel() {
   const controller = useController();
-  const berth = useMooring((s) => s.berth);
+  const selection = controller.forecastSelection;
+  const workspace = useMooring((s) => s);
+  const berth = workspace.berth;
   const { phase, progress, error, report } = controller.intake.state.use((s) => s);
 
   return (
     <Panel title="Environment intake" className="space-y-2 p-4">
-      <p className="text-[11px] text-mil-dim">Assess the selected scenario over 24 hours: wind and current limits, windows of concern, and data quality. Saved manual conditions stay steady; they are not a weather forecast.</p>
+      <p className="text-[11px] text-mil-dim">{selection ? `Assess the selected arrival through holding: ${selection.from_utc} to ${selection.to_utc}. Source ${selection.forecast_binding?.source_id}, revision ${selection.forecast_binding?.revision}. The next Planner and Safety review use this same immutable series.` : 'Assess the selected scenario over 24 hours: wind and current limits, windows of concern, and data quality. No Advance arrival is selected. Saved manual conditions stay steady; they are not a weather forecast.'}</p>
       <Button size="sm" disabled={!berth || phase === 'running'} onClick={() => void controller.intake.run()}>
         {phase === 'running' ? `Assessing… ${Math.round(progress * 100)}%` : report ? 'Assess again' : 'Assess conditions'}
       </Button>

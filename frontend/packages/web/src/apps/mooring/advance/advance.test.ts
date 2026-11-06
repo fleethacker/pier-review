@@ -66,6 +66,7 @@ describe('advance session', () => {
   const response = (selected: boolean) => ({
     result_id: 'fp-1', status: 'AMBER', backend: 'real', validity: { state: 'limited' },
     result: {
+      forecast_manifest: { as_of_utc: '2026-11-05T16:00:00Z', content_hash: `sha256:${'a'.repeat(64)}` },
       selected_arrival_utc: selected ? '2026-11-06T17:00:00Z' : null,
       selected_config: selected
         ? { side_to: 'starboard', ship_x_ft: 650, lines: [{ ...line, paid_out_unstretched_length_ft: 123.4, condition: 'wet' }] }
@@ -129,6 +130,7 @@ describe('advance session', () => {
     await c.advance.run();
     expect(c.advance.applySelected()).toBe(true);
     expect(c.state.get().lines[0]).toMatchObject({ paid_out_unstretched_length_ft: 123.4, condition: 'wet' });
+    expect(c.forecastSelection).toMatchObject({ from_utc: '2026-11-06T17:00:00Z', to_utc: '2026-11-07T01:00:00.000Z', forecast_binding: { expected_content_hash: `sha256:${'a'.repeat(64)}` } });
     expect(c.advance.state.get()).toMatchObject({ applied: { arrivalUtc: '2026-11-06T17:00:00Z', installedAtFt: 1.2 }, recheckReason: null });
   });
 

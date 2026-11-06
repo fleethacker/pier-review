@@ -29,6 +29,7 @@ import {
   superstructure,
 } from './mapping';
 import type {
+  ModelingSchemas,
   AnalyzeRequest,
   AnalyzeResponse,
   Berth,
@@ -231,6 +232,21 @@ export class MooringController {
   /** While true the Cesium scene belongs to the motion view, and layout redraws are held back. */
   private motionHoldsScene = false;
   private savedScenarioKey: string | null = null;
+  private selectedForecast: ModelingSchemas['ForecastResolveRequest'] | null = null;
+
+  get forecastSelection(): ModelingSchemas['ForecastResolveRequest'] | null {
+    return this.selectedForecast ? structuredClone(this.selectedForecast) : null;
+  }
+
+  /** Binding used by Intake, Planner and Safety, independent of the current snapshot controls. */
+  setForecastSelection(request: ModelingSchemas['ForecastResolveRequest'] | null): void {
+    this.selectedForecast = request ? structuredClone(request) : null;
+    this.state.set({});
+  }
+
+  planningKey(): string {
+    return JSON.stringify([this.scenarioKey(), this.selectedForecast]);
+  }
   readonly motion: MotionController = new MotionController({
     map: {
       enter: () => {

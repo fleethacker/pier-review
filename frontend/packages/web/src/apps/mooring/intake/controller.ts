@@ -21,7 +21,7 @@ export class IntakeSession {
 
   constructor(private readonly parent: MooringController) {
     this.unsubscribe = parent.state.subscribe(() => {
-      if (this.context !== null && this.context !== parent.scenarioKey()) this.clear();
+      if (this.context !== null && this.context !== parent.planningKey()) this.clear();
     });
   }
 
@@ -38,22 +38,24 @@ export class IntakeSession {
   }
 
   reportId(): string | null {
-    return this.context === this.parent.scenarioKey() ? this.state.get().report?.report_id ?? null : null;
+    return this.context === this.parent.planningKey() ? this.state.get().report?.report_id ?? null : null;
   }
 
   async run(): Promise<void> {
     this.clear();
     const request = new AbortController();
     this.abort = request;
-    this.context = this.parent.scenarioKey();
-    const current = () => this.abort === request && !request.signal.aborted && this.context === this.parent.scenarioKey();
+    this.context = this.parent.planningKey();
+    const current = () => this.abort === request && !request.signal.aborted && this.context === this.parent.planningKey();
     this.state.set({ phase: 'running' });
     try {
       const scenarioId = await this.parent.ensureScenario('Environment intake');
       if (!current()) return;
       if (!scenarioId) throw new Error('Choose a ship, berth and environment first.');
+      const forecast = this.parent.forecastSelection;
+      const horizon = forecast ? (Date.parse(forecast.to_utc) - Date.parse(forecast.from_utc)) / 3_600_000 : 24;
       const accepted = unwrap(await agents.POST('/api/v1/intake/reports', {
-        body: { scenario_id: scenarioId, horizon_hours: 24 },
+        body: { scenario_id: scenarioId, horizon_hours: horizon, ...(forecast ? { forecast_request: forecast } : {}) },
         signal: request.signal,
       }));
       if (!current()) return;

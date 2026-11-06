@@ -192,3 +192,25 @@ it('settles a revision comparison when the parent layout changes', async () => {
   await rechecking;
   expect(c.advance.state.get().recheck.response).toBeNull();
 });
+
+
+it('offers an explicit retrieval cutoff retry without silently moving arrivals or extending coverage (T03)', async () => {
+  const initial = structuredClone(c.advance.state.get().inputs);
+  currentAcquisition.manifest.status = 'unavailable';
+  currentAcquisition.snapshots = [];
+  for (const component of currentAcquisition.manifest.components) {
+    component.availability.state = 'unavailable';
+    component.availability.retrieved_at_utc = '2026-11-05T16:05:00Z';
+  }
+  await c.advance.fetchPublicSeries();
+  expect(c.advance.state.get().inputs.asOfUtc).toBe(initial.asOfUtc);
+  render(<ControllerContext.Provider value={c}><AdvancePanel /></ControllerContext.Provider>);
+  expect(screen.getByRole('button', { name: 'Use retrieval cutoff and retry' })).toBeTruthy();
+  vi.mocked(modeling.POST).mockImplementation((async (_path: string, options: { body: ComposeRequest }) => ({ data: acquisition(options.body) })) as never);
+  await act(async () => c.advance.retryAtRetrievalCutoff());
+  expect(c.advance.state.get().inputs).toEqual({ ...initial, asOfUtc: '2026-11-05T16:05:00Z' });
+  const request = vi.mocked(modeling.POST).mock.calls.filter((entry) => entry[0] === '/api/v1/env/forecast/compose').at(-1)![1] as { body: ComposeRequest };
+  expect(request.body).toMatchObject({ as_of_utc: '2026-11-05T16:05:00Z', horizon_start_utc: initial.arrivalFromUtc,
+    current_depth_ft: 21, current_bin: 'fixture-bin' });
+  expect(c.advance.problems()).toContain('Earliest arrival must be at least 24 h after the as-of time.');
+});

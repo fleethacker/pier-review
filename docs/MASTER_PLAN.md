@@ -15,8 +15,17 @@ supersede older next-step/status claims below where they conflict; this master p
 **Current remediation state:** F01–F28 are resolved by `fix/product-audit-remediation` through source/contract commit
 `ea62351`. [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md) records independent review, real-browser
 workflow evidence, 2,815 passing Python tests and 1,066 passing frontend tests. CI/merge status belongs to [PR #32](https://github.com/fleethacker/pier-review/pull/32).
-Next work remains G01–G08 and the existing qualification/readiness gates. The initial separate Domino deployment
-used pre-remediation `dev` at `35e0111`; its smoke did not qualify either build for operational use.
+PR #32 is merged at `ec41de7`; that revision replaced the initial `35e0111` Domino deployment and passed authenticated
+HTTP, WebSocket and job-stream smoke checks. Neither build is qualified for operational use.
+
+**Motion overnight assignment (Snyder, 5–6 November):** the user explicitly assigned the combined M-SIM/M-PLAN/U2/U8
+Motion work to Snyder's parallel agents. [MOTION_WORKSPACE.md](MOTION_WORKSPACE.md) records the implementation,
+independent findings, tests and remaining limits: direct paused entry, four Norfolk demos and saved authoring,
+engine/helm controls, independent coupled tug bodies, loading/section views, same-engine prediction, supplied-state
+adoption and geographically checked route following. Only Motion UI is in scope. Its PR/CI/deployment evidence
+determines delivery status; it does not close the wider G01–G08 or qualification/readiness gates. Cruz retains public
+provider ownership, Kori other UI workflows, and Bixler cross-product acceptance. Future crews need identified hull,
+propulsion and stability data, complete hazard coverage and hardware integration before operational use.
 
 Originally written 5 November 2026 against `dev` at `e0e0fcf` (legacy PR #106).
 **Integration status updated 5 November 2026** against `dev` at `684db99`: provider PR #13 and exercise/UI PR #21 are merged.

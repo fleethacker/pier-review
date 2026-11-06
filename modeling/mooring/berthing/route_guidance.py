@@ -36,6 +36,7 @@ class RouteGuidance:
     active: bool = True
     completed: bool = False
     target_speed_fps: float = 0.0
+    terminal: bool = False
 
     def __post_init__(self):
         if len(self.points) < 2 or self.vessel_length_ft <= 0:
@@ -66,7 +67,15 @@ class RouteGuidance:
         y = a.y_ft+_clip(fraction,0,1)*(b.y_ft-a.y_ft)
         while True:
             segment = math.hypot(b.x_ft-x,b.y_ft-y)
-            if segment >= distance or index == len(self.points)-1:
+            if index == len(self.points)-1:
+                # Keep the hull aligned with the final approach after reaching
+                # the stop point. A point-target bearing would turn the bow
+                # back through the pier basin on a small overshoot.
+                prior = self.points[index-1]
+                dx,dy = b.x_ft-prior.x_ft,b.y_ft-prior.y_ft
+                length = math.hypot(dx,dy)
+                return x+distance*dx/length,y+distance*dy/length,remaining
+            if segment >= distance:
                 f = min(1.0,distance/segment) if segment else 0
                 return x+f*(b.x_ft-x),y+f*(b.y_ft-y),remaining
             distance -= segment
@@ -82,6 +91,10 @@ class RouteGuidance:
                 break
             self.waypoint_index += 1
         x,y,remaining = self._aim(state)
+        if self.waypoint_index == len(self.points)-1 and remaining < 1.5*self.vessel_length_ft:
+            self.terminal = True
+        if self.terminal:
+            return self.hold_order(state,params,propulsion_spec)
         final = self.points[-1]
         distance_final = math.hypot(state[0]-final.x_ft,state[1]-final.y_ft)
         if distance_final < 80 and math.hypot(state[3],state[4]) < 0.2:
@@ -105,9 +118,44 @@ class RouteGuidance:
         yaw_capacity = 2*propulsion_spec.max_ahead_thrust_lbf*propulsion_spec.shaft_y_ft
         differential = _clip(yaw_request/yaw_capacity,-0.4,0.4) if yaw_capacity else 0.0
         differential *= max(0,1-abs(state[3])/3)
+        low_speed = _clip(1-abs(state[3])/5,0,1)
+        desired_yaw_rate = _clip(error/60,-math.radians(.25),math.radians(.25))
+        yaw_force = params.m[2]*(desired_yaw_rate-state[5])/10+params.damping_lin[2]*state[5]
+        thruster_moment = (propulsion_spec.bow_thruster_x_ft*propulsion_spec.bow_thruster_max_lbf
+                          -propulsion_spec.stern_thruster_x_ft*propulsion_spec.stern_thruster_max_lbf)
+        turn = _clip(yaw_force/thruster_moment,-1,1)*low_speed if thruster_moment > 0 else 0
         return HelmOrder(port_throttle=_clip(throttle-differential,-1,1),
                          starboard_throttle=_clip(throttle+differential,-1,1),rudder_deg=rudder,
-                         bow_thruster=0,stern_thruster=0)
+                         bow_thruster=turn,stern_thruster=-turn)
+
+    def hold_order(self, state, params, p):
+        """Bounded low-speed arrival/holding through actual engines and thrusters.
+
+        Target velocities come from position error; no position or velocity is
+        imposed. Synthetic holding remains active until a manual helm order.
+        """
+        final, prior = self.points[-1], self.points[-2]
+        heading = math.atan2(final.y_ft-prior.y_ft,final.x_ft-prior.x_ft)
+        dx,dy = final.x_ft-state[0],final.y_ft-state[1]
+        c,s = math.cos(state[2]),math.sin(state[2])
+        desired_u = _clip((c*dx+s*dy)/40,-1.2,1.2)
+        desired_v = _clip((-s*dx+c*dy)/40,-.5,.5)
+        self.target_speed_fps = math.hypot(desired_u,desired_v)
+        fx = params.m[0]*(desired_u-state[3])/15
+        fy = params.m[1]*(desired_v-state[4])/15
+        error = math.atan2(math.sin(heading-state[2]),math.cos(heading-state[2]))
+        desired_r = _clip(error/30,-math.radians(.25),math.radians(.25))
+        moment = params.m[2]*(desired_r-state[5])/10+params.damping_lin[2]*state[5]
+        separation = p.bow_thruster_x_ft-p.stern_thruster_x_ft
+        bow = (moment-p.stern_thruster_x_ft*fy)/separation if separation else 0
+        stern = (p.bow_thruster_x_ft*fy-moment)/separation if separation else 0
+        limit = p.max_ahead_thrust_lbf if fx >= 0 else p.max_astern_thrust_lbf
+        throttle = _clip(fx/(2*limit),-1,1) if limit else 0
+        self.completed = (math.hypot(dx,dy) < 40 and math.hypot(state[3],state[4]) < .15
+                          and abs(error) < math.radians(5))
+        return HelmOrder(port_throttle=throttle,starboard_throttle=throttle,rudder_deg=0,
+            bow_thruster=_clip(bow/p.bow_thruster_max_lbf,-1,1) if p.bow_thruster_max_lbf else 0,
+            stern_thruster=_clip(stern/p.stern_thruster_max_lbf,-1,1) if p.stern_thruster_max_lbf else 0)
 
     def state(self, t_s, state):
         _,cross,remaining = self.geometry(state)

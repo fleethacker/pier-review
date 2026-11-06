@@ -57,6 +57,24 @@ resistance), `COASTLINE_NOT_CHECKED`. Status RED if the held commands breach, el
 - Engine handoff is explicit only: `engine: "berthing"` returns 501 `ENGINE_UNSUPPORTED` (no validated frame, unit, state
   and parameter mapping or operating domain). The engine is never chosen from proximity to a pier.
 
+## Motion workspace camera
+
+The Motion workspace adds `POST /motion/sessions/{session_id}/prediction`, using an immutable clone of the actual
+berthing model. It retains sway/yaw velocity, coupled tug bodies, actuator ramps, active lines/rest lengths, cargo,
+queued simulation-time commands, forcing phase and route controller. A what-if advances only that clone. The endpoint
+does not substitute the older transit model or infer a handoff from distance to the pier. See
+[MOTION_WORKSPACE.md](MOTION_WORKSPACE.md) for its implementation and acceptance evidence.
+
+This camera is bounded to 120 seconds, 481 displayed poses, 32 what-if commands, 2,400 integration/command work units,
+and a cooperative 0.8-second runtime budget. Incomplete tails are explicit; expired forecasts disappear from the UI.
+Two global workers and one request per session return 429/Retry-After on saturation. The UI refreshes at most once per
+second. Actual clearances are limited to supplied pier/fender geometry. There is no calibrated uncertainty corridor,
+complete coastline/traffic/grounding hazard engine or qualified operational envelope. The NOAA shoreline fixture tests
+the authored demonstration route; it is not silently promoted to complete live hazard coverage.
+
 ## Not done
-Berthing engine (S1-S3) and handoff; coastline; S10 uncertainty; sway/yaw-rate initial conditions; hull-pier contact is not simulated
-(the path passes through it; clearance is 0 from contact on). Decision support for a demonstrator, not navigational guidance.
+Automatic transit/berthing handoff and the legacy `/predict/trajectory` berthing selector remain unavailable. Its
+transit branch still approximates the initial state and does not simulate contact. Full coastline/bathymetry/traffic
+coverage and S10 calibrated trajectory uncertainty remain open for both cameras. The Motion implementation supplies
+full planar state and mechanical line/fender contact within its explicitly synthetic scope. Neither camera is
+navigational guidance.

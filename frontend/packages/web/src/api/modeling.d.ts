@@ -910,6 +910,163 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/motion/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Catalog */
+        get: operations["catalog_api_v1_motion_catalog_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/motion/scenarios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Scenarios */
+        get: operations["list_scenarios_api_v1_motion_scenarios_get"];
+        put?: never;
+        /** Create Scenario */
+        post: operations["create_scenario_api_v1_motion_scenarios_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/motion/configuration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Configuration
+         * @description Resolve training defaults for authoring; creates no resource and acquires no live data.
+         */
+        post: operations["resolve_configuration_api_v1_motion_configuration_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/motion/scenarios/{scenario_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Scenario */
+        get: operations["get_scenario_api_v1_motion_scenarios__scenario_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/motion/environment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current Environment */
+        get: operations["current_environment_api_v1_motion_environment_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/motion/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Session */
+        post: operations["create_session_api_v1_motion_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/motion/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Release Session */
+        delete: operations["release_session_api_v1_motion_sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/motion/sessions/{session_id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import State */
+        post: operations["import_state_api_v1_motion_sessions__session_id__state_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/motion/sessions/{session_id}/prediction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Predict */
+        post: operations["predict_api_v1_motion_sessions__session_id__prediction_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/approach/route": {
         parameters: {
             query?: never;
@@ -3504,6 +3661,22 @@ export interface components {
              */
             backend: "mock" | "real" | "mixed";
         };
+        /**
+         * HelmOrder
+         * @description Positive rudder means bow to starboard in ahead flow; thrusters are +port.
+         */
+        HelmOrder: {
+            /** Port Throttle */
+            port_throttle: number;
+            /** Starboard Throttle */
+            starboard_throttle: number;
+            /** Rudder Deg */
+            rudder_deg: number;
+            /** Bow Thruster */
+            bow_thruster: number;
+            /** Stern Thruster */
+            stern_thruster: number;
+        };
         /** HistorySeries */
         HistorySeries: {
             /** Station Id */
@@ -4103,6 +4276,74 @@ export interface components {
              */
             freeboard_ft: number;
         };
+        /** LoadingSpec */
+        LoadingSpec: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "synthetic" | "supplied";
+            /** Source */
+            source: string;
+            /** Base Mass Slug */
+            base_mass_slug: number;
+            /**
+             * Base Izz Slug Ft2
+             * @description Baseline inertia about baseline CG.
+             */
+            base_izz_slug_ft2: number;
+            /** Base Cg X Ft */
+            base_cg_x_ft: number;
+            /** Base Cg Y Ft */
+            base_cg_y_ft: number;
+            /** Base Cg Z Ft */
+            base_cg_z_ft: number;
+            /** Base Draft Ft */
+            base_draft_ft: number;
+            /**
+             * Base Cb Z Ft
+             * @description Baseline center of buoyancy, ship reference waterline origin.
+             */
+            base_cb_z_ft: number;
+            /**
+             * Waterplane Area Ft2
+             * @description Fixed waterplane centered at the ship origin.
+             */
+            waterplane_area_ft2: number;
+            /** Waterplane Ixx Ft4 */
+            waterplane_ixx_ft4: number;
+            /** Waterplane Iyy Ft4 */
+            waterplane_iyy_ft4: number;
+            /** Water Density Slug Ft3 */
+            water_density_slug_ft3: number;
+            /** Gravity Fps2 */
+            gravity_fps2: number;
+            /** Added Surge Slug */
+            added_surge_slug: number;
+            /** Added Sway Slug */
+            added_sway_slug: number;
+            /** Added Yaw Slug Ft2 */
+            added_yaw_slug_ft2: number;
+            /** Damping Surge Lbf Per Fps */
+            damping_surge_lbf_per_fps: number;
+            /** Damping Sway Lbf Per Fps */
+            damping_sway_lbf_per_fps: number;
+            /** Damping Yaw Ftlbf Per Radps */
+            damping_yaw_ftlbf_per_radps: number;
+            /**
+             * Max Abs Attitude Deg
+             * @description Small-angle model validity boundary, not a stability limit.
+             */
+            max_abs_attitude_deg: number;
+            /**
+             * Max Sinkage Fraction
+             * @description Fraction of baseline draft; numerical model boundary.
+             */
+            max_sinkage_fraction: number;
+            /** Payloads */
+            payloads?: components["schemas"]["PayloadItem"][];
+            local_depth?: components["schemas"]["LocalDepthPatch"] | null;
+        };
         /** LoadsRequest */
         LoadsRequest: {
             /**
@@ -4205,6 +4446,31 @@ export interface components {
              * @description Lateral force pushing the ship off the pier (negative = onto the pier).
              */
             off_pier_component_lbf?: number | null;
+        };
+        /**
+         * LocalDepthPatch
+         * @description A supplied constant-depth patch, never an extrapolated berth profile.
+         */
+        LocalDepthPatch: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "synthetic" | "supplied";
+            /** Source */
+            source: string;
+            /** Depth Mllw Ft */
+            depth_mllw_ft: number;
+            /** Uncertainty Ft */
+            uncertainty_ft?: number | null;
+            /** X Min Ft */
+            x_min_ft: number;
+            /** X Max Ft */
+            x_max_ft: number;
+            /** Y Min Ft */
+            y_min_ft: number;
+            /** Y Max Ft */
+            y_max_ft: number;
         };
         /**
          * LocatedAt
@@ -4498,6 +4764,27 @@ export interface components {
             /** Yaw Degps2 */
             yaw_degps2?: number | null;
         };
+        /**
+         * MotionActuatorForce
+         * @description Application position and force in berth axes; moment about ship origin.
+         */
+        MotionActuatorForce: {
+            /**
+             * Actuator Id
+             * @enum {string}
+             */
+            actuator_id: "port_engine" | "starboard_engine" | "rudder" | "bow_thruster" | "stern_thruster";
+            /** X Ft */
+            x_ft: number;
+            /** Y Ft */
+            y_ft: number;
+            /** X Lbf */
+            x_lbf: number;
+            /** Y Lbf */
+            y_lbf: number;
+            /** Yaw Moment Ftlbf */
+            yaw_moment_ftlbf: number;
+        };
         /** MotionAlert */
         MotionAlert: {
             /** Code */
@@ -4511,6 +4798,54 @@ export interface components {
             message: string;
             /** Element Ids */
             element_ids?: string[];
+        };
+        /** MotionControlState */
+        MotionControlState: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "synthetic" | "supplied";
+            /** Source */
+            source: string;
+            commanded: components["schemas"]["HelmOrder"];
+            actual: components["schemas"]["HelmOrder"];
+            /** Port Thrust Lbf */
+            port_thrust_lbf: number;
+            /** Starboard Thrust Lbf */
+            starboard_thrust_lbf: number;
+            /** Rudder Force Lbf */
+            rudder_force_lbf: number;
+            /** Bow Thruster Force Lbf */
+            bow_thruster_force_lbf: number;
+            /** Stern Thruster Force Lbf */
+            stern_thruster_force_lbf: number;
+            /** Surge Force Lbf */
+            surge_force_lbf: number;
+            /** Sway Force Lbf */
+            sway_force_lbf: number;
+            /** Yaw Moment Ftlbf */
+            yaw_moment_ftlbf: number;
+            /** Actuators */
+            actuators?: components["schemas"]["MotionActuatorForce"][];
+            validity: components["schemas"]["Validity"];
+        };
+        /** MotionControlsConfig */
+        MotionControlsConfig: {
+            propulsion: components["schemas"]["PropulsionSpec"];
+            loading: components["schemas"]["LoadingSpec"];
+            /**
+             * Tug Standoff Ft
+             * @description Explicit synthetic rigid attachment stand-off; absent leaves tug kinematics unavailable.
+             */
+            tug_standoff_ft?: number | null;
+            /**
+             * Tug Slew S
+             * @description Explicit synthetic tug force ramp time; absent retains legacy demonstration ramp.
+             */
+            tug_slew_s?: number | null;
+            /** Tug Dynamics */
+            tug_dynamics?: components["schemas"]["TugDynamicsConfig"][];
         };
         /** MotionCurrent */
         MotionCurrent: {
@@ -4646,6 +4981,46 @@ export interface components {
             lines?: components["schemas"]["MotionWrench"] | null;
             fenders?: components["schemas"]["MotionWrench"] | null;
         };
+        /** MotionGuidanceState */
+        MotionGuidanceState: {
+            /** Active */
+            active: boolean;
+            /** Route Id */
+            route_id: string;
+            /** Waypoint Index */
+            waypoint_index: number;
+            /** Waypoint Name */
+            waypoint_name: string;
+            /** Target Speed Kt */
+            target_speed_kt: number;
+            /** Cross Track Ft */
+            cross_track_ft: number;
+            /** Remaining Ft */
+            remaining_ft: number;
+            /** Completed */
+            completed: boolean;
+            /**
+             * Source
+             * @default synthetic
+             * @constant
+             */
+            source: "synthetic";
+        };
+        /** MotionLineControlState */
+        MotionLineControlState: {
+            /** Line Number */
+            line_number: number;
+            /** Attached */
+            attached: boolean;
+            /** Paid Out Length Ft */
+            paid_out_length_ft: number;
+            /** Geometric Length Ft */
+            geometric_length_ft: number;
+            /** Extension Ft */
+            extension_ft: number;
+            /** Tension Lbf */
+            tension_lbf: number | null;
+        };
         /** MotionLineState */
         MotionLineState: {
             /**
@@ -4684,6 +5059,74 @@ export interface components {
              */
             polyline?: components["schemas"]["BerthPosition"][] | components["schemas"]["BerthPosition"][] | null;
         };
+        /** MotionLoadingState */
+        MotionLoadingState: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "synthetic" | "supplied";
+            /** Source */
+            source: string;
+            /** Payloads */
+            payloads: components["schemas"]["PayloadItem"][];
+            /** Total Mass Slug */
+            total_mass_slug: number;
+            /** Total Weight Lbf */
+            total_weight_lbf: number;
+            /** Cg X Ft */
+            cg_x_ft: number;
+            /** Cg Y Ft */
+            cg_y_ft: number;
+            /** Cg Z Ft */
+            cg_z_ft: number;
+            /** Izz Cg Slug Ft2 */
+            izz_cg_slug_ft2: number;
+            /** Izz Origin Slug Ft2 */
+            izz_origin_slug_ft2: number;
+            /** Sinkage Ft */
+            sinkage_ft: number;
+            /** Mean Draft Ft */
+            mean_draft_ft: number;
+            /** Draft Fwd Ft */
+            draft_fwd_ft: number;
+            /** Draft Aft Ft */
+            draft_aft_ft: number;
+            /** Maximum Draft Ft */
+            maximum_draft_ft: number;
+            /** Roll Deg */
+            roll_deg: number;
+            /** Pitch Deg */
+            pitch_deg: number;
+            /** Gm Transverse Ft */
+            gm_transverse_ft: number;
+            /** Gm Longitudinal Ft */
+            gm_longitudinal_ft: number;
+            /** Local Depth Mllw Ft */
+            local_depth_mllw_ft: number | null;
+            /** Depth Uncertainty Ft */
+            depth_uncertainty_ft: number | null;
+            /** Under Keel Ft */
+            under_keel_ft: number | null;
+            /** Under Keel Lower Ft */
+            under_keel_lower_ft: number | null;
+            validity: components["schemas"]["Validity"];
+        };
+        /**
+         * MotionMeasuredAcceleration
+         * @description Measured inertial acceleration expressed in body axes; never inferred force.
+         */
+        MotionMeasuredAcceleration: {
+            /** Surge Fps2 */
+            surge_fps2?: number | null;
+            /** Sway Fps2 */
+            sway_fps2?: number | null;
+            /**
+             * Yaw Degps2
+             * @description Counterclockwise yaw angular acceleration.
+             */
+            yaw_degps2?: number | null;
+        };
         /** MotionPose */
         MotionPose: {
             /**
@@ -4717,6 +5160,176 @@ export interface components {
              */
             yaw_deg?: number | null;
         };
+        /** MotionPredictionPoint */
+        MotionPredictionPoint: {
+            /** X Ft */
+            x_ft: number;
+            /** Y Ft */
+            y_ft: number;
+        };
+        /** MotionPredictionPose */
+        MotionPredictionPose: {
+            /**
+             * T S
+             * @description Absolute simulation time, never arrival or wall-clock time.
+             */
+            t_s: number;
+            /** Elapsed S */
+            elapsed_s: number;
+            pose: components["schemas"]["MotionPose"];
+            velocity: components["schemas"]["MotionVelocity"];
+            /**
+             * Footprint
+             * @description LOA × beam rectangle in berth axes, matching the parallel-side contact envelope; unqualified hull geometry.
+             */
+            footprint: components["schemas"]["MotionPredictionPoint"][];
+            /**
+             * Pier Clearance Ft
+             * @description Minimum sampled/swept clearance since the preceding display tick; initial point checks the initial hull.
+             */
+            pier_clearance_ft: number | null;
+            /** Fender Clearance Ft */
+            fender_clearance_ft: number | null;
+        };
+        /** MotionPredictionRequest */
+        MotionPredictionRequest: {
+            /**
+             * Horizon S
+             * @description At least the berthing integrator's minimum resolvable step; at most two minutes.
+             * @default 60
+             */
+            horizon_s: number;
+            /**
+             * Sample Interval S
+             * @description Display sampling only; the live model's integration step is preserved.
+             * @default 1
+             */
+            sample_interval_s: number;
+            /**
+             * What If Commands
+             * @description Absolute simulation t_s, between snapshot time and requested horizon; omitted means snapshot time. Applied after already scheduled commands at the same time, on the prediction clone only.
+             */
+            what_if_commands?: (components["schemas"]["SimHelmCommandMessage"] | components["schemas"]["SimTugCommandMessage"] | components["schemas"]["SimLineEventMessage"] | components["schemas"]["SimLineControlMessage"] | components["schemas"]["SimLoadingCommandMessage"] | components["schemas"]["SimTugMotionCommandMessage"])[];
+        };
+        /** MotionPredictionResponse */
+        MotionPredictionResponse: {
+            /**
+             * Schema Version
+             * @default motion-prediction-v1
+             * @constant
+             */
+            schema_version: "motion-prediction-v1";
+            /** Prediction Id */
+            prediction_id: string;
+            source: components["schemas"]["MotionPredictionSource"];
+            /**
+             * Engine
+             * @default berthing
+             * @constant
+             */
+            engine: "berthing";
+            /** Requested Horizon S */
+            requested_horizon_s: number;
+            /**
+             * Horizon S
+             * @description Actual completed horizon; a truncated prediction never covers the missing tail.
+             */
+            horizon_s: number;
+            /** Complete */
+            complete: boolean;
+            /** Path */
+            path: components["schemas"]["MotionPredictionPose"][];
+            /** Transitions */
+            transitions: components["schemas"]["SimulationTransition"][];
+            /** Events */
+            events: components["schemas"]["SimEvent"][];
+            /** Warnings */
+            warnings: components["schemas"]["MotionPredictionWarning"][];
+            /** Hazards Checked */
+            hazards_checked: string[];
+            /** Hazards Unchecked */
+            hazards_unchecked: string[];
+            uncertainty?: components["schemas"]["MotionPredictionUncertainty"];
+            validity: components["schemas"]["Validity"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "AMBER" | "RED";
+            work: components["schemas"]["MotionPredictionWork"];
+        };
+        /** MotionPredictionSource */
+        MotionPredictionSource: {
+            /** Session Id */
+            session_id: string;
+            /** Run Id */
+            run_id: string;
+            /**
+             * Sequence
+             * @description Session sequence captured atomically with the model; t_s is authoritative if physics advanced since the last display.
+             */
+            sequence: number;
+            /** Scene Id */
+            scene_id: string;
+            /** Scene Revision */
+            scene_revision: string;
+            /** T S */
+            t_s: number;
+            /**
+             * Input Hash
+             * @description Immutable content identity of the complete model snapshot, including queued commands and actuator state.
+             */
+            input_hash: string;
+            /** Command Sequence */
+            command_sequence: number;
+            /** Forcing Revision */
+            forcing_revision: string | null;
+        };
+        /** MotionPredictionUncertainty */
+        MotionPredictionUncertainty: {
+            /**
+             * Availability
+             * @default unavailable
+             * @constant
+             */
+            availability: "unavailable";
+            /** Corridor */
+            corridor?: null;
+            /**
+             * Reason
+             * @default No calibrated trajectory uncertainty model is available; deterministic footprints are not a safe corridor.
+             */
+            reason: string;
+        };
+        /** MotionPredictionWarning */
+        MotionPredictionWarning: {
+            /** Code */
+            code: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "INFO" | "AMBER" | "RED";
+            /** Message */
+            message: string;
+            /** T S */
+            t_s?: number | null;
+            /** Element Id */
+            element_id?: string | null;
+        };
+        /** MotionPredictionWork */
+        MotionPredictionWork: {
+            /** Integration Steps */
+            integration_steps: number;
+            /** Commands Applied */
+            commands_applied: number;
+            /** Work Limit */
+            work_limit: number;
+            /** Integration Dt S */
+            integration_dt_s: number;
+            /** Runtime Limit S */
+            runtime_limit_s: number;
+        };
         /** MotionProvenance */
         MotionProvenance: {
             /**
@@ -4733,6 +5346,19 @@ export interface components {
             references?: string[];
             /** Notes */
             notes?: string[];
+        };
+        /** MotionRoute */
+        MotionRoute: {
+            /** Route Id */
+            route_id: string;
+            /** Title */
+            title: string;
+            /** Waypoints */
+            waypoints: components["schemas"]["MotionWaypoint"][];
+            /** Source */
+            source: string;
+            /** Limitations */
+            limitations: string[];
         };
         /** MotionSceneDepth */
         MotionSceneDepth: {
@@ -4805,6 +5431,216 @@ export interface components {
             kind?: string | null;
             /** Capacity Lbf */
             capacity_lbf?: number | null;
+        };
+        /**
+         * MotionStateInput
+         * @description Complete planar observation in an explicitly declared berth frame.
+         *
+         *     Bounds protect the adapter; they are not vessel operating limits. Velocities
+         *     are relative to ground, expressed in the entity's forward/port body axes.
+         */
+        MotionStateInput: {
+            /**
+             * Entity
+             * @enum {string}
+             */
+            entity: "ship" | "tug";
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * Frame
+             * @constant
+             */
+            frame: "berth";
+            /** Berth Id */
+            berth_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "synthetic" | "recorded" | "sensor";
+            /** Source Name */
+            source_name?: string | null;
+            /**
+             * Observed At Utc
+             * Format: date-time
+             */
+            observed_at_utc: string;
+            /**
+             * Sequence
+             * @description Strictly increasing per entity; changing source label does not reset it.
+             */
+            sequence: number;
+            /**
+             * X Ft
+             * @description Entity reference point, along the berth face.
+             */
+            x_ft: number;
+            /**
+             * Y Ft
+             * @description Entity reference point, positive off-pier.
+             */
+            y_ft: number;
+            /**
+             * Heading True Deg
+             * @description Clockwise true heading of the entity's forward axis.
+             */
+            heading_true_deg: number;
+            /**
+             * Surge Fps
+             * @description Ground velocity, positive forward in entity axes.
+             */
+            surge_fps: number;
+            /**
+             * Sway Fps
+             * @description Ground velocity, positive port in entity axes.
+             */
+            sway_fps: number;
+            /**
+             * Yaw Degps
+             * @description Positive counterclockwise about +up; not clockwise compass-heading rate.
+             */
+            yaw_degps: number;
+            measured_acceleration?: components["schemas"]["MotionMeasuredAcceleration"] | null;
+            /** Quality */
+            quality?: ("good" | "suspect" | "invalid" | "unknown") | null;
+        };
+        /** MotionStatePolicy */
+        MotionStatePolicy: {
+            /**
+             * Max Age S
+             * @default 30
+             */
+            max_age_s: number;
+            /**
+             * Future Tolerance S
+             * @description Explicit clock-skew allowance; default rejects future-dated input.
+             * @default 0
+             */
+            future_tolerance_s: number;
+            /**
+             * Allow Suspect
+             * @default false
+             */
+            allow_suspect: boolean;
+        };
+        /**
+         * MotionStateSnapshot
+         * @description Frozen acceptance evidence and new run context; no session is mutated by its preparation.
+         */
+        MotionStateSnapshot: {
+            /**
+             * Schema Version
+             * @default motion-state-v1
+             * @constant
+             */
+            schema_version: "motion-state-v1";
+            /** Snapshot Id */
+            snapshot_id: string;
+            /**
+             * Input Hash
+             * @description Canonical supplied observation identity, including source and acceleration evidence.
+             */
+            input_hash: string;
+            /** Session Id */
+            session_id: string;
+            /** Previous Run Id */
+            previous_run_id: string;
+            /** Run Id */
+            run_id: string;
+            /**
+             * Simulation Time S
+             * @description Simulation time retained at reseed; observation wall time stays separate and is never extrapolated.
+             */
+            simulation_time_s: number;
+            /**
+             * Accepted At Utc
+             * Format: date-time
+             */
+            accepted_at_utc: string;
+            /**
+             * Age S
+             * @description Acceptance clock minus observation time; negative only within explicit clock-skew tolerance.
+             */
+            age_s: number;
+            input: components["schemas"]["MotionStateInput"];
+            state: components["schemas"]["MotionStateVector"];
+            /** @description Exact freshness/quality policy under which this input was accepted. */
+            policy: components["schemas"]["MotionStatePolicy"];
+            /**
+             * Qualification
+             * @default unqualified
+             * @constant
+             */
+            qualification: "unqualified";
+            /** Limitations */
+            limitations: string[];
+        };
+        /**
+         * MotionStateVector
+         * @description The model's six-component state. Measured acceleration is intentionally absent.
+         */
+        MotionStateVector: {
+            /** X Ft */
+            x_ft: number;
+            /** Y Ft */
+            y_ft: number;
+            /**
+             * Yaw Rad
+             * @description Counterclockwise from berth +x, wrapped to [-pi, pi).
+             */
+            yaw_rad: number;
+            /** Surge Fps */
+            surge_fps: number;
+            /** Sway Fps */
+            sway_fps: number;
+            /** Yaw Radps */
+            yaw_radps: number;
+        };
+        /** MotionTugDynamicsState */
+        MotionTugDynamicsState: {
+            /** Tug Id */
+            tug_id: string;
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "synthetic" | "supplied";
+            /** Source */
+            source: string;
+            commanded: components["schemas"]["TugMotionOrder"];
+            /** Propulsion Surge Lbf */
+            propulsion_surge_lbf: number;
+            /** Propulsion Sway Lbf */
+            propulsion_sway_lbf: number;
+            /** Propulsion Yaw Moment Ftlbf */
+            propulsion_yaw_moment_ftlbf: number;
+            /** Transferred X Lbf */
+            transferred_x_lbf: number;
+            /** Transferred Y Lbf */
+            transferred_y_lbf: number;
+            /** Transferred Yaw Moment Ftlbf */
+            transferred_yaw_moment_ftlbf: number;
+            /** Ship Point X Ft */
+            ship_point_x_ft: number;
+            /** Ship Point Y Ft */
+            ship_point_y_ft: number;
+            /** Tug Point X Ft */
+            tug_point_x_ft: number;
+            /** Tug Point Y Ft */
+            tug_point_y_ft: number;
+            /** Contact Compression Ft */
+            contact_compression_ft: number;
+            /** Tow Extension Ft */
+            tow_extension_ft: number;
+            /** Tow Tension Lbf */
+            tow_tension_lbf: number;
+            /**
+             * Connection State
+             * @enum {string}
+             */
+            connection_state: "free" | "no_contact" | "push_contact" | "tow_slack" | "tow_taut";
+            validity: components["schemas"]["Validity"];
         };
         /** MotionTugState */
         MotionTugState: {
@@ -4930,6 +5766,17 @@ export interface components {
             ship_wake?: components["schemas"]["MotionWaveComponent"] | null;
             tug_wake?: components["schemas"]["MotionWaveComponent"] | null;
         };
+        /** MotionWaypoint */
+        MotionWaypoint: {
+            /** Name */
+            name: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Speed Kt */
+            speed_kt: number;
+        };
         /** MotionWind */
         MotionWind: {
             /**
@@ -4948,6 +5795,133 @@ export interface components {
             gust_kt?: number | null;
             /** From True Deg */
             from_true_deg?: number | null;
+        };
+        /** MotionWorkspaceCatalog */
+        MotionWorkspaceCatalog: {
+            /**
+             * Schema Version
+             * @default motion-workspace-v1
+             * @constant
+             */
+            schema_version: "motion-workspace-v1";
+            /** Ships */
+            ships: components["schemas"]["ShipClass"][];
+            /** Berths */
+            berths: components["schemas"]["Berth"][];
+            /** Tugs */
+            tugs: components["schemas"]["TugSpec"][];
+            /** Presets */
+            presets: components["schemas"]["MotionWorkspacePreset"][];
+            /** Routes */
+            routes: components["schemas"]["MotionRoute"][];
+            /**
+             * Telemetry Supported
+             * @default true
+             */
+            telemetry_supported: boolean;
+        };
+        /** MotionWorkspacePreset */
+        MotionWorkspacePreset: {
+            /** Preset Id */
+            preset_id: string;
+            /** Title */
+            title: string;
+            /** Description */
+            description: string;
+            configuration: components["schemas"]["MotionWorkspaceSpec"];
+            validity: components["schemas"]["Validity"];
+        };
+        /** MotionWorkspaceScenario */
+        MotionWorkspaceScenario: {
+            /** Motion Scenario Id */
+            motion_scenario_id: string;
+            /**
+             * Created At Utc
+             * Format: date-time
+             */
+            created_at_utc: string;
+            /** Revision */
+            revision: string;
+            configuration: components["schemas"]["MotionWorkspaceSpec"];
+            validity: components["schemas"]["Validity"];
+        };
+        /** MotionWorkspaceSessionCreated */
+        MotionWorkspaceSessionCreated: {
+            session: components["schemas"]["SimSessionCreated"];
+            scenario: components["schemas"]["MotionWorkspaceScenario"];
+            ship: components["schemas"]["ShipClass"];
+            berth: components["schemas"]["Berth"];
+            controls: components["schemas"]["MotionControlsConfig"];
+            route: components["schemas"]["MotionRoute"] | null;
+            environment: components["schemas"]["EnvironmentSnapshot"];
+        };
+        /** MotionWorkspaceSessionRequest */
+        MotionWorkspaceSessionRequest: {
+            /** Motion Scenario Id */
+            motion_scenario_id: string;
+        };
+        /** MotionWorkspaceSpec */
+        MotionWorkspaceSpec: {
+            /** Name */
+            name: string;
+            /** Ship Class Id */
+            ship_class_id: string;
+            /**
+             * Loading
+             * @default full_load
+             */
+            loading: string;
+            /**
+             * Berth Id
+             * @default NAVSTA-NORFOLK-P12-N
+             */
+            berth_id: string;
+            /**
+             * Side To
+             * @default starboard
+             * @enum {string}
+             */
+            side_to: "port" | "starboard";
+            /**
+             * Start
+             * @default berth
+             * @enum {string}
+             */
+            start: "berth" | "approach" | "channel";
+            initial_state?: components["schemas"]["ShipState"] | null;
+            /**
+             * Environment Mode
+             * @default synthetic
+             * @enum {string}
+             */
+            environment_mode: "synthetic" | "live" | "snapshot";
+            environment?: components["schemas"]["EnvironmentSnapshot"] | null;
+            forcing?: components["schemas"]["ForcingSpec"] | null;
+            controls?: components["schemas"]["MotionControlsConfig"] | null;
+            /** Tug Ids */
+            tug_ids?: string[] | null;
+            /**
+             * Duration S
+             * @default 3600
+             */
+            duration_s: number;
+            /**
+             * Dt S
+             * @default 0.1
+             */
+            dt_s: number;
+            /**
+             * Initial Lines Attached
+             * @default false
+             */
+            initial_lines_attached: boolean;
+            /** Route Id */
+            route_id?: string | null;
+            /**
+             * Route Follow
+             * @default false
+             */
+            route_follow: boolean;
         };
         /** MotionWrench */
         MotionWrench: {
@@ -5142,6 +6116,24 @@ export interface components {
             length_ft: number;
             /** Path */
             path: components["schemas"]["TrackFix"][];
+        };
+        /** PayloadItem */
+        PayloadItem: {
+            /** Payload Id */
+            payload_id: string;
+            /** Label */
+            label: string;
+            /** Weight Lbf */
+            weight_lbf: number;
+            /** X Ft */
+            x_ft: number;
+            /** Y Ft */
+            y_ft: number;
+            /**
+             * Z Ft
+             * @description Ship reference waterline origin, +up.
+             */
+            z_ft: number;
         };
         /**
          * PierFitting
@@ -5512,6 +6504,63 @@ export interface components {
              * @description Null means no bow thruster.
              */
             bow_thruster_lbf?: number | null;
+        };
+        /** PropulsionSpec */
+        PropulsionSpec: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "synthetic" | "supplied";
+            /** Source */
+            source: string;
+            /**
+             * Max Ahead Thrust Lbf
+             * @description Per shaft.
+             */
+            max_ahead_thrust_lbf: number;
+            /**
+             * Max Astern Thrust Lbf
+             * @description Per shaft.
+             */
+            max_astern_thrust_lbf: number;
+            /** Shaft X Ft */
+            shaft_x_ft: number;
+            /**
+             * Shaft Y Ft
+             * @description Port shaft +y; starboard shaft -y.
+             */
+            shaft_y_ft: number;
+            /** Engine Slew Per S */
+            engine_slew_per_s: number;
+            /** Rudder X Ft */
+            rudder_x_ft: number;
+            /** Rudder Area Ft2 */
+            rudder_area_ft2: number;
+            /** Rudder Lift Slope Per Rad */
+            rudder_lift_slope_per_rad: number;
+            /** Rudder Max Lift Coefficient */
+            rudder_max_lift_coefficient: number;
+            /** Rudder Max Force Lbf */
+            rudder_max_force_lbf: number;
+            /** Rudder Max Deg */
+            rudder_max_deg: number;
+            /** Rudder Slew Degps */
+            rudder_slew_degps: number;
+            /** Propwash Fps At Full Ahead */
+            propwash_fps_at_full_ahead: number;
+            /** Bow Thruster X Ft */
+            bow_thruster_x_ft: number;
+            /** Bow Thruster Max Lbf */
+            bow_thruster_max_lbf: number;
+            /** Stern Thruster X Ft */
+            stern_thruster_x_ft: number;
+            /** Stern Thruster Max Lbf */
+            stern_thruster_max_lbf: number;
+            /** Thruster Slew Per S */
+            thruster_slew_per_s: number;
+            /** Water Density Slug Ft3 */
+            water_density_slug_ft3: number;
         };
         /**
          * Provenance
@@ -6496,12 +7545,38 @@ export interface components {
              */
             r_degps: number;
         };
+        /** SimEvent */
+        SimEvent: {
+            /** T S */
+            t_s: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "fender_contact" | "line_overload" | "speed_exceeded" | "all_fast";
+            /** Detail */
+            detail: string;
+        };
         /**
          * SimFrame
          * @description One frame: a WS /ws/sim/{session_id} message, or one entry of a batch run's series.
          */
         SimFrame: {
             diagnostics?: components["schemas"]["SimulationDiagnostics"] | null;
+            controls?: components["schemas"]["MotionControlState"] | null;
+            loading?: components["schemas"]["MotionLoadingState"] | null;
+            /** Line Controls */
+            line_controls?: components["schemas"]["MotionLineControlState"][] | null;
+            /** Tug Dynamics */
+            tug_dynamics?: components["schemas"]["MotionTugDynamicsState"][] | null;
+            guidance?: components["schemas"]["MotionGuidanceState"] | null;
+            /** State Inputs */
+            state_inputs?: components["schemas"]["MotionStateSnapshot"][] | null;
+            /**
+             * Forcing Time Offset S
+             * @description Source forcing time = frame t_s + this offset. Absent on legacy runs whose source clock starts at zero.
+             */
+            forcing_time_offset_s?: number | null;
             /**
              * Forcing Revision
              * @description Revision id of the immutable forcing series; with t_s it identifies the forcing in effect.
@@ -6554,6 +7629,26 @@ export interface components {
             /** Structured Alerts */
             structured_alerts?: components["schemas"]["MotionAlert"][] | null;
         } & unknown;
+        /** SimHelmCommandMessage */
+        SimHelmCommandMessage: {
+            /** Port Throttle */
+            port_throttle: number;
+            /** Starboard Throttle */
+            starboard_throttle: number;
+            /** Rudder Deg */
+            rudder_deg: number;
+            /** Bow Thruster */
+            bow_thruster: number;
+            /** Stern Thruster */
+            stern_thruster: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "helm_command";
+            /** T S */
+            t_s?: number | null;
+        };
         /**
          * SimLifecycle
          * @description Server lifecycle metadata for the rm0-v1 session stream.
@@ -6600,6 +7695,57 @@ export interface components {
              * @description Current simulated seconds per wall second.
              */
             speed?: number | null;
+        };
+        /** SimLineControlMessage */
+        SimLineControlMessage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "line_control";
+            /** T S */
+            t_s?: number | null;
+            /** Line Number */
+            line_number: number;
+            /** Attached */
+            attached?: boolean | null;
+            /** Paid Out Length Ft */
+            paid_out_length_ft?: number | null;
+        };
+        /** SimLineEventMessage */
+        SimLineEventMessage: {
+            /**
+             * T S
+             * @description Simulation time; absent schedules at the next integration boundary.
+             */
+            t_s?: number | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "line_event";
+            /** Line Number */
+            line_number: number;
+            /**
+             * Event
+             * @enum {string}
+             */
+            event: "secured" | "tensioned" | "released";
+        };
+        /**
+         * SimLoadingCommandMessage
+         * @description Replace payload inventory at rest; changing mass during motion is unsupported.
+         */
+        SimLoadingCommandMessage: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "loading_command";
+            /** T S */
+            t_s?: number | null;
+            /** Payloads */
+            payloads: components["schemas"]["PayloadItem"][];
         };
         /**
          * SimRecording
@@ -6757,6 +7903,7 @@ export interface components {
         };
         /** SimSessionCreate */
         SimSessionCreate: {
+            controls?: components["schemas"]["MotionControlsConfig"] | null;
             /** @description Forcing series; absent keeps the frozen scenario environment. */
             forcing?: components["schemas"]["ForcingSpec"] | null;
             /** Dt S */
@@ -6802,8 +7949,59 @@ export interface components {
              */
             recording_url?: string | null;
         };
+        /**
+         * SimTugCommandMessage
+         * @description Client message on WS /ws/sim/{session_id}.
+         */
+        SimTugCommandMessage: {
+            /**
+             * T S
+             * @description Simulation time; absent schedules at the next integration boundary.
+             */
+            t_s?: number | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "tug_command";
+            /** Tug Id */
+            tug_id: string;
+            /** Force Lbf */
+            force_lbf: number;
+            /** Direction Rel Deg */
+            direction_rel_deg: number;
+        };
+        /** SimTugMotionCommandMessage */
+        SimTugMotionCommandMessage: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "free" | "push" | "tow";
+            /** Target Velocity X Fps */
+            target_velocity_x_fps: number;
+            /** Target Velocity Y Fps */
+            target_velocity_y_fps: number;
+            /** Target Heading True Deg */
+            target_heading_true_deg: number;
+            /** Tow Length Ft */
+            tow_length_ft: number;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "tug_motion_command";
+            /** T S */
+            t_s?: number | null;
+            /** Tug Id */
+            tug_id: string;
+        };
         /** SimulationDiagnostics */
         SimulationDiagnostics: {
+            /** Loading Event Energy Ftlbf */
+            loading_event_energy_ftlbf?: number | null;
+            /** Tug Event Energy Ftlbf */
+            tug_event_energy_ftlbf?: number | null;
             /** Parameter Set */
             parameter_set: string;
             /**
@@ -6830,6 +8028,18 @@ export interface components {
             energy_residual_ftlbf: number;
             /** Integration Dt S */
             integration_dt_s: number;
+        };
+        /** SimulationTransition */
+        SimulationTransition: {
+            /** T S */
+            t_s: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "contact_start" | "contact_end" | "line_taut" | "line_slack" | "secured" | "tensioned" | "released" | "line_paid_out";
+            /** Element Id */
+            element_id: string;
         };
         /**
          * SolverDiagnostics
@@ -7792,6 +9002,111 @@ export interface components {
              * @description Direction the tug pushes the ship, relative to the bow (90 = toward starboard).
              */
             direction_rel_deg: number;
+        };
+        /** TugDynamicsConfig */
+        TugDynamicsConfig: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "synthetic" | "supplied";
+            /** Source */
+            source: string;
+            /** Tug Id */
+            tug_id: string;
+            /** Push Point Id */
+            push_point_id: string;
+            /** Mass Slug */
+            mass_slug: number;
+            /** Izz Slug Ft2 */
+            izz_slug_ft2: number;
+            /** Length Ft */
+            length_ft: number;
+            /** Beam Ft */
+            beam_ft: number;
+            /** Contact Point X Ft */
+            contact_point_x_ft: number;
+            /** Tow Point X Ft */
+            tow_point_x_ft: number;
+            /** Damping Surge Lbf Per Fps */
+            damping_surge_lbf_per_fps: number;
+            /** Damping Sway Lbf Per Fps */
+            damping_sway_lbf_per_fps: number;
+            /** Damping Yaw Ftlbf Per Radps */
+            damping_yaw_ftlbf_per_radps: number;
+            /** Max Propulsion Lbf */
+            max_propulsion_lbf: number;
+            /** Max Yaw Moment Ftlbf */
+            max_yaw_moment_ftlbf: number;
+            /** Propulsion Slew Lbfps */
+            propulsion_slew_lbfps: number;
+            /** Yaw Slew Ftlbfps */
+            yaw_slew_ftlbfps: number;
+            /** Actuator Response S */
+            actuator_response_s: number;
+            /** Velocity Response S */
+            velocity_response_s: number;
+            /** Heading Response S */
+            heading_response_s: number;
+            /** Max Target Speed Fps */
+            max_target_speed_fps: number;
+            /** Max Target Yaw Degps */
+            max_target_yaw_degps: number;
+            /** Contact Stiffness Lbf Per Ft */
+            contact_stiffness_lbf_per_ft: number;
+            /** Contact Damping Lbf Per Fps */
+            contact_damping_lbf_per_fps: number;
+            /** Contact Capacity Lbf */
+            contact_capacity_lbf: number;
+            /** Contact Half Width Ft */
+            contact_half_width_ft: number;
+            /** Max Contact Compression Ft */
+            max_contact_compression_ft: number;
+            /** Tow Stiffness Lbf Per Ft */
+            tow_stiffness_lbf_per_ft: number;
+            /** Tow Damping Lbf Per Fps */
+            tow_damping_lbf_per_fps: number;
+            /** Tow Capacity Lbf */
+            tow_capacity_lbf: number;
+            /** Max Tow Extension Ft */
+            max_tow_extension_ft: number;
+            /** Initial Tow Length Ft */
+            initial_tow_length_ft: number;
+            initial_state: components["schemas"]["TugInitialState"];
+        };
+        /** TugInitialState */
+        TugInitialState: {
+            /** X Ft */
+            x_ft: number;
+            /** Y Ft */
+            y_ft: number;
+            /**
+             * Yaw Deg
+             * @description Counterclockwise from berth +x, not true heading.
+             */
+            yaw_deg: number;
+            /** Surge Fps */
+            surge_fps: number;
+            /** Sway Fps */
+            sway_fps: number;
+            /** Yaw Degps */
+            yaw_degps: number;
+        };
+        /** TugMotionOrder */
+        TugMotionOrder: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "free" | "push" | "tow";
+            /** Target Velocity X Fps */
+            target_velocity_x_fps: number;
+            /** Target Velocity Y Fps */
+            target_velocity_y_fps: number;
+            /** Target Heading True Deg */
+            target_heading_true_deg: number;
+            /** Tow Length Ft */
+            tow_length_ft: number;
         };
         /** TugPlanResponse */
         TugPlanResponse: {
@@ -9490,39 +10805,6 @@ export interface components {
              */
             type: "pause" | "resume" | "reset";
         };
-        /** SimEvent */
-        SimEvent: {
-            /** T S */
-            t_s: number;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "fender_contact" | "line_overload" | "speed_exceeded" | "all_fast";
-            /** Detail */
-            detail: string;
-        };
-        /** SimLineEventMessage */
-        SimLineEventMessage: {
-            /**
-             * T S
-             * @description Simulation time; absent schedules at the next integration boundary.
-             * @default null
-             */
-            t_s: number | null;
-            /**
-             * Type
-             * @constant
-             */
-            type: "line_event";
-            /** Line Number */
-            line_number: number;
-            /**
-             * Event
-             * @enum {string}
-             */
-            event: "secured" | "tensioned" | "released";
-        };
         /**
          * SimSpeedMessage
          * @description Client message: simulated seconds per wall second. The physics step never changes.
@@ -9535,41 +10817,6 @@ export interface components {
             type: "set_speed";
             /** Speed */
             speed: number;
-        };
-        /**
-         * SimTugCommandMessage
-         * @description Client message on WS /ws/sim/{session_id}.
-         */
-        SimTugCommandMessage: {
-            /**
-             * T S
-             * @description Simulation time; absent schedules at the next integration boundary.
-             * @default null
-             */
-            t_s: number | null;
-            /**
-             * Type
-             * @constant
-             */
-            type: "tug_command";
-            /** Tug Id */
-            tug_id: string;
-            /** Force Lbf */
-            force_lbf: number;
-            /** Direction Rel Deg */
-            direction_rel_deg: number;
-        };
-        /** SimulationTransition */
-        SimulationTransition: {
-            /** T S */
-            t_s: number;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "contact_start" | "contact_end" | "line_taut" | "line_slack" | "secured" | "tensioned" | "released";
-            /** Element Id */
-            element_id: string;
         };
         /** TimelineResponse */
         TimelineResponse: {
@@ -11573,6 +12820,306 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SimRecording"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    catalog_api_v1_motion_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MotionWorkspaceCatalog"];
+                };
+            };
+        };
+    };
+    list_scenarios_api_v1_motion_scenarios_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MotionWorkspaceScenario"][];
+                };
+            };
+        };
+    };
+    create_scenario_api_v1_motion_scenarios_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MotionWorkspaceSpec"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MotionWorkspaceScenario"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_configuration_api_v1_motion_configuration_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MotionWorkspaceSpec"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MotionWorkspaceSpec"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_scenario_api_v1_motion_scenarios__scenario_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scenario_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MotionWorkspaceScenario"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    current_environment_api_v1_motion_environment_get: {
+        parameters: {
+            query: {
+                berth_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnvironmentSnapshot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_session_api_v1_motion_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MotionWorkspaceSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MotionWorkspaceSessionCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    release_session_api_v1_motion_sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_state_api_v1_motion_sessions__session_id__state_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MotionStateInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MotionStateSnapshot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    predict_api_v1_motion_sessions__session_id__prediction_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MotionPredictionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MotionPredictionResponse"];
                 };
             };
             /** @description Validation Error */

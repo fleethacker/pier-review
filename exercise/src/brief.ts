@@ -11,10 +11,10 @@ import type { ScenarioConfig } from './types';
  * content; `briefPptx.ts` turns it into a PowerPoint file.
  *
  * Everything here is read off the scenario and the trajectory. Where a figure is a modelling assumption rather than an
- * observation, the slide says so, and the deck carries an exercise marking on every page.
+ * observation, the slide says so, and the last slide sets out what the figures are and are not.
  */
 
-export const CLASSIFICATION = 'UNCLASSIFIED // EXERCISE — SIMULATED DATA';
+export const CLASSIFICATION = 'UNCLASSIFIED';
 
 export type SlideKind = 'title' | 'bullets' | 'table' | 'moment' | 'outcome';
 

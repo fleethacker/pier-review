@@ -155,9 +155,9 @@ Three ways out, the same deck behind all of them:
   costs its own slide its picture rather than the whole file. The writer is a large library, so it is a separate chunk
   that loads only when a brief is asked for.
 
-Every figure in it is read off the scenario and the trajectory; nothing is written for effect. The deck carries an
-exercise marking on every slide, and the last slide says plainly that the figures are illustrative, that one run is a
-single roll of the dice, and that any collected record shown beside an event is synthesised rather than observed.
+Every figure in it is read off the scenario and the trajectory; nothing is written for effect. The last slide says
+plainly that the figures are illustrative, that one run is a single roll of the dice, and that any collected record
+shown beside an event is synthesised rather than observed — the deck's own marking is left to the classification line.
 
 ## Storyboard: pictures that come up as it plays
 

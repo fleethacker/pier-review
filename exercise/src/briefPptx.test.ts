@@ -48,13 +48,18 @@ describe('the brief as a PowerPoint file', () => {
     }
   });
 
-  it('marks the deck as an exercise, on the slides themselves', async () => {
+  it('puts the marking on every slide', async () => {
     const brief = briefFor('salvo-defense');
-    // The file is UTF-8, so read it that way: the marking has an em dash in it.
     const text = (await written(brief)).toString('utf8');
-    expect(brief.classification).toContain('EXERCISE');
     const marks = text.split(brief.classification).length - 1;
     expect(marks).toBeGreaterThanOrEqual(briefSlideCount(brief));
+  });
+
+  it('says what the figures are, on the last slide rather than in the marking', async () => {
+    const brief = briefFor('salvo-defense');
+    const text = (await written(brief)).toString('utf8');
+    expect(text).toContain('illustrative figures, not operational data');
+    expect(text).toContain('Not navigational guidance');
   });
 
   it('names the file for the exercise and the day it was prepared', () => {

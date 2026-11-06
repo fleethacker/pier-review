@@ -2,8 +2,9 @@
 
 The transit simulator holds one fixed environment per run. This module does NOT add a second forcing resolver or dynamics:
 it evaluates the SAME `mooring.berthing.forcing.ForcingSeries.at(t)` at prediction-relative simulation time (t = 0 is the
-snapshot / as_of time) and hands the result to the unchanged `transit.simulator.Vessel`. The series is sampled once at the
-start of each integration step (zero-order hold over dt <= 1 s), not at RK4 stage times: a documented approximation.
+prediction as-of, which may differ from the base observation time) and hands the result to the unchanged
+`transit.simulator.Vessel`. The series is sampled once at the start of each integration step (zero-order hold over
+dt <= 1 s), not at RK4 stage times: a documented approximation.
 """
 import math
 from datetime import timedelta
@@ -44,7 +45,8 @@ def run(req, series: ForcingSeries, xform=None, job_id: str = "predict") -> sim.
         return env
 
     def emit(t):
-        environment_issues.extend(sim.environment_evidence(set_env(t)))
+        # ForcingSeries keeps its base observation clock. Coverage is instead checked on the run's actual clock.
+        environment_issues.extend(sim.environment_evidence(set_env(t), at_utc=start + timedelta(seconds=t) if req.start_utc else None))
         for v in vessels:
             v.wind = v.wind_wrench(v.s)
             st = v.state_model(t)

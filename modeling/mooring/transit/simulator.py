@@ -440,11 +440,22 @@ def integration_schedule(duration: float, dt: float, every: int):
             yield k, end, min(dt, duration - start), k % every == 0 or end == duration
 
 
-def environment_evidence(env):
-    """The transit wind load uses the shared sustained-wind basis; preserve its qualification and timing evidence."""
+def environment_evidence(env, *, at_utc=None):
+    """Validate at an optional simulation instant without changing the observation or its provenance.
+
+    The shared checker evaluates intervals at ``valid_at_utc``. A private validation view supplies the actual
+    simulation time; it is never used as forcing data, persisted, or returned as a retimestamped observation.
+    """
     if env is None:
         return []
-    return environment_findings(env, use_gust=False) + [("limited", reason) for reason in wind_basis(env, False).reasons]
+    checked = env if at_utc is None else env.model_copy(update={"valid_at_utc": at_utc})
+    findings = environment_findings(checked, use_gust=False)
+    if at_utc is not None:
+        for _, reason in findings:
+            if reason.code in {"ENVIRONMENT_OUTSIDE_VALID_INTERVAL", "ENVIRONMENT_COMPONENT_OUTSIDE_VALID_INTERVAL"}:
+                subject = ", ".join(reason.affected_components) or "environment"
+                reason.message = f"Simulation time {at_utc.isoformat()} is outside the declared validity interval for {subject}."
+    return findings + [("limited", reason) for reason in wind_basis(env, False).reasons]
 
 
 def run(req, job_id: str = "local", ctx=None) -> Run:
@@ -486,6 +497,15 @@ def run(req, job_id: str = "local", ctx=None) -> Run:
 
 def validity_for(req, r: Run) -> Validity:
     environmental = environment_evidence(req.environment) + r.environment_issues
+    if not r.synthetic_epoch:
+        # A held snapshot needs coverage of the actual run, not just validity at its observation timestamp.
+        for at in (r.start_utc, r.start_utc + timedelta(seconds=r.t_end)):
+            environmental.extend(environment_evidence(req.environment, at_utc=at))
+    elif req.environment and req.environment.metadata:
+        meta = req.environment.metadata
+        if any(item.valid_from_utc or item.valid_to_utc for item in [meta, *meta.components]):
+            environmental.append(("limited", ValidityReason(code="ENVIRONMENT_RUN_TIME_UNSPECIFIED", affected_components=["environment"],
+                message="No real simulation start UTC was supplied; environmental validity intervals cannot be checked against the synthetic track epoch.")))
     invalid_environment = any(state == "invalid" for state, _ in environmental)
     reasons = [
         ValidityReason(code="TRANSIT_SURROGATE_MANEUVERING", message="Hull forces are Clarke et al. (1983) regression derivatives plus assumed "

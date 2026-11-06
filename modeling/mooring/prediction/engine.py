@@ -308,6 +308,7 @@ def predict(req: PredictionRequest) -> PredictionResponse:
         raise RequestInvalid(str(exc)) from None
     v = req.vessel
     as_of = req.as_of_utc or datetime.now(UTC)
+    req = req.model_copy(update={"as_of_utc": as_of})  # Internal transit runs and reported ticks share this resolved clock.
     plane = LocalPlane(v.position.lat, v.position.lon)
     start_ll = (v.position.lat, v.position.lon)
     try:

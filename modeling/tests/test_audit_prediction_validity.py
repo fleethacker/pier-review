@@ -119,6 +119,83 @@ def test_forcing_evidence_expiring_inside_horizon_invalidates_prediction():
     assert "ENVIRONMENT_OUTSIDE_VALID_INTERVAL" in {r.code for r in response.validity.reasons}
 
 
+def timed_environment(*, offset_s=0, component=False, end_s=None):
+    interval = dict(valid_from_utc=T0, valid_to_utc=T0 + timedelta(seconds=offset_s + 5 if end_s is None else end_s))
+    metadata = dict(basis="observation", source="audit-observation", quality="good", issued_at_utc=T0,
+                    wind_averaging_s=60, gust_duration_s=30, wind_reference_height_m=10)
+    if component:
+        metadata["components"] = [dict(component="wind", source="audit-wind", basis="observation", quality="good", **interval)]
+    else:
+        metadata.update(interval)
+    return CALM | {"metadata": metadata}
+
+
+@pytest.mark.parametrize("forcing", [None, {"kind": "steady"}])
+@pytest.mark.parametrize("offset_s", [0, 10])
+@pytest.mark.parametrize("component", [False, True])
+def test_validity_interval_covers_actual_prediction_timeline(forcing, offset_s, component):
+    """A held observation or forcing series cannot shift validity to its older snapshot clock."""
+    req = request(environment=timed_environment(offset_s=offset_s, component=component),
+                  as_of_utc=T0 + timedelta(seconds=offset_s), forcing=forcing)
+    before = req.model_dump(mode="json")
+    code = "ENVIRONMENT_COMPONENT_OUTSIDE_VALID_INTERVAL" if component else "ENVIRONMENT_OUTSIDE_VALID_INTERVAL"
+    assert code not in {r.code for _, r in environment_findings(req.environment, False)}  # valid at observation time
+    response = engine.predict(req)
+    assert response.status == "RED" and response.validity.state == "invalid"
+    assert code in {r.code for r in response.validity.reasons}
+    assert response.result.alternatives[0].ticks[-1].t_utc == req.as_of_utc + timedelta(seconds=11)
+    assert req.model_dump(mode="json") == before
+    assert req.environment.valid_at_utc == T0 and req.environment.metadata.issued_at_utc == T0
+    # The fixed transit service applies the same timeline checks independently of the prediction wrapper.
+    treq = transit(req)
+    validity = simulator.validity_for(treq, simulator.run(treq))
+    assert validity.state == "invalid" and code in {r.code for r in validity.reasons}
+
+
+@pytest.mark.parametrize("forcing", [None, {"kind": "steady"}])
+@pytest.mark.parametrize("component", [False, True])
+def test_validity_interval_includes_start_and_end_boundaries(forcing, component):
+    req = request(environment=timed_environment(component=component, end_s=11), forcing=forcing)
+    response = engine.predict(req)
+    assert response.validity.state == "limited"
+    assert not any("OUTSIDE_VALID_INTERVAL" in r.code for r in response.validity.reasons)
+
+
+@pytest.mark.parametrize("forcing", [None, {"kind": "steady"}])
+def test_observation_cannot_be_used_before_its_validity_interval(forcing):
+    env = timed_environment(end_s=30)
+    env["valid_at_utc"] = T0 + timedelta(seconds=10)
+    env["metadata"]["valid_from_utc"] = T0 + timedelta(seconds=10)
+    response = engine.predict(request(environment=env, forcing=forcing))
+    assert response.validity.state == "invalid" and response.status == "RED"
+    assert "ENVIRONMENT_OUTSIDE_VALID_INTERVAL" in {r.code for r in response.validity.reasons}
+
+
+@pytest.mark.parametrize("forcing", [None, {"kind": "steady"}])
+def test_default_as_of_is_the_same_clock_used_for_validity(monkeypatch, forcing):
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return T0 + timedelta(seconds=10)
+
+    monkeypatch.setattr(engine, "datetime", Clock)
+    req = request(as_of_utc=None, environment=timed_environment(offset_s=10), forcing=forcing)
+    response = engine.predict(req)
+    assert response.result.as_of_utc == T0 + timedelta(seconds=10)
+    assert response.validity.state == "invalid" and response.status == "RED"
+    assert "ENVIRONMENT_OUTSIDE_VALID_INTERVAL" in {r.code for r in response.validity.reasons}
+    assert req.as_of_utc is None and req.environment.valid_at_utc == T0
+
+
+def test_transit_without_real_start_does_not_claim_interval_coverage():
+    treq = transit(request(environment=timed_environment())).model_copy(update={"start_utc": None})
+    result = simulator.run(treq)
+    validity = simulator.validity_for(treq, result)
+    assert validity.state == "limited"
+    assert "ENVIRONMENT_RUN_TIME_UNSPECIFIED" in {r.code for r in validity.reasons}
+    assert "ENVIRONMENT_OUTSIDE_VALID_INTERVAL" not in {r.code for r in validity.reasons}
+
+
 @pytest.mark.parametrize("forcing", [None, {"kind": "steady"}, {"kind": "steady", "tide_amplitude_ft": 2, "tide_period_s": 20},
     {"kind": "replay", "samples": [{"t_s": 0, "water_level_mllw_ft": 0}, {"t_s": 11, "water_level_mllw_ft": 3}]}])
 def test_calm_or_tide_only_forcing_does_not_claim_a_corridor(forcing):

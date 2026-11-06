@@ -75,6 +75,8 @@ class BerthingModel:
             self.apply_loading(self.loading_spec)
         # Optional immutable forcing series (S2). None keeps the frozen scenario environment exactly as before.
         self.forcing_spec = forcing.model_copy(deep=True) if forcing is not None else None
+        self.forcing_time_offset_s = 0.0
+        self.state_inputs = []
         self.forcing = ForcingSeries(self.forcing_spec, self.env, duration) if forcing is not None else None
         self.forcing_env, self.forcing_covered = None, True
         self.body = MooredBody(self.system, self.params)
@@ -156,6 +158,64 @@ class BerthingModel:
         clone.integrator.step_speed = clone.integration_speed if clone.tug_dynamics is not None else None
         return clone
 
+    def reseeded(self, state, *, tug_id=None):
+        """Prepare an independent observed-state run at t=0; never mutate this model.
+
+        Active lines, actual actuator values/targets, loading and other bodies are
+        retained. Future commands are discarded. Elastic preload becomes the new
+        energy reference. Forcing retains its source-time phase. The session owner
+        validates evidence, pauses, then swaps this model with a new run identity.
+        Measured acceleration is evidence only, never an applied force.
+        """
+        if len(state)!=6 or not all(type(v) in (int,float) and math.isfinite(v) for v in state):
+            raise ValueError("observed state must contain six finite canonical values")
+        clone = self.clone_for_prediction()
+        if tug_id is None:
+            clone.integrator.state = tuple(float(v) for v in state)
+        else:
+            clone.reseed_tug(tug_id,state)
+        old_t = self.t
+        if clone.propulsion is not None:
+            clone.propulsion.old = clone.propulsion.actual(old_t)
+            clone.propulsion.start = 0.0
+        clone.ramps = {tid:(0.0,clone.tug_force(tid,old_t),ramp[2]) for tid,ramp in clone.ramps.items()}
+        clone.forcing_time_offset_s += old_t
+        clone.integrator.t = 0.0
+        clone.integrator.steps = 0
+        clone.integrator.previous = (0.0,clone.integrator.state)
+        clone.integrator.previous_auxiliary_state = clone.integrator.auxiliary_state
+        clone.integrator.crossings.clear()
+        clone.pending.clear()
+        clone.sequence = 0
+        if clone.guidance is not None:
+            clone.guidance.next_update_s = 0.0
+        clone.events,clone.transitions,clone.impact_speed = [],[],{}
+        clone.contact = None
+        clone.work = clone.dissipated = clone.event_energy = clone.loading_event_energy = clone.tug_event_energy = 0.0
+        clone.invalid = False
+        clone.reasons = [r for r in clone.reasons if r.code in ("VESSEL_DYNAMICS_UNQUALIFIED","DYNAMICS_APPROXIMATIONS")]
+        clone.set_env(0.0,clone.integrator.state)
+        try:
+            clone.initial_energy = clone.total_energy()
+        except OverflowError:
+            raise ValueError("observed state energy exceeds numerical range") from None
+        if not math.isfinite(clone.initial_energy):
+            raise ValueError("observed state energy exceeds numerical range")
+        clone.max_line_tension = max((force for _,_,force in clone.system.line_tensions(clone.body.pose(clone.integrator.state))),default=0.0)
+        if any(force >= rec.model.mbs_eff_lbf for rec,_,force in clone.system.line_tensions(clone.body.pose(clone.integrator.state))):
+            clone.invalid = True
+            clone.reasons.append(ValidityReason(code="LINE_MBS_EXCEEDED",
+                message="Observed state exceeds an active line's breaking strength; no qualified rupture law."))
+        clone.track_contact(clone.integrator.state)
+        for name,fn in sorted(clone.integrator.events.items()):
+            if name.startswith("contact:") and fn(0,clone.integrator.state)>0:
+                clone.transitions.append(SimulationTransition(t_s=0,kind="contact_start",element_id=name.split(":",1)[1]))
+        clone.validity()
+        return clone
+
+    def forcing_at(self, t):
+        return self.forcing.at(t+self.forcing_time_offset_s) if self.forcing is not None else (self.env,True)
+
     def integration_gap(self, state):
         return min(self.body.contact_gap(state),self.tug_dynamics.contact_gap(state,self.integrator.auxiliary_state))
 
@@ -231,7 +291,7 @@ class BerthingModel:
         if self.loading_spec is None:
             return None
         s, t = state or self.integrator.state, self.t if t is None else t
-        env = self.forcing.at(t)[0] if self.forcing is not None else self.env
+        env = self.forcing_at(t)[0]
         water = env.water_level_mllw_ft
         if self.forcing is not None and "water_level_mllw_ft" not in self.forcing.supplied:
             water = None
@@ -268,7 +328,7 @@ class BerthingModel:
     def set_env(self, t, s):
         """Resolve forcing at simulation time t (an integration-stage time). No-op without a forcing series."""
         if self.forcing is None: return
-        env, covered = self.forcing.at(t)
+        env, covered = self.forcing_at(t)
         self.forcing_env, self.forcing_covered = env, covered
         if not covered and not any(r.code == "FORCING_UNCOVERED" for r in self.reasons):
             self.invalid = True
@@ -603,7 +663,8 @@ class BerthingModel:
             lines=lines,
             fenders=fenders, alerts=alerts or [], validity=self.validity(), controls=controls,
             loading=loaded, line_controls=line_controls, tug_dynamics=tug_dynamics,
-            guidance=self.guidance.state(t,s) if self.guidance is not None else None)
+            guidance=self.guidance.state(t,s) if self.guidance is not None else None,
+            state_inputs=self.state_inputs or None,forcing_time_offset_s=self.forcing_time_offset_s)
 
 
 def initial_model(scenario_id, initial, *, dt=0.1, duration=900, forcing=None, controls=None, ship_override=None, tug_ids=None, guidance=None):

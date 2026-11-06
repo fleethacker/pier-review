@@ -9,6 +9,7 @@ from .common import Envelope, Model, Status, Validity
 from .mooring import FenderResult, LineTension
 from .motion_controls import MotionControlsConfig, MotionControlState, MotionLoadingState, MotionLineControlState, MotionTugDynamicsState
 from .motion_guidance import MotionGuidanceState
+from .motion_state import MotionStateSnapshot
 from .motion import (
     _require_qualified_motion,
     MotionAlert,
@@ -213,12 +214,16 @@ class SimFrame(Model):
         "tug_states", "environment", "line_states", "fitting_loads", "fender_states", "forces", "validity",
         "provenance", "structured_alerts", "diagnostics", "forcing_revision", "controls", "loading", "line_controls", "tug_dynamics", "guidance",
     ))
+    wire_omitted_defaults = {**wire_omitted_defaults,"state_inputs":None,"forcing_time_offset_s":0.0}
     diagnostics: SimulationDiagnostics | None = None
     controls: MotionControlState | None = None
     loading: MotionLoadingState | None = None
     line_controls: list[MotionLineControlState] | None = None
     tug_dynamics: list[MotionTugDynamicsState] | None = None
     guidance: MotionGuidanceState | None = None
+    state_inputs: list[MotionStateSnapshot] | None = Field(default=None,max_length=17)
+    forcing_time_offset_s: float = Field(default=0,ge=0,
+        description="Source forcing time = frame t_s + this offset after state adoption starts a new run.")
     forcing_revision: str | None = Field(default=None, description="Revision id of the immutable forcing series; with t_s it identifies the forcing in effect.")
 
     t_s: float

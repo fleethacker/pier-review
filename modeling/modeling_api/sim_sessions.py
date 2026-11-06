@@ -345,6 +345,7 @@ class Session:
 
     def attach(self, connection):
         with self.lock:
+            if getattr(self,"released",False): raise ValueError("session released")
             if self.connection is not None: raise ValueError("session already has an active controller")
             self.connection=connection
             self.changed=asyncio.Event()

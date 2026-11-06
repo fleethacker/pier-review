@@ -222,6 +222,10 @@ class MotionTugDynamicsState(Model):
     transferred_x_lbf: float
     transferred_y_lbf: float
     transferred_yaw_moment_ftlbf: float
+    ship_point_x_ft: float
+    ship_point_y_ft: float
+    tug_point_x_ft: float
+    tug_point_y_ft: float
     contact_compression_ft: float
     tow_extension_ft: float
     tow_tension_lbf: float

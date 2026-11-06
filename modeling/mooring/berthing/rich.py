@@ -282,7 +282,7 @@ def rich_frame(model, *, session_id: str, run_id: str, sequence: int, scene: Sim
     vert = vertical_state(tide, t_s=t)
     loaded = legacy.loading
     if loaded is not None:
-        water = model.forcing.at(t)[0].water_level_mllw_ft if model.forcing is not None else model.env.water_level_mllw_ft
+        water = model.forcing_at(t)[0].water_level_mllw_ft
         if model.forcing is not None and "water_level_mllw_ft" not in model.forcing.supplied:
             water = None
         from .s3_vertical import VerticalState

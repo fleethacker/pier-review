@@ -67,6 +67,7 @@ class Connection:
     tug_wrench: tuple[float,float,float]
     force_world: tuple[float,float]
     point_world: tuple[float,float]
+    tug_point_world: tuple[float,float]
     compression: float
     extension: float
     tension: float
@@ -175,7 +176,7 @@ class TugFleet:
         sx,sy = rotate(-ship[2],fx,fy)
         rx,ry = rotate(-tug[2],-fx,-fy)
         return Connection((sx,sy,applied_point[0]*sy-applied_point[1]*sx),
-            (rx,ry,point_x*ry),(fx,fy),anchor_world,compression,extension,tension,
+            (rx,ry,point_x*ry),(fx,fy),anchor_world,tug_point,compression,extension,tension,
             energy,dissipation,status,invalid)
 
     def connections(self, ship, auxiliary):
@@ -268,6 +269,8 @@ class TugFleet:
                 propulsion_surge_lbf=auxiliary[i+6],propulsion_sway_lbf=auxiliary[i+7],propulsion_yaw_moment_ftlbf=auxiliary[i+8],
                 transferred_x_lbf=connection.force_world[0],transferred_y_lbf=connection.force_world[1],
                 transferred_yaw_moment_ftlbf=connection.ship_wrench[2],contact_compression_ft=connection.compression,
+                ship_point_x_ft=connection.point_world[0],ship_point_y_ft=connection.point_world[1],
+                tug_point_x_ft=connection.tug_point_world[0],tug_point_y_ft=connection.tug_point_world[1],
                 tow_extension_ft=connection.extension,tow_tension_lbf=connection.tension,
                 connection_state=connection.status,validity=self.validity(connection)))
         return out

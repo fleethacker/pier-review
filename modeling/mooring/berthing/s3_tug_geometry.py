@@ -133,3 +133,21 @@ def total_wrench(contacts: Iterable[TugContact]) -> tuple[float, float, float]:
         for i in range(3):
             w[i] += c.wrench_ship[i]
     return (w[0], w[1], w[2])
+
+
+def constrained_kinematics(state, acceleration_body, point_ship):
+    """Rigid attachment position/velocity/acceleration, not independently integrated tug motion.
+
+    v(P)=v(O)+omega cross OP; a(P)=a(O)+alpha cross OP+omega cross(omega cross OP).
+    Explicit synthetic stand-off must be supplied. Constraint forces needed to
+    carry a separate tug mass are NOT modeled, so label this prescribed kinematics.
+    """
+    x,y,yaw,u,v,r = state
+    px,py = point_ship
+    ax,ay,dr = acceleration_body
+    c,s = math.cos(yaw),math.sin(yaw)
+    def rotate(a,b): return c*a-s*b,s*a+c*b
+    dx,dy = rotate(px,py)
+    vx,vy = rotate(u-r*py,v+r*px)
+    aa,ab = rotate(ax-dr*py-r*r*px,ay+dr*px-r*r*py)
+    return (x+dx,y+dy),(vx,vy),(aa,ab)

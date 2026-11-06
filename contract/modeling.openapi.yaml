@@ -2047,6 +2047,248 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/motion/catalog:
+    get:
+      tags:
+      - Motion workspace
+      summary: Catalog
+      operationId: catalog_api_v1_motion_catalog_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MotionWorkspaceCatalog'
+  /api/v1/motion/scenarios:
+    get:
+      tags:
+      - Motion workspace
+      summary: List Scenarios
+      operationId: list_scenarios_api_v1_motion_scenarios_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/MotionWorkspaceScenario'
+                type: array
+                title: Response List Scenarios Api V1 Motion Scenarios Get
+    post:
+      tags:
+      - Motion workspace
+      summary: Create Scenario
+      operationId: create_scenario_api_v1_motion_scenarios_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MotionWorkspaceSpec'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MotionWorkspaceScenario'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/motion/configuration:
+    post:
+      tags:
+      - Motion workspace
+      summary: Resolve Configuration
+      description: Resolve training defaults for authoring; creates no resource and acquires no live data.
+      operationId: resolve_configuration_api_v1_motion_configuration_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MotionWorkspaceSpec'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MotionWorkspaceSpec'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/motion/scenarios/{scenario_id}:
+    get:
+      tags:
+      - Motion workspace
+      summary: Get Scenario
+      operationId: get_scenario_api_v1_motion_scenarios__scenario_id__get
+      parameters:
+      - name: scenario_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Scenario Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MotionWorkspaceScenario'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/motion/environment:
+    get:
+      tags:
+      - Motion workspace
+      summary: Current Environment
+      operationId: current_environment_api_v1_motion_environment_get
+      parameters:
+      - name: berth_id
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Berth Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnvironmentSnapshot'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/motion/sessions:
+    post:
+      tags:
+      - Motion workspace
+      summary: Create Session
+      operationId: create_session_api_v1_motion_sessions_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MotionWorkspaceSessionRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MotionWorkspaceSessionCreated'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/motion/sessions/{session_id}:
+    delete:
+      tags:
+      - Motion workspace
+      summary: Release Session
+      operationId: release_session_api_v1_motion_sessions__session_id__delete
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/motion/sessions/{session_id}/state:
+    post:
+      tags:
+      - Motion workspace
+      summary: Import State
+      operationId: import_state_api_v1_motion_sessions__session_id__state_post
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MotionStateInput'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MotionStateSnapshot'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/motion/sessions/{session_id}/prediction:
+    post:
+      tags:
+      - Motion workspace
+      summary: Predict
+      operationId: predict_api_v1_motion_sessions__session_id__prediction_post
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MotionPredictionRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MotionPredictionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/approach/route:
     post:
       tags:
@@ -6336,6 +6578,43 @@ components:
       - status
       - backend
       title: Health
+    HelmOrder:
+      properties:
+        port_throttle:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Port Throttle
+        starboard_throttle:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Starboard Throttle
+        rudder_deg:
+          type: number
+          maximum: 45.0
+          minimum: -45.0
+          title: Rudder Deg
+        bow_thruster:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Bow Thruster
+        stern_thruster:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Stern Thruster
+      additionalProperties: false
+      type: object
+      required:
+      - port_throttle
+      - starboard_throttle
+      - rudder_deg
+      - bow_thruster
+      - stern_thruster
+      title: HelmOrder
+      description: Positive rudder means bow to starboard in ahead flow; thrusters are +port.
     HistorySeries:
       properties:
         station_id:
@@ -7254,6 +7533,138 @@ components:
       - draft_aft_ft
       - freeboard_ft
       title: LoadingCondition
+    LoadingSpec:
+      properties:
+        basis:
+          type: string
+          enum:
+          - synthetic
+          - supplied
+          title: Basis
+        source:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Source
+        base_mass_slug:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Base Mass Slug
+        base_izz_slug_ft2:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Base Izz Slug Ft2
+          description: Baseline inertia about baseline CG.
+        base_cg_x_ft:
+          type: number
+          title: Base Cg X Ft
+        base_cg_y_ft:
+          type: number
+          title: Base Cg Y Ft
+        base_cg_z_ft:
+          type: number
+          title: Base Cg Z Ft
+        base_draft_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Base Draft Ft
+        base_cb_z_ft:
+          type: number
+          title: Base Cb Z Ft
+          description: Baseline center of buoyancy, ship reference waterline origin.
+        waterplane_area_ft2:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Waterplane Area Ft2
+          description: Fixed waterplane centered at the ship origin.
+        waterplane_ixx_ft4:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Waterplane Ixx Ft4
+        waterplane_iyy_ft4:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Waterplane Iyy Ft4
+        water_density_slug_ft3:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Water Density Slug Ft3
+        gravity_fps2:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Gravity Fps2
+        added_surge_slug:
+          type: number
+          minimum: 0.0
+          title: Added Surge Slug
+        added_sway_slug:
+          type: number
+          minimum: 0.0
+          title: Added Sway Slug
+        added_yaw_slug_ft2:
+          type: number
+          minimum: 0.0
+          title: Added Yaw Slug Ft2
+        damping_surge_lbf_per_fps:
+          type: number
+          minimum: 0.0
+          title: Damping Surge Lbf Per Fps
+        damping_sway_lbf_per_fps:
+          type: number
+          minimum: 0.0
+          title: Damping Sway Lbf Per Fps
+        damping_yaw_ftlbf_per_radps:
+          type: number
+          minimum: 0.0
+          title: Damping Yaw Ftlbf Per Radps
+        max_abs_attitude_deg:
+          type: number
+          maximum: 10.0
+          exclusiveMinimum: 0.0
+          title: Max Abs Attitude Deg
+          description: Small-angle model validity boundary, not a stability limit.
+        max_sinkage_fraction:
+          type: number
+          maximum: 0.25
+          exclusiveMinimum: 0.0
+          title: Max Sinkage Fraction
+          description: Fraction of baseline draft; numerical model boundary.
+        payloads:
+          items:
+            $ref: '#/components/schemas/PayloadItem'
+          type: array
+          maxItems: 64
+          title: Payloads
+        local_depth:
+          anyOf:
+          - $ref: '#/components/schemas/LocalDepthPatch'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      required:
+      - basis
+      - source
+      - base_mass_slug
+      - base_izz_slug_ft2
+      - base_cg_x_ft
+      - base_cg_y_ft
+      - base_cg_z_ft
+      - base_draft_ft
+      - base_cb_z_ft
+      - waterplane_area_ft2
+      - waterplane_ixx_ft4
+      - waterplane_iyy_ft4
+      - water_density_slug_ft3
+      - gravity_fps2
+      - added_surge_slug
+      - added_sway_slug
+      - added_yaw_slug_ft2
+      - damping_surge_lbf_per_fps
+      - damping_sway_lbf_per_fps
+      - damping_yaw_ftlbf_per_radps
+      - max_abs_attitude_deg
+      - max_sinkage_fraction
+      title: LoadingSpec
     LoadsRequest:
       properties:
         ship_class_id:
@@ -7410,6 +7821,53 @@ components:
       - wind_rel_ship_deg
       - current_rel_ship_deg
       title: LoadsResult
+    LocalDepthPatch:
+      properties:
+        basis:
+          type: string
+          enum:
+          - synthetic
+          - supplied
+          title: Basis
+        source:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Source
+        depth_mllw_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Depth Mllw Ft
+        uncertainty_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Uncertainty Ft
+        x_min_ft:
+          type: number
+          title: X Min Ft
+        x_max_ft:
+          type: number
+          title: X Max Ft
+        y_min_ft:
+          type: number
+          title: Y Min Ft
+        y_max_ft:
+          type: number
+          title: Y Max Ft
+      additionalProperties: false
+      type: object
+      required:
+      - basis
+      - source
+      - depth_mllw_ft
+      - x_min_ft
+      - x_max_ft
+      - y_min_ft
+      - y_max_ft
+      title: LocalDepthPatch
+      description: A supplied constant-depth patch, never an extrapolated berth profile.
     LocatedAt:
       properties:
         method:
@@ -7934,6 +8392,43 @@ components:
       additionalProperties: false
       type: object
       title: MotionAcceleration
+    MotionActuatorForce:
+      properties:
+        actuator_id:
+          type: string
+          enum:
+          - port_engine
+          - starboard_engine
+          - rudder
+          - bow_thruster
+          - stern_thruster
+          title: Actuator Id
+        x_ft:
+          type: number
+          title: X Ft
+        y_ft:
+          type: number
+          title: Y Ft
+        x_lbf:
+          type: number
+          title: X Lbf
+        y_lbf:
+          type: number
+          title: Y Lbf
+        yaw_moment_ftlbf:
+          type: number
+          title: Yaw Moment Ftlbf
+      additionalProperties: false
+      type: object
+      required:
+      - actuator_id
+      - x_ft
+      - y_ft
+      - x_lbf
+      - y_lbf
+      - yaw_moment_ftlbf
+      title: MotionActuatorForce
+      description: Application position and force in berth axes; moment about ship origin.
     MotionAlert:
       properties:
         code:
@@ -7964,6 +8459,101 @@ components:
       - severity
       - message
       title: MotionAlert
+    MotionControlState:
+      properties:
+        basis:
+          type: string
+          enum:
+          - synthetic
+          - supplied
+          title: Basis
+        source:
+          type: string
+          title: Source
+        commanded:
+          $ref: '#/components/schemas/HelmOrder'
+        actual:
+          $ref: '#/components/schemas/HelmOrder'
+        port_thrust_lbf:
+          type: number
+          title: Port Thrust Lbf
+        starboard_thrust_lbf:
+          type: number
+          title: Starboard Thrust Lbf
+        rudder_force_lbf:
+          type: number
+          title: Rudder Force Lbf
+        bow_thruster_force_lbf:
+          type: number
+          title: Bow Thruster Force Lbf
+        stern_thruster_force_lbf:
+          type: number
+          title: Stern Thruster Force Lbf
+        surge_force_lbf:
+          type: number
+          title: Surge Force Lbf
+        sway_force_lbf:
+          type: number
+          title: Sway Force Lbf
+        yaw_moment_ftlbf:
+          type: number
+          title: Yaw Moment Ftlbf
+        actuators:
+          items:
+            $ref: '#/components/schemas/MotionActuatorForce'
+          type: array
+          title: Actuators
+        validity:
+          $ref: '#/components/schemas/Validity'
+      additionalProperties: false
+      type: object
+      required:
+      - basis
+      - source
+      - commanded
+      - actual
+      - port_thrust_lbf
+      - starboard_thrust_lbf
+      - rudder_force_lbf
+      - bow_thruster_force_lbf
+      - stern_thruster_force_lbf
+      - surge_force_lbf
+      - sway_force_lbf
+      - yaw_moment_ftlbf
+      - validity
+      title: MotionControlState
+    MotionControlsConfig:
+      properties:
+        propulsion:
+          $ref: '#/components/schemas/PropulsionSpec'
+        loading:
+          $ref: '#/components/schemas/LoadingSpec'
+        tug_standoff_ft:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Tug Standoff Ft
+          description: Explicit synthetic rigid attachment stand-off; absent leaves tug kinematics unavailable.
+        tug_slew_s:
+          anyOf:
+          - type: number
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Tug Slew S
+          description: Explicit synthetic tug force ramp time; absent retains legacy demonstration ramp.
+        tug_dynamics:
+          items:
+            $ref: '#/components/schemas/TugDynamicsConfig'
+          type: array
+          maxItems: 16
+          title: Tug Dynamics
+      additionalProperties: false
+      type: object
+      required:
+      - propulsion
+      - loading
+      title: MotionControlsConfig
     MotionCurrent:
       properties:
         availability:
@@ -8249,6 +8839,81 @@ components:
       type: object
       title: MotionForces
       description: Forces on the ship in berth axes; all moments use the same instantaneous ship origin.
+    MotionGuidanceState:
+      properties:
+        active:
+          type: boolean
+          title: Active
+        route_id:
+          type: string
+          title: Route Id
+        waypoint_index:
+          type: integer
+          title: Waypoint Index
+        waypoint_name:
+          type: string
+          title: Waypoint Name
+        target_speed_kt:
+          type: number
+          title: Target Speed Kt
+        cross_track_ft:
+          type: number
+          title: Cross Track Ft
+        remaining_ft:
+          type: number
+          title: Remaining Ft
+        completed:
+          type: boolean
+          title: Completed
+        source:
+          type: string
+          const: synthetic
+          title: Source
+          default: synthetic
+      additionalProperties: false
+      type: object
+      required:
+      - active
+      - route_id
+      - waypoint_index
+      - waypoint_name
+      - target_speed_kt
+      - cross_track_ft
+      - remaining_ft
+      - completed
+      title: MotionGuidanceState
+    MotionLineControlState:
+      properties:
+        line_number:
+          type: integer
+          title: Line Number
+        attached:
+          type: boolean
+          title: Attached
+        paid_out_length_ft:
+          type: number
+          title: Paid Out Length Ft
+        geometric_length_ft:
+          type: number
+          title: Geometric Length Ft
+        extension_ft:
+          type: number
+          title: Extension Ft
+        tension_lbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tension Lbf
+      additionalProperties: false
+      type: object
+      required:
+      - line_number
+      - attached
+      - paid_out_length_ft
+      - geometric_length_ft
+      - extension_ft
+      - tension_lbf
+      title: MotionLineControlState
     MotionLineState:
       properties:
         availability:
@@ -8332,6 +8997,148 @@ components:
       required:
       - line_number
       title: MotionLineState
+    MotionLoadingState:
+      properties:
+        basis:
+          type: string
+          enum:
+          - synthetic
+          - supplied
+          title: Basis
+        source:
+          type: string
+          title: Source
+        payloads:
+          items:
+            $ref: '#/components/schemas/PayloadItem'
+          type: array
+          title: Payloads
+        total_mass_slug:
+          type: number
+          title: Total Mass Slug
+        total_weight_lbf:
+          type: number
+          title: Total Weight Lbf
+        cg_x_ft:
+          type: number
+          title: Cg X Ft
+        cg_y_ft:
+          type: number
+          title: Cg Y Ft
+        cg_z_ft:
+          type: number
+          title: Cg Z Ft
+        izz_cg_slug_ft2:
+          type: number
+          title: Izz Cg Slug Ft2
+        izz_origin_slug_ft2:
+          type: number
+          title: Izz Origin Slug Ft2
+        sinkage_ft:
+          type: number
+          title: Sinkage Ft
+        mean_draft_ft:
+          type: number
+          title: Mean Draft Ft
+        draft_fwd_ft:
+          type: number
+          title: Draft Fwd Ft
+        draft_aft_ft:
+          type: number
+          title: Draft Aft Ft
+        maximum_draft_ft:
+          type: number
+          title: Maximum Draft Ft
+        roll_deg:
+          type: number
+          title: Roll Deg
+        pitch_deg:
+          type: number
+          title: Pitch Deg
+        gm_transverse_ft:
+          type: number
+          title: Gm Transverse Ft
+        gm_longitudinal_ft:
+          type: number
+          title: Gm Longitudinal Ft
+        local_depth_mllw_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Local Depth Mllw Ft
+        depth_uncertainty_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Depth Uncertainty Ft
+        under_keel_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Under Keel Ft
+        under_keel_lower_ft:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Under Keel Lower Ft
+        validity:
+          $ref: '#/components/schemas/Validity'
+      additionalProperties: false
+      type: object
+      required:
+      - basis
+      - source
+      - payloads
+      - total_mass_slug
+      - total_weight_lbf
+      - cg_x_ft
+      - cg_y_ft
+      - cg_z_ft
+      - izz_cg_slug_ft2
+      - izz_origin_slug_ft2
+      - sinkage_ft
+      - mean_draft_ft
+      - draft_fwd_ft
+      - draft_aft_ft
+      - maximum_draft_ft
+      - roll_deg
+      - pitch_deg
+      - gm_transverse_ft
+      - gm_longitudinal_ft
+      - local_depth_mllw_ft
+      - depth_uncertainty_ft
+      - under_keel_ft
+      - under_keel_lower_ft
+      - validity
+      title: MotionLoadingState
+    MotionMeasuredAcceleration:
+      properties:
+        surge_fps2:
+          anyOf:
+          - type: number
+            maximum: 100.0
+            minimum: -100.0
+          - type: 'null'
+          title: Surge Fps2
+        sway_fps2:
+          anyOf:
+          - type: number
+            maximum: 100.0
+            minimum: -100.0
+          - type: 'null'
+          title: Sway Fps2
+        yaw_degps2:
+          anyOf:
+          - type: number
+            maximum: 360.0
+            minimum: -360.0
+          - type: 'null'
+          title: Yaw Degps2
+          description: Counterclockwise yaw angular acceleration.
+      additionalProperties: false
+      type: object
+      title: MotionMeasuredAcceleration
+      description: Measured inertial acceleration expressed in body axes; never inferred force.
     MotionPose:
       properties:
         x_ft:
@@ -8373,6 +9180,341 @@ components:
       additionalProperties: false
       type: object
       title: MotionPose
+    MotionPredictionPoint:
+      properties:
+        x_ft:
+          type: number
+          title: X Ft
+        y_ft:
+          type: number
+          title: Y Ft
+      additionalProperties: false
+      type: object
+      required:
+      - x_ft
+      - y_ft
+      title: MotionPredictionPoint
+    MotionPredictionPose:
+      properties:
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+          description: Absolute simulation time, never arrival or wall-clock time.
+        elapsed_s:
+          type: number
+          minimum: 0.0
+          title: Elapsed S
+        pose:
+          $ref: '#/components/schemas/MotionPose'
+        velocity:
+          $ref: '#/components/schemas/MotionVelocity'
+        footprint:
+          items:
+            $ref: '#/components/schemas/MotionPredictionPoint'
+          type: array
+          maxItems: 4
+          minItems: 4
+          title: Footprint
+          description: LOA × beam rectangle in berth axes, matching the parallel-side contact envelope; unqualified hull geometry.
+        pier_clearance_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Pier Clearance Ft
+          description: Minimum sampled/swept clearance since the preceding display tick; initial point checks the initial
+            hull.
+        fender_clearance_ft:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Fender Clearance Ft
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - elapsed_s
+      - pose
+      - velocity
+      - footprint
+      - pier_clearance_ft
+      - fender_clearance_ft
+      title: MotionPredictionPose
+    MotionPredictionRequest:
+      properties:
+        horizon_s:
+          type: number
+          maximum: 120.0
+          minimum: 0.0001
+          title: Horizon S
+          description: At least the berthing integrator's minimum resolvable step; at most two minutes.
+          default: 60
+        sample_interval_s:
+          type: number
+          maximum: 120.0
+          minimum: 0.25
+          title: Sample Interval S
+          description: Display sampling only; the live model's integration step is preserved.
+          default: 1
+        what_if_commands:
+          items:
+            oneOf:
+            - $ref: '#/components/schemas/SimHelmCommandMessage'
+            - $ref: '#/components/schemas/SimTugCommandMessage'
+            - $ref: '#/components/schemas/SimLineEventMessage'
+            - $ref: '#/components/schemas/SimLineControlMessage'
+            - $ref: '#/components/schemas/SimLoadingCommandMessage'
+            - $ref: '#/components/schemas/SimTugMotionCommandMessage'
+            discriminator:
+              propertyName: type
+              mapping:
+                helm_command: '#/components/schemas/SimHelmCommandMessage'
+                line_control: '#/components/schemas/SimLineControlMessage'
+                line_event: '#/components/schemas/SimLineEventMessage'
+                loading_command: '#/components/schemas/SimLoadingCommandMessage'
+                tug_command: '#/components/schemas/SimTugCommandMessage'
+                tug_motion_command: '#/components/schemas/SimTugMotionCommandMessage'
+          type: array
+          maxItems: 32
+          title: What If Commands
+          description: Absolute simulation t_s, between snapshot time and requested horizon; omitted means snapshot time.
+            Applied after already scheduled commands at the same time, on the prediction clone only.
+      additionalProperties: false
+      type: object
+      title: MotionPredictionRequest
+    MotionPredictionResponse:
+      properties:
+        schema_version:
+          type: string
+          const: motion-prediction-v1
+          title: Schema Version
+          default: motion-prediction-v1
+        prediction_id:
+          type: string
+          title: Prediction Id
+        source:
+          $ref: '#/components/schemas/MotionPredictionSource'
+        engine:
+          type: string
+          const: berthing
+          title: Engine
+          default: berthing
+        requested_horizon_s:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Requested Horizon S
+        horizon_s:
+          type: number
+          minimum: 0.0
+          title: Horizon S
+          description: Actual completed horizon; a truncated prediction never covers the missing tail.
+        complete:
+          type: boolean
+          title: Complete
+        path:
+          items:
+            $ref: '#/components/schemas/MotionPredictionPose'
+          type: array
+          maxItems: 481
+          minItems: 1
+          title: Path
+        transitions:
+          items:
+            $ref: '#/components/schemas/SimulationTransition'
+          type: array
+          maxItems: 512
+          title: Transitions
+        events:
+          items:
+            $ref: '#/components/schemas/SimEvent'
+          type: array
+          maxItems: 256
+          title: Events
+        warnings:
+          items:
+            $ref: '#/components/schemas/MotionPredictionWarning'
+          type: array
+          maxItems: 128
+          title: Warnings
+        hazards_checked:
+          items:
+            type: string
+          type: array
+          title: Hazards Checked
+        hazards_unchecked:
+          items:
+            type: string
+          type: array
+          title: Hazards Unchecked
+        uncertainty:
+          $ref: '#/components/schemas/MotionPredictionUncertainty'
+        validity:
+          $ref: '#/components/schemas/Validity'
+        status:
+          type: string
+          enum:
+          - AMBER
+          - RED
+          title: Status
+        work:
+          $ref: '#/components/schemas/MotionPredictionWork'
+      additionalProperties: false
+      type: object
+      required:
+      - prediction_id
+      - source
+      - requested_horizon_s
+      - horizon_s
+      - complete
+      - path
+      - transitions
+      - events
+      - warnings
+      - hazards_checked
+      - hazards_unchecked
+      - validity
+      - status
+      - work
+      title: MotionPredictionResponse
+    MotionPredictionSource:
+      properties:
+        session_id:
+          type: string
+          minLength: 1
+          title: Session Id
+        run_id:
+          type: string
+          minLength: 1
+          title: Run Id
+        sequence:
+          type: integer
+          minimum: 0.0
+          title: Sequence
+          description: Session sequence captured atomically with the model; t_s is authoritative if physics advanced since
+            the last display.
+        scene_id:
+          type: string
+          minLength: 1
+          title: Scene Id
+        scene_revision:
+          type: string
+          minLength: 1
+          title: Scene Revision
+        t_s:
+          type: number
+          minimum: 0.0
+          title: T S
+        input_hash:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Input Hash
+          description: Immutable content identity of the complete model snapshot, including queued commands and actuator state.
+        command_sequence:
+          type: integer
+          minimum: 0.0
+          title: Command Sequence
+        forcing_revision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Forcing Revision
+      additionalProperties: false
+      type: object
+      required:
+      - session_id
+      - run_id
+      - sequence
+      - scene_id
+      - scene_revision
+      - t_s
+      - input_hash
+      - command_sequence
+      - forcing_revision
+      title: MotionPredictionSource
+    MotionPredictionUncertainty:
+      properties:
+        availability:
+          type: string
+          const: unavailable
+          title: Availability
+          default: unavailable
+        corridor:
+          type: 'null'
+          title: Corridor
+        reason:
+          type: string
+          title: Reason
+          default: No calibrated trajectory uncertainty model is available; deterministic footprints are not a safe corridor.
+      additionalProperties: false
+      type: object
+      title: MotionPredictionUncertainty
+    MotionPredictionWarning:
+      properties:
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]*$
+          title: Code
+        severity:
+          type: string
+          enum:
+          - INFO
+          - AMBER
+          - RED
+          title: Severity
+        message:
+          type: string
+          title: Message
+        t_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: T S
+        element_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Element Id
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - severity
+      - message
+      title: MotionPredictionWarning
+    MotionPredictionWork:
+      properties:
+        integration_steps:
+          type: integer
+          minimum: 0.0
+          title: Integration Steps
+        commands_applied:
+          type: integer
+          minimum: 0.0
+          title: Commands Applied
+        work_limit:
+          type: integer
+          minimum: 1.0
+          title: Work Limit
+        integration_dt_s:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Integration Dt S
+        runtime_limit_s:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Runtime Limit S
+      additionalProperties: false
+      type: object
+      required:
+      - integration_steps
+      - commands_applied
+      - work_limit
+      - integration_dt_s
+      - runtime_limit_s
+      title: MotionPredictionWork
     MotionProvenance:
       properties:
         kind:
@@ -8406,6 +9548,45 @@ components:
       - kind
       - source
       title: MotionProvenance
+    MotionRoute:
+      properties:
+        route_id:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Route Id
+        title:
+          type: string
+          maxLength: 180
+          minLength: 1
+          title: Title
+        waypoints:
+          items:
+            $ref: '#/components/schemas/MotionWaypoint'
+          type: array
+          maxItems: 64
+          minItems: 2
+          title: Waypoints
+        source:
+          type: string
+          maxLength: 1000
+          minLength: 1
+          title: Source
+        limitations:
+          items:
+            type: string
+          type: array
+          maxItems: 32
+          title: Limitations
+      additionalProperties: false
+      type: object
+      required:
+      - route_id
+      - title
+      - waypoints
+      - source
+      - limitations
+      title: MotionRoute
     MotionSceneDepth:
       properties:
         availability:
@@ -8569,6 +9750,351 @@ components:
       - fitting_id
       - position
       title: MotionSceneShipFitting
+    MotionStateInput:
+      properties:
+        entity:
+          type: string
+          enum:
+          - ship
+          - tug
+          title: Entity
+        entity_id:
+          type: string
+          maxLength: 120
+          minLength: 1
+          pattern: ^\S+$
+          title: Entity Id
+        frame:
+          type: string
+          const: berth
+          title: Frame
+        berth_id:
+          type: string
+          maxLength: 120
+          minLength: 1
+          pattern: ^\S+$
+          title: Berth Id
+        source:
+          type: string
+          enum:
+          - synthetic
+          - recorded
+          - sensor
+          title: Source
+        source_name:
+          anyOf:
+          - type: string
+            maxLength: 240
+            minLength: 1
+            pattern: \S
+          - type: 'null'
+          title: Source Name
+        observed_at_utc:
+          type: string
+          format: date-time
+          title: Observed At Utc
+        sequence:
+          type: integer
+          maximum: 9007199254740991.0
+          minimum: 0.0
+          title: Sequence
+          description: Strictly increasing per entity; changing source label does not reset it.
+        x_ft:
+          type: number
+          maximum: 1000000.0
+          minimum: -1000000.0
+          title: X Ft
+          description: Entity reference point, along the berth face.
+        y_ft:
+          type: number
+          maximum: 1000000.0
+          minimum: -1000000.0
+          title: Y Ft
+          description: Entity reference point, positive off-pier.
+        heading_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Heading True Deg
+          description: Clockwise true heading of the entity's forward axis.
+        surge_fps:
+          type: number
+          maximum: 200.0
+          minimum: -200.0
+          title: Surge Fps
+          description: Ground velocity, positive forward in entity axes.
+        sway_fps:
+          type: number
+          maximum: 200.0
+          minimum: -200.0
+          title: Sway Fps
+          description: Ground velocity, positive port in entity axes.
+        yaw_degps:
+          type: number
+          maximum: 180.0
+          minimum: -180.0
+          title: Yaw Degps
+          description: Positive counterclockwise about +up; not clockwise compass-heading rate.
+        measured_acceleration:
+          anyOf:
+          - $ref: '#/components/schemas/MotionMeasuredAcceleration'
+          - type: 'null'
+        quality:
+          anyOf:
+          - type: string
+            enum:
+            - good
+            - suspect
+            - invalid
+            - unknown
+          - type: 'null'
+          title: Quality
+      additionalProperties: false
+      type: object
+      required:
+      - entity
+      - entity_id
+      - frame
+      - berth_id
+      - source
+      - observed_at_utc
+      - sequence
+      - x_ft
+      - y_ft
+      - heading_true_deg
+      - surge_fps
+      - sway_fps
+      - yaw_degps
+      title: MotionStateInput
+      description: 'Complete planar observation in an explicitly declared berth frame.
+
+
+        Bounds protect the adapter; they are not vessel operating limits. Velocities
+
+        are relative to ground, expressed in the entity''s forward/port body axes.'
+    MotionStatePolicy:
+      properties:
+        max_age_s:
+          type: number
+          maximum: 86400.0
+          exclusiveMinimum: 0.0
+          title: Max Age S
+          default: 30
+        future_tolerance_s:
+          type: number
+          maximum: 5.0
+          minimum: 0.0
+          title: Future Tolerance S
+          description: Explicit clock-skew allowance; default rejects future-dated input.
+          default: 0
+        allow_suspect:
+          type: boolean
+          title: Allow Suspect
+          default: false
+      additionalProperties: false
+      type: object
+      title: MotionStatePolicy
+    MotionStateSnapshot:
+      properties:
+        schema_version:
+          type: string
+          const: motion-state-v1
+          title: Schema Version
+          default: motion-state-v1
+        snapshot_id:
+          type: string
+          title: Snapshot Id
+        input_hash:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Input Hash
+          description: Canonical supplied observation identity, including source and acceleration evidence.
+        session_id:
+          type: string
+          maxLength: 160
+          minLength: 1
+          title: Session Id
+        previous_run_id:
+          type: string
+          maxLength: 160
+          minLength: 1
+          title: Previous Run Id
+        run_id:
+          type: string
+          maxLength: 160
+          minLength: 1
+          title: Run Id
+        simulation_time_s:
+          type: number
+          maximum: 7200.0
+          minimum: 0.0
+          title: Simulation Time S
+          description: Simulation time retained at reseed; observation wall time stays separate and is never extrapolated.
+        accepted_at_utc:
+          type: string
+          format: date-time
+          title: Accepted At Utc
+        age_s:
+          type: number
+          title: Age S
+          description: Acceptance clock minus observation time; negative only within explicit clock-skew tolerance.
+        input:
+          $ref: '#/components/schemas/MotionStateInput'
+        state:
+          $ref: '#/components/schemas/MotionStateVector'
+        policy:
+          $ref: '#/components/schemas/MotionStatePolicy'
+          description: Exact freshness/quality policy under which this input was accepted.
+        qualification:
+          type: string
+          const: unqualified
+          title: Qualification
+          default: unqualified
+        limitations:
+          items:
+            type: string
+          type: array
+          maxItems: 16
+          minItems: 1
+          title: Limitations
+      additionalProperties: false
+      type: object
+      required:
+      - snapshot_id
+      - input_hash
+      - session_id
+      - previous_run_id
+      - run_id
+      - simulation_time_s
+      - accepted_at_utc
+      - age_s
+      - input
+      - state
+      - policy
+      - limitations
+      title: MotionStateSnapshot
+      description: Frozen acceptance evidence and new run context; no session is mutated by its preparation.
+    MotionStateVector:
+      properties:
+        x_ft:
+          type: number
+          title: X Ft
+        y_ft:
+          type: number
+          title: Y Ft
+        yaw_rad:
+          type: number
+          title: Yaw Rad
+          description: Counterclockwise from berth +x, wrapped to [-pi, pi).
+        surge_fps:
+          type: number
+          title: Surge Fps
+        sway_fps:
+          type: number
+          title: Sway Fps
+        yaw_radps:
+          type: number
+          title: Yaw Radps
+      additionalProperties: false
+      type: object
+      required:
+      - x_ft
+      - y_ft
+      - yaw_rad
+      - surge_fps
+      - sway_fps
+      - yaw_radps
+      title: MotionStateVector
+      description: The model's six-component state. Measured acceleration is intentionally absent.
+    MotionTugDynamicsState:
+      properties:
+        tug_id:
+          type: string
+          title: Tug Id
+        basis:
+          type: string
+          enum:
+          - synthetic
+          - supplied
+          title: Basis
+        source:
+          type: string
+          title: Source
+        commanded:
+          $ref: '#/components/schemas/TugMotionOrder'
+        propulsion_surge_lbf:
+          type: number
+          title: Propulsion Surge Lbf
+        propulsion_sway_lbf:
+          type: number
+          title: Propulsion Sway Lbf
+        propulsion_yaw_moment_ftlbf:
+          type: number
+          title: Propulsion Yaw Moment Ftlbf
+        transferred_x_lbf:
+          type: number
+          title: Transferred X Lbf
+        transferred_y_lbf:
+          type: number
+          title: Transferred Y Lbf
+        transferred_yaw_moment_ftlbf:
+          type: number
+          title: Transferred Yaw Moment Ftlbf
+        ship_point_x_ft:
+          type: number
+          title: Ship Point X Ft
+        ship_point_y_ft:
+          type: number
+          title: Ship Point Y Ft
+        tug_point_x_ft:
+          type: number
+          title: Tug Point X Ft
+        tug_point_y_ft:
+          type: number
+          title: Tug Point Y Ft
+        contact_compression_ft:
+          type: number
+          title: Contact Compression Ft
+        tow_extension_ft:
+          type: number
+          title: Tow Extension Ft
+        tow_tension_lbf:
+          type: number
+          title: Tow Tension Lbf
+        connection_state:
+          type: string
+          enum:
+          - free
+          - no_contact
+          - push_contact
+          - tow_slack
+          - tow_taut
+          title: Connection State
+        validity:
+          $ref: '#/components/schemas/Validity'
+      additionalProperties: false
+      type: object
+      required:
+      - tug_id
+      - basis
+      - source
+      - commanded
+      - propulsion_surge_lbf
+      - propulsion_sway_lbf
+      - propulsion_yaw_moment_ftlbf
+      - transferred_x_lbf
+      - transferred_y_lbf
+      - transferred_yaw_moment_ftlbf
+      - ship_point_x_ft
+      - ship_point_y_ft
+      - tug_point_x_ft
+      - tug_point_y_ft
+      - contact_compression_ft
+      - tow_extension_ft
+      - tow_tension_lbf
+      - connection_state
+      - validity
+      title: MotionTugDynamicsState
     MotionTugState:
       properties:
         availability:
@@ -8836,6 +10362,36 @@ components:
       additionalProperties: false
       type: object
       title: MotionWaves
+    MotionWaypoint:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        lat:
+          type: number
+          maximum: 90.0
+          minimum: -90.0
+          title: Lat
+        lon:
+          type: number
+          maximum: 180.0
+          minimum: -180.0
+          title: Lon
+        speed_kt:
+          type: number
+          maximum: 15.0
+          minimum: 0.0
+          title: Speed Kt
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - lat
+      - lon
+      - speed_kt
+      title: MotionWaypoint
     MotionWind:
       properties:
         availability:
@@ -8882,6 +10438,235 @@ components:
       additionalProperties: false
       type: object
       title: MotionWind
+    MotionWorkspaceCatalog:
+      properties:
+        schema_version:
+          type: string
+          const: motion-workspace-v1
+          title: Schema Version
+          default: motion-workspace-v1
+        ships:
+          items:
+            $ref: '#/components/schemas/ShipClass'
+          type: array
+          title: Ships
+        berths:
+          items:
+            $ref: '#/components/schemas/Berth'
+          type: array
+          title: Berths
+        tugs:
+          items:
+            $ref: '#/components/schemas/TugSpec'
+          type: array
+          title: Tugs
+        presets:
+          items:
+            $ref: '#/components/schemas/MotionWorkspacePreset'
+          type: array
+          title: Presets
+        routes:
+          items:
+            $ref: '#/components/schemas/MotionRoute'
+          type: array
+          title: Routes
+        telemetry_supported:
+          type: boolean
+          title: Telemetry Supported
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - ships
+      - berths
+      - tugs
+      - presets
+      - routes
+      title: MotionWorkspaceCatalog
+    MotionWorkspacePreset:
+      properties:
+        preset_id:
+          type: string
+          title: Preset Id
+        title:
+          type: string
+          title: Title
+        description:
+          type: string
+          title: Description
+        configuration:
+          $ref: '#/components/schemas/MotionWorkspaceSpec'
+        validity:
+          $ref: '#/components/schemas/Validity'
+      additionalProperties: false
+      type: object
+      required:
+      - preset_id
+      - title
+      - description
+      - configuration
+      - validity
+      title: MotionWorkspacePreset
+    MotionWorkspaceScenario:
+      properties:
+        motion_scenario_id:
+          type: string
+          title: Motion Scenario Id
+        created_at_utc:
+          type: string
+          format: date-time
+          title: Created At Utc
+        revision:
+          type: string
+          title: Revision
+        configuration:
+          $ref: '#/components/schemas/MotionWorkspaceSpec'
+        validity:
+          $ref: '#/components/schemas/Validity'
+      additionalProperties: false
+      type: object
+      required:
+      - motion_scenario_id
+      - created_at_utc
+      - revision
+      - configuration
+      - validity
+      title: MotionWorkspaceScenario
+    MotionWorkspaceSessionCreated:
+      properties:
+        session:
+          $ref: '#/components/schemas/SimSessionCreated'
+        scenario:
+          $ref: '#/components/schemas/MotionWorkspaceScenario'
+        ship:
+          $ref: '#/components/schemas/ShipClass'
+        berth:
+          $ref: '#/components/schemas/Berth'
+        controls:
+          $ref: '#/components/schemas/MotionControlsConfig'
+        route:
+          anyOf:
+          - $ref: '#/components/schemas/MotionRoute'
+          - type: 'null'
+        environment:
+          $ref: '#/components/schemas/EnvironmentSnapshot'
+      additionalProperties: false
+      type: object
+      required:
+      - session
+      - scenario
+      - ship
+      - berth
+      - controls
+      - route
+      - environment
+      title: MotionWorkspaceSessionCreated
+    MotionWorkspaceSessionRequest:
+      properties:
+        motion_scenario_id:
+          type: string
+          title: Motion Scenario Id
+      additionalProperties: false
+      type: object
+      required:
+      - motion_scenario_id
+      title: MotionWorkspaceSessionRequest
+    MotionWorkspaceSpec:
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Name
+        ship_class_id:
+          type: string
+          title: Ship Class Id
+        loading:
+          type: string
+          title: Loading
+          default: full_load
+        berth_id:
+          type: string
+          title: Berth Id
+          default: NAVSTA-NORFOLK-P12-N
+        side_to:
+          type: string
+          enum:
+          - port
+          - starboard
+          title: Side To
+          default: starboard
+        start:
+          type: string
+          enum:
+          - berth
+          - approach
+          - channel
+          title: Start
+          default: berth
+        initial_state:
+          anyOf:
+          - $ref: '#/components/schemas/ShipState'
+          - type: 'null'
+        environment_mode:
+          type: string
+          enum:
+          - synthetic
+          - live
+          - snapshot
+          title: Environment Mode
+          default: synthetic
+        environment:
+          anyOf:
+          - $ref: '#/components/schemas/EnvironmentSnapshot'
+          - type: 'null'
+        forcing:
+          anyOf:
+          - $ref: '#/components/schemas/ForcingSpec'
+          - type: 'null'
+        controls:
+          anyOf:
+          - $ref: '#/components/schemas/MotionControlsConfig'
+          - type: 'null'
+        tug_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            maxItems: 8
+          - type: 'null'
+          title: Tug Ids
+        duration_s:
+          type: number
+          maximum: 14400.0
+          exclusiveMinimum: 0.0
+          title: Duration S
+          default: 3600
+        dt_s:
+          type: number
+          maximum: 0.5
+          minimum: 0.05
+          title: Dt S
+          default: 0.1
+        initial_lines_attached:
+          type: boolean
+          title: Initial Lines Attached
+          default: false
+        route_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Route Id
+        route_follow:
+          type: boolean
+          title: Route Follow
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - ship_class_id
+      title: MotionWorkspaceSpec
     MotionWrench:
       properties:
         availability:
@@ -9193,6 +10978,49 @@ components:
       - path
       title: OtherVessel
       description: 'Another vessel whose path is checked for clearance: a supplied predicted/planned path, not simulated here.'
+    PayloadItem:
+      properties:
+        payload_id:
+          type: string
+          maxLength: 80
+          minLength: 1
+          title: Payload Id
+        label:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Label
+        weight_lbf:
+          type: number
+          maximum: 1000000000.0
+          minimum: 0.0
+          title: Weight Lbf
+        x_ft:
+          type: number
+          maximum: 10000.0
+          minimum: -10000.0
+          title: X Ft
+        y_ft:
+          type: number
+          maximum: 10000.0
+          minimum: -10000.0
+          title: Y Ft
+        z_ft:
+          type: number
+          maximum: 1000.0
+          minimum: -1000.0
+          title: Z Ft
+          description: Ship reference waterline origin, +up.
+      additionalProperties: false
+      type: object
+      required:
+      - payload_id
+      - label
+      - weight_lbf
+      - x_ft
+      - y_ft
+      - z_ft
+      title: PayloadItem
     PierFitting:
       properties:
         fitting_id:
@@ -9807,6 +11635,120 @@ components:
       type: object
       title: PropulsionAssumptions
       description: Reference data has no propulsion or rudder data; these are explicit, labeled assumptions.
+    PropulsionSpec:
+      properties:
+        basis:
+          type: string
+          enum:
+          - synthetic
+          - supplied
+          title: Basis
+        source:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Source
+        max_ahead_thrust_lbf:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Max Ahead Thrust Lbf
+          description: Per shaft.
+        max_astern_thrust_lbf:
+          type: number
+          minimum: 0.0
+          title: Max Astern Thrust Lbf
+          description: Per shaft.
+        shaft_x_ft:
+          type: number
+          title: Shaft X Ft
+        shaft_y_ft:
+          type: number
+          minimum: 0.0
+          title: Shaft Y Ft
+          description: Port shaft +y; starboard shaft -y.
+        engine_slew_per_s:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Engine Slew Per S
+        rudder_x_ft:
+          type: number
+          title: Rudder X Ft
+        rudder_area_ft2:
+          type: number
+          minimum: 0.0
+          title: Rudder Area Ft2
+        rudder_lift_slope_per_rad:
+          type: number
+          minimum: 0.0
+          title: Rudder Lift Slope Per Rad
+        rudder_max_lift_coefficient:
+          type: number
+          minimum: 0.0
+          title: Rudder Max Lift Coefficient
+        rudder_max_force_lbf:
+          type: number
+          minimum: 0.0
+          title: Rudder Max Force Lbf
+        rudder_max_deg:
+          type: number
+          maximum: 45.0
+          exclusiveMinimum: 0.0
+          title: Rudder Max Deg
+        rudder_slew_degps:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Rudder Slew Degps
+        propwash_fps_at_full_ahead:
+          type: number
+          minimum: 0.0
+          title: Propwash Fps At Full Ahead
+        bow_thruster_x_ft:
+          type: number
+          title: Bow Thruster X Ft
+        bow_thruster_max_lbf:
+          type: number
+          minimum: 0.0
+          title: Bow Thruster Max Lbf
+        stern_thruster_x_ft:
+          type: number
+          title: Stern Thruster X Ft
+        stern_thruster_max_lbf:
+          type: number
+          minimum: 0.0
+          title: Stern Thruster Max Lbf
+        thruster_slew_per_s:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Thruster Slew Per S
+        water_density_slug_ft3:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Water Density Slug Ft3
+      additionalProperties: false
+      type: object
+      required:
+      - basis
+      - source
+      - max_ahead_thrust_lbf
+      - max_astern_thrust_lbf
+      - shaft_x_ft
+      - shaft_y_ft
+      - engine_slew_per_s
+      - rudder_x_ft
+      - rudder_area_ft2
+      - rudder_lift_slope_per_rad
+      - rudder_max_lift_coefficient
+      - rudder_max_force_lbf
+      - rudder_max_deg
+      - rudder_slew_degps
+      - propwash_fps_at_full_ahead
+      - bow_thruster_x_ft
+      - bow_thruster_max_lbf
+      - stern_thruster_x_ft
+      - stern_thruster_max_lbf
+      - thruster_slew_per_s
+      - water_density_slug_ft3
+      title: PropulsionSpec
     Provenance:
       properties:
         source:
@@ -11438,6 +13380,29 @@ components:
       - heading_true_deg
       title: ShipState
       description: Ship pose and velocity in the berth frame. y_ft is the distance from the pier face to the centerline.
+    SimEvent:
+      properties:
+        t_s:
+          type: number
+          title: T S
+        kind:
+          type: string
+          enum:
+          - fender_contact
+          - line_overload
+          - speed_exceeded
+          - all_fast
+          title: Kind
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - kind
+      - detail
+      title: SimEvent
     SimFrame:
       allOf:
       - if:
@@ -11478,6 +13443,47 @@ components:
           anyOf:
           - $ref: '#/components/schemas/SimulationDiagnostics'
           - type: 'null'
+        controls:
+          anyOf:
+          - $ref: '#/components/schemas/MotionControlState'
+          - type: 'null'
+        loading:
+          anyOf:
+          - $ref: '#/components/schemas/MotionLoadingState'
+          - type: 'null'
+        line_controls:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionLineControlState'
+            type: array
+          - type: 'null'
+          title: Line Controls
+        tug_dynamics:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionTugDynamicsState'
+            type: array
+          - type: 'null'
+          title: Tug Dynamics
+        guidance:
+          anyOf:
+          - $ref: '#/components/schemas/MotionGuidanceState'
+          - type: 'null'
+        state_inputs:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/MotionStateSnapshot'
+            type: array
+            maxItems: 17
+          - type: 'null'
+          title: State Inputs
+        forcing_time_offset_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Forcing Time Offset S
+          description: Source forcing time = frame t_s + this offset. Absent on legacy runs whose source clock starts at zero.
         forcing_revision:
           anyOf:
           - type: string
@@ -11616,6 +13622,53 @@ components:
       - alerts
       title: SimFrame
       description: 'One frame: a WS /ws/sim/{session_id} message, or one entry of a batch run''s series.'
+    SimHelmCommandMessage:
+      properties:
+        port_throttle:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Port Throttle
+        starboard_throttle:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Starboard Throttle
+        rudder_deg:
+          type: number
+          maximum: 45.0
+          minimum: -45.0
+          title: Rudder Deg
+        bow_thruster:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Bow Thruster
+        stern_thruster:
+          type: number
+          maximum: 1.0
+          minimum: -1.0
+          title: Stern Thruster
+        type:
+          type: string
+          const: helm_command
+          title: Type
+        t_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: T S
+      additionalProperties: false
+      type: object
+      required:
+      - port_throttle
+      - starboard_throttle
+      - rudder_deg
+      - bow_thruster
+      - stern_thruster
+      - type
+      title: SimHelmCommandMessage
     SimLifecycle:
       properties:
         type:
@@ -11695,6 +13748,94 @@ components:
       - state
       title: SimLifecycle
       description: Server lifecycle metadata for the rm0-v1 session stream.
+    SimLineControlMessage:
+      properties:
+        type:
+          type: string
+          const: line_control
+          title: Type
+        t_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: T S
+        line_number:
+          type: integer
+          title: Line Number
+        attached:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Attached
+        paid_out_length_ft:
+          anyOf:
+          - type: number
+            maximum: 10000.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Paid Out Length Ft
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - line_number
+      title: SimLineControlMessage
+    SimLineEventMessage:
+      properties:
+        t_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: T S
+          description: Simulation time; absent schedules at the next integration boundary.
+        type:
+          type: string
+          const: line_event
+          title: Type
+        line_number:
+          type: integer
+          title: Line Number
+        event:
+          type: string
+          enum:
+          - secured
+          - tensioned
+          - released
+          title: Event
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - line_number
+      - event
+      title: SimLineEventMessage
+    SimLoadingCommandMessage:
+      properties:
+        type:
+          type: string
+          const: loading_command
+          title: Type
+        t_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: T S
+        payloads:
+          items:
+            $ref: '#/components/schemas/PayloadItem'
+          type: array
+          maxItems: 64
+          title: Payloads
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - payloads
+      title: SimLoadingCommandMessage
+      description: Replace payload inventory at rest; changing mass during motion is unsupported.
     SimRecording:
       properties:
         schema_version:
@@ -12006,6 +14147,10 @@ components:
       title: SimSeries
     SimSessionCreate:
       properties:
+        controls:
+          anyOf:
+          - $ref: '#/components/schemas/MotionControlsConfig'
+          - type: 'null'
         forcing:
           anyOf:
           - $ref: '#/components/schemas/ForcingSpec'
@@ -12091,8 +14236,102 @@ components:
       - session_id
       - ws_url
       title: SimSessionCreated
+    SimTugCommandMessage:
+      properties:
+        t_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: T S
+          description: Simulation time; absent schedules at the next integration boundary.
+        type:
+          type: string
+          const: tug_command
+          title: Type
+        tug_id:
+          type: string
+          title: Tug Id
+        force_lbf:
+          type: number
+          minimum: 0.0
+          title: Force Lbf
+        direction_rel_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Direction Rel Deg
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - tug_id
+      - force_lbf
+      - direction_rel_deg
+      title: SimTugCommandMessage
+      description: Client message on WS /ws/sim/{session_id}.
+    SimTugMotionCommandMessage:
+      properties:
+        mode:
+          type: string
+          enum:
+          - free
+          - push
+          - tow
+          title: Mode
+        target_velocity_x_fps:
+          type: number
+          title: Target Velocity X Fps
+        target_velocity_y_fps:
+          type: number
+          title: Target Velocity Y Fps
+        target_heading_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Target Heading True Deg
+        tow_length_ft:
+          type: number
+          maximum: 10000.0
+          exclusiveMinimum: 0.0
+          title: Tow Length Ft
+        type:
+          type: string
+          const: tug_motion_command
+          title: Type
+        t_s:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: T S
+        tug_id:
+          type: string
+          minLength: 1
+          title: Tug Id
+      additionalProperties: false
+      type: object
+      required:
+      - mode
+      - target_velocity_x_fps
+      - target_velocity_y_fps
+      - target_heading_true_deg
+      - tow_length_ft
+      - type
+      - tug_id
+      title: SimTugMotionCommandMessage
     SimulationDiagnostics:
       properties:
+        loading_event_energy_ftlbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Loading Event Energy Ftlbf
+        tug_event_energy_ftlbf:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Tug Event Energy Ftlbf
         parameter_set:
           type: string
           title: Parameter Set
@@ -12142,6 +14381,33 @@ components:
       - energy_residual_ftlbf
       - integration_dt_s
       title: SimulationDiagnostics
+    SimulationTransition:
+      properties:
+        t_s:
+          type: number
+          title: T S
+        kind:
+          type: string
+          enum:
+          - contact_start
+          - contact_end
+          - line_taut
+          - line_slack
+          - secured
+          - tensioned
+          - released
+          - line_paid_out
+          title: Kind
+        element_id:
+          type: string
+          title: Element Id
+      additionalProperties: false
+      type: object
+      required:
+      - t_s
+      - kind
+      - element_id
+      title: SimulationTransition
     SolverDiagnostics:
       properties:
         converged:
@@ -13715,6 +15981,241 @@ components:
       - force_lbf
       - direction_rel_deg
       title: TugCommand
+    TugDynamicsConfig:
+      properties:
+        basis:
+          type: string
+          enum:
+          - synthetic
+          - supplied
+          title: Basis
+        source:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Source
+        tug_id:
+          type: string
+          minLength: 1
+          title: Tug Id
+        push_point_id:
+          type: string
+          minLength: 1
+          title: Push Point Id
+        mass_slug:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Mass Slug
+        izz_slug_ft2:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Izz Slug Ft2
+        length_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Length Ft
+        beam_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Beam Ft
+        contact_point_x_ft:
+          type: number
+          title: Contact Point X Ft
+        tow_point_x_ft:
+          type: number
+          title: Tow Point X Ft
+        damping_surge_lbf_per_fps:
+          type: number
+          minimum: 0.0
+          title: Damping Surge Lbf Per Fps
+        damping_sway_lbf_per_fps:
+          type: number
+          minimum: 0.0
+          title: Damping Sway Lbf Per Fps
+        damping_yaw_ftlbf_per_radps:
+          type: number
+          minimum: 0.0
+          title: Damping Yaw Ftlbf Per Radps
+        max_propulsion_lbf:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Max Propulsion Lbf
+        max_yaw_moment_ftlbf:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Max Yaw Moment Ftlbf
+        propulsion_slew_lbfps:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Propulsion Slew Lbfps
+        yaw_slew_ftlbfps:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Yaw Slew Ftlbfps
+        actuator_response_s:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Actuator Response S
+        velocity_response_s:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Velocity Response S
+        heading_response_s:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Heading Response S
+        max_target_speed_fps:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Max Target Speed Fps
+        max_target_yaw_degps:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Max Target Yaw Degps
+        contact_stiffness_lbf_per_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Contact Stiffness Lbf Per Ft
+        contact_damping_lbf_per_fps:
+          type: number
+          minimum: 0.0
+          title: Contact Damping Lbf Per Fps
+        contact_capacity_lbf:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Contact Capacity Lbf
+        contact_half_width_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Contact Half Width Ft
+        max_contact_compression_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Max Contact Compression Ft
+        tow_stiffness_lbf_per_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Tow Stiffness Lbf Per Ft
+        tow_damping_lbf_per_fps:
+          type: number
+          minimum: 0.0
+          title: Tow Damping Lbf Per Fps
+        tow_capacity_lbf:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Tow Capacity Lbf
+        max_tow_extension_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Max Tow Extension Ft
+        initial_tow_length_ft:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Initial Tow Length Ft
+        initial_state:
+          $ref: '#/components/schemas/TugInitialState'
+      additionalProperties: false
+      type: object
+      required:
+      - basis
+      - source
+      - tug_id
+      - push_point_id
+      - mass_slug
+      - izz_slug_ft2
+      - length_ft
+      - beam_ft
+      - contact_point_x_ft
+      - tow_point_x_ft
+      - damping_surge_lbf_per_fps
+      - damping_sway_lbf_per_fps
+      - damping_yaw_ftlbf_per_radps
+      - max_propulsion_lbf
+      - max_yaw_moment_ftlbf
+      - propulsion_slew_lbfps
+      - yaw_slew_ftlbfps
+      - actuator_response_s
+      - velocity_response_s
+      - heading_response_s
+      - max_target_speed_fps
+      - max_target_yaw_degps
+      - contact_stiffness_lbf_per_ft
+      - contact_damping_lbf_per_fps
+      - contact_capacity_lbf
+      - contact_half_width_ft
+      - max_contact_compression_ft
+      - tow_stiffness_lbf_per_ft
+      - tow_damping_lbf_per_fps
+      - tow_capacity_lbf
+      - max_tow_extension_ft
+      - initial_tow_length_ft
+      - initial_state
+      title: TugDynamicsConfig
+    TugInitialState:
+      properties:
+        x_ft:
+          type: number
+          title: X Ft
+        y_ft:
+          type: number
+          title: Y Ft
+        yaw_deg:
+          type: number
+          title: Yaw Deg
+          description: Counterclockwise from berth +x, not true heading.
+        surge_fps:
+          type: number
+          title: Surge Fps
+        sway_fps:
+          type: number
+          title: Sway Fps
+        yaw_degps:
+          type: number
+          title: Yaw Degps
+      additionalProperties: false
+      type: object
+      required:
+      - x_ft
+      - y_ft
+      - yaw_deg
+      - surge_fps
+      - sway_fps
+      - yaw_degps
+      title: TugInitialState
+    TugMotionOrder:
+      properties:
+        mode:
+          type: string
+          enum:
+          - free
+          - push
+          - tow
+          title: Mode
+        target_velocity_x_fps:
+          type: number
+          title: Target Velocity X Fps
+        target_velocity_y_fps:
+          type: number
+          title: Target Velocity Y Fps
+        target_heading_true_deg:
+          type: number
+          exclusiveMaximum: 360.0
+          minimum: 0.0
+          title: Target Heading True Deg
+        tow_length_ft:
+          type: number
+          maximum: 10000.0
+          exclusiveMinimum: 0.0
+          title: Tow Length Ft
+      additionalProperties: false
+      type: object
+      required:
+      - mode
+      - target_velocity_x_fps
+      - target_velocity_y_fps
+      - target_heading_true_deg
+      - tow_length_ft
+      title: TugMotionOrder
     TugPlanResponse:
       properties:
         result_id:
@@ -16472,60 +18973,6 @@ components:
       - type
       title: SimControlMessage
       type: object
-    SimEvent:
-      additionalProperties: false
-      properties:
-        t_s:
-          title: T S
-          type: number
-        kind:
-          enum:
-          - fender_contact
-          - line_overload
-          - speed_exceeded
-          - all_fast
-          title: Kind
-          type: string
-        detail:
-          title: Detail
-          type: string
-      required:
-      - t_s
-      - kind
-      - detail
-      title: SimEvent
-      type: object
-    SimLineEventMessage:
-      additionalProperties: false
-      properties:
-        t_s:
-          anyOf:
-          - minimum: 0
-            type: number
-          - type: 'null'
-          default: null
-          description: Simulation time; absent schedules at the next integration boundary.
-          title: T S
-        type:
-          const: line_event
-          title: Type
-          type: string
-        line_number:
-          title: Line Number
-          type: integer
-        event:
-          enum:
-          - secured
-          - tensioned
-          - released
-          title: Event
-          type: string
-      required:
-      - type
-      - line_number
-      - event
-      title: SimLineEventMessage
-      type: object
     SimSpeedMessage:
       additionalProperties: false
       description: 'Client message: simulated seconds per wall second. The physics step never changes.'
@@ -16543,67 +18990,6 @@ components:
       - type
       - speed
       title: SimSpeedMessage
-      type: object
-    SimTugCommandMessage:
-      additionalProperties: false
-      description: Client message on WS /ws/sim/{session_id}.
-      properties:
-        t_s:
-          anyOf:
-          - minimum: 0
-            type: number
-          - type: 'null'
-          default: null
-          description: Simulation time; absent schedules at the next integration boundary.
-          title: T S
-        type:
-          const: tug_command
-          title: Type
-          type: string
-        tug_id:
-          title: Tug Id
-          type: string
-        force_lbf:
-          minimum: 0
-          title: Force Lbf
-          type: number
-        direction_rel_deg:
-          exclusiveMaximum: 360
-          minimum: 0
-          title: Direction Rel Deg
-          type: number
-      required:
-      - type
-      - tug_id
-      - force_lbf
-      - direction_rel_deg
-      title: SimTugCommandMessage
-      type: object
-    SimulationTransition:
-      additionalProperties: false
-      properties:
-        t_s:
-          title: T S
-          type: number
-        kind:
-          enum:
-          - contact_start
-          - contact_end
-          - line_taut
-          - line_slack
-          - secured
-          - tensioned
-          - released
-          title: Kind
-          type: string
-        element_id:
-          title: Element Id
-          type: string
-      required:
-      - t_s
-      - kind
-      - element_id
-      title: SimulationTransition
       type: object
     TimelineResponse:
       additionalProperties: false
@@ -17191,7 +19577,8 @@ x-websockets:
   /ws/sim/{session_id}:
     query: limit (counts all server messages), after_sequence (resend only newer retained lifecycle; the current frame is
       always sent on connect; a restating lifecycle is sent if history was evicted)
-    client_messages: SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage
+    client_messages: SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage | SimHelmCommandMessage
+      | SimLoadingCommandMessage | SimLineControlMessage | SimTugMotionCommandMessage
     server_messages: SimLifecycle (type=session_lifecycle; reliable, retained) and SimFrame (rm0-v1, latest state only; sequence
       gaps are dropped display frames), interleaved in session-wide sequence order
     scene: GET /api/v1/berthing/sessions/{session_id}/scene

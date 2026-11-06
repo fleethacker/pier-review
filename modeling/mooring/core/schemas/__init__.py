@@ -7,6 +7,11 @@ from .loads import *  # noqa: F403
 from .missions import *  # noqa: F403
 from .mooring import *  # noqa: F403
 from .motion import *  # noqa: F403
+from .motion_controls import *  # noqa: F403
+from .motion_prediction import *  # noqa: F403
+from .motion_state import *  # noqa: F403
+from .motion_guidance import *  # noqa: F403
+from .motion_workspace import *  # noqa: F403
 from .planning import *  # noqa: F403
 from .plans import *  # noqa: F403
 from .prediction import *  # noqa: F403

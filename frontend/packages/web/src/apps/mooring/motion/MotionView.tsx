@@ -10,6 +10,13 @@ import { clockText } from './clock';
 import { LIVE_SPEEDS, REPLAY_SPEEDS } from './controller';
 import { EnvironmentGlyph, MotionCanvas } from './MotionCanvas';
 import { drawableWaterLevelFt } from './sceneMapper';
+import { ScenarioSelector } from './ScenarioBuilder';
+import { ManeuverControls } from './ManeuverControls';
+import { SectionViews } from './SectionViews';
+import type { SectionView } from './SectionViews';
+import type { BasemapKind } from './basemap';
+import type { FlowDisplay } from './EnvironmentFlow';
+import { StateSourcePanel } from './StateSourcePanel';
 
 const VALIDITY_COLOR: Record<ValidityState, string> = {
   valid: STATUS_COLOR.GREEN,
@@ -53,14 +60,15 @@ export function Badges({ frame, state }: { frame: ViewFrame | null; state: Motio
       </Pill>
       <Pill color="#8ba4c4">{frame ? (frame.rm0 ? 'rm0-v1' : 'legacy schema') : 'schema n/a'}</Pill>
       <Pill color={env ? '#8ba4c4' : STATUS_COLOR.NONE}>
-        environment: {env ? `${sourceText ?? 'source not stated'}${ageS != null ? `, ${ageS.toFixed(0)} s old` : ', age not stated'}` : 'not in frame'}
+        environment: {state.workspace?.scenario.configuration.environment_mode === 'live' ? 'held snapshot · ' : ''}{env ? `${sourceText ?? 'source not stated'}${ageS != null ? `, ${ageS.toFixed(0)} s old` : ', age not stated'}` : 'not in frame'}
       </Pill>
-      {(state.forcingSynthetic ?? state.clock?.training) && (
+      {((state.forcingSynthetic ?? state.clock?.training) || state.workspace?.scenario.configuration.environment_mode === 'synthetic') && (
         <Pill color={STATUS_COLOR.AMBER} title="The forcing in this session is synthetic training data, not an observation or forecast.">
           training · synthetic forcing
         </Pill>
       )}
-      <Pill color={state.source === 'live' ? '#00e5ff' : '#a78bfa'}>{state.source === 'live' ? 'live session' : state.source === 'recording' ? 'replay' : 'idle'}</Pill>
+      <Pill color={state.source === 'live' ? '#00e5ff' : '#a78bfa'}>{state.source === 'live' ? 'simulation · backend stream' : state.source === 'recording' ? 'replay' : 'idle'}</Pill>
+      {(frame?.stateInputs.length || (state.importedState && state.importedState.run_id === frame?.runId)) ? <Pill color={STATUS_COLOR.AMBER}>seed: imported {(frame?.stateInputs.at(-1) ?? state.importedState)?.input.source} state</Pill> : null}
       {state.forcingRevision && <Pill color="#8ba4c4">forcing revision: {state.forcingRevision}</Pill>}
       {frame?.assumedFaceBearing && <Pill color={STATUS_COLOR.AMBER} title="This frame carries no scene, so the berth orientation was assumed.">berth orientation assumed</Pill>}
     </div>
@@ -100,6 +108,8 @@ function Readouts({ frame }: { frame: ViewFrame | null }) {
           <dd>{ship.rollDeg != null || ship.pitchDeg != null ? `${ship.rollDeg?.toFixed(1) ?? 'n/a'}° / ${ship.pitchDeg?.toFixed(1) ?? 'n/a'}°` : <span className="text-mil-dim">not simulated</span>}</dd>
           <dt className="text-mil-dim">Surge / sway</dt>
           <dd>{ship.surgeFps != null && ship.swayFps != null ? `${ship.surgeFps.toFixed(2)} / ${ship.swayFps.toFixed(2)} ft/s` : NA}</dd>
+          <dt className="text-mil-dim">Acceleration</dt><dd>{ship.surgeFps2 != null && ship.swayFps2 != null ? `${ship.surgeFps2.toFixed(3)} / ${ship.swayFps2.toFixed(3)} ft/s²` : NA}</dd>
+          <dt className="text-mil-dim">Rate of turn</dt><dd>{ship.yawDegps == null ? NA : `${ship.yawDegps.toFixed(3)} °/s`}</dd>
         </dl>
         {Object.keys(ship.dofs).length > 0 && (
           <p className="mt-1 text-[10px] text-mil-dim">
@@ -269,7 +279,7 @@ function LiveControls({ c, s, tugIds, lineNumbers }: { c: MotionController; s: M
           <input className={cn(inputClass, 'h-8 w-24')} type="number" min={0} step={500} value={force} onChange={(e) => setForce(Number(e.target.value))} />
         </label>
         <label className="text-[10px] text-mil-dim">
-          Push from
+          Force toward
           <select className={cn(inputClass, 'h-8 w-28')} value={side} onChange={(e) => setSide(Number(e.target.value) as 90 | 270)}>
             <option value={90}>Starboard (90°)</option>
             <option value={270}>Port (270°)</option>
@@ -322,12 +332,30 @@ function ReplayControls({ c, s }: { c: MotionController; s: MotionState }) {
   );
 }
 
-export function MotionView({ controller: c }: { controller: MotionController }) {
+export function MotionView({ controller: c, workspace = false }: { controller: MotionController; workspace?: boolean }) {
   useUnitSystem();
   const s = c.state.use((x) => x);
   const [offset, setOffset] = useState(120);
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [canvasView, setCanvasView] = useState<'plan' | 'satellite' | 'street' | SectionView>('satellite');
+  const [flow, setFlow] = useState<FlowDisplay>({ wind: true, current: true, animate: typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? !window.matchMedia('(prefers-reduced-motion: reduce)').matches : false });
+  const [vectors, setVectors] = useState(true);
+  const [headerHeight, setHeaderHeight] = useState(40);
+  useEffect(() => {
+    if (!workspace) return;
+    const header = document.querySelector('header');
+    if (!header) return;
+    const measure = () => setHeaderHeight(header.getBoundingClientRect().height || 40);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure); observer.observe(header);
+    return () => observer.disconnect();
+  }, [workspace]);
+  useEffect(() => workspace ? c.bindWorkspaceView() : undefined, [c, workspace]);
   const face = s.scene?.face_bearing_true_deg ?? DEFAULT_FACE_BEARING;
-  const map = s.view === 'map';
+  const map = !workspace && s.view === 'map';
+  const section = workspace && ['forward', 'aft', 'side'].includes(canvasView) ? canvasView as SectionView : null;
+  const basemap: BasemapKind = workspace && (canvasView === 'satellite' || canvasView === 'street') ? canvasView : 'schematic';
   const dialogRef = useRef<HTMLDivElement>(null);
   // The full-screen plan view is modal: move focus into it so keyboard and screen-reader users start inside it.
   useEffect(() => {
@@ -348,7 +376,8 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
       // Escape closes from anywhere except an open list or a text area; the other shortcuts are ignored in fields.
       if (e.key === 'Escape') {
         if (e.defaultPrevented || (t && (t.tagName === 'SELECT' || t.tagName === 'TEXTAREA'))) return;
-        c.close();
+        if (workspace) setDetailsOpen(false);
+        else c.close();
         return;
       }
       if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON')) return;
@@ -365,22 +394,24 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [c]);
+  }, [c, workspace]);
 
   return (
     <div
-      className={cn('flex flex-col outline-none', map ? 'pointer-events-none absolute inset-0 z-20' : 'pointer-events-auto fixed inset-0 z-50 bg-mil-bg')}
+      className={cn('flex flex-col outline-none', workspace ? 'pointer-events-auto fixed inset-x-0 bottom-0 top-10 z-40 bg-mil-bg' : map ? 'pointer-events-none absolute inset-0 z-20' : 'pointer-events-auto fixed inset-0 z-50 bg-mil-bg')}
       role="dialog"
-      aria-modal={!map}
+      aria-modal={!workspace && !map}
       aria-label="Motion view"
       tabIndex={-1}
       ref={dialogRef}
+      style={workspace ? { top: headerHeight, '--motion-top': `${headerHeight}px` } as React.CSSProperties : undefined}
     >
       {/* Announces only when validity, provenance, link or session state changes, not on every frame. */}
       <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
       <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-3 border-b border-mil-border bg-mil-panel px-3 py-2">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="mil-label">Motion view</span>
+          <div><span className="mil-label">{workspace ? 'Maneuvering workspace' : 'Motion view'}</span>{workspace && <p className="mt-0.5 text-[9px] text-mil-dim">Demonstrator · not navigational guidance</p>}</div>
+          {workspace ? <><ScenarioSelector c={c} s={s} /><div className="flex items-center gap-1 border-l border-mil-border pl-3"><Button size="sm" disabled={s.source !== 'live' || s.link !== 'open' || s.busy || s.stateImportBusy || s.lifecycleInvalid} onClick={() => s.lifecycle === 'running' ? c.pause() : c.resume()} aria-keyshortcuts="Space">{s.lifecycle === 'running' ? 'Pause' : s.frame && s.frame.tS > 0 ? 'Resume' : 'Start'}</Button><Button size="sm" variant="secondary" disabled={s.source !== 'live' || s.link !== 'open'} onClick={() => c.reset()}>Reset</Button><select aria-label="Simulation speed" className={`${inputClass} h-8 w-16`} disabled={s.source !== 'live' || s.link !== 'open'} value={s.speed} onChange={(e) => c.setSpeed(Number(e.target.value))}>{LIVE_SPEEDS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}</select></div></> : <>
           <Button size="sm" onClick={() => void c.startSession(offset)} disabled={s.busy}>{s.source === 'live' ? 'Restart session' : 'Start session'}</Button>
           <label className="flex items-center gap-1 text-[10px] text-mil-dim" title="How far off the berth the ship starts. A demo default, not a recommended approach.">
             Start offset
@@ -404,10 +435,11 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
               ))}
             </select>
           )}
+          </>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div role="group" aria-label="View" className="flex">
-            {(['plan', 'map'] as const).map((v) => (
+            {workspace ? ([['plan', 'Plan'], ['satellite', 'Satellite'], ['street', 'Map'], ['forward', 'Forward'], ['aft', 'Aft'], ['side', 'Side']] as const).map(([id, label]) => <button key={id} aria-pressed={canvasView === id} onClick={() => setCanvasView(id)} className={cn('h-8 border px-2 font-mono text-[10px] uppercase tracking-wider', canvasView === id ? 'border-mil-cyan/60 bg-mil-cyan/20 text-mil-cyan' : 'border-mil-border text-mil-text hover:text-white')}>{label}</button>) : (['plan', 'map'] as const).map((v) => (
               <button
                 key={v}
                 aria-pressed={s.view === v}
@@ -427,11 +459,17 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
               ))}
             </div>
           )}
-          <Button size="sm" variant="ghost" onClick={() => c.close()} aria-keyshortcuts="Escape">Close</Button>
+          <Button size="sm" variant="secondary" onClick={() => setDetailsOpen(!detailsOpen)} aria-expanded={detailsOpen} aria-controls="motion-readouts">{detailsOpen ? 'Hide details' : 'Show details'}</Button>
+          {!workspace && <Button size="sm" variant="ghost" onClick={() => c.close()} aria-keyshortcuts="Escape">Close</Button>}
         </div>
       </div>
 
       <div className={cn('border-b border-mil-border px-3 py-2', map ? 'pointer-events-auto bg-mil-panel/95' : '')}><Badges frame={s.frame} state={s} /></div>
+
+      {workspace && <div className="flex flex-wrap items-center justify-between gap-2 border-b border-mil-border bg-mil-bg px-3 py-1.5 text-[10px]">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1"><span className={s.lifecycle === 'running' ? 'text-mil-cyan' : 'text-mil-amber'}>{s.busy ? 'LOADING PAUSED SCENARIO' : (s.lifecycle ?? 'PAUSED').toUpperCase()} · {s.frame?.tS.toFixed(1) ?? '—'} s</span><span className="text-mil-text">{s.workspace?.ship.name ?? 'Vessel not yet loaded'}</span><span className="text-mil-dim">{s.workspace?.berth.name}</span>{s.frame && <span>Heading {s.frame.ship.headingTrueDeg.toFixed(1)}° T · surge {s.frame.ship.surgeFps?.toFixed(2) ?? '—'} ft/s · sway {s.frame.ship.swayFps?.toFixed(2) ?? '—'} ft/s</span>}</div>
+        <div className="flex flex-wrap gap-3" role="group" aria-label="Display layers"><label className="flex items-center gap-1"><input type="checkbox" checked={s.predictionEnabled} onChange={(e) => c.setPredictionEnabled(e.target.checked)} />Prediction</label><label className="flex items-center gap-1"><input type="checkbox" checked={vectors} onChange={(e) => setVectors(e.target.checked)} />Vectors</label>{(['wind', 'current', 'animate'] as const).map((key) => <label key={key} className="flex items-center gap-1"><input type="checkbox" checked={flow[key]} onChange={(e) => setFlow({ ...flow, [key]: e.target.checked })} />{key === 'animate' ? 'Animate flow' : key === 'wind' ? 'Wind' : 'Current'}</label>)}</div>
+      </div>}
 
       {(s.error || s.notice || s.sceneError || s.lifecycleMessage || s.lifecycleReasons.length > 0) && (
         <div className={cn('space-y-1 border-b border-mil-border px-3 py-1 text-[11px]', map ? 'pointer-events-auto bg-mil-panel/95' : '')}>
@@ -439,15 +477,20 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
           {s.notice && <p role="status" className="text-mil-amber">{s.notice}</p>}
           {s.sceneError && <p role="status" className="text-mil-dim">{s.sceneError}</p>}
           {s.lifecycleMessage && <p role="status" className="text-mil-dim">Session: {s.lifecycleMessage}</p>}
-          {s.lifecycleReasons.length > 0 && <ul role={s.lifecycleInvalid ? 'alert' : 'status'} className={s.lifecycleInvalid ? 'text-mil-red' : 'text-mil-amber'}>
+          {s.lifecycleReasons.length > 0 && <details open={s.lifecycleInvalid || !workspace}><summary className={s.lifecycleInvalid ? 'cursor-pointer text-mil-red' : 'cursor-pointer text-mil-amber'}>{s.lifecycleReasons.length} model limitations · {s.lifecycleInvalid ? 'invalid state' : 'limited, unqualified demonstration'}</summary><ul role={s.lifecycleInvalid ? 'alert' : 'status'} className={s.lifecycleInvalid ? 'text-mil-red' : 'text-mil-amber'}>
             {s.lifecycleReasons.map((reason) => <li key={reason}>{reason}</li>)}
-          </ul>}
+          </ul></details>}
         </div>
       )}
 
       <div className="flex min-h-0 flex-1">
         <div className={cn('relative min-w-0 flex-1', map && 'pointer-events-none')}>
-          {map ? (
+          {workspace && !section && <div className={cn('pointer-events-auto absolute left-3 top-3 z-10 rounded-sm border border-mil-amber/30 bg-mil-panel/95 p-2 text-[10px] text-mil-amber', detailsOpen ? 'max-w-[40%]' : 'max-w-[65%]')} aria-label="Prediction coverage">
+            <p className={cn('font-semibold uppercase tracking-wider', s.prediction?.validity.state === 'invalid' && 'text-mil-red')}>{s.predictionWhatIf ? 'What-if order preview' : 'Backup camera'} · {s.prediction?.validity.state ?? 'unavailable'}{s.predictionBusy && ' · refreshing'}{s.prediction && ` · ${s.prediction.horizon_s.toFixed(0)} s${s.prediction.complete ? '' : ' TRUNCATED'}`}</p>
+            {s.prediction ? <details open={detailsOpen}><summary className="cursor-pointer text-[9px]">Unchecked: {s.prediction.hazards_unchecked.join(', ') || 'coverage not qualified'} · uncertainty unavailable · forecast details{s.prediction.warnings.some((w) => w.severity === 'RED') && ' / RED warning'}</summary><div className="mt-1 space-y-1"><p>{s.prediction.horizon_s.toFixed(0)} s returned · snapshot t={s.prediction.source.t_s.toFixed(1)} s{s.frame && ` · age ${Math.max(0, s.frame.tS - s.prediction.source.t_s).toFixed(1)} sim s`}</p><p>{s.prediction.complete ? 'Deterministic footprints' : 'TRUNCATED prediction'}</p>{s.prediction.warnings.map((w) => <p key={`${w.code}-${w.t_s}`} className={w.severity === 'RED' ? 'text-mil-red' : ''}>{w.message}</p>)}</div></details> : <p>{s.predictionError ?? (s.predictionEnabled ? 'Waiting for a backend prediction. Hazard coverage is unknown.' : 'Prediction display off. Hazard coverage is unknown.')}</p>}
+            {s.predictionWhatIf && <Button size="sm" variant="secondary" className="mt-2" onClick={() => { c.setPredictionEnabled(false); c.setPredictionEnabled(true); }}>Return to current orders</Button>}
+          </div>}
+          {section ? <SectionViews s={s} view={section} /> : map ? (
             <div role="status" className="pointer-events-none absolute bottom-2 left-3 max-w-[70%] rounded-sm border border-mil-border bg-mil-panel/85 p-2 text-[10px] text-mil-dim">
               {s.frame ? (
                 <>
@@ -474,21 +517,24 @@ export function MotionView({ controller: c }: { controller: MotionController }) 
             </div>
           ) : (
             <>
-              <MotionCanvas frame={s.frame} scene={s.scene} trail={s.trail} faceBearingDeg={face} />
+              <MotionCanvas frame={s.frame} scene={s.scene} trail={s.trail} faceBearingDeg={face} basemap={basemap} origin={s.workspace ? { lat: s.workspace.berth.origin_lat, lon: s.workspace.berth.origin_lon, bearingDeg: face } : null} flow={workspace ? flow : undefined} vectors={vectors} prediction={s.predictionEnabled ? s.prediction : null} predictionWhatIf={s.predictionWhatIf} shipClass={s.workspace?.ship} compactHud={workspace && !detailsOpen} />
               {s.source === 'live' && s.droppedForDisplay > 0 && (
                 <p className="pointer-events-none absolute bottom-2 left-3 text-[10px] text-mil-dim">Showing the newest frame; {s.droppedForDisplay} older frames arrived faster than they could be drawn and were skipped.</p>
               )}
             </>
           )}
         </div>
-        <aside className={cn('w-[320px] shrink-0 overflow-y-auto border-l border-mil-border', map ? 'pointer-events-auto bg-mil-panel/95' : 'bg-mil-panel/60')} aria-label="Frame readouts">
+        {detailsOpen && <aside id="motion-readouts" className={cn('w-[320px] max-w-[40vw] shrink-0 overflow-y-auto border-l border-mil-border', map ? 'pointer-events-auto bg-mil-panel/95' : 'bg-mil-panel/60')} aria-label="Frame readouts">
+          {workspace && <Section title="Source and playback"><StateSourcePanel c={c} s={s} /><details className="mt-2 text-[10px]"><summary className="cursor-pointer text-mil-cyan">Recordings and planner setup</summary><div className="mt-2 space-y-2"><Button size="sm" variant="secondary" disabled={s.busy} onClick={() => void c.loadRecording()}>Replay recorded mock fixture</Button>{s.sessionRecordings.map((r) => <button className="block text-mil-cyan underline" key={r.sessionId} onClick={() => void c.loadSessionRecording(r.sessionId)}>Replay {r.startedAt.slice(11, 19)}Z · {r.sessionId.slice(-10)}</button>)}<label className="flex items-center gap-2">Start offset (ft)<input aria-label="Planner start offset (ft)" className={`${inputClass} w-20`} type="number" min={20} value={offset} onChange={(e) => setOffset(Number(e.target.value))} /></label><Button size="sm" variant="secondary" disabled={s.busy} onClick={() => void c.startSession(offset)}>Load planner setup paused</Button></div></details></Section>}
+          {workspace && s.frame?.guidance && <Section title="Route following"><div className="space-y-1 text-[10px]"><p className="text-mil-amber">{s.frame.guidance.completed && s.frame.guidance.active ? 'Holding point reached; synthetic holding active' : s.frame.guidance.active ? 'Synthetic route controller active' : 'Synthetic controller inactive / manual override'}</p><p>Waypoint {s.frame.guidance.waypoint_index + 1}: {s.frame.guidance.waypoint_name}</p><p>Target {s.frame.guidance.target_speed_kt.toFixed(1)} kt · cross-track {s.frame.guidance.cross_track_ft.toFixed(0)} ft</p><p>Remaining {s.frame.guidance.remaining_ft.toFixed(0)} ft</p><p className="text-mil-dim">Applying a manual helm order disables route following and holding. Route tracking does not establish hazard clearance.</p></div></Section>}
           {s.frame && <EnvironmentGlyph frame={s.frame} faceBearingDeg={face} />}
+          {workspace && <p className="border-b border-mil-border px-3 py-2 text-[9px] text-mil-dim">Flow texture uses simulation time and supplied wind/current direction. Particle speed is a display scale, not a force or forecast.</p>}
           <Readouts frame={s.frame} />
-        </aside>
+        </aside>}
       </div>
 
-      <div className="pointer-events-auto border-t border-mil-border bg-mil-panel px-3 py-2">
-        {s.source === 'live' ? <LiveControls c={c} s={s} tugIds={c.tugIds()} lineNumbers={c.lineNumbers()} /> : s.source === 'recording' ? <ReplayControls c={c} s={s} /> : <p className="text-[11px] text-mil-dim">Controls appear once a session or recording is loaded. Space plays or pauses, R resets a live session, Esc closes.</p>}
+      <div className={cn('pointer-events-auto max-h-[45vh] shrink-0 overflow-y-auto border-t border-mil-border bg-mil-panel', !s.workspace && 'px-3 py-2')}>
+        {s.source === 'live' && s.workspace ? <ManeuverControls key={`${s.sessionId}:${s.frame?.runId}`} c={c} s={s} /> : s.source === 'live' ? <LiveControls c={c} s={s} tugIds={c.tugIds()} lineNumbers={c.lineNumbers()} /> : s.source === 'recording' ? <ReplayControls c={c} s={s} /> : <p className="text-[11px] text-mil-dim">Controls appear once a session or recording is loaded. Space plays or pauses, R resets a live session{workspace ? ', Esc hides details.' : ', Esc closes.'}</p>}
       </div>
     </div>
   );

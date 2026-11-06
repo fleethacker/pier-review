@@ -2,7 +2,7 @@
 
 State: berth-frame position (x, y) of the midships reference point, heading angle psi (CCW, same convention as
 `ShipFrame`), and body-frame velocities (u surge, v sway to port, r yaw rate). Equations for a diagonal total mass matrix
-M = diag(m11, m22, m33) (rigid body + added mass):
+M = diag(m11, m22, m33) when CG coincides with the reference (rigid body + added mass):
 
     m11 du/dt - m22 v r       = X
     m22 dv/dt + m11 u r       = Y
@@ -11,6 +11,10 @@ M = diag(m11, m22, m33) (rigid body + added mass):
 with passive damping -(D_lin nu + D_quad |nu| nu) added to the external wrench. Integration is classical RK4 at a fixed
 step, shortened near contact, with event times (contact start/end, line taut/slack) located by bisection. Output
 sampling is independent of the integration step.
+
+An explicitly offset CG adds the rigid-body coupling terms -m*yG and m*xG to
+surge/yaw and sway/yaw, plus parallel-axis yaw inertia. Kirchhoff momentum
+equations preserve power balance with the same diagonal added-mass inputs.
 
 What this is not: a validated maneuvering model. Added mass and damping must come from a qualified source for a specific
 hull; none is held in this repository, so no real vessel can be simulated here yet (the coefficients below are inputs).
@@ -37,17 +41,54 @@ class BodyParams:
     damping_lin: tuple[float, float, float] = (0.0, 0.0, 0.0)    # lbf per ft/s, lbf per ft/s, ft.lbf per rad/s
     damping_quad: tuple[float, float, float] = (0.0, 0.0, 0.0)
     qualification: str = "synthetic"   # 'synthetic' (test inputs) or 'qualified' once coefficients are benchmarked
+    cg_x_ft: float = 0.0
+    cg_y_ft: float = 0.0
 
     def __post_init__(self):
+        if len(self.damping_lin)!=3 or len(self.damping_quad)!=3:
+            raise ValueError("body damping must contain three components")
+        if not all(math.isfinite(v) for v in (self.mass_slug, self.izz_slug_ft2, self.added_surge,
+                self.added_sway, self.added_yaw, self.cg_x_ft, self.cg_y_ft, *self.damping_lin, *self.damping_quad)):
+            raise ValueError("body parameters must be finite")
         for name in ("mass_slug", "izz_slug_ft2"):
             if not getattr(self, name) > 0:
                 raise ValueError(f"{name} must be positive")
         if min(self.added_surge, self.added_sway, self.added_yaw, *self.damping_lin, *self.damping_quad) < 0:
             raise ValueError("added mass and damping must be non-negative (passive)")
+        try:
+            finite_mass = all(math.isfinite(v) for v in self.m)
+        except OverflowError:
+            finite_mass = False
+        if not finite_mass:
+            raise ValueError("derived body mass matrix exceeds numerical range")
 
     @property
     def m(self) -> tuple[float, float, float]:
-        return (self.mass_slug + self.added_surge, self.mass_slug + self.added_sway, self.izz_slug_ft2 + self.added_yaw)
+        return (self.mass_slug + self.added_surge, self.mass_slug + self.added_sway,
+                self.izz_slug_ft2 + self.mass_slug * (self.cg_x_ft**2 + self.cg_y_ft**2) + self.added_yaw)
+
+    def momentum(self, nu: tuple[float, float, float]) -> tuple[float, float, float]:
+        """M nu about the ship origin; izz_slug_ft2 is centroidal inertia.
+
+        Rigid-body mass matrix and Kirchhoff equations:
+        https://www.fossen.biz/html/marineCraftModel.html (Kinetics).
+        Our axes are x forward, y port, z up; added inertia is diagonal.
+        """
+        u, v, r = nu
+        m11, m22, m33 = self.m
+        a, b = -self.mass_slug*self.cg_y_ft, self.mass_slug*self.cg_x_ft
+        return m11*u+a*r, m22*v+b*r, a*u+b*v+m33*r
+
+    def acceleration(self, rhs: tuple[float, float, float]) -> tuple[float, float, float]:
+        """Solve the symmetric positive-definite 3x3 mass matrix by its Schur complement."""
+        m11, m22, m33 = self.m
+        a, b = -self.mass_slug*self.cg_y_ft, self.mass_slug*self.cg_x_ft
+        # Equivalent Schur complement without cancellation of parallel-axis terms.
+        schur = (self.izz_slug_ft2+self.added_yaw
+                 +self.mass_slug*self.cg_y_ft**2*(self.added_surge/m11)
+                 +self.mass_slug*self.cg_x_ft**2*(self.added_sway/m22))
+        dr = (rhs[2]-a*rhs[0]/m11-b*rhs[1]/m22)/schur
+        return (rhs[0]-a*dr)/m11, (rhs[1]-b*dr)/m22, dr
 
 
 @dataclass
@@ -75,7 +116,14 @@ def _deriv(p: BodyParams, s: State, w: tuple[float, float, float]) -> State:
     fy = w[1] - p.damping_lin[1] * v - p.damping_quad[1] * abs(v) * v
     fn = w[2] - p.damping_lin[2] * r - p.damping_quad[2] * abs(r) * r
     c, sn = math.cos(psi), math.sin(psi)
-    return (u * c - v * sn, u * sn + v * c, r, (fx + m22 * v * r) / m11, (fy - m11 * u * r) / m22, (fn - (m22 - m11) * u * v) / m33)
+    if p.cg_x_ft == p.cg_y_ft == 0:
+        # Preserve existing centered-body trajectories and their numerical ordering.
+        acceleration = ((fx + m22 * v * r) / m11, (fy - m11 * u * r) / m22,
+                        (fn - (m22 - m11) * u * v) / m33)
+    else:
+        px, py, _ = p.momentum(nu)
+        acceleration = p.acceleration((fx+r*py, fy-r*px, fn+v*px-u*py))
+    return (u * c - v * sn, u * sn + v * c, r, *acceleration)
 
 
 def rk4(p: BodyParams, forces: Forces, t: float, s: State, dt: float) -> State:
@@ -89,8 +137,10 @@ def rk4(p: BodyParams, forces: Forces, t: float, s: State, dt: float) -> State:
 
 
 def kinetic_energy(p: BodyParams, s: State) -> float:
-    m11, m22, m33 = p.m
-    return 0.5 * (m11 * s[3] ** 2 + m22 * s[4] ** 2 + m33 * s[5] ** 2)
+    if p.cg_x_ft == p.cg_y_ft == 0:
+        m11, m22, m33 = p.m
+        return 0.5 * (m11 * s[3] ** 2 + m22 * s[4] ** 2 + m33 * s[5] ** 2)
+    return 0.5 * sum(a*b for a,b in zip(s[3:], p.momentum(s[3:])))
 
 
 def simulate(p: BodyParams, forces: Forces, s0: State, t_end: float, dt: float, *, sample_dt: float | None = None,

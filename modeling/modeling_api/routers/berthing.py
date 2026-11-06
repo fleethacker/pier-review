@@ -99,7 +99,7 @@ def create_session(req: Annotated[SimSessionCreate, Body(openapi_examples=ex("be
     try:
         session = create(SESSIONS, sid, berthing_sim.initial_model(req.scenario_id, req.initial_state,
                                                       dt=req.dt_s or 0.1, duration=req.duration_s or 900,
-                                                      forcing=req.forcing),
+                                                      forcing=req.forcing, controls=req.controls),
                          record_interval_s=req.record_interval_s or 1.0)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None

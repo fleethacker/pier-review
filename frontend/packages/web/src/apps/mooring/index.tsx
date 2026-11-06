@@ -10,14 +10,18 @@ import { ControllerContext } from './panels/context';
 import { Sidebar } from './Sidebar';
 import { MOORING_TABS, isMooringTab } from './tabs';
 
-function withController(controller: MooringController, Component: ComponentType, name: string): ComponentType {
-  const Wrapped = () => (
+function withController(controller: MooringController, Component: ComponentType, name: string, hideInMotion = false): ComponentType {
+  const Wrapped = () => {
+    const motion = controller.state.use((s) => s.tab === 'motion');
+    if (hideInMotion && motion) return null;
+    return (
     <ControllerContext.Provider value={controller}>
       <ErrorBoundary name={name}>
         <Component />
       </ErrorBoundary>
     </ControllerContext.Provider>
-  );
+    );
+  };
   Wrapped.displayName = `Mooring(${Component.displayName ?? Component.name})`;
   return Wrapped;
 }
@@ -34,13 +38,17 @@ export const mooringApp: AppDefinition = {
     void controller.init();
     return {
       Sidebar: withController(controller, Sidebar, 'Sidebar'),
-      Side: withController(controller, DataKey, 'Data key'),
-      Bottom: withController(controller, Dashboard, 'Dashboard'),
+      Side: withController(controller, DataKey, 'Data key', true),
+      Bottom: withController(controller, Dashboard, 'Dashboard', true),
       Banner: withController(controller, Banner, 'Banner'),
       Overlay: withController(controller, Overlay, 'Overlay'),
       onEdit: (edit) => controller.onEdit(edit),
       setTab: (id) => {
-        if (isMooringTab(id)) controller.state.set({ tab: id });
+        if (isMooringTab(id)) {
+          controller.state.set({ tab: id });
+          if (id === 'motion') controller.motion.open(true);
+          else if (controller.motion.s.open) controller.motion.close();
+        }
       },
       dispose: () => controller.dispose(),
     };

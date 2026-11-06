@@ -7,6 +7,9 @@ from pydantic import ConfigDict, Field, model_validator
 
 from .common import Envelope, Model, Status, Validity
 from .mooring import FenderResult, LineTension
+from .motion_controls import MotionControlsConfig, MotionControlState, MotionLoadingState, MotionLineControlState, MotionTugDynamicsState
+from .motion_guidance import MotionGuidanceState
+from .motion_state import MotionStateSnapshot
 from .motion import (
     _require_qualified_motion,
     MotionAlert,
@@ -147,11 +150,14 @@ class ContactSummary(Model):
 
 class SimulationTransition(Model):
     t_s: float
-    kind: Literal["contact_start", "contact_end", "line_taut", "line_slack", "secured", "tensioned", "released"]
+    kind: Literal["contact_start", "contact_end", "line_taut", "line_slack", "secured", "tensioned", "released", "line_paid_out"]
     element_id: str
 
 
 class SimulationDiagnostics(Model):
+    wire_omitted_defaults = {"loading_event_energy_ftlbf": None, "tug_event_energy_ftlbf": None}
+    loading_event_energy_ftlbf: float | None = None
+    tug_event_energy_ftlbf: float | None = None
     parameter_set: str
     qualification: Literal["unqualified"] = "unqualified"
     integration_steps: int
@@ -206,9 +212,18 @@ class SimFrame(Model):
     wire_omitted_defaults = dict.fromkeys((
         "schema_version", "sequence", "session_id", "run_id", "scene_id", "scene_revision", "motion",
         "tug_states", "environment", "line_states", "fitting_loads", "fender_states", "forces", "validity",
-        "provenance", "structured_alerts", "diagnostics", "forcing_revision",
+        "provenance", "structured_alerts", "diagnostics", "forcing_revision", "controls", "loading", "line_controls", "tug_dynamics", "guidance",
     ))
+    wire_omitted_defaults = {**wire_omitted_defaults,"state_inputs":None,"forcing_time_offset_s":None}
     diagnostics: SimulationDiagnostics | None = None
+    controls: MotionControlState | None = None
+    loading: MotionLoadingState | None = None
+    line_controls: list[MotionLineControlState] | None = None
+    tug_dynamics: list[MotionTugDynamicsState] | None = None
+    guidance: MotionGuidanceState | None = None
+    state_inputs: list[MotionStateSnapshot] | None = Field(default=None,max_length=17)
+    forcing_time_offset_s: float | None = Field(default=None,ge=0,
+        description="Source forcing time = frame t_s + this offset. Absent on legacy runs whose source clock starts at zero.")
     forcing_revision: str | None = Field(default=None, description="Revision id of the immutable forcing series; with t_s it identifies the forcing in effect.")
 
     t_s: float
@@ -251,7 +266,8 @@ class SimFrame(Model):
             )):
                 raise ValueError("RM0 frames require sequence and nonempty session/run/scene identity")
         for field, keys in (("tug_states", ("tug_id",)), ("line_states", ("line_number",)),
-                            ("fitting_loads", ("owner", "fitting_id")), ("fender_states", ("fender_id",))):
+                            ("fitting_loads", ("owner", "fitting_id")), ("fender_states", ("fender_id",)),
+                            ("tug_dynamics", ("tug_id",)), ("line_controls", ("line_number",))):
             identifiers = [tuple(getattr(item, key) for key in keys) for item in getattr(self, field) or []]
             if len(identifiers) != len(set(identifiers)):
                 raise ValueError(f"{field} identifiers must be unique")
@@ -341,7 +357,8 @@ class SimRecordingList(Model):
 
 
 class SimSessionCreate(Model):
-    wire_omitted_defaults = {"dt_s": None, "duration_s": None, "record_interval_s": None, "forcing": None}
+    wire_omitted_defaults = {"dt_s": None, "duration_s": None, "record_interval_s": None, "forcing": None, "controls": None}
+    controls: MotionControlsConfig | None = None
     forcing: ForcingSpec | None = Field(default=None, description="Forcing series; absent keeps the frozen scenario environment.")
     dt_s: float | None = Field(default=None, ge=0.0001, le=1)
     duration_s: float | None = Field(default=None, gt=0, le=7200)

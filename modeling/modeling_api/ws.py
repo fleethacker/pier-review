@@ -34,7 +34,10 @@ from .state import SESSIONS
 
 router = APIRouter()
 
-SimClientMessage = TypeAdapter(SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage)
+from mooring.core.schemas.motion_controls import SimHelmCommandMessage, SimLoadingCommandMessage, SimLineControlMessage, SimTugMotionCommandMessage
+
+SimClientMessage = TypeAdapter(SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage
+                               | SimHelmCommandMessage | SimLoadingCommandMessage | SimLineControlMessage | SimTugMotionCommandMessage)
 
 
 @router.websocket("/ws/env")
@@ -181,8 +184,9 @@ async def ws_sim(ws: WebSocket, session_id: str, limit: int = 0, after_sequence:
         try:
             await session_work(session.attach,connection)
             await session_work(session.resync,after_sequence)
-        except ValueError:
-            await ws.close(code=4409,reason="Session already controlled")
+        except ValueError as exc:
+            await ws.close(code=4404 if str(exc)=="session released" else 4409,
+                           reason="Session released" if str(exc)=="session released" else "Session already controlled")
             return
         await ws.accept()
         ticker=asyncio.create_task(session.run())

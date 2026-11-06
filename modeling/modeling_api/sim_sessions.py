@@ -123,6 +123,9 @@ class Session:
         self.model,self.clock,self.session_id=model,clock,session_id
         self.rich=session_id is not None
         self.initial=(model.sc.model_copy(deep=True),model.initial.model_copy(deep=True),model.env.model_copy(deep=True))
+        # Preserve the complete authored setup, including lines made fast or paid
+        # out before session creation. Observed-state adoption never replaces it.
+        self.initial_model=model.clone_for_prediction()
         self.lock=threading.RLock()
         self.persistence_context=copy_context()
         self.connection=None
@@ -166,6 +169,11 @@ class Session:
     def next_sequence(self):
         self.sequence+=1
         return self.sequence
+
+    def snapshot_model(self):
+        """Atomic independent mechanics snapshot; source identities can be read under this same RLock."""
+        with self.lock:
+            return self.model.clone_for_prediction()
 
     def notify(self):
         # Session mutations run in workers; asyncio.Event itself is not thread-safe.
@@ -340,6 +348,7 @@ class Session:
 
     def attach(self, connection):
         with self.lock:
+            if getattr(self,"released",False): raise ValueError("session released")
             if self.connection is not None: raise ValueError("session already has an active controller")
             self.connection=connection
             self.changed=asyncio.Event()
@@ -387,7 +396,7 @@ class Session:
             # time even when rounding newly earned clock demand down gives an earlier grid point.
             target=max(self.model.t,min(wanted,(math.floor((self.model.t+1e-9)/dt)+cap_steps)*dt))
             self.lag_s=max(0.0,wanted-target)/self.speed  # wall seconds the scheduler is behind; never skipped
-            due=self.model.pending and self.model.pending[0][0]<=self.model.t+1e-9
+            due=self.model.commands_due()
             if target<=self.model.t+1e-9 and not due: return
             try:
                 self.model.advance(target,observe=self.observe if self.rich else (lambda *args: None), max_work=max_steps)
@@ -395,7 +404,7 @@ class Session:
                 self.fail("FORCING_UNCOVERED" if isinstance(exc,berthing_sim.ForcingUncovered) else "DYNAMICS_INTEGRATION_FAILED","Integration stopped; reset or create a new session.",exc); return
             self.lag_s=max(0.0,wanted-self.model.t)/self.speed
             alerts=[f"Simulation lagging wall clock by {self.lag_s:.1f} s at {self.speed:g}x"] if self.lag_s>LAG_ALERT_S else None
-            if self.model.pending and self.model.pending[0][0]<=self.model.t+1e-9:
+            if self.model.commands_due():
                 # Never record a time-boundary sample halfway through its ordered commands. Lag still gets
                 # lifecycle notification while command-only chunks finish that boundary.
                 if alerts and alerts!=self.last_alerts:
@@ -426,7 +435,7 @@ class Session:
             self.last_access=now
             if msg.type in ("pause","resume","reset"):
                 if msg.type=="reset":
-                    self.model=berthing_sim.BerthingModel(*self.initial,dt=self.model.dt,duration=self.model.duration,forcing=self.model.forcing_spec)
+                    self.model=self.initial_model.clone_for_prediction()
                     self.paused=True; self.error=None
                     self.reanchor()
                     if self.rich:
@@ -456,6 +465,15 @@ class Session:
                 self.restate(self.error if self.state=="error" else None)
                 self.notify()
             else:
+                if msg.type == "loading_command":
+                    if not self.paused:
+                        raise ValueError("pause a stationary session before changing payloads")
+                    if msg.t_s is None:
+                        msg=msg.model_copy(update={"t_s":self.model.t})
+                    self.model.schedule(msg)
+                    self.model.apply_pending()
+                    self.publish(); self.record_now(); self.notify()
+                    return
                 # Omitted timestamp targets the next boundary. Explicit times are
                 # ordered by timestamp then arrival sequence, never retroactive.
                 if msg.t_s is None:
@@ -487,7 +505,9 @@ def _create(sessions, sid, model, record_interval_s=1.0):
         if isinstance(session,Session) and session.connection is None and now-session.last_access>ttl:
             session.persist(force=True)
             with session.lock:
-                if session.connection is None and now-session.last_access>ttl and not session.rec_dirty:
+                if (sessions.get(key) is session and session.connection is None
+                        and now-session.last_access>ttl and not session.rec_dirty):
+                    session.released=True
                     del sessions[key]
     maximum=int(os.environ.get("MOORING_MAX_SESSIONS","32"))
     per_owner=int(os.environ.get("MOORING_SESSIONS_PER_PRINCIPAL","4"))

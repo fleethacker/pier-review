@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const stream = vi.hoisted(() => ({
-  handlers: null as null | { onMessage: (m: unknown) => void; onStatus: (s: string) => void },
+  handlers: null as null | { onMessage: (m: unknown) => void; onStatus: (s: string, close?: { code: number; reason: string }) => void },
   url: null as null | string | (() => string),
   send: vi.fn<(data: string) => boolean>(() => true),
   close: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('../api', () => ({
     `ws://localhost${p}${Object.entries(q).filter(([, v]) => v !== undefined).map(([k, v], i) => `${i ? '&' : '?'}${k}=${v}`).join('')}`,
 }));
 vi.mock('../streams', () => ({
-  openJsonStream: (url: string | (() => string), onMessage: (m: unknown) => void, onStatus: (s: string) => void) => {
+  openJsonStream: (url: string | (() => string), onMessage: (m: unknown) => void, onStatus: (s: string, close?: { code: number; reason: string }) => void) => {
     stream.handlers = { onMessage, onStatus };
     stream.url = url;
     return { send: stream.send, close: stream.close };
@@ -29,6 +29,8 @@ import { modeling } from '../api';
 import { MotionController, serviceUrl } from './controller';
 import type { MotionHost } from './controller';
 import type { SimFrame, SimRecording, SimScene } from './frames';
+import type { StateInput, StateSnapshot } from './workspace';
+import { catalog, configuration, controls, order, prediction, workspace } from './workspace.test-fixtures';
 
 const dir = path.resolve(__dirname, '../../../../../../../contract/examples/modeling');
 const load = <T,>(n: string): T => JSON.parse(readFileSync(path.join(dir, n), 'utf8')) as T;
@@ -62,6 +64,19 @@ const flush = () => {
   cbs.forEach((c) => c());
 };
 const make = () => new MotionController(host, (cb) => raf.push(cb));
+
+function workspaceFetch() {
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => ({ ok: true, status: 200, json: async () => {
+    if (init?.method === 'DELETE') return {};
+    if (url.endsWith('/catalog')) return catalog;
+    if (url.endsWith('/scenarios')) return init?.method === 'POST' ? workspace.scenario : [];
+    if (url.endsWith('/sessions')) return workspace;
+    if (url.endsWith('/prediction')) return prediction;
+    return scene;
+  } }));
+  vi.stubGlobal('fetch', fetcher);
+  return fetcher;
+}
 
 beforeEach(() => {
   raf = [];
@@ -521,4 +536,239 @@ it.each([false, true])('ignores a session creation completing after a recording 
   expect(m.s.error).toBeNull();
   expect(stream.handlers).toBeNull();
   m.dispose();
+});
+
+describe('Motion workspace', () => {
+  const observation: StateInput = { entity: 'ship', entity_id: 'DDG-51-FIIA', frame: 'berth', berth_id: 'NORFOLK', source: 'synthetic', observed_at_utc: '2026-11-05T00:00:00Z', sequence: 100, x_ft: 300, y_ft: 80, heading_true_deg: 90, surge_fps: 1, sway_fps: 0, yaw_degps: 0, measured_acceleration: null, quality: 'unknown' };
+
+  it.each(['reset', 'superseded', 'response-first', 'frame-first'] as const)('accepts only the current state import when %s', async (mode) => {
+    const baseline = workspaceFetch();
+    let finish!: (v: unknown) => void;
+    const pending = new Promise((r) => { finish = r; });
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => url.endsWith('/state') ? pending : baseline(url, init)));
+    const m = make(); await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    m.state.set({ lifecycle: 'paused' });
+    const importing = m.importState(observation);
+    expect(m.resume()).toBe(false);
+    if (mode === 'reset') m.reset();
+    if (mode !== 'response-first') { stream.handlers!.onMessage(legacy(0, 2, mode === 'frame-first' ? 'imported-run' : 'later-run')); flush(); }
+    finish({ ok: true, json: async () => ({ session_id: 'motion-1', run_id: 'imported-run', input: observation }) });
+    await importing;
+    if (mode === 'reset' || mode === 'superseded') {
+      expect(m.s.importedState).toBeNull();
+      expect(m.s.command).toBeNull();
+    } else {
+      expect(m.s.importedState?.run_id).toBe('imported-run');
+      expect(m.s.command?.status).toBe('applied');
+    }
+    expect(m.s.stateImportBusy).toBe(false);
+    expect(m.nextStateSequence('ship', observation.entity_id)).toBe(101);
+    m.dispose();
+  });
+
+  it('keeps imported sequence history per entity across reset, including frame-supplied evidence', async () => {
+    workspaceFetch(); const m = make(); await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open');
+    const stateInputs = [{ input: observation }, { input: { ...observation, entity: 'tug', entity_id: 'T1', sequence: 1 } }] as StateSnapshot[];
+    stream.handlers!.onMessage({ ...legacy(0, 1), state_inputs: stateInputs }); flush();
+    expect(m.nextStateSequence('ship', observation.entity_id)).toBe(101);
+    expect(m.nextStateSequence('tug', 'T1')).toBe(2);
+    m.reset(); stream.handlers!.onMessage(legacy(0, 2, 'reset-run')); flush();
+    expect(m.nextStateSequence('ship', observation.entity_id)).toBe(101);
+    m.dispose();
+  });
+
+  it('keeps direct entry through StrictMode and immediate remounts, then pauses on departure', async () => {
+    const m = make(); m.open();
+    const close = vi.spyOn(m, 'close');
+    m.bindWorkspaceView()();
+    const detach = m.bindWorkspaceView();
+    await Promise.resolve();
+    expect(close).not.toHaveBeenCalled();
+    detach();
+    await Promise.resolve();
+    expect(close).toHaveBeenCalledOnce();
+    expect(m.s.open).toBe(false);
+    m.dispose();
+  });
+  it('loads one paused default on direct entry and reuses it when the tab is reopened', async () => {
+    const fetcher = workspaceFetch();
+    const m = make();
+    m.open();
+    await Promise.all([m.initializeWorkspace(), m.initializeWorkspace()]);
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/catalog'))).toHaveLength(1);
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/sessions'))).toHaveLength(1);
+    expect(stream.send).not.toHaveBeenCalled();
+    expect(m.s.workspace?.ship.name).toBe('Test destroyer');
+    stream.handlers!.onStatus('open');
+    m.close();
+    m.open();
+    await m.initializeWorkspace();
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/sessions'))).toHaveLength(1);
+    expect(stream.send.mock.calls.map(([data]) => JSON.parse(data).type)).toEqual(['pause']);
+    m.dispose();
+  });
+
+  it('fetches saved configurations without saving or allocating a simulation', async () => {
+    const fetcher = vi.fn(async () => ({ ok: true, json: async () => [workspace.scenario] }));
+    vi.stubGlobal('fetch', fetcher);
+    const m = make();
+    await Promise.all([m.loadSavedScenarios(), m.loadSavedScenarios()]);
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(expect.stringMatching(/\/motion\/scenarios$/), expect.objectContaining({ method: 'GET' }));
+    expect(m.s.savedScenarios).toEqual([workspace.scenario]);
+    expect(m.s.sessionId).toBeNull();
+    m.dispose();
+  });
+
+  it('closes and releases an old workspace before allocating its replacement', async () => {
+    const fetcher = workspaceFetch();
+    const m = make();
+    await m.loadWorkspace(configuration);
+    await m.loadWorkspace({ ...configuration, name: 'Replacement' });
+    const calls = fetcher.mock.calls;
+    const deletion = calls.findIndex(([, init]) => init?.method === 'DELETE');
+    const lastSession = calls.map(([url]) => url).lastIndexOf('http://localhost/api/modeling/api/v1/motion/sessions');
+    expect(stream.close).toHaveBeenCalledTimes(1);
+    expect(deletion).toBeGreaterThan(0);
+    expect(deletion).toBeLessThan(lastSession);
+    m.dispose();
+  });
+
+  it('retries a failed release and never allocates past retained capacity while persistence is failing', async () => {
+    const baseline = workspaceFetch();
+    let failRelease = true;
+    const fetcher = vi.fn((url: string, init?: RequestInit) => init?.method === 'DELETE' && failRelease ? Promise.resolve({ ok: false, status: 503 }) : baseline(url, init));
+    vi.stubGlobal('fetch', fetcher);
+    const m = make();
+    await m.loadWorkspace(configuration);
+    await m.loadWorkspace({ ...configuration, name: 'Pending replacement' });
+    expect(m.s.error).toMatch(/previous session could not be released/);
+    expect(fetcher.mock.calls.filter(([url, init]) => url.endsWith('/sessions') && init?.method === 'POST')).toHaveLength(1);
+    const attempts = fetcher.mock.calls.filter(([, init]) => init?.method === 'DELETE').length;
+    failRelease = false;
+    await m.loadWorkspace({ ...configuration, name: 'Retried replacement' });
+    expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'DELETE').length).toBeGreaterThan(attempts);
+    expect(fetcher.mock.calls.filter(([url, init]) => url.endsWith('/sessions') && init?.method === 'POST')).toHaveLength(2);
+    expect(m.s.error).toBeNull();
+    m.dispose();
+  });
+
+  it('does not connect or leak a session that finishes creating after a replay is chosen', async () => {
+    const baseline = workspaceFetch();
+    let finish!: (v: unknown) => void;
+    let entered!: () => void;
+    const started = new Promise<void>((r) => { entered = r; });
+    const pending = new Promise((r) => { finish = r; });
+    const fetcher = vi.fn((url: string, init?: RequestInit) => {
+      if (url.endsWith('/sessions') && init?.method === 'POST') { entered(); return pending; }
+      if (url === '/replay') return Promise.resolve({ ok: true, json: async () => recording });
+      return baseline(url, init);
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const m = make();
+    const creating = m.loadWorkspace(configuration);
+    await started;
+    await m.loadRecording('/replay', null);
+    finish({ ok: true, json: async () => workspace });
+    await creating;
+    await Promise.resolve();
+    expect(m.s.source).toBe('recording');
+    expect(stream.handlers).toBeNull();
+    expect(fetcher.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true);
+    m.dispose();
+  });
+
+  it('holds helm feedback pending until a backend frame echoes the order, without inventing actual response', async () => {
+    workspaceFetch();
+    const m = make();
+    await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open');
+    stream.handlers!.onMessage({ ...legacy(0, 1), controls }); flush();
+    m.helmCommand(order);
+    expect(m.s.command?.status).toBe('pending');
+    expect(m.s.frame?.controls?.actual.port_throttle).toBe(0);
+    stream.handlers!.onMessage({ ...legacy(1, 2), controls: { ...controls, commanded: order } }); flush();
+    expect(m.s.command?.status).toBe('applied');
+    expect(m.s.frame?.controls?.actual.port_throttle).toBe(0);
+    m.dispose();
+  });
+
+  it('limits prediction to one request at a time and rejects a response invalidated by reset', async () => {
+    const baseline = workspaceFetch();
+    let finish!: (v: unknown) => void;
+    const pending = new Promise((r) => { finish = r; });
+    const fetcher = vi.fn((url: string, init?: RequestInit) => url.endsWith('/prediction') ? pending : baseline(url, init));
+    vi.stubGlobal('fetch', fetcher);
+    const m = make();
+    await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open');
+    stream.handlers!.onMessage(legacy(0, 1)); flush();
+    const request = m.refreshPrediction();
+    await m.refreshPrediction();
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(1);
+    m.reset();
+    finish({ ok: true, json: async () => prediction });
+    await request;
+    expect(m.s.prediction).toBeNull();
+    expect(m.s.predictionBusy).toBe(false);
+    m.dispose();
+  });
+
+  it('sends what-if commands only to a prediction clone', async () => {
+    const fetcher = workspaceFetch();
+    const m = make();
+    await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    await m.refreshPrediction(order);
+    const request = fetcher.mock.calls.find(([url]) => url.endsWith('/prediction'));
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({ what_if_commands: [{ type: 'helm_command', ...order }] });
+    expect(stream.send).not.toHaveBeenCalled();
+    expect(m.s.predictionWhatIf).toBe(true);
+    m.dispose();
+  });
+
+  it('rejects a same-run prediction that arrives after its entire horizon has elapsed', async () => {
+    const baseline = workspaceFetch();
+    let finish!: (v: unknown) => void;
+    const pending = new Promise((r) => { finish = r; });
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => url.endsWith('/prediction') ? pending : baseline(url, init)));
+    const m = make();
+    await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    const request = m.refreshPrediction();
+    stream.handlers!.onMessage(legacy(80, 2)); flush();
+    finish({ ok: true, json: async () => prediction });
+    await request;
+    expect(m.s.prediction).toBeNull();
+    expect(m.s.predictionBusy).toBe(false);
+    expect(m.s.predictionError).toMatch(/horizon expired/);
+    m.dispose();
+  });
+
+  it('removes an already displayed prediction when simulation time reaches its end', async () => {
+    workspaceFetch();
+    const m = make();
+    await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    await m.refreshPrediction();
+    expect(m.s.prediction).not.toBeNull();
+    stream.handlers!.onMessage(legacy(10, 2)); flush();
+    expect(m.s.prediction).toBeNull();
+    expect(m.s.predictionError).toMatch(/horizon expired/);
+    m.dispose();
+  });
+
+  it('surfaces a rejected command reason and keeps the unacknowledged command unconfirmed', async () => {
+    workspaceFetch(); const m = make();
+    await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open');
+    m.helmCommand(order);
+    stream.handlers!.onStatus('closed', { code: 1008, reason: 'Command exceeds supplied limit' });
+    expect(m.s.notice).toContain('Command rejected: Command exceeds supplied limit');
+    expect(m.s.notice).toContain('Load a paused scenario');
+    expect(m.s.command?.status).toBe('unconfirmed');
+    m.dispose();
+  });
 });

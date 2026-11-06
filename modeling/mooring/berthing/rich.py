@@ -24,6 +24,7 @@ from mooring.core.geometry import PIER_FITTING_HEIGHT_FT
 from mooring.core.schemas import SimFrame, SimScene
 from mooring.mechanics.dynamics import _deriv
 from .s3_vertical import vertical_state
+from .s3_tug_geometry import constrained_kinematics
 from mooring.mechanics.pose import force_wrench, force_wrench_at
 
 SCHEMA_VERSION = "rm0-v1"
@@ -142,11 +143,12 @@ def build_scene(model) -> SimScene:
 
 # ---------- frame ----------
 
-def _tug_states(model, s, t, pose) -> list[dict]:
+def _tug_states(model, s, t, pose, acceleration=None) -> list[dict]:
     frame, out = model.system.frame, []
-    for tid in sorted(model.ramps):
+    dynamic_ids = set(model.tug_dynamics.ids) if model.tug_dynamics is not None else set()
+    for tid in sorted(set(model.anchors if model.tug_attachments else model.ramps)-dynamic_ids):
         tug, pp, (lo, hi) = model.anchors[tid]
-        f, target = model.tug_force(tid, t), model.ramps[tid][2]
+        f, target = model.tug_force(tid, t), model.ramps.get(tid,(0,0,0))[2]
         side_y = _ship_y(model, pp.side)
         ax, ay = frame.vector_to_berth(0.0, f, pose)
         cx, cy = frame.vector_to_berth(0.0, target, pose)
@@ -154,12 +156,28 @@ def _tug_states(model, s, t, pose) -> list[dict]:
         mode = "standby" if f == 0 else "push" if toward_centerline else "pull"
         limit = hi if f > 0 else abs(lo)
         px, py = frame.to_berth(pp.x_ft, side_y, pose)
-        out.append({**_live(tid), "tug_id": tid, "position": None, "heading_true_deg": None, "velocity": None,
-                    "acceleration": None, "commanded_force": _force(cx, cy), "actual_force": _force(ax, ay),
+        position = velocity = accel = heading = None
+        evidence = _live(tid)
+        if tid in model.tug_attachments:
+            if acceleration is None:
+                du,dv,dr = _deriv(model.params,s,model.forces(t,s))[3:]
+                acceleration = (du-s[4]*s[5],dv+s[3]*s[5],dr)
+            p,v,a = constrained_kinematics(s,acceleration,model.tug_attachments[tid])
+            position = _pos(*p)
+            velocity = {"x_fps":v[0],"y_fps":v[1],"z_fps":None}
+            accel = {"x_fps2":a[0],"y_fps2":a[1],"z_fps2":None}
+            heading = (model.berth.face_bearing_true_deg-math.degrees(s[2])+(90 if pp.side=="port" else -90))%360
+            evidence["provenance"]["notes"] = ["Synthetic prescribed rigid stand-off constraint; position, velocity and acceleration derived from ship motion. No independent tug inertia, approach dynamics or compliant towline."]
+            evidence["validity"]["reasons"].append({"code":"PRESCRIBED_TUG_KINEMATICS",
+                "message":"Tug follows an ideal rigid attachment; independent tug dynamics unavailable.","affected_components":[tid]})
+        out.append({**evidence, "tug_id": tid, "position": position, "heading_true_deg": heading, "velocity": velocity,
+                    "acceleration": accel, "commanded_force": _force(cx, cy), "actual_force": _force(ax, ay),
                     "push_point_id": pp.push_point_id, "contact_position": _pos(px, py), "mode": mode,
                     "contact_state": {"push": "contact", "pull": "line_made_up", "standby": "unknown"}[mode],
                     "capacity_utilization_pct": 100 * abs(f) / limit if limit else None})
-    return out
+    if model.tug_dynamics is not None:
+        out.extend(model.tug_dynamics.rich_states(s,model.auxiliary_at(t)))
+    return sorted(out,key=lambda state:state["tug_id"])
 
 
 def _line_states_and_loads(model, pose):
@@ -175,8 +193,10 @@ def _line_states_and_loads(model, pose):
         chock_id = ln.chock_id or bitt.paired_chock_id
         lead = ship_fit.get(chock_id, bitt) if chock_id else bitt
         routed = lead.fitting_id != bitt.fitting_id
-        ship_end = _pos(*model.system.frame.to_berth(bitt.x_ft, bitt.y_ft, pose), water + bitt.z_ft)
-        lead_end = _pos(st.lead_berth[0], st.lead_berth[1], water + rec.lead_height_ft)
+        ship_end = _pos(*model.system.frame.to_berth(bitt.x_ft, bitt.y_ft, pose),
+                        model.system.fitting_height(bitt.x_ft,bitt.y_ft,bitt.z_ft,water))
+        lead_end = _pos(st.lead_berth[0], st.lead_berth[1],
+                        model.system.fitting_height(rec.lead_xy[0],rec.lead_xy[1],rec.lead_height_ft,water))
         pier_end = _pos(*rec.pier_xyz)
         # No working-limit field exists on the line model; "overloaded" is therefore never claimed.
         lines.append({**_live(f"line-{ln.line_number}"), "line_number": ln.line_number, "tension_lbf": tension,
@@ -260,8 +280,18 @@ def rich_frame(model, *, session_id: str, run_id: str, sequence: int, scene: Sim
         model.forcing is not None and "water_level_mllw_ft" in model.forcing.supplied
         and model.forcing_env is not None) else None
     vert = vertical_state(tide, t_s=t)
+    loaded = legacy.loading
+    if loaded is not None:
+        water = model.forcing_at(t)[0].water_level_mllw_ft
+        if model.forcing is not None and "water_level_mllw_ft" not in model.forcing.supplied:
+            water = None
+        from .s3_vertical import VerticalState
+        vert = VerticalState(water-loaded.sinkage_ft if water is not None else None,
+            "prescribed" if water is not None else "not_simulated", loaded.roll_deg, loaded.pitch_deg,
+            "prescribed", "prescribed", "Synthetic quasi-static loading equilibrium, not integrated vertical dynamics")
     motion = {**_live("ship"),
-        "pose": {"x_ft": s[0], "y_ft": s[1], "yaw_deg": math.degrees(s[2]), "heave_mllw_ft": vert.heave_mllw_ft},
+        "pose": {"x_ft": s[0], "y_ft": s[1], "yaw_deg": math.degrees(s[2]), "heave_mllw_ft": vert.heave_mllw_ft,
+                 "roll_deg": vert.roll_deg, "pitch_deg": vert.pitch_deg},
         "velocity": {"surge_fps": s[3], "sway_fps": s[4], "yaw_degps": math.degrees(s[5])},
         "acceleration": {"surge_fps2": accel[0], "sway_fps2": accel[1], "yaw_degps2": math.degrees(accel[2])},
         "dofs": {"surge": "simulated", "sway": "simulated", "yaw": "simulated",
@@ -298,8 +328,8 @@ def rich_frame(model, *, session_id: str, run_id: str, sequence: int, scene: Sim
     loads = system.loads_at(pose)
     wind = (*frame.vector_to_berth(loads.wind.fx_lbf, loads.wind.fy_lbf, pose), loads.wind.mz_ftlbf)
     current = (*frame.vector_to_berth(loads.current.fx_lbf, loads.current.fy_lbf, pose), loads.current.mz_ftlbf)
-    _, tug_fy, tug_mz = model.tug_wrench(t)
-    tugs = (*frame.vector_to_berth(0.0, tug_fy, pose), tug_mz)
+    tug_fx, tug_fy, tug_mz = model.tug_wrench(t,s)
+    tugs = (*frame.vector_to_berth(tug_fx, tug_fy, pose), tug_mz)
     forces = {
         "wind": _wrench("wind", *wind), "current": _wrench("current", *current),
         "waves": {name: {**_wave(name, "force"), "force": None, "yaw_moment_ftlbf": None} for name in WAVE_NAMES},
@@ -315,13 +345,15 @@ def rich_frame(model, *, session_id: str, run_id: str, sequence: int, scene: Sim
         "Real RK4 integration of a synthetic, unqualified body (arbitrary mass, inertia and damping) with seed catalog data.",
         "Forces are berth-axes planar wrenches about the instantaneous ship origin; vertical components are not modeled.",
         "Acceleration is the inertial acceleration of the ship origin in ship axes (ft/s2, deg/s2): body-frame rates from the equations of motion with the rotation terms (-v*r surge, +u*r sway) added back.",
-        "Tug position, velocity and acceleration are not modeled; tug forces follow the commanded linear slew.",
+        ("Independent synthetic tug bodies transfer force through modeled compliant push contact or taut towlines."
+         if model.tug_dynamics is not None else "Tug kinematics use an explicitly synthetic rigid attachment; independent tug dynamics are unavailable."
+         if model.tug_attachments else "Tug position, velocity and acceleration are unavailable; forces follow commanded slew."),
         "Waves and wakes are unavailable, not zero."]}
 
     return SimFrame.model_validate({
         **legacy.model_dump(), "schema_version": SCHEMA_VERSION, "sequence": sequence, "session_id": session_id,
         "run_id": run_id, "scene_id": scene.scene_id, "scene_revision": scene.revision,
-        "motion": motion, "tug_states": _tug_states(model, s, t, pose), "environment": environment,
+        "motion": motion, "tug_states": _tug_states(model, s, t, pose, accel), "environment": environment,
         "line_states": line_states, "fitting_loads": fitting_loads, "fender_states": fender_states,
         "forces": forces, "validity": legacy.validity.model_dump(), "provenance": provenance,
         "structured_alerts": structured})

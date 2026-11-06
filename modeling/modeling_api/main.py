@@ -35,8 +35,9 @@ from mooring.core.schemas import (
 
 from mooring.core.schemas.forecast_planning import ForecastDockingResponse
 from mooring.core.schemas.risk import ExceedanceResponse, TimelineResponse
+from mooring.core.schemas.motion_controls import SimHelmCommandMessage, SimLoadingCommandMessage, SimLineControlMessage, SimTugMotionCommandMessage
 
-from .routers import (approach, berthing, env, loads, missions, moored, prediction, qualification, exercise, refdata as refdata_router, system,
+from .routers import (approach, berthing, env, loads, missions, moored, motion, prediction, qualification, exercise, refdata as refdata_router, system,
                       telemetry, transit)
 from .backend import overall_backend
 from .security import Controls
@@ -81,7 +82,7 @@ WEBSOCKETS = {
                                             "4404": "Scenario/source/reference not found or not owned",
                                             "4400": "Invalid interval, limit or reference"}},
     "/ws/sim/{session_id}": {"query": "limit (counts all server messages), after_sequence (resend only newer retained lifecycle; the current frame is always sent on connect; a restating lifecycle is sent if history was evicted)",
-                             "client_messages": "SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage",
+                             "client_messages": "SimTugCommandMessage | SimLineEventMessage | SimControlMessage | SimSpeedMessage | SimHelmCommandMessage | SimLoadingCommandMessage | SimLineControlMessage | SimTugMotionCommandMessage",
                              "server_messages": "SimLifecycle (type=session_lifecycle; reliable, retained) and SimFrame "
                                                 "(rm0-v1, latest state only; sequence gaps are dropped display frames), "
                                                 "interleaved in session-wide sequence order",
@@ -93,7 +94,7 @@ JOB_RESULT_MODELS = [ForecastDockingResponse, ExceedanceResponse, TimelineRespon
                      BerthingSimResponse, ApproachSimResponse, TransitResponse]
 STREAM_MODELS = [*JOB_RESULT_MODELS, EnvironmentSnapshot, Alert, SimFrame, SimTugCommandMessage, SimLineEventMessage, SimControlMessage,
                  SimSpeedMessage, TelemetryRecord, TelemetryAccepted, JobProgressEvent, JobDoneEvent, SimScene, SimLifecycle,
-                 SimRecording]
+                 SimRecording, SimHelmCommandMessage, SimLoadingCommandMessage, SimLineControlMessage, SimTugMotionCommandMessage]
 
 app = FastAPI(title="Mooring Assistant: Modeling API", version="1.0.0", description=DESCRIPTION,
               openapi_tags=TAGS, separate_input_output_schemas=False)
@@ -146,7 +147,7 @@ async def invalid_reference(_: Request, exc: refdata.InvalidReference):
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
-for r in (env, refdata_router, qualification, loads, moored, berthing, approach, telemetry, missions, transit, prediction, system, exercise):
+for r in (env, refdata_router, qualification, loads, moored, berthing, motion, approach, telemetry, missions, transit, prediction, system, exercise):
     app.include_router(r.router, prefix=API_PREFIX)
 app.include_router(ws_router)
 

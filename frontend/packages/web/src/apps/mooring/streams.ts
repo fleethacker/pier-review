@@ -1,6 +1,7 @@
 import { credentialState } from '../../lib/credentials';
 
 export type StreamStatus = 'connecting' | 'open' | 'closed' | 'error';
+export interface StreamCloseDetail { code: number; reason: string }
 
 export interface StreamHandle {
   close(): void;
@@ -16,7 +17,7 @@ export function openJsonStream<T>(
   /** A function is re-evaluated on every reconnect, e.g. to resume after the last sequence received. */
   url: string | (() => string),
   onMessage: (message: T) => void,
-  onStatus: (status: StreamStatus) => void,
+  onStatus: (status: StreamStatus, close?: StreamCloseDetail) => void,
 ): StreamHandle {
   if (credentialState.get().configured) {
     onStatus('error');
@@ -47,10 +48,10 @@ export function openJsonStream<T>(
     socket.onclose = (ev) => {
       if (closedByUs) return;
       if ([1000, 1008, 4401, 4404].includes(ev.code)) {
-        onStatus('closed');
+        onStatus('closed', { code: ev.code, reason: ev.reason });
         return;
       }
-      onStatus('error');
+      onStatus('error', { code: ev.code, reason: ev.reason });
       attempt += 1;
       timer = setTimeout(connect, Math.min(1000 * 2 ** attempt, 15000));
     };

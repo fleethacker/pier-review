@@ -14,9 +14,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  python-tests:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [modeling, agents]
     env:
       UV_LOCKED: "1"   # fail if uv.lock is out of date instead of re-resolving
     steps:
@@ -27,9 +31,22 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --locked --all-packages
       - name: Contract is up to date
+        if: matrix.suite == 'modeling'
         run: make contract-check
       - name: Tests (offline; no live NOAA or model calls)
-        run: make test
+        run: uv run --all-packages pytest -q ${{ matrix.suite }}/tests --durations=30
+
+  # Keep the existing required check name while both complete suites run in parallel.
+  test:
+    if: always()
+    needs: python-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Both Python suites passed
+        env:
+          PYTHON_TEST_RESULT: ${{ needs.python-tests.result }}
+        run: test "$PYTHON_TEST_RESULT" = success
 
   frontend:
     runs-on: ubuntu-24.04

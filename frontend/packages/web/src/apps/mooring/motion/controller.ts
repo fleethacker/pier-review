@@ -10,6 +10,8 @@ import type { SimClockView } from './clock';
 import { motionSceneParts } from './sceneMapper';
 import type { MotionSceneParts, ShipDims } from './sceneMapper';
 import type { CameraPreset } from '../../../scene/types';
+import { motionRequest, releaseMotionSession } from './workspace';
+import type { HelmOrder, PayloadItem, Prediction, StateInput, StateSnapshot, TugOrder, WorkspaceCatalog, WorkspaceScenario, WorkspaceSession, WorkspaceSpec } from './workspace';
 
 export type MotionSource = 'none' | 'live' | 'recording';
 export type LinkState = StreamStatus | 'idle';
@@ -20,6 +22,22 @@ const TRAIL_MAX = 600;
 const REPLAY_TICK_MS = 50;
 
 export interface MotionState {
+  catalog: WorkspaceCatalog | null;
+  catalogBusy: boolean;
+  catalogError: string | null;
+  savedScenarios: WorkspaceScenario[];
+  savedScenariosBusy: boolean;
+  savedScenariosError: string | null;
+  workspace: WorkspaceSession | null;
+  prediction: Prediction | null;
+  predictionBusy: boolean;
+  predictionError: string | null;
+  predictionEnabled: boolean;
+  predictionWhatIf: boolean;
+  command: { status: 'pending' | 'applied' | 'unconfirmed'; message: string } | null;
+  importedState: StateSnapshot | null;
+  stateImportBusy: boolean;
+  stateImportError: string | null;
   open: boolean;
   /** `plan` is the SVG panel; `map` drives the Cesium scene (2D or 3D) and leaves it visible. */
   view: ViewKind;
@@ -71,6 +89,10 @@ export const LIVE_SPEEDS = [0.5, 1, 2, 4, 8, 16] as const;
 const MAX_SESSION_RECORDINGS = 10;
 
 const INITIAL: MotionState = {
+  catalog: null, catalogBusy: false, catalogError: null, workspace: null,
+  savedScenarios: [], savedScenariosBusy: false, savedScenariosError: null,
+  prediction: null, predictionBusy: false, predictionError: null, predictionEnabled: true, predictionWhatIf: false, command: null,
+  importedState: null, stateImportBusy: false, stateImportError: null,
   open: false,
   view: 'plan',
   notDrawn: [],
@@ -155,6 +177,22 @@ export class MotionController {
   /** Newest lifecycle sequence received; a reconnect asks only for lifecycle messages after it. */
   private lastLifecycleSeq = -1;
   private readonly simClock = new SimClock();
+  private catalogPromise: Promise<void> | null = null;
+  private predictionTimer: ReturnType<typeof setInterval> | undefined;
+  private predictionAbort: AbortController | null = null;
+  private predictionEpoch = 0;
+  private pendingHelm: HelmOrder | null = null;
+  private pendingLine: { line_number: number; attached?: boolean; paid_out_length_ft?: number } | null = null;
+  private pendingPayloads: PayloadItem[] | null = null;
+  private pendingTug: { id: string; order: TugOrder } | null = null;
+  private previewOrder: HelmOrder | null = null;
+  private releases: Promise<void> = Promise.resolve();
+  private releasingIds = new Set<string>();
+  private unreleasedIds = new Set<string>();
+  private workspaceViewEpoch = 0;
+  private stateImportEpoch = 0;
+  private acceptedStateSequences = new Map<string, number>();
+  private savedScenariosPromise: Promise<void> | null = null;
 
   constructor(
     private readonly host: MotionHost,
@@ -173,8 +211,94 @@ export class MotionController {
     return this.state.get();
   }
 
-  open(): void {
+  open(workspace = false): void {
     this.state.set({ open: true });
+    if (workspace) void this.initializeWorkspace();
+    if (this.s.workspace) this.startPredictions();
+  }
+
+  async initializeWorkspace(): Promise<void> {
+    void this.loadSavedScenarios();
+    await this.loadCatalog();
+    const preset = this.s.catalog?.presets[0];
+    if (this.s.open && this.s.source === 'none' && !this.s.busy && preset) await this.loadWorkspace(preset.configuration);
+  }
+
+  /** StrictMode rehearsal or an immediate remount keeps the view; a true departure pauses the session. */
+  bindWorkspaceView(): () => void {
+    const epoch = ++this.workspaceViewEpoch;
+    return () => queueMicrotask(() => { if (this.workspaceViewEpoch === epoch && this.s.open) this.close(); });
+  }
+
+  async loadCatalog(): Promise<void> {
+    if (this.s.catalog) return;
+    if (this.catalogPromise) return this.catalogPromise;
+    this.state.set({ catalogBusy: true, catalogError: null });
+    this.catalogPromise = (async () => {
+      try {
+        const catalog = await motionRequest<WorkspaceCatalog>('/catalog');
+        if (!this.disposed) this.state.set({ catalog, catalogBusy: false });
+      } catch (e) {
+        if (!this.disposed) this.state.set({ catalogBusy: false, catalogError: e instanceof Error ? e.message : String(e) });
+      } finally { this.catalogPromise = null; }
+    })();
+    return this.catalogPromise;
+  }
+
+  async loadSavedScenarios(): Promise<void> {
+    if (this.savedScenariosPromise) return this.savedScenariosPromise;
+    this.state.set({ savedScenariosBusy: true, savedScenariosError: null });
+    this.savedScenariosPromise = (async () => {
+      try {
+        const savedScenarios = await motionRequest<WorkspaceScenario[]>('/scenarios');
+        if (!this.disposed) this.state.set((s) => ({ savedScenarios: [...s.savedScenarios, ...savedScenarios.filter((entry) => !s.savedScenarios.some((known) => known.motion_scenario_id === entry.motion_scenario_id))], savedScenariosBusy: false }));
+      } catch (e) {
+        if (!this.disposed) this.state.set({ savedScenariosBusy: false, savedScenariosError: e instanceof Error ? e.message : String(e) });
+      } finally { this.savedScenariosPromise = null; }
+    })();
+    return this.savedScenariosPromise;
+  }
+
+  /** Each selection creates a server-owned scenario and a paused session. Only Start sends resume. */
+  async loadWorkspace(configuration: WorkspaceSpec): Promise<void> {
+    if (credentialState.get().configured) { this.state.set({ error: GATEWAY_REQUIRED }); return; }
+    this.stopEverything();
+    const epoch = this.loadEpoch;
+    this.lastLifecycleSeq = -1;
+    this.simClock.reset();
+    this.state.set({ busy: true, error: null, notice: null, source: 'live', link: 'connecting', workspace: null,
+      scene: null, sceneError: null, frame: null, trail: [], lifecycle: null, lifecycleMessage: null,
+      lifecycleReasons: [], lifecycleInvalid: false, sessionId: null, recording: null, playing: false,
+      lastSequence: null, droppedForDisplay: 0, speed: 1, clock: null, forcingRevision: null, forcingSynthetic: null, command: null });
+    try {
+      await this.releases;
+      if (this.unreleasedIds.size) {
+        for (const id of this.unreleasedIds) this.releaseWorkspaceSession(id);
+        await this.releases;
+        if (this.unreleasedIds.size) throw new Error('A previous session could not be released. Its recording remains on the service. Retry loading after the service recovers.');
+      }
+      if (epoch !== this.loadEpoch || this.disposed) return;
+      const scenario = await motionRequest<WorkspaceScenario>('/scenarios', configuration);
+      if (epoch !== this.loadEpoch || this.disposed) return;
+      this.state.set({ savedScenarios: [scenario, ...this.s.savedScenarios.filter((entry) => entry.motion_scenario_id !== scenario.motion_scenario_id)] });
+      const workspace = await motionRequest<WorkspaceSession>('/sessions', { motion_scenario_id: scenario.motion_scenario_id });
+      if (epoch !== this.loadEpoch || this.disposed) { this.releaseWorkspaceSession(workspace.session.session_id); return; }
+      const created = workspace.session;
+      this.forcingSyntheticOverride = created.forcing_synthetic ?? null;
+      this.state.set({ workspace, sessionId: created.session_id, forcingRevision: created.forcing_revision ?? null, forcingSynthetic: created.forcing_synthetic ?? null });
+      const sceneUrl = created.scene_url ? serviceUrl(MODELING_BASE, created.scene_url) : null;
+      if (created.recording_url) this.state.set({ sessionRecordings: [{ sessionId: created.session_id,
+        recordingUrl: serviceUrl(MODELING_BASE, created.recording_url), sceneUrl, startedAt: new Date().toISOString(),
+        forcingRevision: created.forcing_revision, forcingSynthetic: created.forcing_synthetic }, ...this.s.sessionRecordings].slice(0, MAX_SESSION_RECORDINGS) });
+      await this.loadScene(sceneUrl, epoch);
+      if (epoch !== this.loadEpoch || this.disposed) return;
+      this.connect(created.session_id);
+      this.state.set({ busy: false });
+      this.startPredictions();
+    } catch (e) {
+      if (epoch !== this.loadEpoch || this.disposed) return;
+      this.state.set({ busy: false, source: 'none', link: 'idle', error: `Could not load maneuver: ${e instanceof Error ? e.message : String(e)}` });
+    }
   }
 
   /**
@@ -182,6 +306,7 @@ export class MotionController {
    * the few the simulator allows; a recording is simply dropped.
    */
   close(): void {
+    this.stopPredictions();
     if (this.s.view === 'map') this.setView('plan');
     if (this.s.source === 'live' && this.stream) {
       this.pause();
@@ -189,7 +314,7 @@ export class MotionController {
       return;
     }
     this.stopEverything();
-    this.state.set({ ...INITIAL, sessionRecordings: this.s.sessionRecordings });
+    this.state.set({ ...INITIAL, catalog: this.s.catalog, sessionRecordings: this.s.sessionRecordings });
   }
 
   dispose(): void {
@@ -199,12 +324,34 @@ export class MotionController {
   }
 
   private stopEverything(): void {
+    this.stopPredictions();
+    this.stateImportEpoch += 1;
+    this.acceptedStateSequences.clear();
+    this.pendingHelm = null; this.pendingLine = null; this.pendingPayloads = null;
+    this.pendingTug = null;
+    this.state.set({ importedState: null, stateImportBusy: false, stateImportError: null });
     this.loadEpoch += 1;
     this.forcingSyntheticOverride = null;
     this.stopReplay();
     this.stream?.close();
     this.stream = null;
     this.pending = null;
+    if (this.s.workspace && this.s.sessionId) this.releaseWorkspaceSession(this.s.sessionId);
+  }
+
+  private releaseWorkspaceSession(id: string): void {
+    this.unreleasedIds.add(id);
+    if (this.releasingIds.has(id)) return;
+    this.releasingIds.add(id);
+    this.releases = this.releases.catch(() => undefined).then(async () => {
+      try {
+        await releaseMotionSession(id);
+        this.unreleasedIds.delete(id);
+        if (!this.disposed && this.s.notice?.startsWith('Previous session could not be released')) this.state.set({ notice: null });
+      } catch (e) {
+        if (!this.disposed) this.state.set({ notice: e instanceof Error ? e.message : String(e) });
+      } finally { this.releasingIds.delete(id); }
+    });
   }
 
   // ---- display ---------------------------------------------------------------------------------------------
@@ -216,6 +363,40 @@ export class MotionController {
   /** Draws one frame now (replay, scrub) or the newest pending frame (live). */
   private show(raw: SimFrame): void {
     const frame = adaptFrame(raw, { faceBearingDeg: this.face() });
+    for (const snapshot of frame.stateInputs) this.rememberStateSequence(snapshot.input);
+    if (this.s.frame && this.s.frame.runId !== frame.runId) {
+      this.pendingHelm = null; this.pendingLine = null; this.pendingPayloads = null; this.pendingTug = null;
+      if (this.s.command?.status === 'pending') this.state.set({ command: { status: 'unconfirmed', message: 'Run changed before backend acknowledgement. Inspect the new run state before sending another order.' } });
+    }
+    if (this.s.frame && (this.s.frame.runId !== frame.runId || frame.tS < this.s.frame.tS)) this.invalidatePrediction();
+    const existing = this.s.prediction;
+    if (existing && frame.tS > existing.source.t_s && frame.tS >= (existing.path.at(-1)?.t_s ?? existing.source.t_s)) {
+      this.state.set({ prediction: null, predictionError: 'Prediction horizon expired. Waiting for a fresh backend snapshot; future coverage is unavailable.' });
+    }
+    if (this.pendingHelm && frame.controls && Object.entries(this.pendingHelm).every(([k, v]) => Math.abs(frame.controls!.commanded[k as keyof HelmOrder] - v) < 1e-6)) {
+      this.pendingHelm = null;
+      this.state.set({ command: { status: 'applied', message: 'Helm order acknowledged by the backend. Actual actuator values follow their response rates.' } });
+    }
+    if (this.pendingLine) {
+      const request = this.pendingLine;
+      const line = frame.lineControls.find((l) => l.line_number === request.line_number);
+      if (line && (request.attached === undefined || line.attached === request.attached) && (request.paid_out_length_ft === undefined || Math.abs(line.paid_out_length_ft - request.paid_out_length_ft) < 1e-6)) {
+        this.pendingLine = null;
+        this.state.set({ command: { status: 'applied', message: `Line ${line.line_number} change acknowledged by the backend.` } });
+      }
+    }
+    if (this.pendingPayloads && frame.loading && JSON.stringify(frame.loading.payloads) === JSON.stringify(this.pendingPayloads)) {
+      this.pendingPayloads = null;
+      this.state.set({ command: { status: 'applied', message: 'Payload inventory acknowledged by the backend.' } });
+    }
+    if (this.pendingTug) {
+      const pending = this.pendingTug;
+      const reported = frame.tugDynamics.find((t) => t.tug_id === pending.id);
+      if (reported && Object.entries(pending.order).every(([k, v]) => reported.commanded[k as keyof TugOrder] === v)) {
+        this.pendingTug = null;
+        this.state.set({ command: { status: 'applied', message: `Tug ${pending.id} maneuver order acknowledged. Force transfer requires reported contact or a taut tow.` } });
+      }
+    }
     const forcing = forcingOf(raw);
     this.state.set({ forcingRevision: forcing.forcingRevision ?? this.s.forcingRevision,
       forcingSynthetic: this.forcingSyntheticOverride ?? (this.s.forcingSynthetic === true || forcing.training) });
@@ -304,7 +485,7 @@ export class MotionController {
     const epoch = this.loadEpoch;
     this.forcingSyntheticOverride = forcing?.forcingSynthetic ?? null;
     this.state.set({ forcingRevision: forcing?.forcingRevision ?? null, forcingSynthetic: forcing?.forcingSynthetic ?? null, lifecycleReasons: [], lifecycleInvalid: false });
-    this.state.set({ busy: true, error: null, source: 'recording', link: 'idle', lifecycle: null, frame: null, trail: [], playing: false, sessionId: null });
+    this.state.set({ busy: true, error: null, source: 'recording', workspace: null, command: null, link: 'idle', lifecycle: null, frame: null, trail: [], playing: false, sessionId: null });
     try {
       const res = await fetch(url, { headers: authHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -415,7 +596,7 @@ export class MotionController {
     this.lastLifecycleSeq = -1;
     this.simClock.reset();
     this.state.set({ speed: 1, clock: null, forcingRevision: null, forcingSynthetic: null, lifecycleReasons: [], lifecycleInvalid: false });
-    this.state.set({ busy: true, error: null, source: 'live', link: 'connecting', frame: null, trail: [], lifecycle: null, lifecycleMessage: null, lastSequence: null, droppedForDisplay: 0, recording: null, playing: false });
+    this.state.set({ busy: true, error: null, source: 'live', workspace: null, command: null, link: 'connecting', frame: null, trail: [], lifecycle: null, lifecycleMessage: null, lastSequence: null, droppedForDisplay: 0, recording: null, playing: false });
     try {
       const scenarioId = await this.host.ensureScenario();
       if (epoch !== this.loadEpoch || this.disposed) return;
@@ -474,7 +655,7 @@ export class MotionController {
         if (msg.kind === 'frame') this.receive(msg.frame);
         else if (msg.kind === 'lifecycle') this.onLifecycle(msg.lifecycle);
       },
-      (link) => {
+      (link, detail) => {
         if (this.disposed) return;
         this.state.set({ link });
         if (link === 'open' && !first) {
@@ -482,7 +663,11 @@ export class MotionController {
           this.state.set({ notice: 'Reconnected. The session comes back paused: press Resume to continue.', lifecycle: 'paused' });
         }
         if (link === 'open') first = false;
-        if (link === 'error') this.state.set({ notice: 'Connection lost; retrying…' });
+        if (link === 'error') this.state.set({ notice: 'Connection lost; retrying…', ...(this.s.command?.status === 'pending' ? { command: { status: 'unconfirmed' as const, message: 'Connection interrupted. The command is unconfirmed; inspect the reported state before sending again.' } } : {}) });
+        if (link === 'closed') this.state.set({
+          notice: `${detail?.code === 1008 ? 'Command rejected' : 'Simulation connection closed'}${detail?.reason ? `: ${detail.reason}` : ''}. Load a paused scenario to reconnect.`,
+          ...(this.s.command?.status === 'pending' ? { command: { status: 'unconfirmed' as const, message: 'Connection closed before acknowledgement. The last command is unconfirmed.' } } : {}),
+        });
       },
     );
   }
@@ -509,6 +694,7 @@ export class MotionController {
   }
 
   resume(): boolean {
+    if (this.s.stateImportBusy) return false;
     this.state.set({ notice: null });
     return this.send({ type: 'resume' });
   }
@@ -518,15 +704,138 @@ export class MotionController {
   }
 
   reset(): boolean {
-    this.state.set({ trail: [], notice: null });
+    this.invalidatePrediction();
+    this.stateImportEpoch += 1;
+    this.pendingHelm = null; this.pendingLine = null; this.pendingPayloads = null; this.pendingTug = null;
+    this.state.set({ trail: [], notice: null, command: null, importedState: null, stateImportBusy: false, stateImportError: null });
     return this.send({ type: 'reset' });
   }
 
   tugCommand(tugId: string, forceLbf: number, directionRelDeg: number): boolean {
-    return this.send({ type: 'tug_command', tug_id: tugId, force_lbf: Math.max(0, forceLbf), direction_rel_deg: ((directionRelDeg % 360) + 360) % 360 });
+    const sent = this.send({ type: 'tug_command', tug_id: tugId, force_lbf: Math.max(0, forceLbf), direction_rel_deg: ((directionRelDeg % 360) + 360) % 360 });
+    if (sent && this.s.workspace) { this.invalidatePrediction(); this.state.set({ command: { status: 'unconfirmed', message: `Tug ${tugId} order sent. Compare the reported force after simulation advances; this protocol supplies no command receipt.` } }); }
+    return sent;
   }
 
   lineEvent(lineNumber: number, event: 'secured' | 'tensioned' | 'released'): boolean {
     return this.send({ type: 'line_event', line_number: lineNumber, event });
+  }
+
+  helmCommand(order: HelmOrder): boolean {
+    const sent = this.send({ type: 'helm_command', ...order });
+    if (sent) { this.pendingHelm = { ...order }; this.commandSent('Helm order sent. Waiting for the backend state.'); }
+    return sent;
+  }
+
+  lineControl(line: { line_number: number; attached?: boolean; paid_out_length_ft?: number }): boolean {
+    const sent = this.send({ type: 'line_control', ...line });
+    if (sent) { this.pendingLine = { ...line }; this.commandSent(`Line ${line.line_number} command sent. Waiting for the backend state.`); }
+    return sent;
+  }
+
+  loadingCommand(payloads: PayloadItem[]): boolean {
+    const sent = this.send({ type: 'loading_command', payloads });
+    if (sent) { this.pendingPayloads = structuredClone(payloads); this.commandSent('Payload change sent. Waiting for the backend state.'); }
+    return sent;
+  }
+
+  tugMotionCommand(id: string, order: TugOrder): boolean {
+    const sent = this.send({ type: 'tug_motion_command', tug_id: id, ...order });
+    if (sent) { this.pendingTug = { id, order: { ...order } }; this.commandSent(`Tug ${id} maneuver order sent. Waiting for backend state.`); }
+    return sent;
+  }
+
+  async importState(input: StateInput): Promise<void> {
+    const id = this.s.sessionId;
+    if (!id || this.s.source !== 'live' || !['created', 'paused', 'reset'].includes(this.s.lifecycle ?? '') || this.s.stateImportBusy) return;
+    const epoch = this.loadEpoch;
+    const operation = ++this.stateImportEpoch;
+    const previousRun = this.s.frame?.runId;
+    this.invalidatePrediction();
+    this.state.set({ stateImportBusy: true, stateImportError: null });
+    try {
+      const snapshot = await motionRequest<StateSnapshot>(`/sessions/${encodeURIComponent(id)}/state`, input);
+      if (epoch !== this.loadEpoch || this.disposed || this.s.sessionId !== snapshot.session_id) return;
+      this.rememberStateSequence(snapshot.input);
+      if (operation !== this.stateImportEpoch) return;
+      if (this.s.frame?.runId !== previousRun && this.s.frame?.runId !== snapshot.run_id) {
+        this.state.set({ stateImportBusy: false, stateImportError: 'Accepted input belongs to a previous run. The displayed run has since changed.' });
+        return;
+      }
+      this.state.set({ importedState: snapshot, stateImportBusy: false, command: { status: 'applied', message: 'Supplied state accepted into a new paused run. Start continues backend simulation from this input.' } });
+    } catch (e) {
+      if (epoch !== this.loadEpoch || operation !== this.stateImportEpoch || this.disposed) return;
+      this.state.set({ stateImportBusy: false, stateImportError: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  private rememberStateSequence(input: StateInput): void {
+    const key = `${input.entity}:${input.entity_id}`;
+    this.acceptedStateSequences.set(key, Math.max(this.acceptedStateSequences.get(key) ?? 0, input.sequence));
+  }
+
+  nextStateSequence(entity: StateInput['entity'], entityId: string): number {
+    for (const snapshot of this.s.frame?.stateInputs ?? []) this.rememberStateSequence(snapshot.input);
+    if (this.s.importedState) this.rememberStateSequence(this.s.importedState.input);
+    return (this.acceptedStateSequences.get(`${entity}:${entityId}`) ?? 0) + 1;
+  }
+
+  private commandSent(message: string): void {
+    this.invalidatePrediction();
+    this.state.set({ command: { status: 'pending', message } });
+  }
+
+  private invalidatePrediction(): void {
+    this.previewOrder = null;
+    this.predictionEpoch += 1;
+    this.predictionAbort?.abort(); this.predictionAbort = null;
+    this.state.set({ prediction: null, predictionBusy: false, predictionError: null, predictionWhatIf: false });
+  }
+
+  private stopPredictions(): void {
+    clearInterval(this.predictionTimer); this.predictionTimer = undefined;
+    this.invalidatePrediction();
+  }
+
+  private startPredictions(): void {
+    clearInterval(this.predictionTimer);
+    this.predictionTimer = setInterval(() => {
+      if (this.s.open && this.s.predictionEnabled && !this.s.stateImportBusy) void this.refreshPrediction();
+    }, 1000);
+  }
+
+  setPredictionEnabled(enabled: boolean): void {
+    this.state.set({ predictionEnabled: enabled });
+    if (!enabled) this.invalidatePrediction();
+    else void this.refreshPrediction();
+  }
+
+  async refreshPrediction(whatIf?: HelmOrder): Promise<void> {
+    if (whatIf) { this.invalidatePrediction(); this.previewOrder = { ...whatIf }; this.state.set({ predictionEnabled: true }); }
+    const previewOrder = this.previewOrder;
+    const s = this.s;
+    if (!s.workspace || !s.sessionId || !s.frame || s.source !== 'live' || s.predictionBusy || s.link !== 'open') return;
+    const epoch = this.predictionEpoch;
+    const abort = new AbortController(); this.predictionAbort = abort;
+    this.state.set({ predictionBusy: true, predictionError: null, predictionWhatIf: !!previewOrder });
+    try {
+      const prediction = await motionRequest<Prediction>(`/sessions/${encodeURIComponent(s.sessionId)}/prediction`, {
+        horizon_s: 60, sample_interval_s: 2, what_if_commands: previewOrder ? [{ type: 'helm_command', ...previewOrder }] : [],
+      }, abort.signal);
+      if (epoch !== this.predictionEpoch || this.disposed) return;
+      if (prediction.source.session_id !== this.s.sessionId || (this.s.frame?.runId && prediction.source.run_id !== this.s.frame.runId)) {
+        this.state.set({ prediction: null, predictionBusy: false, predictionError: 'Prediction snapshot does not match the displayed run. Waiting for a fresh backend snapshot.' });
+        return;
+      }
+      const currentTime = this.s.frame?.tS;
+      if (currentTime != null && currentTime > prediction.source.t_s && currentTime >= (prediction.path.at(-1)?.t_s ?? prediction.source.t_s)) {
+        this.state.set({ prediction: null, predictionBusy: false, predictionError: 'Prediction arrived after its horizon expired. Future coverage is unavailable until the next snapshot.' });
+        return;
+      }
+      this.state.set({ prediction, predictionBusy: false });
+    } catch (e) {
+      if (epoch !== this.predictionEpoch || this.disposed) return;
+      this.state.set({ prediction: null, predictionBusy: false, predictionError: e instanceof Error ? e.message : String(e) });
+    } finally { if (epoch === this.predictionEpoch) this.predictionAbort = null; }
   }
 }

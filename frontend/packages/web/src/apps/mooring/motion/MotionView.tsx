@@ -36,15 +36,18 @@ export function Badges({ frame, state }: { frame: ViewFrame | null; state: Motio
   const invalid = state.lifecycleInvalid || validity === 'invalid';
   const imported = frame?.stateInputs.at(-1) ?? (state.importedState?.run_id === frame?.runId ? state.importedState : null);
   const reasons = [...new Set([...(badge?.reasons ?? []), ...state.lifecycleReasons])];
+  const componentIssues = [frame?.loading?.validity, frame?.controls?.validity].flatMap((v) => v?.state === 'invalid'
+    ? (v.reasons ?? []).filter((r) => !r.code.startsWith('SYNTHETIC_')).map((r) => r.message) : []);
+  const activeIssues = [...new Set([...componentIssues, ...reasons.filter((reason) => /stale|missing|uncovered|expired|exceeded|failed|failure|intersect|reaches supplied depth/i.test(reason))])];
   const missingEnvironment = !env ? ['environment'] : [!env.wind.available && 'wind', !env.current.available && 'current', !env.water.available && 'water level'].filter(Boolean);
   return (
-    <div className="space-y-1 text-[10px]" role="group" aria-label="Frame validity and provenance">
-      <details open={invalid}>
+    <div className="max-h-[20vh] space-y-1 overflow-y-auto text-[10px]" role="group" aria-label="Frame validity and provenance">
+      <details>
         <summary className="cursor-pointer font-mono text-mil-dim hover:text-mil-text">
           <span className="text-mil-text">Demo information</span>
           <span> · {state.source === 'live' ? 'simulation' : state.source === 'recording' ? 'replay' : 'idle'}{synthetic ? ' · synthetic forcing' : ''}{frame && !invalid && validity !== 'unknown' ? ` · ${validity}` : ''}</span>
         </summary>
-        <div className="mt-2 space-y-2 border-l border-mil-border pl-3 text-mil-dim">
+        <div className="mt-2 max-h-44 space-y-2 overflow-y-auto border-l border-mil-border pl-3 text-mil-dim">
           <p>Development model, unqualified. Demonstrator decision support, not navigational guidance.</p>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
             <dt>Frame</dt><dd>validity: {frame ? validity : 'no frame'} · {frame ? (frame.rm0 ? 'rm0-v1' : 'legacy schema') : 'schema n/a'}</dd>
@@ -56,13 +59,13 @@ export function Badges({ frame, state }: { frame: ViewFrame | null; state: Motio
             {env && (['wind', 'current', 'water'] as const).map((part) => <div className="contents" key={part}><dt className="capitalize">{part}</dt><dd>{env[part].source ?? 'source not stated'} · {env[part].ageS == null ? 'age not stated' : `${env[part].ageS.toFixed(0)} s old`}{env[part].basis && ` · ${env[part].basis}`}{state.workspace?.scenario.configuration.environment_mode === 'live' ? ' · held snapshot' : ''}</dd></div>)}
             {frame?.assumedFaceBearing && <><dt>Orientation</dt><dd>berth orientation assumed; no scene bearing supplied</dd></>}
           </dl>
-          {!invalid && reasons.length > 0 && <ul className="space-y-1" aria-label="Model and source details">{reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+          {reasons.length > 0 && <ul className="space-y-1" aria-label="Model and source details">{reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
         </div>
       </details>
-      {invalid && <div role="alert" className="text-mil-red"><p className="font-semibold">Invalid state</p>{reasons.map((reason) => <p key={reason}>{reason}</p>)}</div>}
+      {invalid && <div role="alert" className="max-h-20 overflow-y-auto text-mil-red"><p className="font-semibold">Invalid state · inspect active conditions or expand Demo information</p>{activeIssues.map((reason) => <p key={reason}>{reason}</p>)}</div>}
       {frame && validity === 'unknown' && !invalid && <p role="status" className="text-mil-amber">State validity unavailable</p>}
       {frame?.assumedFaceBearing && <p role="status" className="text-mil-amber">Berth orientation assumed · no scene bearing supplied</p>}
-      {!invalid && reasons.filter((reason) => /stale|missing|uncovered|expired/i.test(reason)).map((reason) => <p role="status" key={reason} className="text-mil-amber">{reason}</p>)}
+      {!invalid && activeIssues.map((reason) => <p role="status" key={reason} className="text-mil-amber">{reason}</p>)}
       {frame?.alerts.filter((alert) => alert.severity === 'RED').map((alert, index) => <p role="alert" key={`${alert.code}-${index}`} className="text-mil-red">{alert.message}</p>)}
       {missingEnvironment.length > 0 && <p role="status" className="text-mil-amber">{missingEnvironment.join(', ')} unavailable{!frame ? ' · waiting for a frame' : ''}</p>}
     </div>
@@ -521,7 +524,7 @@ export function MotionView({ controller: c, workspace = false }: { controller: M
             </div>
           ) : (
             <>
-              <MotionCanvas frame={s.frame} scene={s.scene} trail={s.trail} faceBearingDeg={face} basemap={basemap} origin={s.workspace ? { lat: s.workspace.berth.origin_lat, lon: s.workspace.berth.origin_lon, bearingDeg: face } : null} flow={workspace ? flow : undefined} vectors={vectors} prediction={s.predictionEnabled ? s.prediction : null} predictionWhatIf={s.predictionWhatIf} shipClass={s.workspace?.ship} route={s.workspace?.route} compactHud={workspace && !detailsOpen} animateMotion={s.source === 'live' && s.link === 'open' && s.lifecycle === 'running' && !s.lifecycleInvalid} />
+              <MotionCanvas frame={s.frame} scene={s.scene} trail={s.trail} faceBearingDeg={face} basemap={basemap} origin={s.workspace ? { lat: s.workspace.berth.origin_lat, lon: s.workspace.berth.origin_lon, bearingDeg: face } : null} flow={workspace ? flow : undefined} vectors={vectors} prediction={s.predictionEnabled ? s.prediction : null} predictionWhatIf={s.predictionWhatIf} shipClass={s.workspace?.ship} route={s.workspace?.route} compactHud={workspace} animateMotion={s.source === 'live' && s.link === 'open' && s.lifecycle === 'running' && !s.lifecycleInvalid} />
               {s.source === 'live' && s.droppedForDisplay > 0 && (
                 <p className="pointer-events-none absolute bottom-2 left-3 text-[10px] text-mil-dim">Showing the newest frame; {s.droppedForDisplay} older frames arrived faster than they could be drawn and were skipped.</p>
               )}

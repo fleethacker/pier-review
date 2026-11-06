@@ -41,17 +41,32 @@ describe('Motion demo information', () => {
     expect(details.open).toBe(false);
   });
 
-  it('opens for an invalid state and leaves its reasons exposed even if details are closed', () => {
+  it('keeps background details closed for an invalid state and exposes the active condition', () => {
     const c = controller();
     c.state.set({ lifecycleInvalid: true, lifecycleReasons: ['FORCING_UNCOVERED: forecast coverage ended'] });
     render(<Badges frame={null} state={c.s} />);
     const summary = screen.getByText('Demo information').closest('summary')!;
-    expect((summary.parentElement as HTMLDetailsElement).open).toBe(true);
-    fireEvent.click(summary);
-    const reason = screen.getByText('FORCING_UNCOVERED: forecast coverage ended');
+    expect((summary.parentElement as HTMLDetailsElement).open).toBe(false);
+    const reason = screen.getAllByText('FORCING_UNCOVERED: forecast coverage ended').find((el) => !el.closest('details'))!;
     expect(reason.closest('details')).toBeNull();
     expect(reason.closest('[role="alert"]')).toBeTruthy();
     expect(screen.getByText(/environment unavailable/).closest('details')).toBeNull();
+  });
+
+  it('shows invalid clearance without expanding the generic qualification list over the map', () => {
+    const c = controller();
+    const frame = { ...c.s.frame!, badge: { ...c.s.frame!.badge, validity: 'invalid' as const }, loading: {
+      ...loading, validity: { state: 'invalid' as const, reasons: [
+        { code: 'SYNTHETIC_LOADING', message: 'Illustrative loading parameters.' },
+        { code: 'KEEL_CONTACT', message: 'Hull reaches supplied depth.' },
+      ] },
+    } };
+    render(<Badges frame={frame} state={c.s} />);
+    const summary = screen.getByText('Demo information').closest('details')!;
+    expect(summary.open).toBe(false);
+    expect(screen.getByRole('alert').textContent).toContain('Hull reaches supplied depth.');
+    expect(screen.getByRole('alert').textContent).not.toContain('TRAINING: Authored training configuration');
+    expect(screen.getByText('TRAINING: Authored training configuration').closest('details')).toBe(summary);
   });
 
   it('keeps stale input and known contact alerts outside background details', () => {

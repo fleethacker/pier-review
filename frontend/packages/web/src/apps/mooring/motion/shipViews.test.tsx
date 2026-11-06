@@ -21,9 +21,12 @@ describe('Simultaneous ship views', () => {
     render(<MotionView controller={c} workspace />);
     const map = screen.getByRole('img', { name: 'Plan view of the ship, pier, lines and tugs' });
     const dock = screen.getByRole('region', { name: 'Ship views' });
+    const legend = screen.getByText('Vector / line key · lbf, ft/s, ft/s²').closest('details')!;
+    expect(legend.open).toBe(false);
     for (const view of ['forward', 'aft', 'side']) expect(within(dock).getByRole('img', { name: new RegExp(`${view} hull`) })).toBeTruthy();
     fireEvent.keyDown(map, { key: 'ArrowLeft' }); const panned = map.getAttribute('viewBox');
     fireEvent.click(screen.getByRole('button', { name: 'Hide details' }));
+    expect(legend.open).toBe(false);
     expect(screen.getByRole('region', { name: 'Ship views' })).toBe(dock);
     fireEvent.click(screen.getByRole('button', { name: 'Hide ship views' }));
     expect(screen.queryByRole('region', { name: 'Ship views' })).toBeNull();

@@ -81,7 +81,7 @@ describe('MotionView accessibility', () => {
     expect(screen.getByRole('combobox', { name: 'Tug' })).toBeTruthy();
     expect(screen.getByRole('combobox', { name: 'Line' })).toBeTruthy();
     expect(screen.getByRole('spinbutton', { name: /Force/ })).toBeTruthy();
-    expect(screen.getByRole('combobox', { name: /Push from/ })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: /Force toward/ })).toBeTruthy();
     expect(screen.getByRole('spinbutton', { name: /Start offset/ })).toBeTruthy();
     expect(screen.getByRole('complementary', { name: 'Frame readouts' })).toBeTruthy();
     expect(screen.getByRole('img', { name: 'Plan view of the ship, pier, lines and tugs' })).toBeTruthy();

@@ -13,6 +13,10 @@ export type WorkspaceSpec = S['MotionWorkspaceSpec'];
 export type WorkspaceCatalog = S['MotionWorkspaceCatalog'];
 export type WorkspaceScenario = S['MotionWorkspaceScenario'];
 export type WorkspaceSession = S['MotionWorkspaceSessionCreated'];
+export type TugOrder = S['TugMotionOrder'];
+export type TugDynamicsState = S['MotionTugDynamicsState'];
+export type StateInput = S['MotionStateInput'];
+export type StateSnapshot = S['MotionStateSnapshot'];
 
 /** Small typed adapter for the Motion service, including proxy prefixes and runtime auth. */
 export async function motionRequest<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {

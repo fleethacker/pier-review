@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, inputClass } from '../../../shell/ui';
 import type { MotionController, MotionState } from './controller';
-import type { HelmOrder, PayloadItem } from './workspace';
+import type { HelmOrder, PayloadItem, TugOrder, TugDynamicsState, ControlsConfig } from './workspace';
 
 function Lever({ label, value, actual, min = -100, max = 100, unit = '%', hint, onChange, disabled }: { label: string; value: number; actual: number; min?: number; max?: number; unit?: string; hint: string; onChange: (v: number) => void; disabled: boolean }) {
   return <label className="block min-w-0 border-r border-mil-border px-3 py-2 last:border-r-0">
@@ -51,12 +51,27 @@ function TugControls({ c, s, disabled }: { c: MotionController; s: MotionState; 
   const id = choices.some((t) => t.id === selected) ? selected : choices[0]?.id ?? '';
   const tug = choices.find((t) => t.id === id);
   const capacity = s.catalog?.tugs.find((t) => t.tug_id === id)?.bollard_pull_ahead_lbf;
+  const config = s.workspace?.controls.tug_dynamics?.find((t) => t.tug_id === id);
+  const dynamic = s.frame?.tugDynamics.find((t) => t.tug_id === id);
+  if (config) return <div className="space-y-3"><label className="flex items-center gap-2 text-[10px] text-mil-dim">Tug<select aria-label="Workspace tug" className={`${inputClass} w-28`} value={id} onChange={(e) => setSelected(e.target.value)}>{choices.map((t) => <option key={t.id}>{t.id}</option>)}</select><span>Independent backend dynamics · {config.basis}</span></label>{dynamic ? <DynamicTugControls key={id} c={c} config={config} state={dynamic} disabled={disabled} /> : <p className="text-xs text-mil-dim">Waiting for the tug's backend command state.</p>}</div>;
   return <div className="flex flex-wrap items-end gap-3 text-[10px]">
     <label className="grid gap-1 text-mil-dim">Tug<select aria-label="Workspace tug" className={inputClass} value={id} onChange={(e) => { setSelected(e.target.value); setForce(0); }}>{!choices.length && <option value="">None assigned</option>}{choices.map((t) => <option key={t.id}>{t.id}</option>)}</select></label>
     <label className="grid gap-1 text-mil-dim">Tug force (lbf)<input className={`${inputClass} w-28`} type="number" min={0} max={capacity} step={500} value={force} onChange={(e) => setForce(Number(e.target.value))} /></label>
-    <label className="grid gap-1 text-mil-dim">Push from<select className={inputClass} value={direction} onChange={(e) => setDirection(Number(e.target.value))}><option value={90}>Starboard (90°)</option><option value={270}>Port (270°)</option><option value={0}>Bow (0°)</option><option value={180}>Stern (180°)</option></select></label>
+    <label className="grid gap-1 text-mil-dim">Force toward<select className={inputClass} value={direction} onChange={(e) => setDirection(Number(e.target.value))}><option value={90}>Starboard (90°)</option><option value={270}>Port (270°)</option></select></label>
     <Button size="sm" disabled={disabled || !id || !Number.isFinite(force) || force < 0 || (capacity != null && force > capacity)} onClick={() => c.tugCommand(id, force, direction)}>Apply tug command</Button>
     <p className="text-mil-dim">{tug?.actualForce ? `Reported force ${Math.hypot(tug.actualForce.x, tug.actualForce.y).toFixed(0)} lbf` : 'Reported force unavailable'} · {tug?.contactState.replace(/_/g, ' ') ?? 'No tug assigned'}</p>
+  </div>;
+}
+
+function DynamicTugControls({ c, config, state, disabled }: { c: MotionController; config: NonNullable<ControlsConfig['tug_dynamics']>[number]; state: TugDynamicsState; disabled: boolean }) {
+  const [order, setOrder] = useState<TugOrder>(() => ({ ...state.commanded }));
+  const speed = Math.hypot(order.target_velocity_x_fps, order.target_velocity_y_fps);
+  const valid = [order.target_velocity_x_fps, order.target_velocity_y_fps, order.target_heading_true_deg, order.tow_length_ft].every(Number.isFinite) && speed <= config.max_target_speed_fps && order.target_heading_true_deg >= 0 && order.target_heading_true_deg < 360 && order.tow_length_ft > 0;
+  return <div className="space-y-2 text-[10px]"><div className="flex flex-wrap items-end gap-3"><label className="grid gap-1 text-mil-dim">Connection mode<select aria-label="Tug connection mode" className={inputClass} value={order.mode} onChange={(e) => setOrder({ ...order, mode: e.target.value as TugOrder['mode'] })}><option value="free">Free maneuvering</option><option value="push">Push on contact</option><option value="tow">Tow when taut</option></select></label>
+    {([['target_velocity_x_fps', 'Along-pier target (ft/s)', -config.max_target_speed_fps, config.max_target_speed_fps], ['target_velocity_y_fps', 'Off-pier target (ft/s)', -config.max_target_speed_fps, config.max_target_speed_fps], ['target_heading_true_deg', 'Tug heading (° true)', 0, 359.9], ['tow_length_ft', 'Tow length (ft)', 0.1, 10000]] as const).map(([key, label, min, max]) => <label key={key} className="grid gap-1 text-mil-dim">{label}<input className={`${inputClass} w-28`} type="number" min={min} max={max} step={0.1} value={order[key]} onChange={(e) => setOrder({ ...order, [key]: Number(e.target.value) })} /></label>)}
+    <Button size="sm" disabled={disabled || !valid} onClick={() => c.tugMotionCommand(config.tug_id, order)}>Apply tug maneuver</Button></div>
+    <p className="text-mil-dim">Target speed limit {config.max_target_speed_fps.toFixed(1)} ft/s. Positive y is away from the pier. Orders use the tug's own inertia and propulsion; force transfers only at contact or with a taut tow.</p>
+    <p className="text-mil-cyan">Reported: {state.connection_state.replace(/_/g, ' ')} · transferred force {Math.hypot(state.transferred_x_lbf, state.transferred_y_lbf).toFixed(0)} lbf · compression {state.contact_compression_ft.toFixed(2)} ft · tow tension {state.tow_tension_lbf.toFixed(0)} lbf</p>
   </div>;
 }
 

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const stream = vi.hoisted(() => ({
-  handlers: null as null | { onMessage: (m: unknown) => void; onStatus: (s: string) => void },
+  handlers: null as null | { onMessage: (m: unknown) => void; onStatus: (s: string, close?: { code: number; reason: string }) => void },
   url: null as null | string | (() => string),
   send: vi.fn<(data: string) => boolean>(() => true),
   close: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('../api', () => ({
     `ws://localhost${p}${Object.entries(q).filter(([, v]) => v !== undefined).map(([k, v], i) => `${i ? '&' : '?'}${k}=${v}`).join('')}`,
 }));
 vi.mock('../streams', () => ({
-  openJsonStream: (url: string | (() => string), onMessage: (m: unknown) => void, onStatus: (s: string) => void) => {
+  openJsonStream: (url: string | (() => string), onMessage: (m: unknown) => void, onStatus: (s: string, close?: { code: number; reason: string }) => void) => {
     stream.handlers = { onMessage, onStatus };
     stream.url = url;
     return { send: stream.send, close: stream.close };
@@ -538,6 +538,19 @@ it.each([false, true])('ignores a session creation completing after a recording 
 });
 
 describe('Motion workspace', () => {
+  it('keeps direct entry through StrictMode and immediate remounts, then pauses on departure', async () => {
+    const m = make(); m.open();
+    const close = vi.spyOn(m, 'close');
+    m.bindWorkspaceView()();
+    const detach = m.bindWorkspaceView();
+    await Promise.resolve();
+    expect(close).not.toHaveBeenCalled();
+    detach();
+    await Promise.resolve();
+    expect(close).toHaveBeenCalledOnce();
+    expect(m.s.open).toBe(false);
+    m.dispose();
+  });
   it('loads one paused default on direct entry and reuses it when the tab is reopened', async () => {
     const fetcher = workspaceFetch();
     const m = make();
@@ -567,6 +580,25 @@ describe('Motion workspace', () => {
     expect(stream.close).toHaveBeenCalledTimes(1);
     expect(deletion).toBeGreaterThan(0);
     expect(deletion).toBeLessThan(lastSession);
+    m.dispose();
+  });
+
+  it('retries a failed release and never allocates past retained capacity while persistence is failing', async () => {
+    const baseline = workspaceFetch();
+    let failRelease = true;
+    const fetcher = vi.fn((url: string, init?: RequestInit) => init?.method === 'DELETE' && failRelease ? Promise.resolve({ ok: false, status: 503 }) : baseline(url, init));
+    vi.stubGlobal('fetch', fetcher);
+    const m = make();
+    await m.loadWorkspace(configuration);
+    await m.loadWorkspace({ ...configuration, name: 'Pending replacement' });
+    expect(m.s.error).toMatch(/previous session could not be released/);
+    expect(fetcher.mock.calls.filter(([url, init]) => url.endsWith('/sessions') && init?.method === 'POST')).toHaveLength(1);
+    const attempts = fetcher.mock.calls.filter(([, init]) => init?.method === 'DELETE').length;
+    failRelease = false;
+    await m.loadWorkspace({ ...configuration, name: 'Retried replacement' });
+    expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'DELETE').length).toBeGreaterThan(attempts);
+    expect(fetcher.mock.calls.filter(([url, init]) => url.endsWith('/sessions') && init?.method === 'POST')).toHaveLength(2);
+    expect(m.s.error).toBeNull();
     m.dispose();
   });
 
@@ -641,6 +673,49 @@ describe('Motion workspace', () => {
     expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({ what_if_commands: [{ type: 'helm_command', ...order }] });
     expect(stream.send).not.toHaveBeenCalled();
     expect(m.s.predictionWhatIf).toBe(true);
+    m.dispose();
+  });
+
+  it('rejects a same-run prediction that arrives after its entire horizon has elapsed', async () => {
+    const baseline = workspaceFetch();
+    let finish!: (v: unknown) => void;
+    const pending = new Promise((r) => { finish = r; });
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => url.endsWith('/prediction') ? pending : baseline(url, init)));
+    const m = make();
+    await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    const request = m.refreshPrediction();
+    stream.handlers!.onMessage(legacy(80, 2)); flush();
+    finish({ ok: true, json: async () => prediction });
+    await request;
+    expect(m.s.prediction).toBeNull();
+    expect(m.s.predictionBusy).toBe(false);
+    expect(m.s.predictionError).toMatch(/horizon expired/);
+    m.dispose();
+  });
+
+  it('removes an already displayed prediction when simulation time reaches its end', async () => {
+    workspaceFetch();
+    const m = make();
+    await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    await m.refreshPrediction();
+    expect(m.s.prediction).not.toBeNull();
+    stream.handlers!.onMessage(legacy(10, 2)); flush();
+    expect(m.s.prediction).toBeNull();
+    expect(m.s.predictionError).toMatch(/horizon expired/);
+    m.dispose();
+  });
+
+  it('surfaces a rejected command reason and keeps the unacknowledged command unconfirmed', async () => {
+    workspaceFetch(); const m = make();
+    await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open');
+    m.helmCommand(order);
+    stream.handlers!.onStatus('closed', { code: 1008, reason: 'Command exceeds supplied limit' });
+    expect(m.s.notice).toContain('Command rejected: Command exceeds supplied limit');
+    expect(m.s.notice).toContain('Load a paused scenario');
+    expect(m.s.command?.status).toBe('unconfirmed');
     m.dispose();
   });
 });

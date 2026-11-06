@@ -16,6 +16,7 @@ import { SectionViews } from './SectionViews';
 import type { SectionView } from './SectionViews';
 import type { BasemapKind } from './basemap';
 import type { FlowDisplay } from './EnvironmentFlow';
+import { StateSourcePanel } from './StateSourcePanel';
 
 const VALIDITY_COLOR: Record<ValidityState, string> = {
   valid: STATUS_COLOR.GREEN,
@@ -67,6 +68,7 @@ export function Badges({ frame, state }: { frame: ViewFrame | null; state: Motio
         </Pill>
       )}
       <Pill color={state.source === 'live' ? '#00e5ff' : '#a78bfa'}>{state.source === 'live' ? 'simulation · backend stream' : state.source === 'recording' ? 'replay' : 'idle'}</Pill>
+      {(frame?.stateInputs.length || (state.importedState && state.importedState.run_id === frame?.runId)) ? <Pill color={STATUS_COLOR.AMBER}>seed: imported {(frame?.stateInputs.at(-1) ?? state.importedState)?.input.source} state</Pill> : null}
       {state.forcingRevision && <Pill color="#8ba4c4">forcing revision: {state.forcingRevision}</Pill>}
       {frame?.assumedFaceBearing && <Pill color={STATUS_COLOR.AMBER} title="This frame carries no scene, so the berth orientation was assumed.">berth orientation assumed</Pill>}
     </div>
@@ -277,7 +279,7 @@ function LiveControls({ c, s, tugIds, lineNumbers }: { c: MotionController; s: M
           <input className={cn(inputClass, 'h-8 w-24')} type="number" min={0} step={500} value={force} onChange={(e) => setForce(Number(e.target.value))} />
         </label>
         <label className="text-[10px] text-mil-dim">
-          Push from
+          Force toward
           <select className={cn(inputClass, 'h-8 w-28')} value={side} onChange={(e) => setSide(Number(e.target.value) as 90 | 270)}>
             <option value={90}>Starboard (90°)</option>
             <option value={270}>Port (270°)</option>
@@ -349,12 +351,7 @@ export function MotionView({ controller: c, workspace = false }: { controller: M
     const observer = new ResizeObserver(measure); observer.observe(header);
     return () => observer.disconnect();
   }, [workspace]);
-  const [mountGuard] = useState(() => ({ epoch: 0 }));
-  useEffect(() => {
-    const epoch = ++mountGuard.epoch;
-    // React StrictMode rehearses mount/cleanup in development. Only a real unmount should pause the session.
-    return () => queueMicrotask(() => { if (mountGuard.epoch === epoch && workspace && c.s.open) c.close(); });
-  }, [c, workspace, mountGuard]);
+  useEffect(() => workspace ? c.bindWorkspaceView() : undefined, [c, workspace]);
   const face = s.scene?.face_bearing_true_deg ?? DEFAULT_FACE_BEARING;
   const map = !workspace && s.view === 'map';
   const section = workspace && ['forward', 'aft', 'side'].includes(canvasView) ? canvasView as SectionView : null;
@@ -528,7 +525,8 @@ export function MotionView({ controller: c, workspace = false }: { controller: M
           )}
         </div>
         {detailsOpen && <aside id="motion-readouts" className={cn('w-[320px] max-w-[40vw] shrink-0 overflow-y-auto border-l border-mil-border', map ? 'pointer-events-auto bg-mil-panel/95' : 'bg-mil-panel/60')} aria-label="Frame readouts">
-          {workspace && <Section title="Source and playback"><p className="text-[10px] text-mil-dim">Own ship: {s.source === 'recording' ? 'recorded simulation' : 'simulation backend'}. Telemetry control source is not selected.</p><details className="mt-2 text-[10px]"><summary className="cursor-pointer text-mil-cyan">Recordings and planner setup</summary><div className="mt-2 space-y-2"><Button size="sm" variant="secondary" disabled={s.busy} onClick={() => void c.loadRecording()}>Replay recorded mock fixture</Button>{s.sessionRecordings.map((r) => <button className="block text-mil-cyan underline" key={r.sessionId} onClick={() => void c.loadSessionRecording(r.sessionId)}>Replay {r.startedAt.slice(11, 19)}Z · {r.sessionId.slice(-10)}</button>)}<label className="flex items-center gap-2">Start offset (ft)<input aria-label="Planner start offset (ft)" className={`${inputClass} w-20`} type="number" min={20} value={offset} onChange={(e) => setOffset(Number(e.target.value))} /></label><Button size="sm" variant="secondary" disabled={s.busy} onClick={() => void c.startSession(offset)}>Load planner setup paused</Button></div></details></Section>}
+          {workspace && <Section title="Source and playback"><StateSourcePanel c={c} s={s} /><details className="mt-2 text-[10px]"><summary className="cursor-pointer text-mil-cyan">Recordings and planner setup</summary><div className="mt-2 space-y-2"><Button size="sm" variant="secondary" disabled={s.busy} onClick={() => void c.loadRecording()}>Replay recorded mock fixture</Button>{s.sessionRecordings.map((r) => <button className="block text-mil-cyan underline" key={r.sessionId} onClick={() => void c.loadSessionRecording(r.sessionId)}>Replay {r.startedAt.slice(11, 19)}Z · {r.sessionId.slice(-10)}</button>)}<label className="flex items-center gap-2">Start offset (ft)<input aria-label="Planner start offset (ft)" className={`${inputClass} w-20`} type="number" min={20} value={offset} onChange={(e) => setOffset(Number(e.target.value))} /></label><Button size="sm" variant="secondary" disabled={s.busy} onClick={() => void c.startSession(offset)}>Load planner setup paused</Button></div></details></Section>}
+          {workspace && s.frame?.guidance && <Section title="Route following"><div className="space-y-1 text-[10px]"><p className="text-mil-amber">Synthetic controller · {s.frame.guidance.completed ? 'completed' : s.frame.guidance.active ? 'active' : 'inactive / manual override'}</p><p>Waypoint {s.frame.guidance.waypoint_index + 1}: {s.frame.guidance.waypoint_name}</p><p>Target {s.frame.guidance.target_speed_kt.toFixed(1)} kt · cross-track {s.frame.guidance.cross_track_ft.toFixed(0)} ft</p><p>Remaining {s.frame.guidance.remaining_ft.toFixed(0)} ft</p><p className="text-mil-dim">Applying a manual helm order disables route following. Route tracking does not establish hazard clearance.</p></div></Section>}
           {s.frame && <EnvironmentGlyph frame={s.frame} faceBearingDeg={face} />}
           {workspace && <p className="border-b border-mil-border px-3 py-2 text-[9px] text-mil-dim">Flow texture uses simulation time and supplied wind/current direction. Particle speed is a display scale, not a force or forecast.</p>}
           <Readouts frame={s.frame} />

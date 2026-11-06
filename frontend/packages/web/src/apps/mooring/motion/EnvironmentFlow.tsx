@@ -17,7 +17,7 @@ export function EnvironmentFlow({ frame, bounds, faceBearingDeg, display }: { fr
     {fields.map((f, index) => {
       if (!f.enabled || !f.part.available || f.speed == null || f.direction == null || f.speed <= 0) return null;
       const v = f.vector(f.direction, faceBearingDeg);
-      const phase = display.animate ? ((frame.tS * Math.min(f.speed, 40) / 40) % 1) : 0;
+      const phase = display.animate ? (((frame.tS + frame.forcingTimeOffsetS) * Math.min(f.speed, 40) / 40) % 1) : 0;
       return <g key={f.id} stroke={f.color} strokeWidth={cell / 65} opacity={0.24} data-flow={f.id} data-sim-time={display.animate ? frame.tS : 'static'}>
         {Array.from({ length: 120 }, (_, n) => {
           const col = n % 12, row = Math.floor(n / 12);

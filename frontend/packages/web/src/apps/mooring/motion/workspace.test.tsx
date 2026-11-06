@@ -10,6 +10,8 @@ import { adaptFrame } from './frames';
 import type { SimFrame, SimScene } from './frames';
 import { rasterTiles } from './basemap';
 import { EnvironmentFlow } from './EnvironmentFlow';
+import { SectionViews } from './SectionViews';
+import type { ControlsConfig, TugDynamicsState, StateInput } from './workspace';
 import { catalog, controls, loading, prediction, workspace } from './workspace.test-fixtures';
 
 const dir = path.resolve(__dirname, '../../../../../../../contract/examples/modeling');
@@ -58,12 +60,63 @@ describe('Maneuver workspace', () => {
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ port_throttle: 0.5 }));
   });
 
+  it('uses independent tug orders when the scenario configures tug dynamics', () => {
+    const c = mounted();
+    const send = vi.spyOn(c, 'tugMotionCommand');
+    const direct = vi.spyOn(c, 'tugCommand');
+    const tugId = c.s.frame!.tugs[0].id;
+    const commanded = { mode: 'free' as const, target_velocity_x_fps: 0, target_velocity_y_fps: 0, target_heading_true_deg: 90, tow_length_ft: 100 };
+    act(() => c.state.set({ workspace: { ...workspace, controls: { ...workspace.controls, tug_dynamics: [{ tug_id: tugId, max_target_speed_fps: 4, basis: 'synthetic' }] as ControlsConfig['tug_dynamics'] } }, frame: { ...c.s.frame!, tugDynamics: [{ tug_id: tugId, commanded, connection_state: 'free', transferred_x_lbf: 0, transferred_y_lbf: 0, contact_compression_ft: 0, tow_tension_lbf: 0 }] as TugDynamicsState[] } }));
+    fireEvent.click(screen.getByRole('button', { name: 'Tugs' }));
+    expect(screen.queryByRole('spinbutton', { name: 'Tug force (lbf)' })).toBeNull();
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Along-pier target (ft/s)' }), { target: { value: 1.2 } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply tug maneuver' }));
+    expect(send).toHaveBeenCalledWith(tugId, { ...commanded, target_velocity_x_fps: 1.2 });
+    expect(direct).not.toHaveBeenCalled();
+  });
+
+  it('copies supplied simulator velocities as explicitly synthetic input and leaves measured acceleration unknown', () => {
+    const c = mounted();
+    const apply = vi.spyOn(c, 'importState').mockResolvedValue();
+    fireEvent.click(screen.getByText('Import supplied ship or tug state'));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy current simulated sample' }));
+    const text = screen.getByRole('textbox', { name: 'State observation JSON' }) as HTMLTextAreaElement;
+    const input = JSON.parse(text.value) as StateInput;
+    expect(input).toMatchObject({ source: 'synthetic', entity_id: workspace.ship.class_id, surge_fps: c.s.frame!.ship.surgeFps, sway_fps: c.s.frame!.ship.swayFps, measured_acceleration: null });
+    fireEvent.click(screen.getByRole('button', { name: 'Import into paused run' }));
+    expect(apply).toHaveBeenCalledWith(input);
+    act(() => c.state.set({ lifecycle: 'running' }));
+    expect((screen.getByRole('button', { name: 'Import into paused run' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('shows missing seabed and clearance as unavailable in sectional views', () => {
     mounted();
     fireEvent.click(screen.getByRole('button', { name: 'Forward' }));
     expect(screen.getByRole('img', { name: /forward hull/ })).toBeTruthy();
     expect(screen.getByText(/Local seabed \/ clearance unavailable/)).toBeTruthy();
     expect(screen.queryByText(/0.00 ft \/ 0.00 ft/)).toBeNull();
+  });
+
+  it.each(['forward', 'aft'] as const)('keeps a port-side payload on the labelled port side in the %s view', (view) => {
+    const c = mounted(); cleanup();
+    const frame = { ...c.s.frame!, ship: { ...c.s.frame!.ship, rollDeg: 0, pitchDeg: 0 }, loading: { ...loading, payloads: [{ payload_id: 'p1', label: 'Port cargo', weight_lbf: 1, x_ft: 0, y_ft: 10, z_ft: 0 }] } };
+    const result = render(<SectionViews s={{ ...c.s, frame }} view={view} />);
+    const point = screen.getByText(/Port cargo/).parentElement!.querySelector('rect')!;
+    const center = Number(point.getAttribute('x')) + Number(point.getAttribute('width')) / 2;
+    if (view === 'forward') expect(center).toBeGreaterThan(450);
+    else expect(center).toBeLessThan(450);
+    expect(result.container.textContent).toContain('PORT');
+  });
+
+  it('retains supplied grounding evidence when the loading model is invalid', () => {
+    const c = mounted(); cleanup();
+    const frame = { ...c.s.frame!, loading: { ...loading, local_depth_mllw_ft: 18, depth_uncertainty_ft: 0.5, under_keel_ft: -1, under_keel_lower_ft: -1.5, validity: { state: 'invalid' as const, reasons: [{ code: 'GROUNDING', message: 'Modeled keel intersects supplied seabed.' }] } } };
+    render(<SectionViews s={{ ...c.s, frame }} view="side" />);
+    expect(screen.getByText('-1.00 ft / -1.50 ft')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('intersects supplied seabed');
+    expect(screen.getByText(/Local supplied seabed: 18.0/)).toBeTruthy();
+    expect(screen.queryByText(/outside supplied depth coverage/)).toBeNull();
+    expect(screen.getByText(/Hull section unavailable: invalid/)).toBeTruthy();
   });
 
   it('keeps horizon truncation and unchecked hazards visible on the primary view', () => {
@@ -112,6 +165,13 @@ describe('Token-free geography and environmental display', () => {
     const result = render(<MotionCanvas frame={adaptFrame(raw)} scene={scene} trail={[]} faceBearingDeg={90} basemap="satellite" />);
     expect(result.container.querySelectorAll('image')).toHaveLength(0);
     expect(screen.getByText(/Geographic origin unavailable/)).toBeTruthy();
+  });
+
+  it('draws only remaining prediction samples with ticks relative to the current simulation time', () => {
+    render(<MotionCanvas frame={{ ...adaptFrame(raw), tS: 5 }} scene={scene} trail={[]} faceBearingDeg={90} prediction={prediction} />);
+    expect(screen.getByText('+5 s')).toBeTruthy();
+    expect(screen.queryByText('+0 s')).toBeNull();
+    expect(screen.queryByText('+10 s')).toBeNull();
   });
 
   it('moves flow only when simulation time changes and respects static and unavailable states', () => {

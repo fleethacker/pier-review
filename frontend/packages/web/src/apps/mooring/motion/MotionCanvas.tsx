@@ -90,6 +90,7 @@ export interface MotionCanvasProps {
 
 export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 'schematic', origin = null, flow = { wind: false, current: false, animate: false }, prediction = null, predictionWhatIf = false, vectors = true, shipClass = null }: MotionCanvasProps) {
   const [imageryStatus, setImageryStatus] = useState('Loading imagery…');
+  const futurePath = prediction?.path.filter((p) => p.t_s >= (frame?.tS ?? prediction.source.t_s)) ?? [];
   const [camera, setCamera] = useState({ zoom: 1, x: 0, y: 0 });
   const deckhouses = useMemo(() => shipClass ? superstructure(shipClass, { x: 0, y: 0, z: 0, headingDeg: 0 }, 0) : [], [shipClass]);
   const drag = useRef<{ x: number; y: number; panX: number; panY: number; scale: number } | null>(null);
@@ -115,7 +116,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
     });
   }
   trail.forEach((p) => extend(b, p));
-  if (prediction?.validity.state === 'limited') prediction.path.forEach((p) => p.footprint.forEach((q) => extend(b, { x: q.x_ft, y: q.y_ft })));
+  if (prediction?.validity.state === 'limited') futurePath.forEach((p) => p.footprint.forEach((q) => extend(b, { x: q.x_ft, y: q.y_ft })));
   if (!Number.isFinite(b.minX)) Object.assign(b, { minX: -100, maxX: 100, minY: -50, maxY: 150 });
   bounds.current.b = b;
 
@@ -132,7 +133,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
   // One scale for every force arrow so lengths compare; the largest drawn force is about a seventh of the view.
   const forceVecs: Vec2[] = [];
   frame?.forces.forEach((f) => f.force && forceVecs.push(f.force));
-  if (frame?.controls?.validity.state === 'limited' || frame?.controls?.validity.state === 'valid') (frame.controls.actuators ?? []).forEach((a) => forceVecs.push({ x: a.x_lbf, y: a.y_lbf }));
+  if (frame && (frame.badge.validity === 'limited' || frame.badge.validity === 'valid') && (frame.controls?.validity.state === 'limited' || frame.controls?.validity.state === 'valid')) (frame.controls.actuators ?? []).forEach((a) => forceVecs.push({ x: a.x_lbf, y: a.y_lbf }));
   frame?.tugs.forEach((t) => {
     if (t.actualForce) forceVecs.push(t.actualForce);
   });
@@ -157,6 +158,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
     <svg
       role="img"
       aria-label="Plan view of the ship, pier, lines and tugs"
+      tabIndex={0}
       viewBox={`${viewport.x} ${-(viewport.y + viewport.h)} ${viewport.w} ${viewport.h}`}
       preserveAspectRatio="xMidYMid meet"
       className="h-full w-full"
@@ -164,15 +166,16 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
       onPointerDown={(e) => { if (e.button !== 0) return; const rect = e.currentTarget.getBoundingClientRect(); e.currentTarget.setPointerCapture(e.pointerId); drag.current = { x: e.clientX, y: e.clientY, panX: camera.x, panY: camera.y, scale: Math.min(rect.width / viewport.w, rect.height / viewport.h) }; }}
       onPointerMove={(e) => { const d = drag.current; if (d?.scale) setCamera((c) => ({ ...c, x: d.panX - (e.clientX - d.x) / d.scale, y: d.panY + (e.clientY - d.y) / d.scale })); }}
       onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}
+      onKeyDown={(e) => { if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return; e.preventDefault(); setCamera((c) => ({ ...c, x: c.x + (e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0) * viewport.w * 0.1, y: c.y + (e.key === 'ArrowUp' ? 1 : e.key === 'ArrowDown' ? -1 : 0) * viewport.h * 0.1 })); }}
     >
       <g transform="scale(1 -1)">
         {basemap !== 'schematic' && origin && <RasterLayer kind={basemap} origin={origin} bounds={viewport} onStatus={setImageryStatus} />}
         <EnvironmentFlow frame={frame} bounds={viewport} faceBearingDeg={faceBearingDeg} display={flow} />
         {prediction?.validity.state === 'limited' && <g aria-label="Backend predicted trajectory and hull footprints">
-          <polyline points={prediction.path.filter((p) => p.pose.x_ft != null && p.pose.y_ft != null).map((p) => `${p.pose.x_ft},${p.pose.y_ft}`).join(' ')} stroke={predictionWhatIf ? '#c4b5fd' : '#fde68a'} fill="none" strokeWidth={lw * 2} strokeDasharray={`${lw * 5} ${lw * 3}`} />
-          {prediction.path.filter((p, i) => i === 0 || i === prediction.path.length - 1 || p.elapsed_s % 10 < 0.01).map((p) => <g key={p.t_s}>
+          <polyline points={futurePath.filter((p) => p.pose.x_ft != null && p.pose.y_ft != null).map((p) => `${p.pose.x_ft},${p.pose.y_ft}`).join(' ')} stroke={predictionWhatIf ? '#c4b5fd' : '#fde68a'} fill="none" strokeWidth={lw * 2} strokeDasharray={`${lw * 5} ${lw * 3}`} />
+          {futurePath.filter((p, i) => i === 0 || i === futurePath.length - 1 || Math.abs(p.elapsed_s / 10 - Math.round(p.elapsed_s / 10)) < 0.001).map((p) => <g key={p.t_s}>
             <polygon points={p.footprint.map((q) => `${q.x_ft},${q.y_ft}`).join(' ')} fill={predictionWhatIf ? '#a78bfa' : '#fde68a'} fillOpacity={0.04} stroke={predictionWhatIf ? '#c4b5fd' : '#fde68a'} strokeOpacity={0.65} strokeWidth={lw} />
-            <Label at={{ x: p.footprint[0].x_ft, y: p.footprint[0].y_ft + font }} text={`+${p.elapsed_s.toFixed(0)} s`} size={font * 0.85} color={predictionWhatIf ? '#c4b5fd' : '#fde68a'} />
+            <Label at={{ x: p.footprint[0].x_ft, y: p.footprint[0].y_ft + font }} text={`+${Math.max(0, p.t_s - (frame?.tS ?? prediction.source.t_s)).toFixed(0)} s`} size={font * 0.85} color={predictionWhatIf ? '#c4b5fd' : '#fde68a'} />
           </g>)}
         </g>}
         {/* Pier */}
@@ -269,10 +272,11 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
         {ship && vectors && <g aria-label="Ship velocity, acceleration and applied propulsion forces">
           {ship.surgeFps != null && ship.swayFps != null && <Arrow from={{ x: ship.x_ft, y: ship.y_ft }} vec={rotate(ship.surgeFps, ship.swayFps, vScale)} color="#f1f5f9" width={lw * 3} fontSize={font * 0.8} head={head * 0.7} label={`v ${Math.hypot(ship.surgeFps, ship.swayFps).toFixed(2)} ft/s`} />}
           {ship.surgeFps2 != null && ship.swayFps2 != null && <Arrow from={{ x: ship.x_ft, y: ship.y_ft }} vec={rotate(ship.surgeFps2, ship.swayFps2, aScale)} color="#fb7185" width={lw * 2} fontSize={font * 0.8} head={head * 0.7} label={`a ${Math.hypot(ship.surgeFps2, ship.swayFps2).toFixed(3)} ft/s²`} />}
-          {(frame.controls?.validity.state === 'limited' || frame.controls?.validity.state === 'valid') && (frame.controls.actuators ?? []).map((a) => <g key={a.actuator_id}><circle cx={a.x_ft} cy={a.y_ft} r={lw * 3} fill="#fbbf24" /><Arrow from={{ x: a.x_ft, y: a.y_ft }} vec={{ x: a.x_lbf * fScale, y: a.y_lbf * fScale }} color="#fbbf24" width={lw * 3} fontSize={font * 0.75} head={head * 0.7} label={`${a.actuator_id.replace(/_/g, ' ')} ${Math.hypot(a.x_lbf, a.y_lbf).toFixed(0)} lbf`} /></g>)}
+          {(frame.badge.validity === 'limited' || frame.badge.validity === 'valid') && (frame.controls?.validity.state === 'limited' || frame.controls?.validity.state === 'valid') && (frame.controls.actuators ?? []).map((a) => <g key={a.actuator_id}><circle cx={a.x_ft} cy={a.y_ft} r={lw * 3} fill="#fbbf24" /><Arrow from={{ x: a.x_ft, y: a.y_ft }} vec={{ x: a.x_lbf * fScale, y: a.y_lbf * fScale }} color="#fbbf24" width={lw * 3} fontSize={font * 0.75} head={head * 0.7} label={`${a.actuator_id.replace(/_/g, ' ')} ${Math.hypot(a.x_lbf, a.y_lbf).toFixed(0)} lbf`} /></g>)}
         </g>}
 
         {/* Tugs */}
+        {frame?.tugDynamics.filter((t) => t.commanded.mode !== 'free' && (t.validity.state === 'limited' || t.validity.state === 'valid')).map((t) => <line key={`connection-${t.tug_id}`} aria-label={`${t.tug_id} ${t.connection_state.replace(/_/g, ' ')}`} x1={t.ship_point_x_ft} y1={t.ship_point_y_ft} x2={t.tug_point_x_ft} y2={t.tug_point_y_ft} stroke={t.connection_state === 'tow_taut' || t.connection_state === 'push_contact' ? '#fbbf24' : '#8ba4c4'} strokeWidth={lw * 2} strokeDasharray={t.connection_state === 'tow_slack' || t.connection_state === 'no_contact' ? `${font * 0.6} ${font * 0.4}` : undefined} />)}
         {frame?.tugs.map((t) => {
           if (!t.position) return null;
           const hdg = t.headingTrueDeg != null ? faceBearingDeg - t.headingTrueDeg : 0;
@@ -286,7 +290,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
               {vectors && t.velocity && <Arrow from={t.position} vec={{ x: t.velocity.x * vScale, y: t.velocity.y * vScale }} color="#e2e8f0" width={lw * 2} fontSize={font * 0.8} head={head * 0.6} label={`${Math.hypot(t.velocity.x, t.velocity.y).toFixed(2)} ft/s`} />}
               {vectors && t.acceleration && <Arrow from={t.position} vec={{ x: t.acceleration.x * aScale, y: t.acceleration.y * aScale }} color="#fb7185" width={lw * 2} fontSize={font * 0.8} head={head * 0.6} label={`${Math.hypot(t.acceleration.x, t.acceleration.y).toFixed(3)} ft/s²`} />}
               {vectors && t.commandedForce && <Arrow from={t.position} vec={{ x: t.commandedForce.x * fScale, y: t.commandedForce.y * fScale }} color="#f59e0b" dashed width={lw * 2} fontSize={font * 0.8} head={head * 0.6} />}
-              {vectors && t.actualForce && <Arrow from={t.position} vec={{ x: t.actualForce.x * fScale, y: t.actualForce.y * fScale }} color="#f59e0b" width={lw * 3} fontSize={font * 0.8} head={head * 0.6} label={`${Math.hypot(t.actualForce.x, t.actualForce.y).toFixed(0)} lbf`} />}
+              {vectors && t.actualForce && t.applicationPoint && <><circle cx={t.applicationPoint.x} cy={t.applicationPoint.y} r={lw * 3} fill="#f59e0b" /><Arrow from={t.applicationPoint} vec={{ x: t.actualForce.x * fScale, y: t.actualForce.y * fScale }} color="#f59e0b" width={lw * 3} fontSize={font * 0.8} head={head * 0.6} label={`${t.id} transfer ${Math.hypot(t.actualForce.x, t.actualForce.y).toFixed(0)} lbf`} /></>}
             </g>
           );
         })}

@@ -1,5 +1,5 @@
 import type { components } from '../../../api/modeling';
-import type { ControlState, LoadingState, LineControlState } from './workspace';
+import type { ControlState, LoadingState, LineControlState, TugDynamicsState } from './workspace';
 
 /**
  * View model for the motion view. Frames arrive either as legacy `SimFrame`s (pose, tug forces, line tensions only) or
@@ -59,6 +59,8 @@ export interface ViewTug {
   acceleration: Vec2 | null;
   commandedForce: Vec2 | null;
   actualForce: Vec2 | null;
+  /** Backend point where the tug's transferred force acts on the ship, in berth axes. */
+  applicationPoint: Vec2 | null;
   /** Legacy frames carry only a scalar force and a direction relative to the ship. */
   legacyForceLbf: number | null;
   legacyDirectionRelDeg: number | null;
@@ -167,6 +169,10 @@ export interface ViewFrame {
   controls: ControlState | null;
   loading: LoadingState | null;
   lineControls: LineControlState[];
+  tugDynamics: TugDynamicsState[];
+  guidance: SimFrame['guidance'];
+  stateInputs: NonNullable<SimFrame['state_inputs']>;
+  forcingTimeOffsetS: number;
 }
 
 export const DEFAULT_FACE_BEARING = 90;
@@ -379,6 +385,7 @@ export function adaptFrame(frame: SimFrame, opts: AdaptOptions = {}): ViewFrame 
         acceleration: acceleration(t.acceleration),
         commandedForce: force(t.commanded_force),
         actualForce: usableComponent(t) ? force(t.actual_force) : null,
+        applicationPoint: vec(t.contact_position),
         legacyForceLbf: usableComponent(t) ? frame.tugs.find((l) => l.tug_id === t.tug_id)?.force_lbf ?? null : null,
         legacyDirectionRelDeg: frame.tugs.find((l) => l.tug_id === t.tug_id)?.direction_rel_deg ?? null,
         mode: t.mode,
@@ -396,6 +403,7 @@ export function adaptFrame(frame: SimFrame, opts: AdaptOptions = {}): ViewFrame 
         acceleration: null,
         commandedForce: null,
         actualForce: null,
+        applicationPoint: null,
         legacyForceLbf: t.force_lbf,
         legacyDirectionRelDeg: t.direction_rel_deg,
         mode: 'unknown',
@@ -485,6 +493,10 @@ export function adaptFrame(frame: SimFrame, opts: AdaptOptions = {}): ViewFrame 
     controls: frame.controls ?? null,
     loading: frame.loading ?? null,
     lineControls: frame.line_controls ?? [],
+    tugDynamics: frame.tug_dynamics ?? [],
+    guidance: frame.guidance ?? null,
+    stateInputs: frame.state_inputs ?? [],
+    forcingTimeOffsetS: frame.forcing_time_offset_s ?? 0,
   };
 }
 

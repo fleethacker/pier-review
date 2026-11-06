@@ -68,8 +68,15 @@ def test_input_acceleration_stays_evidence_not_simulated_force(model):
     assert frame.state_inputs == [evidence]
     assert frame.state_inputs[0].input.measured_acceleration.surge_fps2 == 99
     assert frame.motion.acceleration.surge_fps2 == 0
-    assert "forcing_time_offset_s" not in frame.model_dump()
+    assert frame.forcing_time_offset_s == 0
     assert "state_inputs" not in model.frame().model_dump()
+
+
+def test_legacy_frame_omits_optional_forcing_offset(model):
+    from mooring.core.schemas import SimFrame
+    legacy = BerthingModel(model.sc,model.initial,model.env).frame().model_dump()
+    assert "forcing_time_offset_s" not in legacy
+    assert SimFrame.model_validate(legacy).forcing_time_offset_s is None
 
 
 def test_released_session_rejects_late_socket_attachment(model):

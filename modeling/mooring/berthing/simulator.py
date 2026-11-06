@@ -664,7 +664,8 @@ class BerthingModel:
             fenders=fenders, alerts=alerts or [], validity=self.validity(), controls=controls,
             loading=loaded, line_controls=line_controls, tug_dynamics=tug_dynamics,
             guidance=self.guidance.state(t,s) if self.guidance is not None else None,
-            state_inputs=self.state_inputs or None,forcing_time_offset_s=self.forcing_time_offset_s)
+            state_inputs=self.state_inputs or None,forcing_time_offset_s=(self.forcing_time_offset_s
+                if self.controls_config is not None or self.state_inputs or self.forcing_time_offset_s else None))
 
 
 def initial_model(scenario_id, initial, *, dt=0.1, duration=900, forcing=None, controls=None, ship_override=None, tug_ids=None, guidance=None):

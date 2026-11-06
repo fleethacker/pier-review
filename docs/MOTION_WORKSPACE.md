@@ -32,6 +32,13 @@ and the terminology and interaction guidance of
 [MSC.1/Circ.1609](https://wwwcdn.imo.org/localresources/en/OurWork/Safety/Documents/IMO%20Documents%20related%20to/MSC.1-Circ.1609.pdf).
 It is a design rationale, not a claim of equipment compliance.
 
+The helm panel identifies AUTO route following/holding versus MANUAL using backend state. Its Cmd and Actual
+readouts always show reported actuator orders and response; untouched levers follow the current command. Editing
+creates an unsent manual draft, preserved across incoming frames. Preview does not take control; Discard edit resumes
+the live lever display. Apply helm order or Order neutral requests manual takeover, confirmed only after the backend
+reports guidance inactive and matching commands. Reset restores the scenario's original mode. Neutral removes thrust
+through actuator response limits; it does not erase vessel momentum.
+
 The existing model is a planar rigid body with surge, sway and yaw, rather than a point mass. Its inertia, Coriolis
 terms and force/moment frame conventions must remain explicit; see
 [Fossen's marine craft formulation](https://www.fossen.biz/html/marineCraftModel.html). New loading and propulsion

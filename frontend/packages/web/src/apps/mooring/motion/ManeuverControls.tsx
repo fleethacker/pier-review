@@ -12,37 +12,43 @@ const PAYLOAD_FIELDS = [
 type PayloadDraft = Omit<PayloadItem, typeof PAYLOAD_FIELDS[number][0]> & Record<typeof PAYLOAD_FIELDS[number][0], string>;
 type TugDraft = { mode: TugOrder['mode'] } & Record<Exclude<keyof TugOrder, 'mode'>, string>;
 
-function Lever({ label, value, actual, min = -100, max = 100, unit = '%', hint, onChange, disabled }: { label: string; value: number; actual: number; min?: number; max?: number; unit?: string; hint: string; onChange: (v: number) => void; disabled: boolean }) {
+function Lever({ label, value, commanded, actual, editing, min = -100, max = 100, unit = '%', hint, onChange, disabled }: { label: string; value: number; commanded: number; actual: number; editing: boolean; min?: number; max?: number; unit?: string; hint: string; onChange: (v: number) => void; disabled: boolean }) {
   return <label className="block min-w-0 border-r border-mil-border px-3 py-2 last:border-r-0">
-    <span className="flex items-baseline justify-between gap-2 text-[10px]"><span className="uppercase tracking-wider text-mil-text">{label}</span><span className="text-mil-cyan">{value.toFixed(0)}{unit}</span></span>
-    <input aria-label={label} className="my-2 block w-full accent-cyan-300" type="range" min={min} max={max} step={1} value={value} onChange={(e) => onChange(Number(e.target.value))} disabled={disabled} aria-valuetext={`${value.toFixed(0)} ${unit === '%' ? 'percent' : 'degrees'} ordered; ${actual.toFixed(0)} actual`} />
-    <span className="flex justify-between gap-2 text-[9px] text-mil-dim"><span>{hint}</span><span className="whitespace-nowrap">Actual {actual.toFixed(0)}{unit}</span></span>
+    <span className="flex items-baseline justify-between gap-2 text-[10px]"><span className="uppercase tracking-wider text-mil-text">{label}</span><span aria-label={`${label} commanded`} className="whitespace-nowrap text-mil-cyan">Cmd {commanded.toFixed(0)}{unit}</span></span>
+    <input aria-label={label} className="my-2 block w-full accent-cyan-300" type="range" min={min} max={max} step={1} value={value} onChange={(e) => onChange(Number(e.target.value))} disabled={disabled} aria-valuetext={`${editing ? `${value.toFixed(0)} draft; ` : ''}${commanded.toFixed(0)} ${unit === '%' ? 'percent' : 'degrees'} commanded; ${actual.toFixed(0)} actual`} />
+    <span className="flex justify-between gap-2 text-[9px] text-mil-dim"><span title={hint} className={editing ? 'text-mil-amber' : undefined}>{editing ? `Draft ${value.toFixed(0)}${unit}` : hint}</span><span aria-label={`${label} actual`} className="whitespace-nowrap">Actual {actual.toFixed(0)}{unit}</span></span>
   </label>;
 }
 
 export function ManeuverControls({ c, s }: { c: MotionController; s: MotionState }) {
   const control = s.frame?.controls;
-  const [draft, setDraft] = useState<HelmOrder | null>(() => control?.commanded ?? null);
+  // Follow live commands until the operator starts editing. Automatic guidance
+  // must not become a frozen manual order just because this panel mounted paused.
+  const [draft, setDraft] = useState<HelmOrder | null>(null);
   const [auxiliary, setAuxiliary] = useState<'tugs' | 'lines' | 'payloads' | null>(null);
   if (!control || !s.workspace) return <p className="px-3 py-2 text-[11px] text-mil-dim">Awaiting backend actuator state. Controls are available when this scenario supplies propulsion parameters.</p>;
   const order = draft ?? control.commanded;
   const actual = control.actual;
   const disabled = s.link !== 'open' || s.busy || s.stateImportBusy || s.lifecycleInvalid;
   const update = (k: keyof HelmOrder, v: number) => setDraft({ ...order, [k]: v });
+  const submit = (next: HelmOrder) => setDraft(c.helmCommand(next) ? null : next);
+  const guidance = s.frame?.guidance;
+  const mode = guidance?.active ? (guidance.completed ? 'AUTO · Holding position' : 'AUTO · Route following')
+    : guidance == null && s.workspace.scenario.configuration.route_follow ? 'Control mode unknown' : 'MANUAL';
   const spec = s.workspace.controls.propulsion;
   return <div className="bg-mil-panel">
     <div className="grid grid-cols-2 border-b border-mil-border sm:grid-cols-3 xl:grid-cols-5">
-      <Lever label="Port engine" value={order.port_throttle * 100} actual={actual.port_throttle * 100} hint="Astern − / + Ahead" onChange={(v) => update('port_throttle', v / 100)} disabled={disabled} />
-      <Lever label="Starboard engine" value={order.starboard_throttle * 100} actual={actual.starboard_throttle * 100} hint="Astern − / + Ahead" onChange={(v) => update('starboard_throttle', v / 100)} disabled={disabled} />
-      <Lever label="Rudder" value={order.rudder_deg} actual={actual.rudder_deg} min={-spec.rudder_max_deg} max={spec.rudder_max_deg} unit="°" hint="Port − / + Starboard" onChange={(v) => update('rudder_deg', v)} disabled={disabled} />
-      <Lever label="Bow thruster" value={order.bow_thruster * 100} actual={actual.bow_thruster * 100} hint="Starboard − / + Port" onChange={(v) => update('bow_thruster', v / 100)} disabled={disabled || spec.bow_thruster_max_lbf === 0} />
-      <Lever label="Stern thruster" value={order.stern_thruster * 100} actual={actual.stern_thruster * 100} hint="Starboard − / + Port" onChange={(v) => update('stern_thruster', v / 100)} disabled={disabled || spec.stern_thruster_max_lbf === 0} />
+      <Lever label="Port engine" value={order.port_throttle * 100} commanded={control.commanded.port_throttle * 100} actual={actual.port_throttle * 100} editing={draft !== null} hint="Astern − / + Ahead" onChange={(v) => update('port_throttle', v / 100)} disabled={disabled} />
+      <Lever label="Starboard engine" value={order.starboard_throttle * 100} commanded={control.commanded.starboard_throttle * 100} actual={actual.starboard_throttle * 100} editing={draft !== null} hint="Astern − / + Ahead" onChange={(v) => update('starboard_throttle', v / 100)} disabled={disabled} />
+      <Lever label="Rudder" value={order.rudder_deg} commanded={control.commanded.rudder_deg} actual={actual.rudder_deg} editing={draft !== null} min={-spec.rudder_max_deg} max={spec.rudder_max_deg} unit="°" hint="Port − / + Starboard" onChange={(v) => update('rudder_deg', v)} disabled={disabled} />
+      <Lever label="Bow thruster" value={order.bow_thruster * 100} commanded={control.commanded.bow_thruster * 100} actual={actual.bow_thruster * 100} editing={draft !== null} hint="Starboard − / + Port" onChange={(v) => update('bow_thruster', v / 100)} disabled={disabled || spec.bow_thruster_max_lbf === 0} />
+      <Lever label="Stern thruster" value={order.stern_thruster * 100} commanded={control.commanded.stern_thruster * 100} actual={actual.stern_thruster * 100} editing={draft !== null} hint="Starboard − / + Port" onChange={(v) => update('stern_thruster', v / 100)} disabled={disabled || spec.stern_thruster_max_lbf === 0} />
     </div>
     <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-      <div className="flex flex-wrap items-center gap-2"><Button size="sm" onClick={() => c.helmCommand(order)} disabled={disabled}>Apply helm order</Button><Button size="sm" variant="secondary" onClick={() => void c.refreshPrediction(order)} disabled={disabled} aria-busy={s.predictionPreviewPending}>Preview order</Button><Button size="sm" variant="secondary" disabled={disabled} onClick={() => { const neutral = { port_throttle: 0, starboard_throttle: 0, rudder_deg: 0, bow_thruster: 0, stern_thruster: 0 }; setDraft(neutral); c.helmCommand(neutral); }}>Order neutral</Button></div>
+      <div className="flex flex-wrap items-center gap-2"><Button size="sm" onClick={() => submit(order)} disabled={disabled}>Apply helm order</Button><Button size="sm" variant="secondary" onClick={() => void c.refreshPrediction(order)} disabled={disabled} aria-busy={s.predictionPreviewPending}>Preview order</Button><Button size="sm" variant="secondary" disabled={disabled} onClick={() => submit({ port_throttle: 0, starboard_throttle: 0, rudder_deg: 0, bow_thruster: 0, stern_thruster: 0 })}>Order neutral</Button>{draft && <Button size="sm" variant="secondary" onClick={() => setDraft(null)}>Discard edit</Button>}</div>
       <div className="flex gap-1" role="group" aria-label="Auxiliary controls">{(['tugs', 'lines', 'payloads'] as const).map((tab) => <Button key={tab} size="sm" variant="secondary" aria-expanded={auxiliary === tab} aria-controls="motion-auxiliary" onClick={() => setAuxiliary(auxiliary === tab ? null : tab)}>{tab === 'tugs' ? 'Tugs' : tab === 'lines' ? 'Mooring lines' : 'Payload & loading'}</Button>)}</div>
     </div>
-    <p className="px-3 pb-2 text-[9px] text-mil-dim">Orders apply when simulation advances. Neutral removes commanded thrust; vessel momentum remains. {control.basis} propulsion · rudder sign describes ahead flow.</p>
+    <p className="px-3 pb-2 text-[9px] text-mil-dim"><strong aria-label="Helm control mode" className="text-mil-cyan">{mode}</strong> · {draft ? 'Manual draft not sent. Apply helm order takes manual control.' : 'Live commands; Actual shows actuator response. Apply helm order takes manual control.'} Orders apply when simulation advances. Neutral removes thrust; momentum remains. {control.basis} propulsion · rudder sign describes ahead flow.</p>
     {s.predictionPreviewPending && <p role="status" className="px-3 pb-2 text-[10px] text-mil-cyan">{s.command?.status === 'pending' && s.lifecycle !== 'running' ? 'Preview queued. Start/Resume to apply queued orders first.' : 'Preview requested. Waiting for confirmed state and backend calculation.'}</p>}
     {s.command?.status === 'pending' && s.lifecycle !== 'running' && <p className="px-3 pb-2 text-[10px] text-mil-amber">Start/Resume to apply queued orders. Their forecast waits for backend acknowledgement.</p>}
     {s.command && <p role="status" className={`border-t border-mil-border px-3 py-2 text-[10px] ${s.command.status === 'applied' ? 'text-mil-cyan' : 'text-mil-amber'}`}>{s.command.status.toUpperCase()} · {s.command.message}</p>}

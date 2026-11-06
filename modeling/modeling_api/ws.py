@@ -8,6 +8,9 @@ import hmac
 import json
 import math
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from datetime import datetime, timedelta
 
 from mooring.environment.coops import ProviderError
@@ -85,6 +88,34 @@ async def ws_env(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", mode: st
     await ws.close()
 
 
+# Alert source reads and equilibrium solves are synchronous. A separate, bounded
+# pool prevents them from occupying the ASGI loop or exhausting session workers.
+ALERT_TIMEOUT_S = 30.0
+_ALERT_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="alerts")
+_ALERT_SLOTS = threading.BoundedSemaphore(4)
+
+
+async def _alert_work(function, *args):
+    if not _ALERT_SLOTS.acquire(blocking=False):
+        raise TimeoutError("alert workers busy")
+    try:
+        future = _ALERT_POOL.submit(copy_context().run, function, *args)
+    except BaseException:
+        _ALERT_SLOTS.release()
+        raise
+    future.add_done_callback(lambda _: _ALERT_SLOTS.release())
+    # A timed-out thread keeps its slot until it actually exits; no unbounded queue.
+    return await asyncio.wait_for(asyncio.wrap_future(future), timeout=ALERT_TIMEOUT_S)
+
+
+def _alert_frame(sc, berth_id, analyze_req):
+    snapshot = scenarios.environment_for(sc) if sc else env.now(berth_id)
+    if sc and sc.config and analyze_req is None:
+        analyze_req = AnalyzeRequest(ship_class_id=sc.ship_class_id, loading=sc.loading, berth_id=sc.berth_id,
+            config=sc.config, environment=snapshot, tugs=sc.tugs)
+    return risk.alert_for(snapshot, analyze_req), analyze_req
+
+
 @router.websocket("/ws/alerts")
 async def ws_alerts(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", scenario_id: str | None = None,
                     interval_s: float = 5.0, limit: int = 0):
@@ -98,19 +129,18 @@ async def ws_alerts(ws: WebSocket, berth_id: str = "NAVSTA-NORFOLK-P12-N", scena
     analyze_req = None
     sent = 0
     try:
-        sc = scenarios.get(scenario_id) if scenario_id else None
+        sc = await _alert_work(scenarios.get, scenario_id) if scenario_id else None
         while limit == 0 or sent < limit:
             # Resolve the same saved source for every frame; never swap a scenario for live/mock data.
-            snapshot = scenarios.environment_for(sc) if sc else env.now(berth_id)
-            if sc and sc.config and analyze_req is None:
-                analyze_req = AnalyzeRequest(ship_class_id=sc.ship_class_id, loading=sc.loading, berth_id=sc.berth_id,
-                    config=sc.config, environment=snapshot, tugs=sc.tugs)
-            alert = risk.alert_for(snapshot, analyze_req)
+            alert, analyze_req = await _alert_work(_alert_frame, sc, berth_id, analyze_req)
             await ws.send_json(alert.model_dump(mode="json"))
             sent += 1
             if limit == 0 or sent < limit:
                 await asyncio.sleep(interval_s)
     except WebSocketDisconnect:
+        return
+    except TimeoutError:
+        await ws.close(code=1013, reason="Alert source or calculation timed out or is busy; retry later")
         return
     except ProviderError as exc:
         # No invented Alert/environment payload; the terminal close carries the provider state.

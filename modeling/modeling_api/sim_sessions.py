@@ -12,6 +12,7 @@ import os
 import threading
 import time
 from collections import deque
+from contextvars import copy_context
 
 from mooring.berthing import rich
 from mooring.core import access
@@ -123,6 +124,7 @@ class Session:
         self.rich=session_id is not None
         self.initial=(model.sc.model_copy(deep=True),model.initial.model_copy(deep=True),model.env.model_copy(deep=True))
         self.lock=threading.RLock()
+        self.persistence_context=copy_context()
         self.connection=None
         self.paused=False
         self.speed=1.0
@@ -284,6 +286,12 @@ class Session:
         return SimRecording.model_validate_json(self.recording_json())
 
     def persist(self, force=False):
+        # Expiry may be triggered by a different principal. Save under the creator's
+        # context, and serialize writes so an older snapshot cannot replace a newer one.
+        with self.lock:
+            self.persistence_context.copy().run(self._persist, force)
+
+    def _persist(self, force=False):
         """Keep the recording past session expiry. Storage failure is logged and retried, never reported as success."""
         if not self.rich: return
         with self.lock:
@@ -477,7 +485,10 @@ def _create(sessions, sid, model, record_interval_s=1.0):
     ttl=float(os.environ.get("MOORING_SESSION_IDLE_S","1800"))
     for key,session in list(sessions.items()):
         if isinstance(session,Session) and session.connection is None and now-session.last_access>ttl:
-            del sessions[key]
+            session.persist(force=True)
+            with session.lock:
+                if session.connection is None and now-session.last_access>ttl and not session.rec_dirty:
+                    del sessions[key]
     maximum=int(os.environ.get("MOORING_MAX_SESSIONS","32"))
     per_owner=int(os.environ.get("MOORING_SESSIONS_PER_PRINCIPAL","4"))
     owned=sum(access.allowed("session",key) for key in sessions)

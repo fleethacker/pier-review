@@ -505,7 +505,9 @@ def _create(sessions, sid, model, record_interval_s=1.0):
         if isinstance(session,Session) and session.connection is None and now-session.last_access>ttl:
             session.persist(force=True)
             with session.lock:
-                if session.connection is None and now-session.last_access>ttl and not session.rec_dirty:
+                if (sessions.get(key) is session and session.connection is None
+                        and now-session.last_access>ttl and not session.rec_dirty):
+                    session.released=True
                     del sessions[key]
     maximum=int(os.environ.get("MOORING_MAX_SESSIONS","32"))
     per_owner=int(os.environ.get("MOORING_SESSIONS_PER_PRINCIPAL","4"))

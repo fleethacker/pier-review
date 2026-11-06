@@ -309,22 +309,27 @@ class TugFleet:
         return out
 
 
-def synthetic_tug_dynamics_config(tug, ship, point, ship_initial, berth_bearing) -> TugDynamicsConfig:
+def synthetic_tug_dynamics_config(tug, ship, point, ship_initial, berth_bearing, *, bow_gap_ft=2.0) -> TugDynamicsConfig:
     """Explicit authored demo coefficients, never actual tug engineering data.
 
     A fictional 90×32 ft tug with one-million-pound mass, uniform rectangle yaw
     inertia, 8 s translational/5 s yaw damping, and omnidirectional propulsion.
     Seed tug/hull ratings only cap transfer. Contact reaches cap at 4 ft; towline
     at 10 ft extension. These are demonstration assumptions, not a tug model fit.
-    Initial tug is stationary, bow 2 ft from its assigned ship point; no tether.
+    Initial tug is stationary and disconnected. ``bow_gap_ft`` is clearance from
+    the tug's bow connection point to the assigned hull point, NOT center-to-hull
+    distance. Default 2 ft retains the close-work fixture; presets may explicitly
+    supply more clearance. Initial tow length retains 8 ft slack, at least 10 ft.
     """
     mass,length,beam = 1_000_000/32.174,90.0,32.0
+    if not math.isfinite(bow_gap_ft) or bow_gap_ft < 0:
+        raise ValueError("synthetic bow clearance must be finite and nonnegative")
     inertia = mass*(length*length+beam*beam)/12
     push = min(point.max_force_lbf,tug.bollard_pull_ahead_lbf)
     tow = min(point.max_force_lbf,tug.bollard_pull_astern_lbf)
     side = 1 if point.side == "port" else -1
     yaw = math.radians(berth_bearing-ship_initial.heading_true_deg)
-    dx,dy = rotate(yaw,point.x_ft,side*(ship.beam_ft/2+length/2+2))
+    dx,dy = rotate(yaw,point.x_ft,side*(ship.beam_ft/2+length/2+bow_gap_ft))
     return TugDynamicsConfig.model_validate(dict(basis="synthetic",source="synthetic-tug-demo-v1: authored box body, force controller and compliant connections; not real tug coefficients",
         tug_id=tug.tug_id,push_point_id=point.push_point_id,mass_slug=mass,izz_slug_ft2=inertia,
         length_ft=length,beam_ft=beam,contact_point_x_ft=length/2,tow_point_x_ft=length/2,
@@ -335,6 +340,6 @@ def synthetic_tug_dynamics_config(tug, ship, point, ship_initial, berth_bearing)
         contact_stiffness_lbf_per_ft=push/4,contact_damping_lbf_per_fps=1.4*math.sqrt(push/4*mass),
         contact_capacity_lbf=push,contact_half_width_ft=beam/2,max_contact_compression_ft=8,
         tow_stiffness_lbf_per_ft=tow/10,tow_damping_lbf_per_fps=.8*math.sqrt(tow/10*mass),tow_capacity_lbf=tow,
-        max_tow_extension_ft=20,initial_tow_length_ft=10,
+        max_tow_extension_ft=20,initial_tow_length_ft=max(10,bow_gap_ft+8),
         initial_state=dict(x_ft=ship_initial.x_ft+dx,y_ft=ship_initial.y_ft+dy,yaw_deg=math.degrees(yaw)-side*90,
                            surge_fps=0,sway_fps=0,yaw_degps=0)))

@@ -535,7 +535,7 @@ class BerthingModel:
             if loaded is not None and loaded.validity.state == "invalid":
                 raise ValueError("under-keel contact possible; seabed contact dynamics not modeled")
             if self.tug_dynamics is not None and any(c.invalid for c in self.tug_dynamics.connections(s1,self.auxiliary_at()).values()):
-                raise ValueError("tug connection deformation exceeds synthetic model boundary")
+                raise ValueError("tug connection deformation or unsupported hull overlap exceeds synthetic model boundary")
             observe(t0,s0,t1,s1)
         def bounded_check():
             check()

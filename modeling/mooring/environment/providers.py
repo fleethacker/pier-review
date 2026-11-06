@@ -11,6 +11,7 @@ import json
 import math
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
@@ -130,6 +131,9 @@ class HttpPolicy:
     max_stale_s: float = 3600.0
     breaker_failures: int = 3
     breaker_reset_s: float = 30.0
+    # Per-client retention limits; operational bounds, not provider validity rules.
+    cache_max_entries: int = 128
+    cache_max_bytes: int = 32 * 1024 * 1024
 
     def __post_init__(self) -> None:
         nonnegative = (
@@ -144,6 +148,8 @@ class HttpPolicy:
         if (any(not math.isfinite(x) or x < 0 for x in nonnegative) or self.timeout_s <= 0 or
                 type(self.retries) is not int or type(self.breaker_failures) is not int or self.breaker_failures < 1):
             raise ValueError("provider policy values must be finite/non-negative; timeout and integer breaker threshold positive; retries an integer")
+        if any(type(value) is not int or value < 1 for value in (self.cache_max_entries, self.cache_max_bytes)):
+            raise ValueError("provider cache entry and byte limits must be positive integers")
 
 
 class BreakerState(StrEnum):
@@ -269,7 +275,8 @@ class ProviderHttpClient:
             self.policy.breaker_reset_s,
             self.clock,
         )
-        self._cache: dict[tuple[str, tuple[tuple[str, str], ...]], tuple[datetime, HttpPayload]] = {}
+        self._cache: OrderedDict[tuple[str, tuple[tuple[str, str], ...]], tuple[datetime, HttpPayload]] = OrderedDict()
+        self._cache_bytes = 0
         self._last_call: datetime | None = None
         self.calls = 0
 
@@ -279,6 +286,36 @@ class ProviderHttpClient:
 
     def _cached(self, payload: HttpPayload, *, age_s: float, stale: bool) -> HttpPayload:
         return replace(payload, from_cache=True, stale=stale, age_s=age_s)
+
+    @staticmethod
+    def _cache_size(key, payload: HttpPayload) -> int:
+        # Count retained wire bytes, including request keys and response headers.
+        strings = [key[0], *(value for pair in key[1] for value in pair),
+                   *(value for pair in payload.headers.items() for value in pair)]
+        return len(payload.content) + sum(len(value.encode("utf-8")) for value in strings)
+
+    def _evict(self, key) -> None:
+        hit = self._cache.pop(key, None)
+        if hit is not None:
+            self._cache_bytes -= self._cache_size(key, hit[1])
+
+    def _prune(self, now: datetime) -> None:
+        retention_s = max(self.policy.cache_ttl_s, self.policy.max_stale_s)
+        for key, (retrieved, _) in list(self._cache.items()):
+            if not 0 <= (now - retrieved).total_seconds() <= retention_s:
+                self._evict(key)
+
+    def _retain(self, key, retrieved: datetime, payload: HttpPayload) -> None:
+        self._prune(retrieved)
+        self._evict(key)
+        size = self._cache_size(key, payload)
+        if size > self.policy.cache_max_bytes:
+            return  # A successful oversized response is usable, but not retained.
+        while self._cache and (len(self._cache) >= self.policy.cache_max_entries
+                               or self._cache_bytes + size > self.policy.cache_max_bytes):
+            self._evict(next(iter(self._cache)))
+        self._cache[key] = (retrieved, payload)
+        self._cache_bytes += size
 
     def get(
         self, url: str, params: Mapping[str, str] | None = None, *,
@@ -315,8 +352,10 @@ class ProviderHttpClient:
         params = params or {}
         key = self._key(url, params)
         now = self.clock.now()
+        self._prune(now)
         hit = self._cache.get(key)
         if hit:
+            self._cache.move_to_end(key)
             age_s = (now - hit[0]).total_seconds()
             if 0 <= age_s <= self.policy.cache_ttl_s:
                 return self._cached(hit[1], age_s=age_s, stale=False)
@@ -357,7 +396,7 @@ class ProviderHttpClient:
                     if 200 <= payload.status_code < 300:
                         retrieved = self.clock.now().astimezone(UTC)
                         payload = replace(payload, retrieved_at_utc=retrieved)
-                        self._cache[key] = (retrieved, payload)
+                        self._retain(key, retrieved, payload)
                     return payload
             remaining()
             if attempt < self.policy.retries:
@@ -380,7 +419,7 @@ class ProviderHttpClient:
     def invalidate(self, url: str, params: Mapping[str, str] | None = None) -> None:
         """Remove a response that a provider parser found uncacheable."""
         with self._lock:
-            self._cache.pop(self._key(url, params or {}), None)
+            self._evict(self._key(url, params or {}))
 
 
 def canonical_fixture_bytes(value: Any) -> bytes:

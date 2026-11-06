@@ -3,7 +3,7 @@
 import math
 from typing import Annotated, Literal
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from .common import Model, Severity, Validity
 from .dynamics import SimEvent, SimLineEventMessage, SimTugCommandMessage, SimulationTransition
@@ -34,6 +34,8 @@ class MotionPredictionRequest(Model):
 
 
 class MotionPredictionSource(Model):
+    model_config = ConfigDict(frozen=True)
+
     session_id: str = Field(min_length=1)
     run_id: str = Field(min_length=1)
     sequence: int = Field(ge=0, strict=True,

@@ -9,7 +9,7 @@ import json
 
 from mooring import environment, refdata
 from mooring.core.envelopes import resolved_inputs_hash
-from mooring.core.schemas.environment import EnvironmentMetadata, EnvironmentSnapshot, EnvScenario, StationQuality
+from mooring.core.schemas.environment import MAX_FORECAST_SNAPSHOTS, EnvironmentMetadata, EnvironmentSnapshot, EnvScenario, StationQuality
 
 MAX_SAMPLES = 721  # Forecast request work bound, not a physical coefficient.
 MAX_STEP_MIN = 180  # Matches the maximum supported forecast hold interval.
@@ -83,7 +83,8 @@ def _training_snapshot(raw, scenario, revision, at, archive_at):
     return EnvironmentSnapshot.model_validate(output)
 
 
-def sample_scenario(env_scenario_id, *, as_of_utc, from_utc, to_utc, step_min=30) -> tuple[list[EnvironmentSnapshot], str]:
+def sample_scenario(env_scenario_id, *, as_of_utc, from_utc, to_utc, step_min=30,
+                    max_samples=MAX_SAMPLES) -> tuple[list[EnvironmentSnapshot], str]:
     """Sample every requested scenario time and both endpoints, with immutable provenance.
 
     The returned revision identifies the scenario definition including its creation
@@ -99,11 +100,13 @@ def sample_scenario(env_scenario_id, *, as_of_utc, from_utc, to_utc, step_min=30
         raise refdata.InvalidReference('Scenario horizon end must be after its start')
     if type(step_min) is not int or not 1 <= step_min <= MAX_STEP_MIN:
         raise refdata.InvalidReference(f'Scenario step must be an integer from 1 through {MAX_STEP_MIN} minutes')
+    if type(max_samples) is not int or not 1 <= max_samples <= MAX_FORECAST_SNAPSHOTS:
+        raise refdata.InvalidReference(f'Scenario sample limit must be an integer from 1 through {MAX_FORECAST_SNAPSHOTS}')
     step = timedelta(minutes=step_min)
     full_steps = (end-start) // step
     partial = (end-start) % step != timedelta(0)
-    if full_steps + 1 + partial > MAX_SAMPLES:
-        raise refdata.InvalidReference(f'Scenario forecast exceeds {MAX_SAMPLES} samples; shorten its horizon or increase the step')
+    if full_steps + 1 + partial > max_samples:
+        raise refdata.InvalidReference(f'Scenario forecast exceeds {max_samples} samples; shorten its horizon or increase the step')
     scenario, revision = _definition(env_scenario_id)
     created = _utc(scenario.created_at_utc, 'Scenario creation time')
     if created > as_of:

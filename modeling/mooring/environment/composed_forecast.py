@@ -30,13 +30,15 @@ from .forecast_hashing import component_content_sha256, manifest_revision
 from .nws import NWSGridpoint
 
 
-def _unavailable(component: str, reason: str, *, limitations: list[str] | None = None) -> ForecastComponentSeries:
+def _unavailable(component: str, reason: str, *, limitations: list[str] | None = None,
+                 retrieved_at_utc: datetime | None = None) -> ForecastComponentSeries:
     return ForecastComponentSeries(
         availability=EnvironmentComponentAvailability(
             component=component,
             state="unavailable",
             reason=reason,
             limitations=limitations or [],
+            retrieved_at_utc=retrieved_at_utc,
         )
     )
 
@@ -275,9 +277,11 @@ class ForecastComposer:
                 raise ProviderError("stale", "CO-OPS current prediction response came from stale cache")
             retrieved = self._retrieved_at(fetched)
             if retrieved > request.as_of_utc:
-                raise ProviderError(
-                    "unavailable",
-                    f"current predictions were retrieved {retrieved.isoformat()} after as_of_utc",
+                return _unavailable(
+                    "current", "CO-OPS unavailable: current predictions were retrieved after as_of_utc",
+                    retrieved_at_utc=retrieved,
+                    limitations=["Explicitly adopt the recorded retrieval cutoff and retry to reuse this cached response; "
+                                 "retrieval is not issuance and no current depth/bin substitution is permitted."],
                 )
             rows = [row for row in coops.parse_current_predictions(fetched.doc)
                     if request.horizon_start_utc <= row["t"] <= request.horizon_end_utc]
@@ -345,9 +349,11 @@ class ForecastComposer:
                 raise ProviderError("stale", "CO-OPS water-level prediction response came from stale cache")
             retrieved = self._retrieved_at(fetched)
             if retrieved > request.as_of_utc:
-                raise ProviderError(
-                    "unavailable",
-                    f"water-level predictions were retrieved {retrieved.isoformat()} after as_of_utc",
+                return _unavailable(
+                    "water_level", "CO-OPS unavailable: water-level predictions were retrieved after as_of_utc",
+                    retrieved_at_utc=retrieved,
+                    limitations=["Explicitly adopt the recorded retrieval cutoff and retry to reuse this cached response; "
+                                 "retrieval is not issuance."],
                 )
             rows = [row for row in coops.parse_predictions(fetched.doc)
                     if request.horizon_start_utc <= row["t"] <= request.horizon_end_utc
@@ -461,15 +467,21 @@ class ForecastComposer:
 
     def _scenario(self, request) -> ComposedForecast:
         from mooring import environment
+        from mooring.core.schemas.environment import MAX_FORECAST_SNAPSHOTS
+        from mooring.data_simulation.scenario_forecast import sample_scenario
 
         scenario = environment.get_scenario(request.source.env_scenario_id)
         if scenario.kind == "replay" and scenario.replay_source == "recorded_real":
             raise ProviderError("invalid_request", "recorded observations cannot be promoted to an advance forecast")
         times = _grid(request.horizon_start_utc, request.horizon_end_utc, request.step_min)
         try:
-            raw = [environment.scenario_snapshot(scenario.env_scenario_id, at, request.berth_id) for at in times]
-        except ProviderError as exc:
-            unavailable = [_unavailable(name, f"scenario {exc.kind}: {exc}")
+            raw, _ = sample_scenario(
+                scenario.env_scenario_id, as_of_utc=request.as_of_utc,
+                from_utc=request.horizon_start_utc, to_utc=request.horizon_end_utc,
+                step_min=request.step_min, max_samples=MAX_FORECAST_SNAPSHOTS,
+            )
+        except (ProviderError, refdata.InvalidReference) as exc:
+            unavailable = [_unavailable(name, f"scenario unavailable: {exc}")
                            for name in ("wind", "current", "water_level")]
             manifest = ComposedForecastManifest(
                 revision="sha256:" + "0" * 64,
@@ -485,28 +497,29 @@ class ForecastComposer:
         wind_points, current_points, water_points = [], [], []
         for index, (at, snapshot) in enumerate(zip(times, raw)):
             valid_to = times[index + 1] if index + 1 < len(times) else at
-            component_rows = [EnvironmentComponentProvenance(
+            metadata = snapshot.metadata
+            existing = {item.component: item for item in metadata.components}
+            # Canonical playback retains original provenance and translates only
+            # the archive clock. Never enlarge a source-declared validity span.
+            component_rows = [existing.get(name) or EnvironmentComponentProvenance(
                 component=name,
                 source=f"Explicit environment scenario {scenario.env_scenario_id}",
                 basis="scenario",
-                valid_from_utc=at,
-                valid_to_utc=valid_to,
+                valid_from_utc=metadata.valid_from_utc or at,
+                valid_to_utc=min(valid_to, metadata.valid_to_utc) if metadata.valid_to_utc else valid_to,
                 quality="unknown",
                 limitations=["Synthetic scenario forcing; not a public forecast."],
             ) for name in ("wind", "current", "water_level")]
             snapshots.append(snapshot.model_copy(update={
                 "source": "scenario",
-                "metadata": EnvironmentMetadata(
-                    basis="scenario",
-                    source=f"Explicit environment scenario {scenario.env_scenario_id}",
-                    components=component_rows,
-                    valid_from_utc=at,
-                    valid_to_utc=valid_to,
-                    current_depth_ft=request.current_depth_ft,
-                    current_bin=request.current_bin,
-                    vertical_datum="MLLW",
-                    quality="unknown",
-                ),
+                "metadata": metadata.model_copy(update={
+                    "components": component_rows,
+                    "valid_from_utc": metadata.valid_from_utc or at,
+                    "valid_to_utc": min(valid_to, metadata.valid_to_utc) if metadata.valid_to_utc else valid_to,
+                    "current_depth_ft": metadata.current_depth_ft if metadata.current_depth_ft is not None else request.current_depth_ft,
+                    "current_bin": metadata.current_bin or request.current_bin,
+                    "vertical_datum": metadata.vertical_datum or "MLLW",
+                }),
             }))
             if index + 1 < len(times):
                 wind_points.append(WindForecastPoint(

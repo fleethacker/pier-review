@@ -5,7 +5,7 @@ This report records implementation for the 5 November 2026 whole-product audit o
 reproductions and evidence; [MASTER_PLAN.md](MASTER_PLAN.md) remains the authority for ownership and priorities.
 
 **F01–F28 are implemented, pending independent review and final integrated checks. None is closed by this report.**
-The implementation inventory below covers `fix/product-audit-remediation` through `5c28b56`, based on its commit
+The implementation inventory below covers `fix/product-audit-remediation` through `ea62351`, based on its commit
 history and changed regressions. Independent review identified two additional UI failures: paused backward seeking
 could leave a prediction for the wrong input time, and custom transit inherited a hardcoded Norfolk berth. Commit `5c28b56` now forces
 seek refresh/rejects late responses and leaves unbound pier/fender coverage explicitly unknown. The final reviewed
@@ -57,9 +57,12 @@ F09/F10 include the additional review corrections in `5c28b56`.
   The updated fixture and `test_s7_prediction.py` assertions exercise the stricter validity rule; historical
   observations were neither retimed into current data nor relabeled as a qualified forecast.
   The first final Python rerun exposed six A7 narration tests that still used this now-invalid archived fixture
-  while expecting a usable trajectory. Their correction is in progress: model-generated, explicitly synthetic
-  limited input for those usable-trajectory assertions, plus a separate archived-invalid narration regression.
-  The original behavioral assertions remain; the observed-source validity rule is not being reverted.
+  while expecting a usable trajectory. [Commit a978b57](https://github.com/fleethacker/pier-review/commit/a978b57ff9db02bab3f370994c6ecb519226c078)
+  now uses model-generated, explicitly synthetic limited input for those usable-trajectory assertions and adds an
+  archived-invalid narration regression in [test_prediction_brief.py](../agents/tests/test_prediction_brief.py).
+  All original behavioral assertions remain; the observed-source validity rule was not reverted. The focused suite
+  passed 14 tests; the full rerun is pending. [Commit ea62351](https://github.com/fleethacker/pier-review/commit/ea62351bac9c2ded08b226b6214427b25fc7bd08)
+  regenerates the input bounds and invalid prediction contract evidence and aligns the Safety narration README.
 - **Safety meaning belongs to code.** Intake and Safety accept only validated selections of complete code-owned
   statements. The LLM does not compute physics, negate a finding or authorize movement. Offline behavior with
   `AGENTS_LLM_PROVIDER=none` remains supported.
@@ -90,19 +93,23 @@ The final integrated rerun and independent disposition are pending.
 | Evidence | Observed result | Scope / remaining acceptance |
 | --- | --- | --- |
 | Earlier integrated Python suite | 2,776 passed | Historical implementation-stage result. |
-| First final Python rerun | 2,814 tests: 2,808 passed, 6 failed | All six failures were A7 narration tests expecting a usable prediction from the now-invalid archived NOAA fixture. Fixture correction and a further full rerun are pending; this run is not green. |
+| First final Python rerun | 2,814 tests: 2,808 passed, 6 failed | All six failures were A7 narration tests expecting a usable prediction from the now-invalid archived NOAA fixture. Corrected by `a978b57`; its focused 14 tests passed. A further full rerun is pending; this original run was not green. |
 | Frontend suite and static/build checks | Latest pre-follow-up run: 1,065 passed in 72 files; typecheck, lint and build passed. An earlier run had 1,062 passed. | Final checks must use the reviewed integration commit after the remaining UI changes. |
 | `scripts/demo_check.py --no-browser` | 21 passed, 0 failed, 4 skipped | Browser explicitly excluded, plus three existing readiness coverage blockers: D1/U3 component/startup acceptance, all-four-case independent browser review U1/U4, and varying-forcing UI S2/U5. This is not full readiness. |
-| Focused independent review | Model timing: 65 tests plus 12 independent cases; Intake/Safety: 228 tests with no semantic bypass found | Narrow review evidence; final UI browser chain and integrated disposition pending. |
+| Focused independent review | Model timing: 65 tests plus 12 independent cases; Intake/Safety: 228 tests with no semantic bypass found; UI: 45 tests and the final seek probe passed | UI independent review is clear. Final integrated disposition and full rerun remain pending. |
 | Local API integration | Four planning cases, supplied-forecast binding and runtime HTTP/SSE/WS checks passed | Real local services, offline/synthetic conditions; does not replace all-four-case browser or target-host acceptance. |
+| Independent F01/F02 browser chain | Real Advance → Intake → Planner → Safety → sheet passed; forecast content hash survived selection, and Intake through sheet retained the identical full manifest. HTML retained the hash and review ID. After a 150 kt wind / 180 kt gust edit, active review/sheet actions cleared and the saved historical sheet stayed unchanged. Zero page errors. | Explicit synthetic forecast and no LLM; the selected operation narrows Advance's broader arrival window, so its binding hash changes at Intake. Safety retained an honest RED/revise outcome. This is one chain, not all-four-case readiness. |
+| Independent direct-Planner and pending-review browser chain | Advance → direct Planner automatically assessed Intake with the selected content hash. A real Safety response was held unchanged while wind/gust changed to 150/180 kt; delivering it afterward restored neither review nor sheet. Zero page errors. | Real isolated services; response delivery was deliberately delayed. This verifies the pending-response race separately from edits after a completed review. |
 | Browser report-save failure | Draft retained after synthetic HTTP 503 against the real mission workflow | Failure injection, not a production incident. |
 | Browser exercise library | Draft location, unsaved-change guard, loaded revision and visible conflict retained | Synthetic shared-library API fixtures. |
 | Browser camera | Real offline modeling API received explicit noncalm environment and other-vessel traffic; selection changed to CG-OUT with matching rendered identity; keyboard selection passed | Precedes the `5c28b56` seek/unbound-berth corrections; their final browser acceptance remains pending. |
 | Browser refresh observation | Maximum observed gap 1,706.8 ms against the probe's 2,500 ms criterion | Local production browser build; this does **not** establish the master plan's ≥1 Hz target or a deployed-host SLA. |
 
-The local browser artifact is
-`/Users/michaelsnyder/repos/pier-review-audit-evidence-2026-11-05/ui-audit-fixes-browser-results.json`;
-the no-browser smoke log is `/tmp/pier-product-fixes-smoke.log`. These are local evidence paths, not repository
+The local browser artifacts are in
+`/Users/michaelsnyder/repos/pier-review-audit-evidence-2026-11-05/`:
+`ui-audit-fixes-browser-results.json`, `independent-f01-f02-browser-results.json` and
+`independent-f01-f02-pending-browser-results.json`. The no-browser smoke log is
+`/tmp/pier-product-fixes-smoke.log`. These are local evidence paths, not repository
 artifacts or shared download links. The original audit bundle remains separate and unchanged.
 
 Before closure, the coordinator records the reviewed integration commit, regression/reproduction disposition,

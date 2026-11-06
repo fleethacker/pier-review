@@ -13,7 +13,7 @@ physical validity and collision reporting before extending the affected workflow
 persistence fixes can proceed in coordinated parallel lanes. The correction order and assignments in that ledger
 supersede older next-step/status claims below where they conflict; this master plan remains the planning authority.
 **Current remediation state:** all F01–F28 have implementations on `fix/product-audit-remediation`, documented through
-`5c28b56` in [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md). They are implemented, pending independent
+`ea62351` in [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md). They are implemented, pending independent
 review and final integrated checks. The paused-seek and custom-transit berth review follow-ups are implemented in `5c28b56`.
 G01–G08 remain open. No finding is closed until its independent acceptance evidence is recorded. The separate Domino
 deployment uses pre-remediation `dev` at `35e0111`; its target smoke is not validation of this branch or operational approval.

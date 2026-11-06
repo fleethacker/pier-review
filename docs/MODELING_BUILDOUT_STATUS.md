@@ -7,7 +7,7 @@ including modeling validity/contact failures (F03–F08, F24–F26), rich-frame 
 compatibility (F20/F21) and runtime/persistence/telemetry failures (F14–F22). F01/F02/F09/F10 are cross-service UI
 handoff defects, not completed integration simply because the underlying endpoints exist. Follow the named leads,
 reviewers and closure evidence in that ledger before treating the historical implementation rows below as accepted.
-All F01–F28 now have implementations on `fix/product-audit-remediation`, documented through `5c28b56` in
+All F01–F28 now have implementations on `fix/product-audit-remediation`, documented through `ea62351` in
 [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md); independent review and final integrated checks are pending.
 Camera seek-time and custom-transit berth review follow-ups are implemented in `5c28b56`, pending final acceptance.
 G01–G08 and physical qualification remain open. The archived NOAA prediction example now correctly returns RED/invalid because its declared
@@ -117,8 +117,8 @@ or independently reviewed.
 The remediation report records the newer local evidence separately: an earlier integrated Python run reported
 2,776 passed; frontend checks subsequently reported 1,065 passed in 72 files with typecheck/lint/build passing, before
 the latest camera review follow-ups. The final integrated rerun, exact skip/xfail accounting and independent acceptance
-are pending. The first final Python rerun reported 2,808 passed and 6 A7 narration fixture failures; correction and
-a further full rerun are pending, as explained in the report. The scoped no-browser smoke reported 21 passed, 0 failed and 4 skipped; it is not a readiness pass.
+are pending. The first final Python rerun reported 2,808 passed and 6 A7 narration fixture failures. Those fixtures
+were corrected in `a978b57` with 14 focused tests passing; a further full rerun is pending, as explained in the report. The scoped no-browser smoke reported 21 passed, 0 failed and 4 skipped; it is not a readiness pass.
 See [the evidence scope](PRODUCT_AUDIT_REMEDIATION.md#validation-evidence) rather than treating these provisional counts as release approval.
 
 Use the exact implementation PR and CI run for test counts, skips and xfails. This documentation reconciliation

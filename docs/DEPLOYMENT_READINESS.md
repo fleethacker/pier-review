@@ -3,7 +3,7 @@
 **The modeling service is not ready for live use.** The local controls below do not establish deployment approval or a completed S21 gate.
 
 **Product-audit remediation (5 November 2026):** [NEXT_STEPS.md](NEXT_STEPS.md) preserves the `ac73e1f` audit and
-current ledger. F01–F28 have implementations on `fix/product-audit-remediation`, documented through `5c28b56` in
+current ledger. F01–F28 have implementations on `fix/product-audit-remediation`, documented through `ea62351` in
 [PRODUCT_AUDIT_REMEDIATION.md](PRODUCT_AUDIT_REMEDIATION.md), pending independent review and final integrated checks.
 The runtime/auth/persistence controls below include that implementation scope; the separate deployed Domino app uses
 pre-remediation `35e0111`. Its smoke checks do not validate remediation code. G01–G08, including G07's wider deployment,

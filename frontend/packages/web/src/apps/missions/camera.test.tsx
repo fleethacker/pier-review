@@ -59,12 +59,12 @@ describe('state mapping', () => {
 
 describe('request construction', () => {
   const o = toObservedState(v0, 'DDG-51-FIIA', '2026-11-05T15:00:00Z', 'j');
-  it('hold only by default with defaults 8 samples, 300 s, 10 s, berth', () => {
+  it('hold only by default with8 samples,300s and10s, without inventing a berth', () => {
     const r = buildPredictionRequest(o);
     expect(r.alternatives).toEqual([]);
     expect(r.uncertainty?.samples).toBe(8);
     expect([r.horizon_s, r.tick_s]).toEqual([300, 10]);
-    expect(r.hazards?.berth_id).toBe('NAVSTA-NORFOLK-P12-N');
+    expect(r.hazards?.berth_id).toBeNull();
   });
   it('each what-if', () => {
     const by = (id: string) => buildPredictionRequest(o, { whatIfId: id }).alternatives?.[0];
@@ -200,7 +200,7 @@ describe('camera tab', () => {
     act(() => c.setTab('camera'));
     fireEvent.click(screen.getByRole('button', { name: 'Preset' }));
     await waitFor(() => expect(screen.getAllByText(/Sample prediction/).length).toBeGreaterThan(0));
-    expect(screen.getByText(/Hazards not checked: coastline/)).toBeTruthy();
+    expect(screen.getAllByText(/Hazards not checked: coastline/).length).toBeGreaterThan(0);
     expect(screen.getByText(/decision support, not navigational guidance/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Rudder 15° port' }));
     expect(c.state.camWhatIf).toBe('rudder-port-15');
@@ -275,7 +275,7 @@ describe('transit camera identity and forcing (F09/F10/T02)', () => {
     expect(screen.queryByText(/Prediction for MOCK-A/)).toBeNull();
     expect(c.state.camResult?.result.vessel_id).toBe('MOCK-B');
     expect(c.state.clock.playing).toBe(false);
-    act(() => c.setPlayhead(22.5));
+    act(() => c.store.setState({ clock: { ...c.state.clock, t: 22.5 } })); // continuous playback advances independently of a pending prediction
     expect(screen.getByText(/10 simulated seconds behind playback/)).toBeTruthy();
     const refresh = c.requestCamera(true);
     await waitFor(() => expect(pending.length).toBeGreaterThanOrEqual(3));
@@ -286,4 +286,37 @@ describe('transit camera identity and forcing (F09/F10/T02)', () => {
     expect(screen.getByText(/Prediction for MOCK-B at 2026-11-05T12:00:22.500Z/)).toBeTruthy();
     c.dispose();
   });
+});
+
+
+it('paused backward and forward seeks always replace the visible input, even inside the throttle interval', async () => {
+  const pending: { request: import('./types').PredictionRequest; signal?: AbortSignal | null; resolve: (response: Response) => void }[] = [];
+  vi.stubGlobal('fetch', vi.fn((_url: unknown, init: RequestInit) => new Promise<Response>((resolve) => pending.push({
+    request: JSON.parse(String(init.body)), signal: init.signal, resolve,
+  }))));
+  const c = new MissionsController({ store: new SceneStore() });
+  const response = structuredClone(sampleResponse); response.result.vessels = response.result.vessels.slice(0,1);
+  const request = structuredClone(samplePreset.request); request.vessels = request.vessels.slice(0,1);
+  const series = structuredClone(sampleSeries); series.frames.forEach((frame) => { frame.vessels = frame.vessels.slice(0,1); });
+  c.store.setState({ tab: 'transit', response, completedRequest: request, series, selectedVesselId: request.vessels[0].vessel_id });
+  c.setPlayhead(30); c.store.setState({ cameraOn: true });
+  const old = c.requestCamera(true);
+  expect(pending).toHaveLength(1);
+  c.setPlayhead(0);
+  expect(pending).toHaveLength(2);
+  expect(pending[0].signal?.aborted).toBe(true);
+  const reply = (index: number) => { const value = structuredClone(samplePrediction); value.result.vessel_id = pending[index].request.vessel.vessel_id;
+    value.result.as_of_utc = pending[index].request.as_of_utc!; pending[index].resolve(new Response(JSON.stringify(value))); };
+  reply(0); await old;
+  expect(c.state.camResult).toBeNull(); // a response for a later playhead may never come back after a backward seek
+  reply(1); await waitFor(() => expect(c.state.camInputTimeS).toBe(0));
+  c.setPlayhead(25);
+  expect(pending).toHaveLength(3); // final seek is never dropped by the one-second continuous-play throttle
+  expect(c.state.camResult).toBeNull();
+  reply(2); await waitFor(() => expect(c.state.camInputTimeS).toBe(25));
+  expect(c.state.clock.playing).toBe(false);
+  expect(pending[2].request.hazards?.berth_id).toBeNull();
+  const unbound = structuredClone(c.state.camResult!); unbound.result.hazards_checked = ['vessel'];
+  expect(missingHazards(unbound)).toEqual(['pier', 'fender', 'coastline']);
+  c.dispose(); vi.unstubAllGlobals();
 });

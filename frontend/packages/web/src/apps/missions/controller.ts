@@ -690,17 +690,18 @@ export class MissionsController {
     if (this.camActive() && this.state.camSource === 'transit') void this.requestCamera(true);
   }
 
-  private updateVessels(): void {
+  private updateVessels(forceCamera = false): void {
     const series = this.state.series;
     this.store.setState({ vessels: series ? stateAt(series.frames, this.state.clock.t) : [] });
     this.pushTransit();
-    if (this.camActive() && this.state.camSource === 'transit') void this.requestCamera(false);
+    if (this.camActive() && this.state.camSource === 'transit') void this.requestCamera(forceCamera);
   }
 
   setPlayhead(t: number): void {
+    if (this.state.camSource === 'transit') this.invalidateCamera();
     const end = this.series() ? endTime(this.series()!.frames) : 0;
     this.store.setState({ clock: { ...this.state.clock, t: Math.min(end, Math.max(0, t)) } });
-    this.updateVessels();
+    this.updateVessels(true);
   }
 
   setSpeed(speed: number): void {
@@ -716,6 +717,7 @@ export class MissionsController {
     if (!series || this.timer) return;
     const end = endTime(series.frames);
     const c = this.state.clock;
+    if (c.t >= end) this.setPlayhead(0);
     this.store.setState({ clock: { ...c, t: c.t >= end ? 0 : c.t, playing: true } });
     this.lastTick = Date.now();
     // Reduced motion: step once a second instead of animating smoothly.
@@ -723,10 +725,15 @@ export class MissionsController {
   }
 
   pause(): void {
+    const wasPlaying = this.state.clock.playing;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     if (this.state.clock.playing)
       this.store.setState({ clock: { ...this.state.clock, playing: false } });
+    if (wasPlaying && this.camActive() && this.state.camSource === 'transit') {
+      this.invalidateCamera();
+      void this.requestCamera(true);
+    }
   }
 
   private tick(): void {
@@ -736,14 +743,15 @@ export class MissionsController {
     const dt = (now - this.lastTick) / 1000;
     this.lastTick = now;
     const next = advanceClock(this.state.clock, dt, endTime(series.frames));
+    if (!next.playing && this.state.camSource === 'transit') this.invalidateCamera();
     this.store.setState({ clock: next });
-    this.updateVessels();
+    this.updateVessels(!next.playing);
     if (!next.playing) this.pause();
   }
 
   selectVessel(id: string): void {
     if (id === this.state.selectedVesselId) return;
-    this.invalidateCamera();
+    if (this.state.camSource === 'transit') this.invalidateCamera();
     this.store.setState({ selectedVesselId: id });
     this.followCamera(this.followTargets(this.state.vessels));
     this.pushTransit();
@@ -978,9 +986,11 @@ export class MissionsController {
     }
     const inputTimeS = this.state.camSource === 'transit' ? this.state.clock.t : null;
     const generation = this.cameraGeneration;
-    const identity = JSON.stringify([this.state.camSource, this.state.selectedVesselId, this.state.camPresetId, this.state.camWhatIf, this.state.response?.result_id]);
-    const current = () => !this.disposed && generation === this.cameraGeneration && identity === JSON.stringify([
-      this.state.camSource, this.state.selectedVesselId, this.state.camPresetId, this.state.camWhatIf, this.state.response?.result_id]);
+    const sourceIdentity = () => JSON.stringify(this.state.camSource === 'preset'
+      ? ['preset', this.state.camPresetId, this.state.camWhatIf]
+      : ['transit', this.state.selectedVesselId, this.state.camWhatIf, this.state.response?.result_id]);
+    const identity = sourceIdentity();
+    const current = () => !this.disposed && generation === this.cameraGeneration && identity === sourceIdentity();
     try {
       const r = await this.camThrottle.run((signal) => postPrediction(req, signal), force);
       if (!r.ran || r.aborted || !r.value || !current()) return;

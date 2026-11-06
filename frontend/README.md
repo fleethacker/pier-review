@@ -90,8 +90,9 @@ to the agents service (set `MODELING_PROXY_TARGET` and `AGENTS_PROXY_TARGET` in 
 `http://127.0.0.1:8000` and `:8001`; use the numeric address, because `localhost` can resolve to IPv6 where the services do not listen). REST is under `/api/v1`, WebSockets under `/ws`. Set `VITE_MODELING_URL` or
 `VITE_AGENTS_URL` to an absolute URL to bypass the proxy.
 
-The default local demo needs no credentials. The optional build-time bearer token covers HTTP only; authenticated
-SSE and WebSockets require a separately reviewed gateway integration. The 2D and 3D views are drawn from the berth data itself.
+The default local demo needs no credentials. The header’s runtime Access control supports per-tab bearer credentials for
+HTTP and Planner SSE; authenticated WebSockets require the gateway. No backend credential is included at build time.
+The 2D and 3D views are drawn from the berth data itself.
 
 Optional look-and-feel: set `VITE_MAPBOX_TOKEN` (a public `pk.` token) when building to put Mapbox satellite imagery
 under the scene. Vite bakes it into the bundle, so it must be present at build time (on Domino, as a user or project
@@ -461,5 +462,5 @@ Audit workflow safeguards (F01/F02/F09/F10/F12/F13/F23/F27/F28):
 
 - Applying an Advance arrival binds its exact forecast revision, content hash, arrival time and operation/holding interval to Intake. Planner and Safety inherit that Intake report. Starting Planner directly first runs Intake when an applied forecast has not yet been assessed; failure blocks planning instead of substituting steady conditions. Changing the selected times or source clears the binding; current manual conditions remain explicitly a steady scenario. Layout, environment and tug edits invalidate prior Planner/Safety evidence and close its sheet.
 - Public acquisition can offer **Use retrieval cutoff and retry** when provider retrieval followed the chosen as-of time. This explicit action preserves the requested source layer and forecast horizon for cached re-use. The initial arrival window is 25–31 h after the hourly cutoff, leaving time for acquisition; existing user edits are never shifted. It does not shift arrival times or grant a shorter-than-24-hour planning lead; the planning form reports a lead violation until the user chooses a compliant operation.
-- The transit camera uses the completed run's environment, loading and simulation clock. Other vessels come from the same series with catalog dimensions; missing dimensions prevent a request rather than silently dropping traffic. A future path ending early is sent without extrapolation and remains a backend validity limitation. Changing the selected vessel cancels/clears its previous prediction; the panel labels which vessel and time its returned prediction describes.
+- The transit camera uses the completed run's environment, loading and simulation clock. Other vessels come from the same series with catalog dimensions; missing dimensions prevent a request rather than silently dropping traffic. A future path ending early is sent without extrapolation and remains a backend validity limitation. Changing the selected vessel or seeking cancels/clears its previous prediction and forces the final input to refresh; continuous playback remains throttled. Transit runs have no berth binding, so their camera requests leave pier/fender coverage unknown instead of assuming Norfolk; authored camera presets retain their explicit berth. The panel labels which vessel and time its returned prediction describes.
 - Exercise-library draft baselines and shared revision tokens live with the controller across tabs. Failed report saves preserve drafts. Spreadsheet exports neutralize formula-leading text. Vessel selection uses native keyboard-operable buttons.

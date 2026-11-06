@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMotionDisplayFrame } from './displayInterpolation';
 import { STATUS_COLOR } from '../../../shell/theme';
 import { fmt } from '../units';
 import { currentArrow, shipToBerth, utilizationStatus, windArrow } from './frames';
@@ -87,9 +88,11 @@ export interface MotionCanvasProps {
   vectors?: boolean;
   shipClass?: ShipClass | null;
   compactHud?: boolean;
+  animateMotion?: boolean;
 }
 
-export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 'schematic', origin = null, flow = { wind: false, current: false, animate: false }, prediction = null, predictionWhatIf = false, vectors = true, shipClass = null, compactHud = false }: MotionCanvasProps) {
+export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBearingDeg, basemap = 'schematic', origin = null, flow = { wind: false, current: false, animate: false }, prediction = null, predictionWhatIf = false, vectors = true, shipClass = null, compactHud = false, animateMotion = false }: MotionCanvasProps) {
+  const frame = useMotionDisplayFrame(authoritativeFrame, animateMotion);
   const [imageryStatus, setImageryStatus] = useState('Loading imagery…');
   const futurePath = prediction?.path.filter((p) => p.t_s >= (frame?.tS ?? prediction.source.t_s)) ?? [];
   const [camera, setCamera] = useState({ zoom: 1, x: 0, y: 0 });
@@ -97,12 +100,13 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
   const drag = useRef<{ x: number; y: number; panX: number; panY: number; scale: number } | null>(null);
   const runKey = `${sceneKey(scene)}:${frame?.runId ?? ''}`;
   useEffect(() => { setCamera({ zoom: 1, x: 0, y: 0 }); }, [runKey]);
-  // The view only grows while a scene is shown, so the picture does not jitter as the ship moves.
+  // The camera stays fixed until an explicit fit or a new scene/run. Forecast refreshes never move it.
   const bounds = useRef<{ key: string; b: Bounds | null }>({ key: '', b: null });
   const key = runKey;
   if (bounds.current.key !== key) bounds.current = { key, b: null };
 
-  const b: Bounds = bounds.current.b ?? { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+  const fitBounds = (): Bounds => {
+    const b: Bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
   scene?.berth_outline?.forEach((p) => extend(b, pt(p)));
   scene?.fenders?.forEach((f) => extend(b, pt(f.position)));
   scene?.pier_fittings?.forEach((f) => extend(b, pt(f.position)));
@@ -119,6 +123,10 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
   trail.forEach((p) => extend(b, p));
   if (prediction?.validity.state === 'limited') futurePath.forEach((p) => p.footprint.forEach((q) => extend(b, { x: q.x_ft, y: q.y_ft })));
   if (!Number.isFinite(b.minX)) Object.assign(b, { minX: -100, maxX: 100, minY: -50, maxY: 150 });
+    return b;
+
+  };
+  const b = bounds.current.b ?? fitBounds();
   bounds.current.b = b;
 
   const spanX = Math.max(b.maxX - b.minX, 120);
@@ -222,8 +230,8 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
           <g>
             {hull ? (
               <>
-                <polygon points={hull.map((p) => `${p.x},${p.y}`).join(' ')} fill="#42586b" fillOpacity={0.97} stroke="#9edfe6" strokeWidth={lw * 3} strokeLinejoin="round" />
-                <polygon points={hull.map((p) => `${ship.x_ft + (p.x - ship.x_ft) * 0.83},${ship.y_ft + (p.y - ship.y_ft) * 0.83}`).join(' ')} fill="#62778a" stroke="#b5c4ce" strokeWidth={lw} opacity={0.85} />
+                <polygon aria-label="Ship hull" points={hull.map((p) => `${p.x},${p.y}`).join(' ')} fill="#42586b" fillOpacity={0.97} stroke="#9edfe6" strokeWidth={lw * 3} strokeLinejoin="round" />
+                <polygon aria-label="Ship deck" points={hull.map((p) => `${ship.x_ft + (p.x - ship.x_ft) * 0.83},${ship.y_ft + (p.y - ship.y_ft) * 0.83}`).join(' ')} fill="#62778a" stroke="#b5c4ce" strokeWidth={lw} opacity={0.85} />
               </>
             ) : (
               <g transform={`translate(${ship.x_ft} ${ship.y_ft}) rotate(${ship.yawDeg})`}>
@@ -242,7 +250,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
             <circle cx={ship.x_ft} cy={ship.y_ft} r={font * 0.5} fill="#00e5ff" />
             {(() => {
               const at = hull ? { x: Math.min(...hull.map((p) => p.x)), y: Math.max(...hull.map((p) => p.y)) + font * 1.4 } : { x: ship.x_ft, y: ship.y_ft + font * 4 };
-              return <Label at={at} text={`ship · hdg ${Math.round(ship.headingTrueDeg)}°`} size={font} color="#00e5ff" />;
+              return <Label at={at} text={`ship · hdg ${Math.round(authoritativeFrame?.ship.headingTrueDeg ?? ship.headingTrueDeg)}°`} size={font} color="#00e5ff" />;
             })()}
             {!hull && <Label at={{ x: ship.x_ft, y: ship.y_ft - font * 4.5 }} text="hull outline not supplied" size={font * 0.85} color={DIM_TEXT} anchor="middle" />}
           </g>
@@ -298,7 +306,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
       </g>
     </svg>
     <div className="absolute bottom-3 right-3 flex gap-1 bg-mil-panel/95" role="group" aria-label="Plan camera">
-      <button className="h-8 border border-mil-border px-3 text-xs text-mil-text" aria-label="Zoom in" onClick={() => setCamera((c) => ({ ...c, zoom: Math.min(8, c.zoom * 1.4) }))}>+</button><button className="h-8 border border-mil-border px-3 text-xs text-mil-text" aria-label="Zoom out" onClick={() => setCamera((c) => ({ ...c, zoom: Math.max(0.25, c.zoom / 1.4) }))}>−</button><button className="h-8 border border-mil-border px-3 text-[10px] text-mil-text" onClick={() => setCamera({ zoom: 1, x: 0, y: 0 })}>Fit maneuver</button>
+      <button className="h-8 border border-mil-border px-3 text-xs text-mil-text" aria-label="Zoom in" onClick={() => setCamera((c) => ({ ...c, zoom: Math.min(8, c.zoom * 1.4) }))}>+</button><button className="h-8 border border-mil-border px-3 text-xs text-mil-text" aria-label="Zoom out" onClick={() => setCamera((c) => ({ ...c, zoom: Math.max(0.25, c.zoom / 1.4) }))}>−</button><button className="h-8 border border-mil-border px-3 text-[10px] text-mil-text" title="Fit the current vessel, berth and returned forecast" onClick={() => { bounds.current.b = fitBounds(); setCamera({ zoom: 1, x: 0, y: 0 }); }}>Fit maneuver</button>
     </div>
     <div className="absolute right-2 top-2 max-w-[60%] rounded-sm border border-mil-border bg-mil-panel/90 px-2 py-1 text-right text-[9px] text-mil-text">
       <BasemapCredit kind={basemap} />
@@ -322,6 +330,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
       <p className="mt-0.5 text-mil-dim">
         {drawnForces.length || frame?.tugs.some((t) => t.actualForce) ? `Force arrows share one scale: the longest is ${fmt.lbf(maxForce)}.` : 'No force vectors in this frame.'}
       </p>
+      {animateMotion && <p className="text-mil-dim">Positions interpolate received frames with 120 ms presentation delay. State, forces and warnings use the newest frame; gaps hold the last received position.</p>}
       {vectors && <p className="text-mil-dim">Velocity / acceleration use separate scales. Aggregate forces act at the reference point; gold dots mark supplied propulsion application points.</p>}
     </details>
     </div>

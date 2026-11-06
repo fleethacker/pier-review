@@ -541,6 +541,141 @@ it.each([false, true])('ignores a session creation completing after a recording 
 describe('Motion workspace', () => {
   const observation: StateInput = { entity: 'ship', entity_id: 'DDG-51-FIIA', frame: 'berth', berth_id: 'NORFOLK', source: 'synthetic', observed_at_utc: '2026-11-05T00:00:00Z', sequence: 100, x_ft: 300, y_ft: 80, heading_true_deg: 90, surge_fps: 1, sway_fps: 0, yaw_degps: 0, measured_acceleration: null, quality: 'unknown' };
 
+  it('predicts a paused snapshot once and refreshes only when its authoritative input changes', async () => {
+    vi.useFakeTimers(); const fetcher = workspaceFetch(); const m = make();
+    await m.loadWorkspace(configuration); stream.handlers!.onStatus('open');
+    m.state.set({ open: true, lifecycle: 'paused' }); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(1);
+    stream.handlers!.onMessage(legacy(0, 2)); flush();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(2);
+    m.dispose();
+  });
+
+  it('coalesces advancing frames to one refresh per second using a monotonic clock', async () => {
+    vi.useFakeTimers(); const baseline = workspaceFetch(); const starts: number[] = [];
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => { if (url.endsWith('/prediction')) starts.push(performance.now()); return baseline(url, init); }));
+    const m = make(); await m.loadWorkspace(configuration); stream.handlers!.onStatus('open');
+    m.state.set({ open: true, lifecycle: 'running' }); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    for (let i = 1; i <= 30; i++) {
+      if (i === 15) vi.setSystemTime(Date.now() - 3600000);
+      await vi.advanceTimersByTimeAsync(100);
+      stream.handlers!.onMessage(legacy(i / 10, i + 1)); flush();
+    }
+    expect(starts).toHaveLength(4);
+    expect(starts.slice(1).every((time, i) => time - starts[i] >= 1000)).toBe(true);
+    m.close(); await vi.advanceTimersByTimeAsync(5000); expect(starts).toHaveLength(4); m.dispose();
+  });
+
+  it('clears the old path on a new-run lifecycle and waits for its matching frame before refreshing', async () => {
+    vi.useFakeTimers(); const fetcher = workspaceFetch(); const m = make();
+    await m.loadWorkspace(configuration); stream.handlers!.onStatus('open');
+    stream.handlers!.onMessage(legacy(0, 1)); flush(); await m.refreshPrediction();
+    expect(m.s.prediction).not.toBeNull(); m.state.set({ open: true });
+    stream.handlers!.onMessage({ type: 'session_lifecycle', schema_version: 'rm0-v1', session_id: 'motion-1', run_id: 'reset-run', sequence: 2, t_s: 0, state: 'reset', scene_id: 'new-scene', scene_revision: '2' });
+    expect(m.s.prediction).toBeNull();
+    await m.refreshPrediction(); await vi.advanceTimersByTimeAsync(5000);
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(1);
+    stream.handlers!.onMessage({ ...legacy(0, 3, 'reset-run'), scene_id: 'new-scene', scene_revision: '1' }); flush();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(1);
+    stream.handlers!.onMessage({ ...legacy(0, 4, 'reset-run'), scene_id: 'new-scene', scene_revision: '2' }); flush();
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(2);
+    m.dispose(); await vi.advanceTimersByTimeAsync(0);
+  });
+
+  it('waits for queued command acknowledgement before forecasting and preserves an explicit preview intent', async () => {
+    vi.useFakeTimers(); const fetcher = workspaceFetch(); const m = make();
+    await m.loadWorkspace(configuration); stream.handlers!.onStatus('open'); stream.handlers!.onMessage({ ...legacy(0, 1), controls }); flush();
+    m.state.set({ open: true, lifecycle: 'paused' });
+    m.helmCommand(order); await m.refreshPrediction({ ...order, rudder_deg: 20 });
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(0);
+    expect(m.s.predictionPreviewPending).toBe(true);
+    stream.handlers!.onMessage({ ...legacy(0.1, 2), controls: { ...controls, commanded: order } }); flush();
+    await vi.advanceTimersByTimeAsync(0);
+    const request = fetcher.mock.calls.find(([url]) => url.endsWith('/prediction'));
+    expect(JSON.parse(String(request?.[1]?.body)).what_if_commands).toEqual([{ type: 'helm_command', ...order, rudder_deg: 20 }]);
+    expect(m.s.predictionPreviewPending).toBe(false); m.dispose();
+  });
+
+  it('waits for every pending order when separate command echoes arrive in different frames', async () => {
+    vi.useFakeTimers(); const fetcher = workspaceFetch(); const m = make();
+    await m.loadWorkspace(configuration); stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    m.state.set({ open: true, lifecycle: 'paused' });
+    m.helmCommand(order); m.lineControl({ line_number: 1, attached: false });
+    stream.handlers!.onMessage({ ...legacy(0, 2), controls: { ...controls, commanded: order } }); flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(m.s.command?.status).toBe('pending');
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(0);
+    stream.handlers!.onMessage({ ...legacy(0.1, 3), controls: { ...controls, commanded: order }, line_controls: [{ line_number: 1, attached: false, paid_out_length_ft: 100, geometric_length_ft: 80, extension_ft: 0, tension_lbf: 0 }] }); flush();
+    expect(m.s.command?.status).toBe('applied');
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(1);
+    m.dispose(); await vi.advanceTimersByTimeAsync(0);
+  });
+
+  it('coalesces user previews behind actual in-flight work and never publishes an obsolete result', async () => {
+    const baseline = workspaceFetch(); let finish!: (value: unknown) => void; let calls = 0;
+    const fetcher = vi.fn((url: string, init?: RequestInit) => {
+      if (!url.endsWith('/prediction')) return baseline(url, init);
+      calls += 1;
+      return calls === 1 ? new Promise((resolve) => { finish = resolve; }) : Promise.resolve({ ok: true, json: async () => ({ ...prediction, prediction_id: 'latest-preview' }) });
+    });
+    vi.stubGlobal('fetch', fetcher); const m = make();
+    await m.loadWorkspace(configuration); stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    const background = m.refreshPrediction();
+    await m.refreshPrediction(order); await m.refreshPrediction({ ...order, rudder_deg: 20 });
+    expect(calls).toBe(1); expect(m.s.prediction).toBeNull();
+    finish({ ok: true, json: async () => prediction }); await background;
+    await vi.waitFor(() => expect(m.s.prediction?.prediction_id).toBe('latest-preview'));
+    expect(calls).toBe(2);
+    const requests = fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'));
+    expect(requests[0][1]?.signal?.aborted).toBe(false);
+    expect(JSON.parse(String(requests[1][1]?.body)).what_if_commands).toEqual([{ type: 'helm_command', ...order, rudder_deg: 20 }]);
+    m.dispose();
+  });
+
+  it('bounds a hung request slot and allows the latest queued preview to proceed after timeout', async () => {
+    vi.useFakeTimers(); const baseline = workspaceFetch(); let calls = 0;
+    const fetcher = vi.fn((url: string, init?: RequestInit) => {
+      if (!url.endsWith('/prediction')) return baseline(url, init);
+      calls += 1;
+      return calls === 1 ? new Promise(() => undefined) : Promise.resolve({ ok: true, json: async () => prediction });
+    });
+    vi.stubGlobal('fetch', fetcher); const m = make();
+    await m.loadWorkspace(configuration); stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    const background = m.refreshPrediction(); await m.refreshPrediction(order);
+    await vi.advanceTimersByTimeAsync(7999); expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(1); await background;
+    expect(calls).toBe(2); expect(m.s.predictionPreviewPending).toBe(false);
+    expect(fetcher.mock.calls.find(([url]) => url.endsWith('/prediction'))?.[1]?.signal?.aborted).toBe(true);
+    m.dispose();
+  });
+
+  it('refreshes a paused imported run when its authoritative frame precedes the HTTP response', async () => {
+    vi.useFakeTimers(); const baseline = workspaceFetch(); let finish!: (value: unknown) => void;
+    const fetcher = vi.fn((url: string, init?: RequestInit) => url.endsWith('/state') ? new Promise((resolve) => { finish = resolve; }) : baseline(url, init));
+    vi.stubGlobal('fetch', fetcher); const m = make(); await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    m.state.set({ open: true, lifecycle: 'paused' }); const importing = m.importState(observation);
+    stream.handlers!.onMessage(legacy(0, 2, 'imported-run')); flush();
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(0);
+    finish({ ok: true, json: async () => ({ session_id: 'motion-1', run_id: 'imported-run', input: observation }) }); await importing;
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(1);
+    m.dispose(); await vi.advanceTimersByTimeAsync(0);
+  });
+
+  it('retains a current forecast through a refresh failure while keeping its error and expiry visible', async () => {
+    const baseline = workspaceFetch(); const m = make(); await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush(); await m.refreshPrediction();
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => url.endsWith('/prediction') ? Promise.reject(new Error('Service unavailable')) : baseline(url, init)));
+    stream.handlers!.onMessage(legacy(1, 2)); flush(); await m.refreshPrediction();
+    expect(m.s.prediction).toEqual(prediction); expect(m.s.predictionError).toContain('Service unavailable');
+    stream.handlers!.onMessage(legacy(10, 3)); flush(); expect(m.s.prediction).toBeNull(); expect(m.s.predictionError).toContain('horizon expired');
+    m.dispose();
+  });
+
   it.each(['reset', 'superseded', 'response-first', 'frame-first'] as const)('accepts only the current state import when %s', async (mode) => {
     const baseline = workspaceFetch();
     let finish!: (v: unknown) => void;

@@ -45,6 +45,8 @@ class BodyParams:
     cg_y_ft: float = 0.0
 
     def __post_init__(self):
+        if len(self.damping_lin)!=3 or len(self.damping_quad)!=3:
+            raise ValueError("body damping must contain three components")
         if not all(math.isfinite(v) for v in (self.mass_slug, self.izz_slug_ft2, self.added_surge,
                 self.added_sway, self.added_yaw, self.cg_x_ft, self.cg_y_ft, *self.damping_lin, *self.damping_quad)):
             raise ValueError("body parameters must be finite")
@@ -53,6 +55,12 @@ class BodyParams:
                 raise ValueError(f"{name} must be positive")
         if min(self.added_surge, self.added_sway, self.added_yaw, *self.damping_lin, *self.damping_quad) < 0:
             raise ValueError("added mass and damping must be non-negative (passive)")
+        try:
+            finite_mass = all(math.isfinite(v) for v in self.m)
+        except OverflowError:
+            finite_mass = False
+        if not finite_mass:
+            raise ValueError("derived body mass matrix exceeds numerical range")
 
     @property
     def m(self) -> tuple[float, float, float]:
@@ -75,7 +83,11 @@ class BodyParams:
         """Solve the symmetric positive-definite 3x3 mass matrix by its Schur complement."""
         m11, m22, m33 = self.m
         a, b = -self.mass_slug*self.cg_y_ft, self.mass_slug*self.cg_x_ft
-        dr = (rhs[2]-a*rhs[0]/m11-b*rhs[1]/m22)/(m33-a*a/m11-b*b/m22)
+        # Equivalent Schur complement without cancellation of parallel-axis terms.
+        schur = (self.izz_slug_ft2+self.added_yaw
+                 +self.mass_slug*self.cg_y_ft**2*(self.added_surge/m11)
+                 +self.mass_slug*self.cg_x_ft**2*(self.added_sway/m22))
+        dr = (rhs[2]-a*rhs[0]/m11-b*rhs[1]/m22)/schur
         return (rhs[0]-a*dr)/m11, (rhs[1]-b*dr)/m22, dr
 
 

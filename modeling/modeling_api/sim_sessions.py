@@ -123,6 +123,9 @@ class Session:
         self.model,self.clock,self.session_id=model,clock,session_id
         self.rich=session_id is not None
         self.initial=(model.sc.model_copy(deep=True),model.initial.model_copy(deep=True),model.env.model_copy(deep=True))
+        # Preserve the complete authored setup, including lines made fast or paid
+        # out before session creation. Observed-state adoption never replaces it.
+        self.initial_model=model.clone_for_prediction()
         self.lock=threading.RLock()
         self.persistence_context=copy_context()
         self.connection=None
@@ -432,10 +435,7 @@ class Session:
             self.last_access=now
             if msg.type in ("pause","resume","reset"):
                 if msg.type=="reset":
-                    self.model=berthing_sim.BerthingModel(*self.initial,dt=self.model.dt,duration=self.model.duration,
-                        forcing=self.model.forcing_spec, params=self.model.base_params,
-                        controls=self.model.controls_config, ship_override=self.model.ship_override,
-                        tug_ids=self.model.requested_tug_ids,guidance=self.model.initial_guidance)
+                    self.model=self.initial_model.clone_for_prediction()
                     self.paused=True; self.error=None
                     self.reanchor()
                     if self.rich:

@@ -6,7 +6,7 @@ from test_motion_controls_tug_dynamics import coupled, order  # noqa: F401
 from test_motion_state import accept, observation
 from mooring.berthing import rich
 from mooring.berthing.simulator import BerthingModel
-from mooring.core.schemas import ForcingSpec, SimTugCommandMessage
+from mooring.core.schemas import ForcingSpec, SimTugCommandMessage, SimControlMessage
 from mooring.core.schemas.motion_controls import SimLineControlMessage
 from modeling_api.sim_sessions import Session
 
@@ -78,3 +78,22 @@ def test_released_session_rejects_late_socket_attachment(model):
     with pytest.raises(ValueError,match="session released"):
         session.attach("late-controller")
     assert session.connection is None
+
+
+def test_reset_restores_complete_authored_line_setup_after_commands_and_state_import(model):
+    model.schedule(SimLineControlMessage(type="line_control",t_s=0,line_number=1,attached=True,paid_out_length_ft=150))
+    model.apply_pending()
+    session = Session(model,session_id="authored-reset",clock=lambda:0)
+    session.attach("controller")
+    authored = session.initial_model
+    for index in range(3):
+        session.model.schedule(SimLineControlMessage(type="line_control",t_s=0,line_number=1,attached=False,paid_out_length_ft=175+index))
+        session.model.apply_pending()
+        session.model = session.model.reseeded((500,120,.1,0,0,0))
+        session.receive("controller",SimControlMessage(type="reset"))
+        assert session.model.t == 0 and session.model.integrator.state == authored.integrator.state
+        assert session.model.all_lines[1] in session.model.system.lines
+        assert session.model.all_lines[1].model.rest_length_ft == 150
+        assert session.model.all_lines[1] is not authored.all_lines[1]
+        assert authored.all_lines[1].model.rest_length_ft == 150
+        assert session.model.initial_energy == authored.initial_energy

@@ -1,5 +1,7 @@
 """Analytic synthetic checks: no vessel qualification or live inputs."""
 import math
+import gc
+import weakref
 
 import pytest
 
@@ -50,6 +52,15 @@ def test_off_center_mass_matrix_matches_newton_euler_about_cg():
     for n in range(200):
         state = rk4(p,lambda t,s:(0,0,0),n*.01,state,.01)
     assert kinetic_energy(p,state) == pytest.approx(initial,rel=1e-10)
+
+
+def test_remote_reference_does_not_erase_positive_centroidal_inertia():
+    params = BodyParams(1e6,1,cg_x_ft=1e9)
+    # Pure unit couple gives alpha=N/Icg=1 even when origin-based inertia rounds
+    # away the centroidal component during parallel-axis addition.
+    assert _deriv(params,(0,0,0,0,0,0),(0,0,1))[3:] == pytest.approx((0,-1e9,1))
+    with pytest.raises(ValueError,match="numerical range"):
+        BodyParams(1e300,1,cg_x_ft=1e300)
 
 
 def toy_loading():
@@ -199,6 +210,19 @@ def test_clone_rebinds_closures_and_is_deterministic(model):
     assert model.propulsion.actual(4) == clone.propulsion.actual(4)
     clone.all_lines[1].model.rest_length_ft += 10
     assert clone.all_lines[1].model.rest_length_ft != model.all_lines[1].model.rest_length_ft
+
+
+def test_repeated_snapshots_do_not_retain_ancestor_models(model):
+    current = model
+    ancestors = []
+    for _ in range(12):
+        successor = current.clone_for_prediction()
+        if current is not model:
+            ancestors.append(weakref.ref(current))
+        current = successor
+    gc.collect()
+    assert all(reference() is None for reference in ancestors)
+    assert current.integrator.forces.__self__ is current
 
 
 def test_session_paused_loading_echo_and_reset_preserve_configuration(model):

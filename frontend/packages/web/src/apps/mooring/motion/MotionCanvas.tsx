@@ -4,13 +4,14 @@ import { STATUS_COLOR } from '../../../shell/theme';
 import { fmt } from '../units';
 import { currentArrow, shipToBerth, utilizationStatus, windArrow } from './frames';
 import type { SimScene, Vec2, ViewFrame } from './frames';
-import { BasemapCredit, RasterLayer } from './basemap';
+import { BasemapCredit, geographicToBerth, RasterLayer } from './basemap';
 import type { BasemapKind, MapOrigin } from './basemap';
 import { EnvironmentFlow } from './EnvironmentFlow';
 import type { FlowDisplay } from './EnvironmentFlow';
-import type { Prediction } from './workspace';
+import type { Prediction, WorkspaceSession } from './workspace';
 import type { ShipClass } from '../types';
 import { superstructure } from '../mapping';
+import { GeographicContextLayer, GeographyScale, scaleBar } from './MotionGeography';
 
 const FORCE_COLOR: Record<string, string> = {
   wind: '#7dd3fc',
@@ -89,14 +90,25 @@ export interface MotionCanvasProps {
   shipClass?: ShipClass | null;
   compactHud?: boolean;
   animateMotion?: boolean;
+  route?: WorkspaceSession['route'];
 }
 
-export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBearingDeg, basemap = 'schematic', origin = null, flow = { wind: false, current: false, animate: false }, prediction = null, predictionWhatIf = false, vectors = true, shipClass = null, compactHud = false, animateMotion = false }: MotionCanvasProps) {
+export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBearingDeg, basemap = 'schematic', origin = null, flow = { wind: false, current: false, animate: false }, prediction = null, predictionWhatIf = false, vectors = true, shipClass = null, compactHud = false, animateMotion = false, route = null }: MotionCanvasProps) {
   const frame = useMotionDisplayFrame(authoritativeFrame, animateMotion);
   const [imageryStatus, setImageryStatus] = useState('Loading imagery…');
   const futurePath = prediction?.path.filter((p) => p.t_s >= (frame?.tS ?? prediction.source.t_s)) ?? [];
   const [camera, setCamera] = useState({ zoom: 1, x: 0, y: 0 });
-  const deckhouses = useMemo(() => shipClass ? superstructure(shipClass, { x: 0, y: 0, z: 0, headingDeg: 0 }, 0) : [], [shipClass]);
+  const deckhouses = useMemo(() => shipClass && shipClass.hull_type !== 'CVN' ? superstructure(shipClass, { x: 0, y: 0, z: 0, headingDeg: 0 }, 0) : [], [shipClass]);
+  const originLat = origin?.lat, originLon = origin?.lon, originBearing = origin?.bearingDeg;
+  const routePoints = useMemo(() => route && originLat != null && originLon != null && originBearing != null ? route.waypoints.map((p) => ({ ...geographicToBerth({ lat: originLat, lon: originLon, bearingDeg: originBearing }, p.lat, p.lon), name: p.name })).filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y)) : [], [route, originLat, originLon, originBearing]);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const element = svgRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => setSize({ width: entry.contentRect.width, height: entry.contentRect.height }));
+    observer.observe(element); return () => observer.disconnect();
+  }, []);
   const drag = useRef<{ x: number; y: number; panX: number; panY: number; scale: number } | null>(null);
   const runKey = `${sceneKey(scene)}:${frame?.runId ?? ''}`;
   useEffect(() => { setCamera({ zoom: 1, x: 0, y: 0 }); }, [runKey]);
@@ -105,23 +117,28 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
   const key = runKey;
   if (bounds.current.key !== key) bounds.current = { key, b: null };
 
-  const fitBounds = (): Bounds => {
+  const fitBounds = (mode: 'ship' | 'berth' | 'maneuver' | 'route' = 'ship'): Bounds => {
     const b: Bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
-  scene?.berth_outline?.forEach((p) => extend(b, pt(p)));
-  scene?.fenders?.forEach((f) => extend(b, pt(f.position)));
-  scene?.pier_fittings?.forEach((f) => extend(b, pt(f.position)));
-  extend(b, { x: 0, y: 0 });
-  if (frame) {
+  if (mode !== 'ship') {
+    scene?.berth_outline?.forEach((p) => extend(b, pt(p)));
+    scene?.fenders?.forEach((f) => extend(b, pt(f.position)));
+    scene?.pier_fittings?.forEach((f) => extend(b, pt(f.position)));
+    extend(b, { x: 0, y: 0 });
+  }
+  if (frame && mode !== 'berth') {
     extend(b, { x: frame.ship.x_ft, y: frame.ship.y_ft });
     scene?.ship_hull_outline?.forEach((p) => extend(b, shipToBerth(p, frame.ship)));
-    frame.tugs.forEach((t) => extend(b, t.position));
-    frame.lines.forEach((l) => {
+    frame.tugs.filter((t) => mode !== 'ship' || t.position && Math.hypot(t.position.x - frame.ship.x_ft, t.position.y - frame.ship.y_ft) < (shipClass?.loa_ft ?? Math.max(b.maxX - b.minX, b.maxY - b.minY, 120)) * 1.5).forEach((t) => extend(b, t.position));
+    if (mode !== 'ship') frame.lines.forEach((l) => {
       extend(b, l.shipEnd);
       extend(b, l.pierEnd);
     });
   }
-  trail.forEach((p) => extend(b, p));
-  if (prediction?.validity.state === 'limited') futurePath.forEach((p) => p.footprint.forEach((q) => extend(b, { x: q.x_ft, y: q.y_ft })));
+  if (mode === 'maneuver') {
+    trail.forEach((p) => extend(b, p));
+    if (prediction?.validity.state === 'limited') futurePath.forEach((p) => p.footprint.forEach((q) => extend(b, { x: q.x_ft, y: q.y_ft })));
+  }
+  if (mode === 'route') routePoints.forEach((p) => extend(b, p));
   if (!Number.isFinite(b.minX)) Object.assign(b, { minX: -100, maxX: 100, minY: -50, maxY: 150 });
     return b;
 
@@ -165,6 +182,7 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
   return (
     <div className="relative h-full w-full">
     <svg
+      ref={svgRef}
       role="img"
       aria-label="Plan view of the ship, pier, lines and tugs"
       tabIndex={0}
@@ -179,6 +197,11 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
     >
       <g transform="scale(1 -1)">
         {basemap !== 'schematic' && origin && <RasterLayer kind={basemap} origin={origin} bounds={viewport} onStatus={setImageryStatus} />}
+        {scene?.geographic_context && <GeographicContextLayer context={scene.geographic_context} imagery={basemap !== 'schematic'} />}
+        {routePoints.length > 1 && <g aria-label="Authored demonstration route — not navigational guidance">
+          <polyline points={routePoints.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#b6b0ee" strokeWidth="2" strokeDasharray="7 5" vectorEffect="non-scaling-stroke" />
+          {routePoints.map((p, i) => <g key={`${i}-${p.name}`}><circle cx={p.x} cy={p.y} r={font * 0.2} fill="#b6b0ee" /><title>{i + 1}. {p.name}</title>{(i === 0 || i === routePoints.length - 1) && <Label at={{ x: p.x, y: p.y + font }} text={`${i + 1}. ${p.name}`} size={font * 0.85} color="#d1cdf8" />}</g>)}
+        </g>}
         <EnvironmentFlow frame={frame} bounds={viewport} faceBearingDeg={faceBearingDeg} display={flow} />
         {prediction?.validity.state === 'limited' && <g aria-label="Backend predicted trajectory and hull footprints">
           <polyline points={futurePath.filter((p) => p.pose.x_ft != null && p.pose.y_ft != null).map((p) => `${p.pose.x_ft},${p.pose.y_ft}`).join(' ')} stroke={predictionWhatIf ? '#c4b5fd' : '#fde68a'} fill="none" strokeWidth={lw * 2} strokeDasharray={`${lw * 5} ${lw * 3}`} />
@@ -187,16 +210,8 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
             <Label at={{ x: p.footprint[0].x_ft, y: p.footprint[0].y_ft + font }} text={`+${Math.max(0, p.t_s - (frame?.tS ?? prediction.source.t_s)).toFixed(0)} s`} size={font * 0.85} color={predictionWhatIf ? '#c4b5fd' : '#fde68a'} />
           </g>)}
         </g>}
-        {/* Pier */}
-        {scene?.berth_outline && scene.berth_outline.length > 2 ? (
-          <polygon points={scene.berth_outline.map((p) => `${p.x_ft},${p.y_ft}`).join(' ')} fill="#3b4a5c" stroke="#8ba4c4" strokeWidth={lw * 2} opacity={0.9} />
-        ) : (
-          <>
-            <rect x={vb.x} y={vb.y} width={vb.w} height={-vb.y} fill="#3b4a5c" opacity={0.6} />
-            <line x1={vb.x} y1={0} x2={vb.x + vb.w} y2={0} stroke="#8ba4c4" strokeWidth={lw * 2} />
-          </>
-        )}
-        <Label at={{ x: vb.x + font, y: -font * 2 }} text={scene ? 'PIER' : 'PIER FACE (outline not supplied)'} size={font} color="#8ba4c4" />
+        {/* Only a supplied finite boundary represents the berth. Missing geometry is not water. */}
+        {scene?.berth_outline && scene.berth_outline.length > 2 && <polygon aria-label="Supplied finite berth outline" points={scene.berth_outline.map((p) => `${p.x_ft},${p.y_ft}`).join(' ')} fill={basemap === 'schematic' ? '#3b4a5c' : 'none'} stroke="#8ba4c4" strokeWidth={lw * 2} opacity={0.9} />}
 
         {/* Fenders: compression and status come only from the frame */}
         {scene?.fenders?.map((f) => {
@@ -230,8 +245,8 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
           <g>
             {hull ? (
               <>
-                <polygon aria-label="Ship hull" points={hull.map((p) => `${p.x},${p.y}`).join(' ')} fill="#42586b" fillOpacity={0.97} stroke="#9edfe6" strokeWidth={lw * 3} strokeLinejoin="round" />
-                <polygon aria-label="Ship deck" points={hull.map((p) => `${ship.x_ft + (p.x - ship.x_ft) * 0.83},${ship.y_ft + (p.y - ship.y_ft) * 0.83}`).join(' ')} fill="#62778a" stroke="#b5c4ce" strokeWidth={lw} opacity={0.85} />
+                <polygon aria-label="Ship hull" points={hull.map((p) => `${p.x},${p.y}`).join(' ')} fill="#42586b" fillOpacity={0.97} stroke="#9edfe6" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+                <polygon aria-label="Parametric waterline hull shading" points={hull.map((p) => `${ship.x_ft + (p.x - ship.x_ft) * 0.83},${ship.y_ft + (p.y - ship.y_ft) * 0.83}`).join(' ')} fill="#62778a" stroke="#b5c4ce" strokeWidth="0.7" vectorEffect="non-scaling-stroke" opacity={0.85} />
               </>
             ) : (
               <g transform={`translate(${ship.x_ft} ${ship.y_ft}) rotate(${ship.yawDeg})`}>
@@ -247,7 +262,7 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
               const st = live?.status ?? utilizationStatus(live?.loadLbf ?? null, live?.capacityLbf ?? f.capacity_lbf ?? null);
               return <circle key={f.fitting_id} cx={p.x} cy={p.y} r={font * 0.22} fill={st ? STATUS_COLOR[st] : DIM} stroke="#0a1628" strokeWidth={lw} />;
             })}
-            <circle cx={ship.x_ft} cy={ship.y_ft} r={font * 0.5} fill="#00e5ff" />
+            <circle cx={ship.x_ft} cy={ship.y_ft} r={Math.min(font * 0.3, (shipClass?.beam_ft ?? 40) * 0.06)} fill="#00e5ff" />
             {(() => {
               const at = hull ? { x: Math.min(...hull.map((p) => p.x)), y: Math.max(...hull.map((p) => p.y)) + font * 1.4 } : { x: ship.x_ft, y: ship.y_ft + font * 4 };
               return <Label at={at} text={`ship · hdg ${Math.round(authoritativeFrame?.ship.headingTrueDeg ?? ship.headingTrueDeg)}°`} size={font} color="#00e5ff" />;
@@ -289,11 +304,13 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
         {frame?.tugs.map((t) => {
           if (!t.position) return null;
           const hdg = t.headingTrueDeg != null ? faceBearingDeg - t.headingTrueDeg : 0;
+          const dimensions = scene?.tug_dimensions?.find((d) => d.tug_id === t.id && Number.isFinite(d.length_ft) && d.length_ft > 0 && Number.isFinite(d.beam_ft) && d.beam_ft > 0);
+          const length = dimensions?.length_ft ?? font * 2.3, beam = dimensions?.beam_ft ?? font;
           return (
             <g key={t.id}>
               <g transform={`translate(${t.position.x} ${t.position.y}) rotate(${hdg})`}>
-                <polygon points={`${font * 1.3},0 ${font * 0.7},${font * 0.5} ${-font},${font * 0.5} ${-font},${-font * 0.5} ${font * 0.7},${-font * 0.5}`} fill="#a97532" stroke="#ffc66b" strokeWidth={lw} />
-                <rect x={-font * 0.4} y={-font * 0.3} width={font * 0.7} height={font * 0.6} fill="#ffe4b5" />
+                <polygon aria-label={`${t.id} ${dimensions ? 'supplied tug footprint' : 'tug symbol — not to scale'}`} points={`${length / 2},0 ${length * 0.3},${beam / 2} ${-length / 2},${beam / 2} ${-length / 2},${-beam / 2} ${length * 0.3},${-beam / 2}`} fill="#a97532" stroke="#ffc66b" strokeWidth="1.3" vectorEffect="non-scaling-stroke"><title>{dimensions ? `${length} × ${beam} ft · ${dimensions.basis} supplied dimensions` : 'Dimensions unavailable; symbol is not to scale'}</title></polygon>
+                <rect x={-length * 0.2} y={-beam * 0.3} width={length * 0.3} height={beam * 0.6} fill="#ffe4b5" />
               </g>
               <Label at={{ x: t.position.x + font * 1.5, y: t.position.y + font * 1.8 }} text={`${t.id}${t.utilizationPct != null ? ` · ${t.utilizationPct.toFixed(0)}%` : ''}`} size={font * 0.9} color="#f59e0b" />
               {vectors && t.velocity && <Arrow from={t.position} vec={{ x: t.velocity.x * vScale, y: t.velocity.y * vScale }} color="#e2e8f0" width={lw * 2} fontSize={font * 0.8} head={head * 0.6} label={`${Math.hypot(t.velocity.x, t.velocity.y).toFixed(2)} ft/s`} />}
@@ -306,11 +323,16 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
       </g>
     </svg>
     <div className="absolute bottom-3 right-3 flex gap-1 bg-mil-panel/95" role="group" aria-label="Plan camera">
-      <button className="h-8 border border-mil-border px-3 text-xs text-mil-text" aria-label="Zoom in" onClick={() => setCamera((c) => ({ ...c, zoom: Math.min(8, c.zoom * 1.4) }))}>+</button><button className="h-8 border border-mil-border px-3 text-xs text-mil-text" aria-label="Zoom out" onClick={() => setCamera((c) => ({ ...c, zoom: Math.max(0.25, c.zoom / 1.4) }))}>−</button><button className="h-8 border border-mil-border px-3 text-[10px] text-mil-text" title="Fit the current vessel, berth and returned forecast" onClick={() => { bounds.current.b = fitBounds(); setCamera({ zoom: 1, x: 0, y: 0 }); }}>Fit maneuver</button>
+      <button className="h-8 border border-mil-border px-3 text-xs text-mil-text" aria-label="Zoom in" onClick={() => setCamera((c) => ({ ...c, zoom: Math.min(8, c.zoom * 1.4) }))}>+</button><button className="h-8 border border-mil-border px-3 text-xs text-mil-text" aria-label="Zoom out" onClick={() => setCamera((c) => ({ ...c, zoom: Math.max(0.25, c.zoom / 1.4) }))}>−</button>{(['ship', 'berth', 'maneuver', 'route'] as const).map((mode) => <button key={mode} className="h-8 border border-mil-border px-2 text-[10px] text-mil-text disabled:opacity-40" disabled={mode === 'route' && routePoints.length < 2} title={mode === 'maneuver' ? 'Fit vessel, berth, track and returned forecast' : `Fit ${mode === 'route' ? 'the entire authored demonstration route' : mode}`} onClick={() => { bounds.current.b = fitBounds(mode); setCamera({ zoom: 1, x: 0, y: 0 }); }}>Fit {mode}</button>)}
     </div>
-    <div className="absolute right-2 top-2 max-w-[60%] rounded-sm border border-mil-border bg-mil-panel/90 px-2 py-1 text-right text-[9px] text-mil-text">
+    <div className="pointer-events-none absolute bottom-14 right-3 rounded-sm border border-mil-border bg-mil-panel/90"><GeographyScale faceBearingDeg={faceBearingDeg} scale={scaleBar(viewport.w, viewport.h, size.width, size.height)} /></div>
+    <div className="absolute right-2 top-2 max-w-[38%] rounded-sm border border-mil-border bg-mil-panel/90 px-2 py-1 text-right text-[9px] text-mil-text">
       <BasemapCredit kind={basemap} />
       {basemap !== 'schematic' && <p className="text-mil-dim">{origin ? imageryStatus : 'Geographic origin unavailable · schematic shown'}</p>}
+      {basemap === 'satellite' && <p className="text-mil-amber">Photographed ships are archived background, not current traffic. Imagery date unknown.</p>}
+      <p className="text-mil-amber">{scene?.geographic_context ? 'Geography: partial source coverage · blank areas unknown; runtime land collisions not checked.' : 'Shoreline geometry unavailable · blank areas are unknown, not confirmed water.'}</p>
+      {scene?.geographic_context && <details><summary className="cursor-pointer">Geographic source and limits</summary><a className="underline" href={scene.geographic_context.source} target="_blank" rel="noreferrer">{scene.geographic_context.attribution}</a><p>Retrieved {scene.geographic_context.retrieved_at_utc}</p>{scene.geographic_context.limitations.map((limit) => <p key={limit}>{limit}</p>)}</details>}
+      {route && <details><summary className="cursor-pointer text-[#d1cdf8]">Authored route · {route.title}</summary><p>{route.source}</p>{route.limitations.map((limit) => <p key={limit}>{limit}</p>)}{!origin && <p>Route projection unavailable without a geographic origin.</p>}</details>}
     </div>
     <details open={!compactHud} className="pointer-events-auto absolute bottom-2 left-3 max-w-[60%] rounded-sm border border-mil-border bg-mil-panel/85 p-2 text-[10px] text-mil-text">
       <summary className="cursor-pointer text-[9px]">Vector / line key · lbf, ft/s, ft/s²</summary>
@@ -332,6 +354,7 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
       </p>
       {animateMotion && <p className="text-mil-dim">Positions interpolate received frames with 120 ms presentation delay. State, forces and warnings use the newest frame; gaps hold the last received position.</p>}
       {vectors && <p className="text-mil-dim">Velocity / acceleration use separate scales. Aggregate forces act at the reference point; gold dots mark supplied propulsion application points.</p>}
+      <p className="text-mil-dim">Hull: parametric waterline/contact geometry. Above-water overhang unavailable; cosmetic details are not surveyed. Berth fittings and fenders retain their scenario basis. {frame?.tugs.some((t) => !scene?.tug_dimensions?.some((d) => d.tug_id === t.id)) && 'Tug dimensions unavailable: symbols are not to scale.'}</p>
     </details>
     </div>
   );

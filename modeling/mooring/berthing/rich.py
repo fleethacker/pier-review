@@ -97,7 +97,7 @@ def _scene_content(model) -> dict:
                        "fitting_id": p.push_point_id, "kind": "tug_push_point", "capacity_lbf": None,
                        "position": {"x_ft": p.x_ft, "y_ft": _ship_y(model, p.side), "z_ft": None}}
                       for p in ship.push_points]
-    return {
+    content = {
         "berth_id": berth.berth_id, "ship_class_id": ship.class_id, "loading": model.sc.loading,
         "side_to": model.sc.side_to, "ship_x_ft": model.system.frame.ref_x_ft,
         "config": model.cfg.model_dump(mode="json"),
@@ -113,6 +113,13 @@ def _scene_content(model) -> dict:
         "depth_profile": [{**_static("depth", berth_src), "position": _pos(p.x_ft, 0.0, None),
                            "depth_mllw_ft": p.depth_mllw_ft} for p in sorted(berth.depth_profile, key=lambda p: p.x_ft)],
     }
+    if getattr(model, "motion_geography", False):
+        from mooring.data_simulation.shoreline import scene_context
+        content["geographic_context"] = scene_context(berth)
+        content["tug_dimensions"] = [dict(tug_id=tid, length_ft=config.length_ft,
+            beam_ft=config.beam_ft, basis="synthetic") for tid, config in sorted(
+                model.tug_dynamics.configs.items())] if model.tug_dynamics is not None else []
+    return content
 
 
 def scene_id_for(model) -> tuple[str, str]:
@@ -137,6 +144,8 @@ def build_scene(model) -> SimScene:
         "Fenders are placed at the pier face (y = 0); their standoff_ft is the face-to-hull distance.",
         "depth_profile samples are positioned at the pier face (y = 0); depth varies with x only in reference data.",
     ]
+    if getattr(model, "motion_geography", False):
+        notes.append("geographic_context carries bounded attributed NOAA polygons and open pier edges; no runtime shoreline collision checks.")
     return SimScene.model_validate({
         **_static("scene", sources, notes), **content, "scene_id": scene_id, "revision": revision})
 

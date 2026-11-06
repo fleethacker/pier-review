@@ -1,5 +1,6 @@
 """Product audit F03/F04: convergence cannot turn invalid physical inputs into a usable limit."""
 from copy import deepcopy
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -91,3 +92,12 @@ def test_ultimate_rechecks_validity_inside_the_search(monkeypatch):
     assert result.validity.state == "invalid" and result.status == "RED"
     assert result.result.outcome == "unavailable" and result.result.governing is None
     assert "DEPTH_NOT_ABOVE_DRAFT" in {r.code for r in result.validity.reasons}
+
+
+def test_ultimate_retains_numerical_limitations(monkeypatch):
+    real = eq.solve
+    monkeypatch.setattr(eq, "solve", lambda *args, **kw: replace(real(*args, **kw), rank=2))
+    b = body()
+    response = ultimate.ultimate_gust(UltimateGustRequest.model_validate({**b, "capacity_basis": capacity_basis(b),
+                                                                       "step_deg": 90, "max_search_kt": 10}))
+    assert "UNDERCONSTRAINED_SUPPORT" in {r.code for r in response.validity.reasons}

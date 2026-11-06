@@ -71,17 +71,18 @@ def solve_request(req: AnalyzeRequest, *, start: Pose = Pose(), force_rel_tol: f
     return system, solution, specs
 
 
-def _validity(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs, load_findings, basis, *, include_numerical=True) -> Validity:
+def _validity(req: AnalyzeRequest, system: eq.System, sol: eq.Solution, specs, load_findings, basis, *, include_nonconvergence=True) -> Validity:
     invalid: list[ValidityReason] = []
     limited: list[ValidityReason] = []
     # numerical
-    if include_numerical and not sol.converged:
-        invalid.append(ValidityReason(code="NO_EQUILIBRIUM_FOUND", affected_components=sol.active_bounds or ["pose"],
-                                      message=f"{sol.failure}. This is a numerical outcome, not a proof that no equilibrium exists."))
-    elif include_numerical and sol.rank < 3:
+    if not sol.converged:
+        if include_nonconvergence:
+            invalid.append(ValidityReason(code="NO_EQUILIBRIUM_FOUND", affected_components=sol.active_bounds or ["pose"],
+                                          message=f"{sol.failure}. This is a numerical outcome, not a proof that no equilibrium exists."))
+    elif sol.rank < 3:
         limited.append(ValidityReason(code="UNDERCONSTRAINED_SUPPORT", affected_components=["pose"],
                                       message=f"Support stiffness has rank {sol.rank} of 3: the equilibrium is not unique (some motions are unrestrained)."))
-    elif include_numerical and not sol.positive_definite:
+    elif not sol.positive_definite:
         limited.append(ValidityReason(code="NOT_LOCALLY_STABLE", affected_components=["pose"],
                                       message="The symmetric part of the support stiffness is not positive definite: stability of this equilibrium is not established."))
     # load model (S03)

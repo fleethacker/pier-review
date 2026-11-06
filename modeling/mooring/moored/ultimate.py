@@ -169,7 +169,7 @@ def ultimate_gust(req: UltimateGustRequest) -> UltimateGustResponse:
         candidate = req.model_copy(update={"environment": system.env})
         _, _, findings = solver.build_result(candidate, system, sol, specs, run_rules=False)
         # Numerical failure has its own per-direction indeterminate outcome. It must not hide an input failure.
-        validity = solver._validity(candidate, system, sol, specs, findings, wind_basis(system.env, True), include_numerical=False)
+        validity = solver._validity(candidate, system, sol, specs, findings, wind_basis(system.env, True), include_nonconvergence=False)
         input_reasons.extend(validity.reasons)
         if validity.state == "invalid":
             raise InvalidSearchInputs(validity)

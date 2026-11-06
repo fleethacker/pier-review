@@ -86,9 +86,10 @@ export interface MotionCanvasProps {
   predictionWhatIf?: boolean;
   vectors?: boolean;
   shipClass?: ShipClass | null;
+  compactHud?: boolean;
 }
 
-export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 'schematic', origin = null, flow = { wind: false, current: false, animate: false }, prediction = null, predictionWhatIf = false, vectors = true, shipClass = null }: MotionCanvasProps) {
+export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 'schematic', origin = null, flow = { wind: false, current: false, animate: false }, prediction = null, predictionWhatIf = false, vectors = true, shipClass = null, compactHud = false }: MotionCanvasProps) {
   const [imageryStatus, setImageryStatus] = useState('Loading imagery…');
   const futurePath = prediction?.path.filter((p) => p.t_s >= (frame?.tS ?? prediction.source.t_s)) ?? [];
   const [camera, setCamera] = useState({ zoom: 1, x: 0, y: 0 });
@@ -303,7 +304,8 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
       <BasemapCredit kind={basemap} />
       {basemap !== 'schematic' && <p className="text-mil-dim">{origin ? imageryStatus : 'Geographic origin unavailable · schematic shown'}</p>}
     </div>
-    <div className="pointer-events-none absolute bottom-2 left-3 max-w-[60%] rounded-sm border border-mil-border bg-mil-panel/85 p-2 text-[10px] text-mil-text">
+    <details open={!compactHud} className="pointer-events-auto absolute bottom-2 left-3 max-w-[60%] rounded-sm border border-mil-border bg-mil-panel/85 p-2 text-[10px] text-mil-text">
+      <summary className="cursor-pointer text-[9px]">Vector / line key · lbf, ft/s, ft/s²</summary>
       <div className="flex flex-wrap gap-x-3 gap-y-0.5">
         {drawnForces.map((f) => (
           <span key={f.key} style={{ color: FORCE_COLOR[f.key] }}>■ {f.label}</span>
@@ -321,7 +323,7 @@ export function MotionCanvas({ frame, scene, trail, faceBearingDeg, basemap = 's
         {drawnForces.length || frame?.tugs.some((t) => t.actualForce) ? `Force arrows share one scale: the longest is ${fmt.lbf(maxForce)}.` : 'No force vectors in this frame.'}
       </p>
       {vectors && <p className="text-mil-dim">Velocity / acceleration use separate scales. Aggregate forces act at the reference point; gold dots mark supplied propulsion application points.</p>}
-    </div>
+    </details>
     </div>
   );
 }

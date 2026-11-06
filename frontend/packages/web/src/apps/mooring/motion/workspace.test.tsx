@@ -75,6 +75,56 @@ describe('Maneuver workspace', () => {
     expect(direct).not.toHaveBeenCalled();
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Tow length (ft)' }), { target: { value: 10001 } });
     expect((screen.getByRole('button', { name: 'Apply tug maneuver' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Tow length (ft)' }), { target: { value: '100' } });
+    for (const [label, value] of [['Along-pier target (ft/s)', '4.01'], ['Along-pier target (ft/s)', ''], ['Tug heading (° true)', '360'], ['Tug heading (° true)', '1e309']] as const) {
+      fireEvent.change(screen.getByRole('spinbutton', { name: 'Along-pier target (ft/s)' }), { target: { value: '1.2' } });
+      fireEvent.change(screen.getByRole('spinbutton', { name: 'Tug heading (° true)' }), { target: { value: '90' } });
+      expect((screen.getByRole('button', { name: 'Apply tug maneuver' }) as HTMLButtonElement).disabled).toBe(false);
+      fireEvent.change(screen.getByRole('spinbutton', { name: label }), { target: { value } });
+      expect((screen.getByRole('button', { name: 'Apply tug maneuver' }) as HTMLButtonElement).disabled).toBe(true);
+    }
+  });
+
+  it.each([
+    ['Weight (lbf)', '-1'], ['Weight (lbf)', '1000000001'], ['Weight (lbf)', ''], ['Weight (lbf)', '1e309'],
+    ['Forward x (ft)', '-10001'], ['Forward x (ft)', '10001'], ['Forward x (ft)', ''], ['Forward x (ft)', 'Infinity'],
+    ['Port y (ft)', '-10001'], ['Port y (ft)', '10001'], ['Port y (ft)', ''], ['Port y (ft)', '1e309'],
+    ['Height z (ft)', '-1001'], ['Height z (ft)', '1001'], ['Height z (ft)', ''], ['Height z (ft)', 'NaN'],
+  ])('blocks payload %s draft %s without sending a loading command', (label, value) => {
+    const c = mounted(); const send = vi.spyOn(c, 'loadingCommand');
+    act(() => c.state.set({ frame: { ...c.s.frame!, ship: { ...c.s.frame!.ship, surgeFps: 0, swayFps: 0, yawDegps: 0 } } }));
+    fireEvent.click(screen.getByRole('button', { name: 'Payload & loading' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add payload' }));
+    expect((screen.getByRole('button', { name: 'Apply loading' }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.change(screen.getByRole('spinbutton', { name: `Payload 1 ${label}` }), { target: { value } });
+    const apply = screen.getByRole('button', { name: 'Apply loading' }) as HTMLButtonElement;
+    expect(apply.disabled).toBe(true);
+    fireEvent.click(apply); expect(send).not.toHaveBeenCalled();
+  });
+
+  it('accepts the inclusive payload schema bounds and sends numeric values only', () => {
+    const c = mounted(); const send = vi.spyOn(c, 'loadingCommand');
+    act(() => c.state.set({ frame: { ...c.s.frame!, ship: { ...c.s.frame!.ship, surgeFps: 0, swayFps: 0, yawDegps: 0 } } }));
+    fireEvent.click(screen.getByRole('button', { name: 'Payload & loading' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add payload' }));
+    for (const [label, value] of [['Weight (lbf)', '1000000000'], ['Forward x (ft)', '-10000'], ['Port y (ft)', '10000'], ['Height z (ft)', '-1000']]) fireEvent.change(screen.getByRole('spinbutton', { name: `Payload 1 ${label}` }), { target: { value } });
+    const apply = screen.getByRole('button', { name: 'Apply loading' }) as HTMLButtonElement;
+    expect(apply.disabled).toBe(false); fireEvent.click(apply);
+    expect(send).toHaveBeenCalledWith([expect.objectContaining({ weight_lbf: 1e9, x_ft: -10000, y_ft: 10000, z_ft: -1000 })]);
+  });
+
+  it('blocks empty, nonfinite and out-of-range paid-out lengths', () => {
+    const c = mounted(); const send = vi.spyOn(c, 'lineControl');
+    fireEvent.click(screen.getByRole('button', { name: 'Mooring lines' }));
+    for (const value of ['', '0', '-1', '10001', '1e309']) {
+      fireEvent.change(screen.getByRole('spinbutton', { name: 'Line 1 paid out (ft)' }), { target: { value } });
+      const apply = screen.getByRole('button', { name: 'Set length' }) as HTMLButtonElement;
+      expect(apply.disabled).toBe(true); fireEvent.click(apply);
+    }
+    expect(send).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Line 1 paid out (ft)' }), { target: { value: '10000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Set length' }));
+    expect(send).toHaveBeenCalledWith({ line_number: 1, paid_out_length_ft: 10000 });
   });
 
   it('copies supplied simulator velocities as explicitly synthetic input and leaves measured acceleration unknown', () => {
@@ -138,6 +188,18 @@ describe('Maneuver workspace', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Wind speed (kt)' }), { target: { value: '18' } });
     fireEvent.click(screen.getByRole('button', { name: 'Load paused scenario' }));
     expect(load).toHaveBeenCalledWith(expect.objectContaining({ name: 'Edited maneuver', environment_mode: 'synthetic', environment: expect.objectContaining({ wind_speed_kt: 18 }) }));
+  });
+
+  it('turns automatic route following off for a port-side approach while retaining manual port selection', () => {
+    const c = mounted(); const load = vi.spyOn(c, 'loadWorkspace').mockResolvedValue();
+    act(() => c.state.set({ workspace: { ...workspace, scenario: { ...workspace.scenario, configuration: { ...workspace.scenario.configuration, route_id: 'test-route', route_follow: true } } } }));
+    fireEvent.click(screen.getByRole('button', { name: 'Build scenario' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Side to berth' }), { target: { value: 'port' } });
+    const following = screen.getByRole('checkbox', { name: 'Backend route following' }) as HTMLInputElement;
+    expect(following.disabled).toBe(true); expect(following.checked).toBe(false);
+    expect(screen.getByText(/port-side approach is manual/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Load paused scenario' }));
+    expect(load).toHaveBeenCalledWith(expect.objectContaining({ side_to: 'port', route_follow: false }));
   });
 
   it('reopens a saved custom configuration and resolves editable propulsion without allocating a session', async () => {

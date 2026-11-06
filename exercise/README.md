@@ -47,9 +47,9 @@ page opens on that story: the map across the width of it, the **event feed** dow
 **storyboard** along the bottom, always there. Pressing **Source** on any line of the feed opens the **data catalog** at
 the record that line came from — a radar track, a sonar bearing, an emitter report, a tactical message.
 
-The simulation that produces all of it is still here, one click away under **Setup**: the scenario, the conditions, the
-forces, the contact table, what the map draws, and the red team. It is not the point of the page any more, which is why
-it is behind a drawer.
+The simulation that produces all of it is still here, one click away: **Setup** holds the scenario, the conditions, the
+forces, the contact table and what the map draws, and **Simulation** holds what the model can be asked to do — the red
+team, and recording the run as a video. It is not the point of the page any more, which is why it is behind a drawer.
 
 **Mapbox token.** Mapbox GL needs a public access token (`pk.…`). The tab looks for one in this order: the build
 (`VITE_MAPBOX_TOKEN=pk.…` in `exercise/.env` or the environment of whatever builds the app; Vite inlines it, which is
@@ -94,8 +94,7 @@ the tab says so if Mapbox refuses.
 - Submarines and torpedoes: a submarine is drawn as a dark hull and sail, heard rather than seen, and fires torpedoes that run
   under the water. Ship missile defences cannot shoot torpedoes; decoys are the defence.
 - Storyboard: pictures and captions that come up beside units as the run plays. See below.
-- Playback: play, pause, restart, scrub, 1x to 600x. **Follow** keeps the selected ship centered, and **Present** plays
-  the whole exercise: it fills the screen, winds back to the top, picks a
+- Playback: play, pause, restart, scrub, 1x to 600x. **Present** plays the whole exercise: it fills the screen, winds back to the top, picks a
   speed that plays the run out in about a minute and a half, and starts, with the storyboard coming up as it goes and the
   caption large enough to read from the back of a room. Pause, scrub and speed are still there, *Play again* restarts it,
   and Esc or *Exit* leaves. The view opens with a fly-in to the main group. Under Setup → Map: ship size exaggeration

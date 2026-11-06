@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { cn } from './lib/cn';
 import { Button } from './ui';
 import { Contacts } from './Contacts';
+import type { SetupTab } from './controller';
 import { useController, useExercise } from './context';
 import { MAP_STYLES } from './mapStyles';
 import type { MapStyleId } from './mapStyles';
@@ -15,12 +15,11 @@ import { SIDE_COLORS } from './ships';
  * the simulation underneath it is set up.
  */
 
-type Tab = 'scenario' | 'environment' | 'forces' | 'contacts' | 'view';
-
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: SetupTab; label: string }[] = [
   { id: 'scenario', label: 'Scenario' },
   { id: 'environment', label: 'Conditions' },
   { id: 'forces', label: 'Forces' },
+  { id: 'simulation', label: 'Simulation' },
   { id: 'contacts', label: 'Contacts' },
   { id: 'view', label: 'Map' },
 ];
@@ -83,11 +82,67 @@ function ViewTab() {
   );
 }
 
+/** What the simulation underneath the story can be asked to do, as opposed to how the exercise is set up. */
+function SimulationTab() {
+  const c = useController();
+  const canRecord = useExercise((s) => s.canRecord);
+  const recording = useExercise((s) => s.recording);
+  const units = useExercise((s) => s.active.scenario.units.length);
+  const events = useExercise((s) => s.active.trajectory.events.length);
+  const detection = useExercise((s) => s.active.scenario.detection ?? false);
+  const seed = useExercise((s) => s.active.scenario.seed ?? 1);
+  return (
+    <div className="space-y-4 p-3">
+      <section className="space-y-2">
+        <h3 className="mil-label">This run</h3>
+        <dl className="space-y-1 text-[11px]">
+          {([
+            ['Units', `${units}`],
+            ['Events', `${events}`],
+            ['Sensors and detection', detection ? 'on' : 'off'],
+            ['Chance seed', `${seed}`],
+          ] as [string, string][]).map(([k, v]) => (
+            <div key={k} className="flex justify-between gap-3">
+              <dt className="text-mil-dim">{k}</dt>
+              <dd className="text-right text-white">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="text-[10px] leading-snug text-mil-dim">
+          One run is one roll of the dice. Everything below asks the model for more than that.
+        </p>
+      </section>
+
+      <section className="space-y-2 border-t border-mil-border pt-3">
+        <h3 className="mil-label">Red team</h3>
+        <p className="text-[11px] leading-snug text-mil-text">
+          Run the scenario many times with the conditions and the chances varied, and measure how often each outcome
+          happens, with an interval on the answer. Sweep a setting to see where the answer turns.
+        </p>
+        <Button size="sm" variant="secondary" className="w-full" onClick={() => c.toggleRedTeam(true)}>
+          Open the red team
+        </Button>
+      </section>
+
+      <section className="space-y-2 border-t border-mil-border pt-3">
+        <h3 className="mil-label">Record the map</h3>
+        <p className="text-[11px] leading-snug text-mil-text">
+          Play the run from here and save the map as a video. The panels are not in the picture, only the map itself.
+        </p>
+        <Button size="sm" variant="secondary" className="w-full" disabled={!canRecord} onClick={() => c.toggleRecord()}>
+          {recording ? '● Stop recording' : 'Record the run'}
+        </Button>
+        {!canRecord && <p className="text-[10px] text-mil-dim">The map is not up yet.</p>}
+      </section>
+    </div>
+  );
+}
+
 export function SetupDrawer() {
   const c = useController();
   const open = useExercise((s) => s.setupOpen);
   const presenting = useExercise((s) => s.presenting);
-  const [tab, setTab] = useState<Tab>('scenario');
+  const tab = useExercise((s) => s.setupTab);
   if (!open || presenting) return null;
   return (
     <aside
@@ -107,7 +162,7 @@ export function SetupDrawer() {
             key={t.id}
             role="tab"
             aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => c.setSetupTab(t.id)}
             className={cn(
               'border-b-2 py-1.5 font-mono text-[10px] uppercase tracking-wider',
               tab === t.id ? 'border-mil-cyan text-mil-cyan' : 'border-transparent text-mil-text hover:text-white',
@@ -122,16 +177,13 @@ export function SetupDrawer() {
           <Contacts />
         ) : tab === 'view' ? (
           <ViewTab />
+        ) : tab === 'simulation' ? (
+          <SimulationTab />
         ) : (
           <div className="p-3">
             <Sidebar tab={tab} />
           </div>
         )}
-      </div>
-      <div className="shrink-0 border-t border-mil-border p-3">
-        <Button size="sm" variant="secondary" className="w-full" onClick={() => c.toggleRedTeam(true)}>
-          Red team: run it many times
-        </Button>
       </div>
     </aside>
   );

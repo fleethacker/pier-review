@@ -430,27 +430,27 @@ describe('MapCanvas', () => {
     expect(controller.state.get().presenting).toBe(false);
   });
 
-  it('drives the panels, following and waypoint tools from the toolbar', async () => {
+  it('drives the panels and the waypoint tool from the toolbar', async () => {
     vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
     const { controller } = withController(<MapCanvas />);
     await waitFor(() => expect(view.created).toHaveLength(1));
 
     fireEvent.click(screen.getByRole('button', { name: 'Setup' }));
     expect(controller.state.get().setupOpen).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Simulation' }));
+    expect(controller.state.get().setupTab).toBe('simulation');
+    expect(screen.getByRole('button', { name: 'Simulation' }).getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: 'Data catalog' }));
     expect(controller.state.get().catalogOpen).toBe(true);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Follow' }));
-    expect(controller.state.get().follow).toBe('off');
-    expect(controller.state.get().notice).toContain('Select a ship');
-
-    act(() => controller.select('cvn1'));
-    fireEvent.click(screen.getByRole('button', { name: 'Follow' }));
-    expect(controller.state.get().follow).toBe('follow');
-    expect(screen.getByRole('button', { name: 'Follow' }).getAttribute('aria-pressed')).toBe('true');
+    // The camera toys are gone from the toolbar; the storyboard view does not need them.
+    for (const gone of ['Follow', 'Record', 'Fit all', 'Chase', 'Orbit']) {
+      expect(screen.queryByRole('button', { name: gone })).toBeNull();
+    }
 
     // Waypoints are started from the forces panel; the toolbar only shows that it is on, and stops it.
     expect(screen.queryByRole('button', { name: 'Add waypoints' })).toBeNull();
+    act(() => controller.select('cvn1'));
     act(() => controller.setPlacing(true));
     expect(screen.getByRole('status').textContent).toContain('Carrier 1');
     fireEvent.click(screen.getByRole('button', { name: 'Add waypoints' }));
@@ -698,8 +698,8 @@ describe('Contacts and the event feed', () => {
 describe('MapCanvas red team and replay controls', () => {
   it('opens the red-team panel from the setup drawer', () => {
     const { controller } = withController(<SetupDrawer />, salvoController());
-    act(() => controller.toggleSetup(true));
-    fireEvent.click(screen.getByRole('button', { name: /Red team/ }));
+    act(() => controller.openSetup('simulation'));
+    fireEvent.click(screen.getByRole('button', { name: 'Open the red team' }));
     expect(controller.state.get().redTeamOpen).toBe(true);
   });
 
@@ -1034,12 +1034,18 @@ describe('MapCanvas recording and run paths', () => {
     vi.stubGlobal('MediaRecorder', FakeRecorder);
     view.canvas = { captureStream: () => ({ getTracks: () => [] }) };
     const names = download();
-    const { controller } = withController(<MapCanvas />);
+    const { controller } = withController(
+      <>
+        <MapCanvas />
+        <SetupDrawer />
+      </>,
+    );
     await waitFor(() => expect(view.created).toHaveLength(1));
-    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    act(() => controller.openSetup('simulation'));
+    fireEvent.click(screen.getByRole('button', { name: 'Record the run' }));
     expect(controller.state.get().playing).toBe(true);
     expect(screen.getByText(/Recording/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '● Stop' }));
+    fireEvent.click(screen.getByRole('button', { name: '● Stop recording' }));
     await waitFor(() => expect(names).toHaveLength(1));
     expect(names[0]).toMatch(/^open-ocean-transit.*-\d{8}-\d{6}\.webm$|^[a-z0-9-]+-\d{8}-\d{6}\.webm$/);
     expect(screen.queryByText(/Recording/)).toBeNull();
@@ -1050,9 +1056,15 @@ describe('MapCanvas recording and run paths', () => {
     vi.stubGlobal('MediaRecorder', FakeRecorder);
     view.canvas = { captureStream: () => ({ getTracks: () => [] }) };
     const names = download();
-    const { controller } = withController(<MapCanvas />);
+    const { controller } = withController(
+      <>
+        <MapCanvas />
+        <SetupDrawer />
+      </>,
+    );
     await waitFor(() => expect(view.created).toHaveLength(1));
-    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    act(() => controller.openSetup('simulation'));
+    fireEvent.click(screen.getByRole('button', { name: 'Record the run' }));
     act(() => controller.clock.seek(controller.clock.durationS));
     await waitFor(() => expect(names).toHaveLength(1), { timeout: 3000 });
     expect(screen.queryByText(/Recording/)).toBeNull();
@@ -1061,9 +1073,15 @@ describe('MapCanvas recording and run paths', () => {
   it('says so when the browser cannot record', async () => {
     vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.built.in');
     vi.stubGlobal('MediaRecorder', undefined);
-    withController(<MapCanvas />);
+    const { controller } = withController(
+      <>
+        <MapCanvas />
+        <SetupDrawer />
+      </>,
+    );
     await waitFor(() => expect(view.created).toHaveLength(1));
-    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    act(() => controller.openSetup('simulation'));
+    fireEvent.click(screen.getByRole('button', { name: 'Record the run' }));
     expect(screen.getByRole('alert').textContent).toContain('cannot record the map');
   });
 

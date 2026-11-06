@@ -18,6 +18,9 @@ import type { Trajectory } from './sim';
 import type { Behavior, ClassId, Environment, LonLat, RedTeamSpec, ScenarioConfig, StoryMoment, UnitConfig, UnitState, Waypoint } from './types';
 
 export type FollowMode = 'off' | 'follow' | 'chase' | 'orbit';
+
+/** The sections of the setup drawer. */
+export type SetupTab = 'scenario' | 'environment' | 'forces' | 'simulation' | 'contacts' | 'view';
 export const PLAYBACK_RATES = [1, 5, 10, 30, 60, 120, 300, 600];
 /** How long a presentation should take to play out, in real seconds. Long enough to follow, short enough to hold a room. */
 export const PRESENTATION_S = 100;
@@ -126,6 +129,12 @@ export interface ExerciseState {
   storyOpen: boolean;
   /** The setup drawer is open: everything that is not storyboarding lives behind it. */
   setupOpen: boolean;
+  /** Which section of the setup drawer is showing. */
+  setupTab: SetupTab;
+  /** The map is up and can be recorded. */
+  canRecord: boolean;
+  /** A recording of the map is running. */
+  recording: boolean;
   /** The data catalog is open. */
   catalogOpen: boolean;
   /** The event whose source record the catalog opens on, as an index into the run's events. */
@@ -158,6 +167,7 @@ export class ExerciseController {
   private lastFrame = 0;
   private disposed = false;
   private mcStop = false;
+  private recorder: (() => void) | null = null;
 
   constructor(_host?: AppHost, initial: ScenarioConfig = PRESET_SCENARIOS[0]) {
     const scenario = clone(initial);
@@ -176,6 +186,9 @@ export class ExerciseController {
       redTeamOpen: false,
       storyOpen: false,
       setupOpen: false,
+      setupTab: 'scenario',
+      canRecord: false,
+      recording: false,
       catalogOpen: false,
       catalogEventIndex: null,
       focusedMomentId: null,
@@ -569,9 +582,35 @@ export class ExerciseController {
     this.state.set((s) => ({ storyOpen: open ?? !s.storyOpen }));
   }
 
-  /** Open the setup drawer: scenario, environment, forces, the red team — everything the storyboard view keeps out of the way. */
-  toggleSetup(open?: boolean): void {
-    this.state.set((s) => ({ setupOpen: open ?? !s.setupOpen }));
+  /** Open the setup drawer: the scenario, the conditions, the forces and the simulation — everything the storyboard view keeps out of the way. */
+  toggleSetup(open?: boolean, tab?: SetupTab): void {
+    this.state.set((s) => ({ setupOpen: open ?? !s.setupOpen, setupTab: tab ?? s.setupTab }));
+  }
+
+  /** Open the drawer straight at one section. */
+  openSetup(tab: SetupTab): void {
+    this.state.set({ setupOpen: true, setupTab: tab });
+  }
+
+  setSetupTab(setupTab: SetupTab): void {
+    this.state.set({ setupTab });
+  }
+
+  /**
+   * The map owns the recorder — it is the canvas being recorded — and registers how to start and stop it here, so the
+   * simulation panel can drive it from outside the map.
+   */
+  setRecorder(fn: (() => void) | null): void {
+    this.recorder = fn;
+    if (!this.disposed) this.state.set({ canRecord: fn !== null });
+  }
+
+  toggleRecord(): void {
+    this.recorder?.();
+  }
+
+  setRecording(recording: boolean): void {
+    if (!this.disposed) this.state.set({ recording });
   }
 
   toggleCatalog(open?: boolean): void {

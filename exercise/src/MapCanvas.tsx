@@ -70,12 +70,12 @@ function ToolButton({ pressed, onClick, children, title }: { pressed?: boolean; 
   );
 }
 
-function Toolbar({ recording, onRecord }: { recording: boolean; onRecord: () => void }) {
+function Toolbar() {
   const c = useController();
-  const follow = useExercise((s) => s.follow);
   const placing = useExercise((s) => s.placing);
   const storyOpen = useExercise((s) => s.storyOpen);
   const setupOpen = useExercise((s) => s.setupOpen);
+  const setupTab = useExercise((s) => s.setupTab);
   const catalogOpen = useExercise((s) => s.catalogOpen);
   const replay = useExercise((s) => s.replay);
   const selectedId = useExercise((s) => s.selectedId);
@@ -92,8 +92,11 @@ function Toolbar({ recording, onRecord }: { recording: boolean; onRecord: () => 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 p-3">
       <div className="pointer-events-auto flex gap-1.5 self-start" role="toolbar" aria-label="Exercise">
-        <ToolButton title="The scenario, the conditions, the forces and the red team" pressed={setupOpen} onClick={() => c.toggleSetup()}>
+        <ToolButton title="The scenario, the conditions and the forces" pressed={setupOpen && setupTab !== 'simulation'} onClick={() => c.toggleSetup()}>
           Setup
+        </ToolButton>
+        <ToolButton title="What the simulation underneath can be asked to do: the red team, and recording the run" pressed={setupOpen && setupTab === 'simulation'} onClick={() => c.openSetup('simulation')}>
+          Simulation
         </ToolButton>
         <ToolButton title="The collection sources feeding this picture, and the record behind each event" pressed={catalogOpen} onClick={() => c.toggleCatalog()}>
           Data catalog
@@ -103,12 +106,6 @@ function Toolbar({ recording, onRecord }: { recording: boolean; onRecord: () => 
         </ToolButton>
         <ToolButton title="Play the whole exercise full screen, with the storyboard coming up as it goes" onClick={() => c.present()}>
           Present
-        </ToolButton>
-        <ToolButton title="Keep the selected ship centered" pressed={follow === 'follow'} onClick={() => c.setFollow(follow === 'follow' ? 'off' : 'follow')}>
-          Follow
-        </ToolButton>
-        <ToolButton title={recording ? 'Stop recording and save the video' : 'Play the scenario from here and record the map as a video'} pressed={recording} onClick={onRecord}>
-          {recording ? '● Stop' : 'Record'}
         </ToolButton>
         {placing && (
           <ToolButton title="Click the map to add waypoints to the selected ship" pressed onClick={() => c.setPlacing(false)}>
@@ -332,6 +329,7 @@ export function MapCanvas() {
     [c],
   );
 
+  // The map owns the canvas, so it owns the recorder; the simulation panel drives it through the controller.
   const toggleRecord = () => {
     if (recording) {
       void finishRecording(recording);
@@ -350,6 +348,18 @@ export function MapCanvas() {
       setRecordError(e instanceof Error ? e.message : String(e));
     }
   };
+
+  // The toggle closes over the recording in progress, so register a stable wrapper that always calls the current one.
+  const toggleRecordRef = useRef(toggleRecord);
+  toggleRecordRef.current = toggleRecord;
+  useEffect(() => {
+    c.setRecorder(() => toggleRecordRef.current());
+    return () => c.setRecorder(null);
+  }, [c]);
+
+  useEffect(() => {
+    c.setRecording(!!recording);
+  }, [c, recording]);
 
   // The recording ends by itself when the run does, a moment later so the last frames are in it.
   useEffect(() => {
@@ -390,7 +400,7 @@ export function MapCanvas() {
         </p>
       )}
       {/* Presenting is for a room: the editing tools come off the screen and only the show is left. */}
-      {presenting ? <PresentHud /> : <Toolbar recording={!!recording} onRecord={toggleRecord} />}
+      {presenting ? <PresentHud /> : <Toolbar />}
     </div>
   );
 }

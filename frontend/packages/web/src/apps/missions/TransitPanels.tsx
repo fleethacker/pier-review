@@ -300,7 +300,11 @@ export function VesselTable() {
               <span aria-hidden style={{ color: VESSEL_COLORS[i % VESSEL_COLORS.length] }}>
                 {'■'}{' '}
               </span>
-              {v.vessel_id}
+              <button type="button" aria-pressed={v.vessel_id === selected}
+                className="rounded-sm text-left underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-mil-cyan"
+                onClick={(event) => { event.stopPropagation(); c.selectVessel(v.vessel_id); }}>
+                {v.vessel_id}
+              </button>
             </th>
             <td className="px-2">{num(v.sog_kt)}</td>
             <td className="px-2">{num(v.stw_kt)}</td>

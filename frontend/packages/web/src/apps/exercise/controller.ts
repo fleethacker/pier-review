@@ -152,9 +152,16 @@ export class ExerciseController {
   private lastFrame = 0;
   private disposed = false;
   private mcStop = false;
+  /** Saved identity and draft baseline survive panel/tab unmounts. */
+  readonly library: {
+    where: 'local' | 'shared';
+    origin: { where: 'local' | 'shared'; id: string; updatedAt: string } | null;
+    snapshot: string;
+  };
 
   constructor(_host?: AppHost, initial: ScenarioConfig = PRESET_SCENARIOS[0]) {
     const scenario = clone(initial);
+    this.library = { where: 'local', origin: null, snapshot: JSON.stringify(scenario) };
     this.state = new Store<ExerciseState>({
       scenario,
       errors: [],
@@ -334,6 +341,8 @@ export class ExerciseController {
     const next = clone(scenario);
     if (this.state.get().redTeamOpen && !next.redTeam) next.redTeam = defaultRedTeam(next);
     this.apply(next, true);
+    this.library.origin = null;
+    this.library.snapshot = JSON.stringify(this.state.get().scenario);
   }
 
   loadPreset(id: string): void {

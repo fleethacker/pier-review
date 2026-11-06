@@ -60,6 +60,12 @@ describe('transit tab', () => {
     expect(screen.getByText(/Propulsion \(speed, thrust lag/)).toBeTruthy();
     expect(screen.getByRole('list', { name: 'Transit events' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy();
+    const secondVessel = screen.getByRole('button', { name: c.state.vessels[1].vessel_id });
+    secondVessel.focus();
+    expect(document.activeElement).toBe(secondVessel);
+    fireEvent.click(secondVessel);
+    expect(c.state.selectedVesselId).toBe(c.state.vessels[1].vessel_id);
+    expect(secondVessel.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: '30x' }));
     expect(c.state.clock.speed).toBe(30);
     c.dispose();

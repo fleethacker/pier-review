@@ -515,15 +515,17 @@ export class MissionsController {
     }
   }
 
-  async addReport(r: ReportCreate): Promise<void> {
+  async addReport(r: ReportCreate): Promise<boolean> {
     const generation = this.missionGeneration;
     const id = this.state.missionId;
-    if (!id) return;
+    if (!id) return false;
     const out = await this.guard('Adding report', () => missionsApi.addReport(id, r));
     if (out && this.missionUnchanged(generation, id)) {
       this.store.setState({ notice: 'Report added.' });
       await this.reload();
+      return true;
     }
+    return false;
   }
 
   // ---- transit ----

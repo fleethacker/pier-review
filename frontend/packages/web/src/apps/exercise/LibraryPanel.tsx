@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { cn } from '../../lib/cn';
 import { Button, Select } from '../../shell/ui';
 import { useController, useExercise } from './context';
@@ -19,15 +19,11 @@ const when = (iso: string) => {
 export function Library() {
   const c = useController();
   const scenario = useExercise((s) => s.scenario);
-  const [where, setWhere] = useState<Where>('local');
+  const [where, setWhere] = useState<Where>(c.library.where);
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [sharedUp, setSharedUp] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  /** Where the scenario on screen came from, so a save can tell when someone else has saved over it since. */
-  const origin = useRef<{ where: Where; id: string; updatedAt: string } | null>(null);
-  /** What the scenario looked like when it was last loaded or saved, to tell whether there is unsaved work. */
-  const snapshot = useRef(JSON.stringify(scenario));
   const id = slugify(scenario.name);
 
   const refresh = useCallback(async () => {
@@ -40,10 +36,11 @@ export function Library() {
       setSharedUp(true);
     } catch (e) {
       // Back to this browser, but keep offering the shared library: the server may only have blinked.
+      c.library.where = 'local';
       setWhere('local');
       setMessage({ ok: false, text: `The shared library is not available: ${e instanceof Error ? e.message : String(e)}` });
     }
-  }, [where]);
+  }, [where, c]);
 
   useEffect(() => {
     void refresh();
@@ -64,7 +61,7 @@ export function Library() {
   const unsaved = () => {
     const original = PRESET_SCENARIOS.find((p) => p.id === scenario.id);
     const now = JSON.stringify(scenario);
-    return original ? JSON.stringify(original) !== now : snapshot.current !== now;
+    return original ? JSON.stringify(original) !== now : c.library.snapshot !== now;
   };
 
   const run = async (fn: () => Promise<string>) => {
@@ -82,12 +79,12 @@ export function Library() {
   const save = () =>
     run(async () => {
       const existing = items.find((i) => i.id === id);
-      const mine = origin.current && origin.current.where === where && origin.current.id === id;
+      const mine = c.library.origin && c.library.origin.where === where && c.library.origin.id === id;
       if (existing && !mine && !window.confirm(`Replace the saved scenario “${existing.name}”?`)) return 'Not saved.';
       const body = JSON.parse(c.exportJson()) as unknown;
-      const saved = where === 'local' ? saveLocal(id, body) : await saveShared(id, body, mine ? origin.current!.updatedAt : undefined);
-      origin.current = { where, id, updatedAt: saved.updatedAt };
-      snapshot.current = JSON.stringify(scenario);
+      const saved = where === 'local' ? saveLocal(id, body) : await saveShared(id, body, mine ? c.library.origin!.updatedAt : undefined);
+      c.library.origin = { where, id, updatedAt: saved.updatedAt };
+      c.library.snapshot = JSON.stringify(scenario);
       await refresh();
       return `${saved.created ? 'Saved' : 'Updated'} “${scenario.name}” ${where === 'local' ? 'in this browser' : 'in the shared library'}.`;
     });
@@ -99,8 +96,8 @@ export function Library() {
       if (!got) throw new Error('That scenario is no longer saved.');
       const parsed = parseScenario(JSON.stringify(got.scenario));
       c.loadScenario(parsed);
-      origin.current = { where, id: item.id, updatedAt: got.updatedAt };
-      snapshot.current = JSON.stringify(parsed);
+      c.library.origin = { where, id: item.id, updatedAt: got.updatedAt };
+      c.library.snapshot = JSON.stringify(parsed);
       return `Loaded “${parsed.name}”.`;
     });
 
@@ -109,7 +106,7 @@ export function Library() {
       if (!window.confirm(`Delete the saved scenario “${item.name}”? This cannot be undone.`)) return 'Not deleted.';
       if (where === 'local') deleteLocal(item.id);
       else await deleteShared(item.id);
-      if (origin.current?.id === item.id && origin.current.where === where) origin.current = null;
+      if (c.library.origin?.id === item.id && c.library.origin.where === where) c.library.origin = null;
       await refresh();
       return `Deleted “${item.name}”.`;
     });
@@ -123,6 +120,7 @@ export function Library() {
             value={where}
             onChange={(v) => {
               setMessage(null);
+              c.library.where = v as Where;
               setWhere(v as Where);
             }}
             options={[

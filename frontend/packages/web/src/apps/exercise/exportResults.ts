@@ -5,8 +5,9 @@ import { inOrder } from './storyboard';
 import type { RedTeamSpec, ScenarioConfig } from './types';
 
 const csvCell = (v: string | number | undefined): string => {
-  const t = v === undefined ? '' : String(v);
-  return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  const raw = v === undefined ? '' : String(v);
+  const t = typeof v === 'string' && /^(?:[\t\r\n]|\s*[=+@-])/.test(raw) ? `'${raw}` : raw;
+  return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 };
 
 /** One row per outcome per sweep value: the chances, with their intervals. Opens in any spreadsheet. */

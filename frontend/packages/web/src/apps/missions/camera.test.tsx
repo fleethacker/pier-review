@@ -232,7 +232,10 @@ describe('transit camera identity and forcing (F09/F10/T02)', () => {
   it('preserves completed-run forcing, aligns traffic, and renders only the newly selected vessel despite a late response', async () => {
     const pending: { body: import('./types').PredictionRequest; resolve: (response: Response) => void; signal?: AbortSignal | null }[] = [];
     vi.spyOn(api, 'runTransit').mockResolvedValue(structuredClone(sampleResponse));
-    vi.spyOn(api.missionsApi, 'series').mockResolvedValue(structuredClone(sampleSeries));
+    const longSeries = structuredClone(sampleSeries);
+    // Extend the explicit test fixture, so an end inside the final sample gap must be interpolated.
+    longSeries.frames.push({ ...structuredClone(longSeries.frames.at(-1)!), t_s: 360 });
+    vi.spyOn(api.missionsApi, 'series').mockResolvedValue(longSeries);
     vi.stubGlobal('fetch', vi.fn((url: string | URL | Request, init?: RequestInit) => {
       if (String(url).includes('/ships/')) return Promise.resolve(new Response(JSON.stringify({ loa_ft: 500, beam_ft: 60 })));
       if (String(url).includes('/predict/trajectory')) return new Promise<Response>((resolve) => pending.push({ body: JSON.parse(String(init?.body)), resolve, signal: init?.signal }));
@@ -256,7 +259,7 @@ describe('transit camera identity and forcing (F09/F10/T02)', () => {
     expect(built.others).toHaveLength(1);
     expect(built.others![0]).toMatchObject({ vessel_id: 'MOCK-B', length_ft: 500, beam_ft: 60 });
     expect(built.others![0].path[0].t_utc).toBe(built.as_of_utc);
-    expect(built.others![0].path.at(-1)!.t_utc <= new Date(Date.parse(built.as_of_utc!) + 300000).toISOString()).toBe(true);
+    expect(built.others![0].path.at(-1)!.t_utc).toBe(new Date(Date.parse(built.as_of_utc!) + 300000).toISOString());
     render(<ControllerContext.Provider value={c}><CameraStatus /></ControllerContext.Provider>);
     act(() => c.setCameraOn(true));
     await waitFor(() => expect(pending).toHaveLength(1));
@@ -265,13 +268,22 @@ describe('transit camera identity and forcing (F09/F10/T02)', () => {
     expect(pending[0].signal?.aborted).toBe(true);
     expect(pending[1].body.vessel.vessel_id).toBe('MOCK-B');
     expect(pending[1].body.others![0].vessel_id).toBe('MOCK-A');
-    const reply = (id: string) => { const value = structuredClone(samplePrediction); value.result.vessel_id = id; return new Response(JSON.stringify(value)); };
+    const reply = (id: string) => { const value = structuredClone(samplePrediction); value.result.vessel_id = id; value.result.as_of_utc = built.as_of_utc!; return new Response(JSON.stringify(value)); };
     await act(async () => { pending[1].resolve(reply('MOCK-B')); });
     await waitFor(() => expect(screen.getByText(/Prediction for MOCK-B/)).toBeTruthy());
     await act(async () => { pending[0].resolve(reply('MOCK-A')); });
     expect(screen.queryByText(/Prediction for MOCK-A/)).toBeNull();
     expect(c.state.camResult?.result.vessel_id).toBe('MOCK-B');
     expect(c.state.clock.playing).toBe(false);
+    act(() => c.setPlayhead(22.5));
+    expect(screen.getByText(/10 simulated seconds behind playback/)).toBeTruthy();
+    const refresh = c.requestCamera(true);
+    await waitFor(() => expect(pending.length).toBeGreaterThanOrEqual(3));
+    const latest = pending.at(-1)!;
+    const fresh = structuredClone(samplePrediction); fresh.result.vessel_id = 'MOCK-B'; fresh.result.as_of_utc = latest.body.as_of_utc!;
+    await act(async () => { latest.resolve(new Response(JSON.stringify(fresh))); await refresh; });
+    expect(screen.queryByText(/simulated seconds behind playback/)).toBeNull();
+    expect(screen.getByText(/Prediction for MOCK-B at 2026-11-05T12:00:22.500Z/)).toBeTruthy();
     c.dispose();
   });
 });

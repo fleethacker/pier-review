@@ -125,6 +125,7 @@ export interface MissionsState {
   camSample: boolean;
   camError: string | null;
   camAtMs: number | null;
+  camInputTimeS: number | null;
 }
 
 const initial: MissionsState = {
@@ -166,6 +167,7 @@ const initial: MissionsState = {
   camSample: false,
   camError: null,
   camAtMs: null,
+  camInputTimeS: null,
 };
 
 export function prefersReducedMotion(): boolean {
@@ -891,7 +893,7 @@ export class MissionsController {
   private invalidateCamera(): void {
     this.cameraGeneration++;
     this.camThrottle.cancel();
-    this.store.setState({ camResult: null, camAtMs: null, camError: null, camSample: false });
+    this.store.setState({ camResult: null, camAtMs: null, camInputTimeS: null, camError: null, camSample: false });
     this.host.store.replaceEntitiesOfKind(CAMERA_ALL_KINDS, []);
   }
 
@@ -952,6 +954,11 @@ export class MissionsController {
         const item = f.vessels.find((entry) => entry.vessel_id === other.vessel_id);
         if (item) path.push(fix(item, f.t_s));
       }
+      const horizonEnd = st.clock.t + 300;
+      if (endTime(st.series.frames) >= horizonEnd && path.at(-1)?.t_utc !== new Date(epoch + horizonEnd * 1000).toISOString()) {
+        const end = stateAt(st.series.frames, horizonEnd).find((item) => item.vessel_id === other.vessel_id);
+        if (end) path.push(fix(end, horizonEnd)); // interpolate only inside the recorded series
+      }
       others.push({ vessel_id: other.vessel_id, ...dims, path });
     }
     const request = buildPredictionRequest(toObservedState(v, cls, observed, st.response?.result_id ?? 'transit'), { whatIfId: st.camWhatIf });
@@ -969,6 +976,7 @@ export class MissionsController {
       this.store.setState({ camError: 'Prediction needs the completed run inputs, UTC epoch and catalog dimensions for every other vessel.', camResult: null });
       return;
     }
+    const inputTimeS = this.state.camSource === 'transit' ? this.state.clock.t : null;
     const generation = this.cameraGeneration;
     const identity = JSON.stringify([this.state.camSource, this.state.selectedVesselId, this.state.camPresetId, this.state.camWhatIf, this.state.response?.result_id]);
     const current = () => !this.disposed && generation === this.cameraGeneration && identity === JSON.stringify([
@@ -976,9 +984,11 @@ export class MissionsController {
     try {
       const r = await this.camThrottle.run((signal) => postPrediction(req, signal), force);
       if (!r.ran || r.aborted || !r.value || !current()) return;
-      if (r.value.result.vessel_id !== req.vessel.vessel_id) throw new Error('Prediction response belongs to a different vessel.');
+      if (r.value.result.vessel_id !== req.vessel.vessel_id || Date.parse(r.value.result.as_of_utc) !== Date.parse(req.as_of_utc!))
+        throw new Error('Prediction response belongs to a different vessel or input time.');
       this.store.setState({
         camResult: r.value,
+        camInputTimeS: inputTimeS,
         camSample: false,
         camError: null,
         camAtMs: Date.now(),

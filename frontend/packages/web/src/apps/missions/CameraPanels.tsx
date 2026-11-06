@@ -32,6 +32,7 @@ export function CameraStatus() {
   const err = useMissions((s) => s.camError);
   const whatIf = useMissions((s) => s.camWhatIf);
   const at = useMissions((s) => s.camAtMs);
+  const playbackLag = useMissions((s) => s.camSource === 'transit' && s.camInputTimeS != null ? Math.max(0, s.clock.t - s.camInputTimeS) : 0);
   const age = useAgeS(at);
   if (!res)
     return (
@@ -49,6 +50,7 @@ export function CameraStatus() {
   return (
     <div className="space-y-2">
       <p className="text-[11px] text-mil-text">Prediction for {res.result.vessel_id} at {res.result.as_of_utc}</p>
+      {playbackLag > 1 && <p role="status" className="text-[11px] text-mil-amber">Prediction is {Math.round(playbackLag)} simulated seconds behind playback; refresh pending.</p>}
       {sample && (
         <p
           role="status"

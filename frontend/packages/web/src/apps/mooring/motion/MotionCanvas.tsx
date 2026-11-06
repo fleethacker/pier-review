@@ -117,7 +117,7 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
   const key = runKey;
   if (bounds.current.key !== key) bounds.current = { key, b: null };
 
-  const fitBounds = (mode: 'ship' | 'berth' | 'maneuver' | 'route' = 'ship'): Bounds => {
+  const fitBounds = (mode: 'ship' | 'berth' | 'maneuver' | 'route' | 'local' = 'ship'): Bounds => {
     const b: Bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
   if (mode !== 'ship') {
     scene?.berth_outline?.forEach((p) => extend(b, pt(p)));
@@ -128,8 +128,8 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
   if (frame && mode !== 'berth') {
     extend(b, { x: frame.ship.x_ft, y: frame.ship.y_ft });
     scene?.ship_hull_outline?.forEach((p) => extend(b, shipToBerth(p, frame.ship)));
-    frame.tugs.filter((t) => mode !== 'ship' || t.position && Math.hypot(t.position.x - frame.ship.x_ft, t.position.y - frame.ship.y_ft) < (shipClass?.loa_ft ?? Math.max(b.maxX - b.minX, b.maxY - b.minY, 120)) * 1.5).forEach((t) => extend(b, t.position));
-    if (mode !== 'ship') frame.lines.forEach((l) => {
+    frame.tugs.filter((t) => (mode !== 'ship' && mode !== 'local') || t.position && Math.hypot(t.position.x - frame.ship.x_ft, t.position.y - frame.ship.y_ft) < (shipClass?.loa_ft ?? Math.max(b.maxX - b.minX, b.maxY - b.minY, 120)) * 1.5).forEach((t) => extend(b, t.position));
+    if (mode !== 'ship' && mode !== 'local') frame.lines.forEach((l) => {
       extend(b, l.shipEnd);
       extend(b, l.pierEnd);
     });
@@ -143,7 +143,13 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
     return b;
 
   };
-  const b = bounds.current.b ?? fitBounds();
+  // Near the berth, retain the relationship to the pier. At channel distance,
+  // fitting the berth too would hide the ship. Neither choice follows forecasts.
+  const nearBerth = frame && scene?.pier_fittings?.some((f) => {
+    const p = pt(f.position);
+    return p && Math.hypot(p.x - frame.ship.x_ft, p.y - frame.ship.y_ft) < (shipClass?.loa_ft ?? 600) * 2;
+  });
+  const b = bounds.current.b ?? fitBounds(nearBerth ? 'local' : 'ship');
   bounds.current.b = b;
 
   const spanX = Math.max(b.maxX - b.minX, 120);

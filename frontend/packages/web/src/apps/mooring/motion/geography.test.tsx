@@ -66,6 +66,19 @@ describe('Bounded Motion geography', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Fit ship' }));
     expect(svg.getAttribute('viewBox')).not.toBe(panned);
   });
+  it('keeps the nearby pier visible in an approach start without fitting a far-away trail', () => {
+    const f = adaptFrame(raw, { faceBearingDeg: 90 });
+    const approach = { ...f, ship: { ...f.ship, x_ft: 696, y_ft: 300, yawDeg: 0 }, tugs: [] };
+    const pier = { ...scene, pier_fittings: [
+      { ...scene.pier_fittings![0], position: { x_ft: 0, y_ft: 0 } },
+      { ...scene.pier_fittings![0], fitting_id: 'far-end', position: { x_ft: 1392, y_ft: 0 } },
+    ] };
+    render(<MotionCanvas frame={approach} scene={pier} shipClass={{ ...workspace.ship, loa_ft: 567 }} origin={origin} trail={[{ x: 80000, y: 30000 }]} faceBearingDeg={90} />);
+    const [x, y, width, height] = screen.getByRole('img', { name: 'Plan view of the ship, pier, lines and tugs' }).getAttribute('viewBox')!.split(' ').map(Number);
+    expect(x).toBeLessThan(0); expect(x + width).toBeGreaterThan(1392);
+    expect(y).toBeLessThan(-300); expect(y + height).toBeGreaterThan(0);
+    expect(width).toBeLessThan(5000);
+  });
   it('renders supplied tug length and beam independently of camera or text scale', () => {
     const f = adaptFrame(raw); const tug = f.tugs[0];
     const sized = { ...scene, tug_dimensions: [{ tug_id: tug.id, length_ft: 90, beam_ft: 32, basis: 'synthetic' as const }] };

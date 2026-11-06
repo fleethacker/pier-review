@@ -29,6 +29,7 @@ import { modeling } from '../api';
 import { MotionController, serviceUrl } from './controller';
 import type { MotionHost } from './controller';
 import type { SimFrame, SimRecording, SimScene } from './frames';
+import { catalog, configuration, controls, order, prediction, workspace } from './workspace.test-fixtures';
 
 const dir = path.resolve(__dirname, '../../../../../../../contract/examples/modeling');
 const load = <T,>(n: string): T => JSON.parse(readFileSync(path.join(dir, n), 'utf8')) as T;
@@ -62,6 +63,19 @@ const flush = () => {
   cbs.forEach((c) => c());
 };
 const make = () => new MotionController(host, (cb) => raf.push(cb));
+
+function workspaceFetch() {
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => ({ ok: true, status: 200, json: async () => {
+    if (init?.method === 'DELETE') return {};
+    if (url.endsWith('/catalog')) return catalog;
+    if (url.endsWith('/scenarios')) return workspace.scenario;
+    if (url.endsWith('/sessions')) return workspace;
+    if (url.endsWith('/prediction')) return prediction;
+    return scene;
+  } }));
+  vi.stubGlobal('fetch', fetcher);
+  return fetcher;
+}
 
 beforeEach(() => {
   raf = [];
@@ -521,4 +535,112 @@ it.each([false, true])('ignores a session creation completing after a recording 
   expect(m.s.error).toBeNull();
   expect(stream.handlers).toBeNull();
   m.dispose();
+});
+
+describe('Motion workspace', () => {
+  it('loads one paused default on direct entry and reuses it when the tab is reopened', async () => {
+    const fetcher = workspaceFetch();
+    const m = make();
+    m.open();
+    await Promise.all([m.initializeWorkspace(), m.initializeWorkspace()]);
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/catalog'))).toHaveLength(1);
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/sessions'))).toHaveLength(1);
+    expect(stream.send).not.toHaveBeenCalled();
+    expect(m.s.workspace?.ship.name).toBe('Test destroyer');
+    stream.handlers!.onStatus('open');
+    m.close();
+    m.open();
+    await m.initializeWorkspace();
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/sessions'))).toHaveLength(1);
+    expect(stream.send.mock.calls.map(([data]) => JSON.parse(data).type)).toEqual(['pause']);
+    m.dispose();
+  });
+
+  it('closes and releases an old workspace before allocating its replacement', async () => {
+    const fetcher = workspaceFetch();
+    const m = make();
+    await m.loadWorkspace(configuration);
+    await m.loadWorkspace({ ...configuration, name: 'Replacement' });
+    const calls = fetcher.mock.calls;
+    const deletion = calls.findIndex(([, init]) => init?.method === 'DELETE');
+    const lastSession = calls.map(([url]) => url).lastIndexOf('http://localhost/api/modeling/api/v1/motion/sessions');
+    expect(stream.close).toHaveBeenCalledTimes(1);
+    expect(deletion).toBeGreaterThan(0);
+    expect(deletion).toBeLessThan(lastSession);
+    m.dispose();
+  });
+
+  it('does not connect or leak a session that finishes creating after a replay is chosen', async () => {
+    const baseline = workspaceFetch();
+    let finish!: (v: unknown) => void;
+    let entered!: () => void;
+    const started = new Promise<void>((r) => { entered = r; });
+    const pending = new Promise((r) => { finish = r; });
+    const fetcher = vi.fn((url: string, init?: RequestInit) => {
+      if (url.endsWith('/sessions') && init?.method === 'POST') { entered(); return pending; }
+      if (url === '/replay') return Promise.resolve({ ok: true, json: async () => recording });
+      return baseline(url, init);
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const m = make();
+    const creating = m.loadWorkspace(configuration);
+    await started;
+    await m.loadRecording('/replay', null);
+    finish({ ok: true, json: async () => workspace });
+    await creating;
+    await Promise.resolve();
+    expect(m.s.source).toBe('recording');
+    expect(stream.handlers).toBeNull();
+    expect(fetcher.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true);
+    m.dispose();
+  });
+
+  it('holds helm feedback pending until a backend frame echoes the order, without inventing actual response', async () => {
+    workspaceFetch();
+    const m = make();
+    await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open');
+    stream.handlers!.onMessage({ ...legacy(0, 1), controls }); flush();
+    m.helmCommand(order);
+    expect(m.s.command?.status).toBe('pending');
+    expect(m.s.frame?.controls?.actual.port_throttle).toBe(0);
+    stream.handlers!.onMessage({ ...legacy(1, 2), controls: { ...controls, commanded: order } }); flush();
+    expect(m.s.command?.status).toBe('applied');
+    expect(m.s.frame?.controls?.actual.port_throttle).toBe(0);
+    m.dispose();
+  });
+
+  it('limits prediction to one request at a time and rejects a response invalidated by reset', async () => {
+    const baseline = workspaceFetch();
+    let finish!: (v: unknown) => void;
+    const pending = new Promise((r) => { finish = r; });
+    const fetcher = vi.fn((url: string, init?: RequestInit) => url.endsWith('/prediction') ? pending : baseline(url, init));
+    vi.stubGlobal('fetch', fetcher);
+    const m = make();
+    await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open');
+    stream.handlers!.onMessage(legacy(0, 1)); flush();
+    const request = m.refreshPrediction();
+    await m.refreshPrediction();
+    expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/prediction'))).toHaveLength(1);
+    m.reset();
+    finish({ ok: true, json: async () => prediction });
+    await request;
+    expect(m.s.prediction).toBeNull();
+    expect(m.s.predictionBusy).toBe(false);
+    m.dispose();
+  });
+
+  it('sends what-if commands only to a prediction clone', async () => {
+    const fetcher = workspaceFetch();
+    const m = make();
+    await m.loadWorkspace(configuration);
+    stream.handlers!.onStatus('open'); stream.handlers!.onMessage(legacy(0, 1)); flush();
+    await m.refreshPrediction(order);
+    const request = fetcher.mock.calls.find(([url]) => url.endsWith('/prediction'));
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({ what_if_commands: [{ type: 'helm_command', ...order }] });
+    expect(stream.send).not.toHaveBeenCalled();
+    expect(m.s.predictionWhatIf).toBe(true);
+    m.dispose();
+  });
 });

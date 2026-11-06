@@ -1,4 +1,5 @@
 import type { components } from '../../../api/modeling';
+import type { ControlState, LoadingState, LineControlState } from './workspace';
 
 /**
  * View model for the motion view. Frames arrive either as legacy `SimFrame`s (pose, tug forces, line tensions only) or
@@ -46,6 +47,8 @@ export interface ViewShip {
   surgeFps: number | null;
   swayFps: number | null;
   yawDegps: number | null;
+  surgeFps2: number | null;
+  swayFps2: number | null;
 }
 
 export interface ViewTug {
@@ -161,6 +164,9 @@ export interface ViewFrame {
   alerts: ViewAlert[];
   /** True when the berth face bearing was not supplied and the adapter had to assume one. */
   assumedFaceBearing: boolean;
+  controls: ControlState | null;
+  loading: LoadingState | null;
+  lineControls: LineControlState[];
 }
 
 export const DEFAULT_FACE_BEARING = 90;
@@ -342,6 +348,8 @@ export function adaptFrame(frame: SimFrame, opts: AdaptOptions = {}): ViewFrame 
         surgeFps: motion!.velocity.surge_fps ?? null,
         swayFps: motion!.velocity.sway_fps ?? null,
         yawDegps: motion!.velocity.yaw_degps ?? null,
+        surgeFps2: motion!.acceleration?.surge_fps2 ?? null,
+        swayFps2: motion!.acceleration?.sway_fps2 ?? null,
       };
     }
     return {
@@ -356,6 +364,8 @@ export function adaptFrame(frame: SimFrame, opts: AdaptOptions = {}): ViewFrame 
       surgeFps: null,
       swayFps: null,
       yawDegps: null,
+      surgeFps2: null,
+      swayFps2: null,
     };
   })();
 
@@ -472,6 +482,9 @@ export function adaptFrame(frame: SimFrame, opts: AdaptOptions = {}): ViewFrame 
     forces: adaptForces(usable ? frame.forces : null),
     alerts,
     assumedFaceBearing: assumed && !rm0,
+    controls: frame.controls ?? null,
+    loading: frame.loading ?? null,
+    lineControls: frame.line_controls ?? [],
   };
 }
 

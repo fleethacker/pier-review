@@ -13,8 +13,9 @@ export function Overlay() {
   useUnitSystem();
   const c = useController();
   const overlay = useMooring((s) => s.overlay);
+  const motionWorkspace = useMooring((s) => s.tab === 'motion');
   const motionOpen = c.motion.state.use((s) => s.open);
-  if (motionOpen) return <MotionView controller={c.motion} />;
+  if (motionOpen) return <MotionView controller={c.motion} workspace={motionWorkspace} />;
   if (!overlay) return null;
   return overlay.kind === 'result' ? <ResultViewer id={overlay.id} /> : <SheetViewer />;
 }

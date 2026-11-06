@@ -4,7 +4,6 @@ import { useUnitSystem } from './units';
 import { AgentPanel } from './panels/AgentPanel';
 import { EnvPanel } from './panels/EnvPanel';
 import { LinesPanel } from './panels/LinesPanel';
-import { MotionLauncher } from './panels/MotionLauncher';
 import { RecommendPanel } from './panels/RecommendPanel';
 import { ResultPanel } from './panels/ResultPanel';
 import { ScenarioPanel } from './panels/ScenarioPanel';
@@ -119,10 +118,6 @@ function TabPanels({ tab }: { tab: MooringTab }) {
         </ErrorBoundary>
       );
     case 'motion':
-      return (
-        <ErrorBoundary name="Motion">
-          <MotionLauncher />
-        </ErrorBoundary>
-      );
+      return null; // Motion owns the workspace directly beneath the application tabs.
   }
 }

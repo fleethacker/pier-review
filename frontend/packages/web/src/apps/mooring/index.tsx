@@ -40,7 +40,11 @@ export const mooringApp: AppDefinition = {
       Overlay: withController(controller, Overlay, 'Overlay'),
       onEdit: (edit) => controller.onEdit(edit),
       setTab: (id) => {
-        if (isMooringTab(id)) controller.state.set({ tab: id });
+        if (isMooringTab(id)) {
+          controller.state.set({ tab: id });
+          if (id === 'motion') controller.motion.open(true);
+          else if (controller.motion.s.open) controller.motion.close();
+        }
       },
       dispose: () => controller.dispose(),
     };

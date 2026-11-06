@@ -4,7 +4,7 @@ import { STATUS_COLOR } from '../../../shell/theme';
 import { Button, inputClass } from '../../../shell/ui';
 import { fmt, useUnitSystem } from '../units';
 import { DEFAULT_FACE_BEARING } from './frames';
-import type { Badge, ValidityState, ViewFrame } from './frames';
+import type { Badge, ViewFrame } from './frames';
 import type { MotionController, MotionState } from './controller';
 import { clockText } from './clock';
 import { LIVE_SPEEDS, REPLAY_SPEEDS } from './controller';
@@ -18,13 +18,6 @@ import type { BasemapKind } from './basemap';
 import type { FlowDisplay } from './EnvironmentFlow';
 import { StateSourcePanel } from './StateSourcePanel';
 
-const VALIDITY_COLOR: Record<ValidityState, string> = {
-  valid: STATUS_COLOR.GREEN,
-  limited: STATUS_COLOR.AMBER,
-  invalid: STATUS_COLOR.RED,
-  unknown: STATUS_COLOR.NONE,
-};
-
 const PROVENANCE_TEXT: Record<string, string> = {
   mock: 'MOCK: authored values, not physics',
   estimated: 'ESTIMATED: unqualified model',
@@ -33,44 +26,43 @@ const PROVENANCE_TEXT: Record<string, string> = {
   legacy: 'LEGACY FRAME: no provenance supplied',
 };
 
-function Pill({ color, children, title }: { color: string; children: React.ReactNode; title?: string }) {
-  return (
-    <span title={title} className="inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider" style={{ color, borderColor: `${color}66`, background: `${color}14` }}>
-      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: color }} />
-      {children}
-    </span>
-  );
-}
-
-/** The mandatory badges: validity, provenance, frame schema, environment source and age. Always visible. */
+/** Background qualifications are available on demand; active result conditions stay exposed. */
 export function Badges({ frame, state }: { frame: ViewFrame | null; state: MotionState }) {
   const badge: Badge | null = frame?.badge ?? null;
   const env = frame?.environment;
   const validity = badge?.validity ?? 'unknown';
   const provenance = badge?.provenance ?? 'unknown';
-  const sourceText = env?.wind.source ?? env?.current.source ?? null;
-  const ageS = env?.wind.ageS ?? env?.current.ageS ?? null;
+  const synthetic = (state.forcingSynthetic ?? state.clock?.training) || state.workspace?.scenario.configuration.environment_mode === 'synthetic';
+  const invalid = state.lifecycleInvalid || validity === 'invalid';
+  const imported = frame?.stateInputs.at(-1) ?? (state.importedState?.run_id === frame?.runId ? state.importedState : null);
+  const reasons = [...new Set([...(badge?.reasons ?? []), ...state.lifecycleReasons])];
+  const missingEnvironment = !env ? ['environment'] : [!env.wind.available && 'wind', !env.current.available && 'current', !env.water.available && 'water level'].filter(Boolean);
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Frame validity and provenance">
-      <Pill color={VALIDITY_COLOR[validity]} title={badge?.reasons.join('\n') || 'No validity reasons supplied'}>
-        validity: {frame ? validity : 'no frame'}
-      </Pill>
-      <Pill color={provenance === 'qualified' ? STATUS_COLOR.GREEN : provenance === 'legacy' || provenance === 'unknown' ? STATUS_COLOR.NONE : STATUS_COLOR.AMBER} title={badge?.provenanceSource ?? undefined}>
-        {PROVENANCE_TEXT[provenance] ?? provenance}
-      </Pill>
-      <Pill color="#8ba4c4">{frame ? (frame.rm0 ? 'rm0-v1' : 'legacy schema') : 'schema n/a'}</Pill>
-      <Pill color={env ? '#8ba4c4' : STATUS_COLOR.NONE}>
-        environment: {state.workspace?.scenario.configuration.environment_mode === 'live' ? 'held snapshot · ' : ''}{env ? `${sourceText ?? 'source not stated'}${ageS != null ? `, ${ageS.toFixed(0)} s old` : ', age not stated'}` : 'not in frame'}
-      </Pill>
-      {((state.forcingSynthetic ?? state.clock?.training) || state.workspace?.scenario.configuration.environment_mode === 'synthetic') && (
-        <Pill color={STATUS_COLOR.AMBER} title="The forcing in this session is synthetic training data, not an observation or forecast.">
-          training · synthetic forcing
-        </Pill>
-      )}
-      <Pill color={state.source === 'live' ? '#00e5ff' : '#a78bfa'}>{state.source === 'live' ? 'simulation · backend stream' : state.source === 'recording' ? 'replay' : 'idle'}</Pill>
-      {(frame?.stateInputs.length || (state.importedState && state.importedState.run_id === frame?.runId)) ? <Pill color={STATUS_COLOR.AMBER}>seed: imported {(frame?.stateInputs.at(-1) ?? state.importedState)?.input.source} state</Pill> : null}
-      {state.forcingRevision && <Pill color="#8ba4c4">forcing revision: {state.forcingRevision}</Pill>}
-      {frame?.assumedFaceBearing && <Pill color={STATUS_COLOR.AMBER} title="This frame carries no scene, so the berth orientation was assumed.">berth orientation assumed</Pill>}
+    <div className="space-y-1 text-[10px]" role="group" aria-label="Frame validity and provenance">
+      <details open={invalid}>
+        <summary className="cursor-pointer font-mono text-mil-dim hover:text-mil-text">
+          <span className="text-mil-text">Demo information</span>
+          <span> · {state.source === 'live' ? 'simulation' : state.source === 'recording' ? 'replay' : 'idle'}{synthetic ? ' · synthetic forcing' : ''}</span>
+        </summary>
+        <div className="mt-2 space-y-2 border-l border-mil-border pl-3 text-mil-dim">
+          <p>Development model, unqualified. Demonstrator decision support, not navigational guidance.</p>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+            <dt>Frame</dt><dd>validity: {frame ? validity : 'no frame'} · {frame ? (frame.rm0 ? 'rm0-v1' : 'legacy schema') : 'schema n/a'}</dd>
+            <dt>Provenance</dt><dd>{PROVENANCE_TEXT[provenance] ?? provenance}{badge?.provenanceSource && ` · ${badge.provenanceSource}`}</dd>
+            <dt>Source</dt><dd>{state.source === 'live' ? 'simulation · backend stream' : state.source === 'recording' ? 'replay' : 'idle'}</dd>
+            {synthetic && <><dt>Forcing</dt><dd>training · synthetic forcing</dd></>}
+            {state.forcingRevision && <><dt>Revision</dt><dd>forcing revision: {state.forcingRevision}</dd></>}
+            {imported && <><dt>Initial state</dt><dd>seed: imported {imported.input.source} state</dd></>}
+            {env && (['wind', 'current', 'water'] as const).map((part) => <div className="contents" key={part}><dt className="capitalize">{part}</dt><dd>{env[part].source ?? 'source not stated'} · {env[part].ageS == null ? 'age not stated' : `${env[part].ageS.toFixed(0)} s old`}{env[part].basis && ` · ${env[part].basis}`}{state.workspace?.scenario.configuration.environment_mode === 'live' ? ' · held snapshot' : ''}</dd></div>)}
+            {frame?.assumedFaceBearing && <><dt>Orientation</dt><dd>berth orientation assumed; no scene bearing supplied</dd></>}
+          </dl>
+          {!invalid && reasons.length > 0 && <ul className="space-y-1" aria-label="Model and source details">{reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+        </div>
+      </details>
+      {invalid && <div role="alert" className="text-mil-red"><p className="font-semibold">Invalid state</p>{reasons.map((reason) => <p key={reason}>{reason}</p>)}</div>}
+      {!invalid && reasons.filter((reason) => /stale|missing|uncovered|expired/i.test(reason)).map((reason) => <p role="status" key={reason} className="text-mil-amber">{reason}</p>)}
+      {frame?.alerts.filter((alert) => alert.severity === 'RED').map((alert, index) => <p role="alert" key={`${alert.code}-${index}`} className="text-mil-red">{alert.message}</p>)}
+      {missingEnvironment.length > 0 && <p role="status" className="text-mil-amber">{missingEnvironment.join(', ')} unavailable{!frame ? ' · waiting for a frame' : ''}</p>}
     </div>
   );
 }
@@ -411,7 +403,7 @@ export function MotionView({ controller: c, workspace = false }: { controller: M
       <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
       <div className="pointer-events-auto flex flex-wrap items-center justify-between gap-3 border-b border-mil-border bg-mil-panel px-3 py-2">
         <div className="flex flex-wrap items-center gap-3">
-          <div><span className="mil-label">{workspace ? 'Maneuvering workspace' : 'Motion view'}</span>{workspace && <p className="mt-0.5 text-[9px] text-mil-dim">Demonstrator · not navigational guidance</p>}</div>
+          <div><span className="mil-label">{workspace ? 'Maneuvering workspace' : 'Motion view'}</span></div>
           {workspace ? <><ScenarioSelector c={c} s={s} /><div className="flex items-center gap-1 border-l border-mil-border pl-3"><Button size="sm" disabled={s.source !== 'live' || s.link !== 'open' || s.busy || s.stateImportBusy || s.lifecycleInvalid} onClick={() => s.lifecycle === 'running' ? c.pause() : c.resume()} aria-keyshortcuts="Space">{s.lifecycle === 'running' ? 'Pause' : s.frame && s.frame.tS > 0 ? 'Resume' : 'Start'}</Button><Button size="sm" variant="secondary" disabled={s.source !== 'live' || s.link !== 'open'} onClick={() => c.reset()}>Reset</Button><select aria-label="Simulation speed" className={`${inputClass} h-8 w-16`} disabled={s.source !== 'live' || s.link !== 'open'} value={s.speed} onChange={(e) => c.setSpeed(Number(e.target.value))}>{LIVE_SPEEDS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}</select></div></> : <>
           <Button size="sm" onClick={() => void c.startSession(offset)} disabled={s.busy}>{s.source === 'live' ? 'Restart session' : 'Start session'}</Button>
           <label className="flex items-center gap-1 text-[10px] text-mil-dim" title="How far off the berth the ship starts. A demo default, not a recommended approach.">
@@ -473,23 +465,30 @@ export function MotionView({ controller: c, workspace = false }: { controller: M
         <div className="flex flex-wrap gap-3" role="group" aria-label="Display layers"><label className="flex items-center gap-1"><input type="checkbox" checked={s.predictionEnabled} onChange={(e) => c.setPredictionEnabled(e.target.checked)} />Prediction</label><label className="flex items-center gap-1"><input type="checkbox" checked={vectors} onChange={(e) => setVectors(e.target.checked)} />Vectors</label>{(['wind', 'current', 'animate'] as const).map((key) => <label key={key} className="flex items-center gap-1"><input type="checkbox" checked={flow[key]} onChange={(e) => setFlow({ ...flow, [key]: e.target.checked })} />{key === 'animate' ? 'Animate flow' : key === 'wind' ? 'Wind' : 'Current'}</label>)}</div>
       </div>}
 
-      {(s.error || s.notice || s.sceneError || s.lifecycleMessage || s.lifecycleReasons.length > 0) && (
+      {(s.error || s.notice || s.sceneError || s.lifecycleMessage) && (
         <div className={cn('space-y-1 border-b border-mil-border px-3 py-1 text-[11px]', map ? 'pointer-events-auto bg-mil-panel/95' : '')}>
           {s.error && <p role="alert" className="text-mil-red">{s.error}</p>}
           {s.notice && <p role="status" className="text-mil-amber">{s.notice}</p>}
           {s.sceneError && <p role="status" className="text-mil-dim">{s.sceneError}</p>}
           {s.lifecycleMessage && <p role="status" className="text-mil-dim">Session: {s.lifecycleMessage}</p>}
-          {s.lifecycleReasons.length > 0 && <details open={s.lifecycleInvalid || !workspace}><summary className={s.lifecycleInvalid ? 'cursor-pointer text-mil-red' : 'cursor-pointer text-mil-amber'}>{s.lifecycleReasons.length} model limitations · {s.lifecycleInvalid ? 'invalid state' : 'limited, unqualified demonstration'}</summary><ul role={s.lifecycleInvalid ? 'alert' : 'status'} className={s.lifecycleInvalid ? 'text-mil-red' : 'text-mil-amber'}>
-            {s.lifecycleReasons.map((reason) => <li key={reason}>{reason}</li>)}
-          </ul></details>}
         </div>
       )}
 
       <div className="flex min-h-0 flex-1">
         <div className={cn('relative min-w-0 flex-1', map && 'pointer-events-none')}>
-          {workspace && !section && <div className={cn('pointer-events-auto absolute left-3 top-3 z-10 rounded-sm border border-mil-amber/30 bg-mil-panel/95 p-2 text-[10px] text-mil-amber', detailsOpen ? 'max-w-[40%]' : 'max-w-[55%]')} aria-label="Prediction coverage">
-            <p className={cn('font-semibold uppercase tracking-wider', s.prediction?.validity.state === 'invalid' && 'text-mil-red')}>{s.predictionWhatIf ? 'What-if order preview' : 'Backup camera'} · {s.prediction?.validity.state ?? 'unavailable'}{s.prediction && ` · ${s.prediction.horizon_s.toFixed(0)} s${s.prediction.complete ? '' : ' TRUNCATED'}`}</p>
-            {s.prediction ? <details open={detailsOpen}><summary className="cursor-pointer text-[9px]">Unchecked: {s.prediction.hazards_unchecked.join(', ') || 'coverage not qualified'} · uncertainty unavailable · forecast details{s.prediction.warnings.some((w) => w.severity === 'RED') && ' / RED warning'}</summary><div className="mt-1 space-y-1"><p>{s.prediction.horizon_s.toFixed(0)} s returned · snapshot t={s.prediction.source.t_s.toFixed(1)} s{s.frame && ` · age ${Math.max(0, s.frame.tS - s.prediction.source.t_s).toFixed(1)} sim s`}</p><p>{s.prediction.complete ? 'Deterministic footprints' : 'TRUNCATED prediction'}</p>{s.prediction.warnings.map((w) => <p key={`${w.code}-${w.t_s}`} className={w.severity === 'RED' ? 'text-mil-red' : ''}>{w.message}</p>)}</div></details> : <p>{s.predictionError ?? (s.predictionEnabled ? 'Waiting for a backend prediction. Hazard coverage is unknown.' : 'Prediction display off. Hazard coverage is unknown.')}</p>}
+          {workspace && !section && <div className={cn('pointer-events-auto absolute left-3 top-3 z-10 rounded-sm border border-mil-border bg-mil-panel/95 p-2 text-[10px] text-mil-dim', detailsOpen ? 'max-w-[40%]' : 'max-w-[55%]')} aria-label="Prediction coverage">
+            <p className={cn('font-semibold uppercase tracking-wider text-mil-text', s.prediction?.validity.state === 'invalid' && 'text-mil-red')}>{s.predictionWhatIf ? 'What-if order preview' : 'Backup camera'}{s.prediction && ` · ${s.prediction.horizon_s.toFixed(0)} s`}{s.prediction?.validity.state === 'invalid' && ' · INVALID'}</p>
+            {s.prediction ? <>
+              {!s.prediction.complete && <p role="status" className="text-mil-amber">TRUNCATED prediction · {s.prediction.horizon_s.toFixed(0)} s returned</p>}
+              {s.prediction.warnings.filter((w) => w.severity !== 'INFO').map((w) => <p role={w.severity === 'RED' ? 'alert' : 'status'} key={`${w.code}-${w.t_s}`} className={w.severity === 'RED' ? 'text-mil-red' : 'text-mil-amber'}>{w.message}</p>)}
+              <details open={s.prediction.validity.state === 'invalid'}><summary className="cursor-pointer text-[9px] hover:text-mil-text">Forecast details</summary><div className="mt-1 space-y-1">
+                <p>Validity: {s.prediction.validity.state} · deterministic footprints</p>
+                <p>Unchecked: {s.prediction.hazards_unchecked.join(', ') || 'coverage not qualified'} · uncertainty unavailable</p>
+                <p>Snapshot t={s.prediction.source.t_s.toFixed(1)} s{s.frame && ` · age ${Math.max(0, s.frame.tS - s.prediction.source.t_s).toFixed(1)} sim s`}</p>
+                {(s.prediction.validity.reasons ?? []).map((r) => <p key={r.code}>{r.message}</p>)}
+                {s.prediction.warnings.filter((w) => w.severity === 'INFO').map((w) => <p key={`${w.code}-${w.t_s}`}>{w.message}</p>)}
+              </div></details>
+            </> : <p className={s.predictionEnabled ? 'text-mil-amber' : ''}>{s.predictionError ?? (s.predictionEnabled ? 'Waiting for a backend prediction. Hazard coverage is unknown.' : 'Prediction display off.')}</p>}
             {s.predictionError && s.prediction && <p role="status" className="mt-1 text-mil-amber">Refresh unavailable: {s.predictionError} Showing the last snapshot within its returned horizon.</p>}
             {s.predictionWhatIf && <Button size="sm" variant="secondary" className="mt-2" onClick={() => { c.setPredictionEnabled(false); c.setPredictionEnabled(true); }}>Return to current orders</Button>}
           </div>}

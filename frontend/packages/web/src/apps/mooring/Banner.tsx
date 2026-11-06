@@ -6,17 +6,20 @@ import type { UnitSystem } from './units';
 
 export function Banner() {
   const units = useUnitSystem();
+  const motion = useMooring((s) => s.tab === 'motion');
   const backend = useMooring((s) => s.backend);
   const confidence = useMooring((s) => s.berth?.provenance.confidence);
   return (
     <div className="flex items-center gap-3">
-      <span
-        className="rounded-sm border border-mil-amber/50 bg-mil-amber/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-mil-amber"
-        title="Reference data is estimated or mock, so every result is limited. See docs/DEPLOYMENT_READINESS.md."
-      >
-        All results limited: seed data
-      </span>
-      <span className="text-[10px] text-mil-amber">Development model, unqualified. Not for operational use.</span>
+      {motion ? <span className="font-mono text-[10px] uppercase tracking-wider text-mil-dim" title="Demo and source details are available in Motion’s Demo information panel.">Demo</span> : <>
+        <span
+          className="rounded-sm border border-mil-amber/50 bg-mil-amber/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-mil-amber"
+          title="Reference data is estimated or mock, so every result is limited. See docs/DEPLOYMENT_READINESS.md."
+        >
+          All results limited: seed data
+        </span>
+        <span className="text-[10px] text-mil-amber">Development model, unqualified. Not for operational use.</span>
+      </>}
       <BackendBadge backend={backend} />
       <div role="group" aria-label="Units" className="flex">
         {([['navy', 'Navy'], ['metric', 'Metric']] as [UnitSystem, string][]).map(([id, label]) => (
@@ -33,7 +36,7 @@ export function Banner() {
           </button>
         ))}
       </div>
-      {confidence && <span className="text-[10px] uppercase tracking-wider text-mil-dim">berth data: {confidence}</span>}
+      {!motion && confidence && <span className="text-[10px] uppercase tracking-wider text-mil-dim">berth data: {confidence}</span>}
     </div>
   );
 }

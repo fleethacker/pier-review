@@ -163,7 +163,7 @@ def _tug_states(model, s, t, pose) -> list[dict]:
 
 
 def _line_states_and_loads(model, pose):
-    water = model.env.water_level_mllw_ft
+    water = model.system.env.water_level_mllw_ft
     lines, ship_acc, pier_acc, wrench_f, moment = [], {}, {}, [0.0, 0.0], 0.0
     ship_cap = {f.fitting_id: f.swl_lbf for f in model.ship.fittings}
     ship_fit = {f.fitting_id: f for f in model.ship.fittings}
@@ -278,15 +278,10 @@ def rich_frame(model, *, session_id: str, run_id: str, sequence: int, scene: Sim
         "waves": {name: _wave(name, "wave") for name in WAVE_NAMES},
     }
 
-    if model.forcing is not None and model.forcing_env is not None:
-        # S2: the frame must report the forcing the physics used at t, not the frozen base environment.
-        fe, sup = model.forcing_env, model.forcing.supplied
-        if all(n in sup for n in ("wind_speed_kt", "wind_gust_kt", "wind_from_true_deg")):
-            environment["wind"].update(speed_kt=fe.wind_speed_kt, gust_kt=fe.wind_gust_kt, from_true_deg=fe.wind_from_true_deg)
-        if all(n in sup for n in ("current_speed_kt", "current_set_true_deg")):
-            environment["current"].update(speed_kt=fe.current_speed_kt, set_true_deg=fe.current_set_true_deg)
-        if "water_level_mllw_ft" in sup:
-            environment["water"].update(level_mllw_ft=fe.water_level_mllw_ft)
+    if legacy.environment is not None:
+        # Preserve the resolved forcing evidence as well as its values: missing channels stay null,
+        # replay remains unknown-origin, and uncovered held values remain invalid in rm0 frames.
+        environment.update(legacy.environment.model_dump(exclude={"waves"}))
 
     line_states, fitting_loads, line_w = _line_states_and_loads(model, pose)
 

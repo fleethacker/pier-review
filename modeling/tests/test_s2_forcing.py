@@ -1,5 +1,6 @@
 """S2 simulation-time forcing: synthetic series, stage-time resolution, batch/interactive equivalence."""
 from dataclasses import fields
+import math
 
 import pytest
 from pydantic import ValidationError
@@ -39,7 +40,8 @@ def ramp_spec(**kw):
                        "wind_from_true_deg": 200}, tide_amplitude_ft=2, tide_period_s=20, **kw)
 
 
-def test_batch_matches_interactive_with_forcing(setup):
+@pytest.mark.parametrize("session_id", [None, "s2-rich-equivalence"])
+def test_batch_matches_interactive_with_forcing(setup, session_id):
     sc, initial, env = setup
     forcing = ramp_spec(vessel_relative_wind=True)
     req = BerthingSimRequest(scenario_id=sc.scenario_id, initial_state=initial, duration_s=5, sample_interval_s=0.2,
@@ -48,7 +50,7 @@ def test_batch_matches_interactive_with_forcing(setup):
     response = sim.simulate_berthing(req, "s2-eq", "/api/v1")
     frames = sim.SERIES["s2-eq"].frames
     clock = Clock()
-    session = Session(sim.BerthingModel(*setup, duration=5, forcing=forcing), clock=clock)
+    session = Session(sim.BerthingModel(*setup, duration=5, forcing=forcing), clock=clock, session_id=session_id)
     session.attach("c")
     session.receive("c", SimTugCommandMessage(type="tug_command", t_s=1, tug_id="T1", force_lbf=10000, direction_rel_deg=90))
     session.receive("c", SimLineEventMessage(type="line_event", t_s=0, line_number=1, event="secured"))
@@ -60,6 +62,10 @@ def test_batch_matches_interactive_with_forcing(setup):
         assert f.forcing_revision == frames[i].forcing_revision == response.result.forcing_revision
         assert f.environment.wind.speed_kt == pytest.approx(frames[i].environment.wind.speed_kt, abs=1e-9)
         assert f.environment.water.level_mllw_ft == pytest.approx(frames[i].environment.water.level_mllw_ft, abs=1e-12)
+        for name in ("wind", "current", "water"):
+            actual, expected = getattr(f.environment, name), getattr(frames[i].environment, name)
+            assert (actual.availability, actual.validity, actual.provenance) == (expected.availability, expected.validity, expected.provenance)
+        assert f.environment.valid_at_utc == frames[i].environment.valid_at_utc
     assert response.result.diagnostics.integration_steps == session.model.integrator.steps
     # The forcing varies in time (environment at t, not frozen at session start).
     assert frames[0].environment.wind.speed_kt != frames[-1].environment.wind.speed_kt
@@ -178,4 +184,110 @@ def test_synthetic_labeled_and_reset_keeps_series(setup):
     assert session.latest.environment.wind.provenance.kind == "mock"
     session.receive("c", SimControlMessage(type="reset"))
     assert session.latest.forcing_revision == rev and session.model.t == 0
+
+
+def test_rich_session_preserves_unavailable_and_uncovered_forcing(setup):
+    """Production rm0 frames retain the forcing evidence from the integrator's legacy frame."""
+    forcing = ForcingSpec(kind="replay", on_uncovered="invalidate", samples=[
+        {"t_s": 0, "water_level_mllw_ft": 0}, {"t_s": 1, "water_level_mllw_ft": 0.5}])
+    clock = Clock()
+    session = Session(sim.BerthingModel(*setup, duration=3, forcing=forcing), clock=clock, session_id="audit-rich-replay")
+    session.attach("c")
+    for now in (0, 0.5, 2):
+        clock.now = now
+        session.tick()
+        frame = session.latest
+        assert frame.schema_version == "rm0-v1"
+        legacy = session.model.frame().environment
+        for name in ("wind", "current", "water"):
+            assert getattr(frame.environment, name) == getattr(legacy, name)
+        assert frame.environment.wind.availability == "unavailable" and frame.environment.wind.speed_kt is None
+        assert frame.environment.current.availability == "unavailable" and frame.environment.current.speed_kt is None
+        assert frame.environment.water.provenance.kind == "unknown"
+    assert frame.environment.water.validity.state == "invalid"
+    assert "FORCING_UNCOVERED" in {r.code for r in frame.environment.water.validity.reasons}
+    assert frame.environment.valid_at_utc == session.model.forcing_env.valid_at_utc
+
+
+def test_rich_line_endpoints_follow_the_forcing_tide(setup):
+    from mooring.berthing.rich import rich_frame, build_scene
+    model = sim.BerthingModel(*setup, duration=10, forcing=ForcingSpec(kind="replay", samples=[
+        {"t_s": 0, "water_level_mllw_ft": 0}, {"t_s": 10, "water_level_mllw_ft": 3}]))
+    model.schedule(SimLineEventMessage(type="line_event", t_s=0, line_number=1, event="secured"))
+    model.apply_pending()
+    scene = build_scene(model)
+    a = rich_frame(model, session_id="geometry", run_id="a", sequence=0, scene=scene, t=0)
+    b = rich_frame(model, session_id="geometry", run_id="a", sequence=1, scene=scene, t=10)
+    la, lb = a.line_states[0], b.line_states[0]
+    assert lb.ship_end.z_mllw_ft - la.ship_end.z_mllw_ft == pytest.approx(3)
+    assert lb.pier_end == la.pier_end
+    rec = model.system.lines[0]
+    assert lb.ship_end.z_mllw_ft == pytest.approx(model.system.env.water_level_mllw_ft + rec.lead_height_ft)
+    lead = lb.polyline[-2]
+    assert lead.z_mllw_ft - la.polyline[-2].z_mllw_ft == pytest.approx(3)
+    drawn_length = math.dist((lead.x_ft, lead.y_ft, lead.z_mllw_ft),
+                            (lb.pier_end.x_ft, lb.pier_end.y_ft, lb.pier_end.z_mllw_ft))
+    assert drawn_length == pytest.approx(model.system.line_state(rec, model.body.pose(model.integrator.state)).length_ft)
+    assert b.motion.pose.heave_mllw_ft == b.environment.water.level_mllw_ft == 3
+
+
+@pytest.mark.parametrize("sway_kt", [0, 0.2])
+def test_pure_yaw_contact_reports_contact_point_speed(setup, sway_kt):
+    """Normal velocity at x is v_y + yaw_rate * (x - x_midship), even when midship is stationary."""
+    sc, initial, env = setup
+    model = sim.BerthingModel(sc, initial.model_copy(update={"v_kt": sway_kt, "r_degps": 1}), env, dt=0.01, duration=1)
+    # Observe the first actual contact and independently evaluate the preceding state's point velocity.
+    while model.contact is None and model.t < 0.9:
+        before = model.integrator.state
+        model.advance(model.t + 0.001)
+    assert model.contact is not None and model.contact.energy_ftlbf > 0
+    fender = next(f for f in model.system.fenders if f.model.fender_id == model.contact.fender_id)
+    normal_speed = before[3] * math.sin(before[2]) + before[4] * math.cos(before[2]) + before[5] * (fender.model.x_ft - before[0])
+    assert abs(normal_speed) > 1.5  # A zero midship sway speed does not imply a zero impact speed.
+    assert model.contact.lateral_speed_fps == pytest.approx(abs(normal_speed), rel=0.002)
+
+
+def test_http_session_and_websocket_keep_expired_partial_forcing(setup, monkeypatch):
+    """Exercise endpoint creation, actual rm0 serialization, and the persisted recording without a wall clock."""
+    import asyncio
+    from fastapi.testclient import TestClient
+    from modeling_api.main import app
+    from modeling_api.state import SESSIONS
+    from mooring.core.schemas import SimFrame, SimRecording
+
+    async def idle(self):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(Session, "run", idle)
+    client = TestClient(app)
+    sc, initial, _ = setup
+    created = client.post("/api/v1/berthing/sessions", json={
+        "scenario_id": sc.scenario_id, "initial_state": initial.model_dump(mode="json"), "duration_s": 3,
+        "forcing": {"kind": "replay", "on_uncovered": "invalidate", "samples": [
+            {"t_s": 0, "water_level_mllw_ft": 0}, {"t_s": 1, "water_level_mllw_ft": 0.5}]}})
+    assert created.status_code == 201, created.text
+    body = created.json()
+    session = SESSIONS[body["session_id"]]
+    clock = Clock()
+    session.clock = clock
+    session.publish()
+    try:
+        session.attach("injected-clock")
+        for i in range(1, 21):
+            clock.now = i * 0.1
+            session.tick()
+        session.detach("injected-clock")
+        after = session.lifecycle[-1].sequence
+        with client.websocket_connect(body["ws_url"] + f"?limit=1&after_sequence={after}") as socket:
+            frame = SimFrame.model_validate(socket.receive_json())
+        assert frame.schema_version == "rm0-v1" and frame.t_s == pytest.approx(2)
+        assert frame.environment.wind.availability == "unavailable" and frame.environment.wind.speed_kt is None
+        assert frame.environment.current.speed_kt is None
+        assert frame.environment.water.validity.state == "invalid"
+        assert frame.environment.water.provenance.kind == "unknown"
+        recording = SimRecording.model_validate(client.get(body["recording_url"]).json())
+        assert recording.frames[-1].environment.water.validity.state == "invalid"
+        assert all(f.environment.wind.availability == "unavailable" for f in recording.frames)
+    finally:
+        SESSIONS.pop(body["session_id"], None)
 

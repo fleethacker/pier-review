@@ -60,6 +60,23 @@ describe('Maneuver workspace', () => {
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ port_throttle: 0.5 }));
   });
 
+  it('keeps Preview and the coverage heading stable during background refreshes', () => {
+    const c = mounted(); const preview = vi.spyOn(c, 'refreshPrediction').mockResolvedValue();
+    act(() => c.state.set({ prediction }));
+    const coverage = screen.getByLabelText('Prediction coverage');
+    const heading = coverage.querySelector('p')!.textContent;
+    for (const predictionBusy of [true, false, true]) {
+      act(() => c.state.set({ predictionBusy }));
+      expect((screen.getByRole('button', { name: 'Preview order' }) as HTMLButtonElement).disabled).toBe(false);
+      expect(coverage.querySelector('p')!.textContent).toBe(heading);
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Preview order' }));
+    expect(preview).toHaveBeenCalledOnce();
+    act(() => c.state.set({ predictionError: 'Service temporarily unavailable' }));
+    expect(screen.getByText(/Refresh unavailable: Service temporarily unavailable/)).toBeTruthy();
+    expect(screen.getByText(/TRUNCATED prediction/)).toBeTruthy();
+  });
+
   it('uses independent tug orders when the scenario configures tug dynamics', () => {
     const c = mounted();
     const send = vi.spyOn(c, 'tugMotionCommand');
@@ -236,6 +253,21 @@ describe('Maneuver workspace', () => {
 });
 
 describe('Token-free geography and environmental display', () => {
+  it('keeps the camera fixed across vessel and forecast updates until Fit maneuver is explicitly chosen', () => {
+    const f = adaptFrame(raw, { faceBearingDeg: 90 });
+    const result = render(<MotionCanvas frame={f} scene={scene} trail={[]} faceBearingDeg={90} />);
+    const svg = screen.getByRole('img', { name: 'Plan view of the ship, pier, lines and tugs' });
+    const initial = svg.getAttribute('viewBox');
+    const far = { ...prediction, path: prediction.path.map((sample) => ({ ...sample, footprint: sample.footprint.map((p) => ({ x_ft: p.x_ft + 20000, y_ft: p.y_ft + 20000 })) })) };
+    result.rerender(<MotionCanvas frame={{ ...f, ship: { ...f.ship, x_ft: f.ship.x_ft + 5000 } }} scene={scene} trail={[]} faceBearingDeg={90} prediction={far} />);
+    expect(svg.getAttribute('viewBox')).toBe(initial);
+    fireEvent.click(screen.getByRole('button', { name: 'Fit maneuver' }));
+    expect(svg.getAttribute('viewBox')).not.toBe(initial);
+    fireEvent.keyDown(svg, { key: 'ArrowRight' });
+    const panned = svg.getAttribute('viewBox');
+    result.rerender(<MotionCanvas frame={f} scene={scene} trail={[]} faceBearingDeg={90} prediction={prediction} />);
+    expect(svg.getAttribute('viewBox')).toBe(panned);
+  });
   it('uses only a bounded visible tile set and preserves north/east orientation at an east-facing berth', () => {
     const layer = rasterTiles({ lat: 36.95, lon: -76.33, bearingDeg: 90 }, { x: -200, y: -100, w: 1400, h: 900 }, 'satellite');
     expect(layer.tiles.length).toBeGreaterThan(0);

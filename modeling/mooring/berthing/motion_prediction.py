@@ -26,6 +26,11 @@ from mooring.core.schemas.motion_prediction import (
 MAX_WORK = 2400
 WORK_CHUNK = 1  # Check the wall deadline between every accepted step or command.
 MAX_RUNTIME_S = 0.8
+# This worker shares the interpreter with live session ticks and socket delivery.
+# Give those short jobs a scheduling opportunity during CPU-heavy rollouts;
+# these are wall-clock scheduling values, never an integration time step.
+YIELD_INTERVAL_S = 0.005
+YIELD_SLEEP_S = 0.001
 MAX_TRANSITIONS = 512
 MAX_EVENTS = 256
 MAX_WARNINGS = 128
@@ -142,6 +147,7 @@ def predict_motion(model, request: MotionPredictionRequest, *, session_id: str, 
     report their actual end time; dense samples never alter the integration grid.
     """
     begun = time.monotonic()
+    last_yield = begun
     m = model.clone_for_prediction()
     req = MotionPredictionRequest.model_validate(request.model_dump(mode="json"))
     start = m.t
@@ -218,13 +224,17 @@ def predict_motion(model, request: MotionPredictionRequest, *, session_id: str, 
             if used_work() >= MAX_WORK:
                 reason("PREDICTION_WORK_LIMIT", "Prediction stopped at its integration/command budget; the remaining horizon is unknown.")
                 break
-            if time.monotonic()-begun >= MAX_RUNTIME_S:
+            now = time.monotonic()
+            if now-begun >= MAX_RUNTIME_S:
                 reason("PREDICTION_RUNTIME_LIMIT", "Prediction stopped at its interactive runtime budget; the remaining horizon is unknown.")
                 break
             if len(m.transitions)-transition_start >= MAX_TRANSITIONS or len(m.events)-event_start >= MAX_EVENTS:
                 reason("PREDICTION_EVENT_LIMIT", "Prediction stopped at its event output budget; the remaining horizon is unknown.")
                 break
             m.advance(target, observe=observe, max_work=min(WORK_CHUNK, MAX_WORK-used_work()))
+            if now-last_yield >= YIELD_INTERVAL_S:
+                time.sleep(YIELD_SLEEP_S)
+                last_yield = now
     except (ValueError, OverflowError) as exc:
         reason("PREDICTION_DYNAMICS_STOPPED", f"The berthing integrator stopped: {str(exc)[:500]}", invalid=True)
 

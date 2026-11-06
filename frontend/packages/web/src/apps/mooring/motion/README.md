@@ -6,11 +6,21 @@ Saved scenarios are available from the maneuver selector and builder. Loading sa
 propulsion editor resolves a complete configuration from the backend without allocating a session; edited thrust limits,
 rudder limits and actuator slew rates are explicitly synthetic, user-authored inputs.
 
-The controller owns one simulation socket and at most one prediction request. The one-second prediction refresh calls
-the session's backend dynamics. Helm drafts stay local until Apply; Preview sends them only to the prediction clone.
-The display never integrates vessel motion or constructs trajectories. Expired predictions disappear, past samples are
-excluded, and remaining time ticks are relative to the displayed simulation time. Backend echoes distinguish sent orders
-from applied orders; actual actuator response remains separate. Legacy rm0 recording and planner sessions remain available.
+The controller owns one simulation socket and at most one prediction request. Advancing authoritative frames refresh the
+backend forecast at most once a second; an unchanged paused snapshot performs no repeated work. The latest explicit Preview
+queues behind any active request and stays usable during background work. Requests time out after eight seconds; transient
+errors remain visible alongside any still-current forecast. Commands, run/scene changes and expired horizons invalidate it.
+Helm drafts stay local until Apply; Preview sends them only to the prediction clone. Applied orders wait for a backend echo
+before forecasting. Orders queued while paused require Start/Resume. Actual actuator response remains separate.
+
+The primary SVG plan, satellite and street-map views interpolate supplied geometry between received states with a 120 ms
+presentation delay. They never extrapolate or integrate vessel motion. Clock, numerical readouts, force magnitudes, validity
+and warnings use the newest authoritative state. Pause, disconnect, run/scene changes and invalid frames snap to that state;
+stream gaps hold the last received position. Sectional and shared Cesium views retain authoritative frame pacing. The camera
+holds its initial fit until the user chooses Fit maneuver or changes the run/scene; forecast refreshes do not move it.
+
+Expired predictions disappear, past samples are excluded, and remaining time ticks are relative to authoritative simulation
+time. Legacy rm0 recording and planner sessions remain available.
 
 Satellite tiles use Esri World Imagery and street tiles use OpenStreetMap, with visible attribution. Neither needs a
 Mapbox token. Only visible tiles are requested using browser caching; failures retain the supplied schematic. Images are

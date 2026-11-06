@@ -1,4 +1,5 @@
 import { Store } from '../../lib/store';
+import { credentialState, GATEWAY_REQUIRED } from '../../lib/credentials';
 import type { AppHost } from '../../scene/app';
 import type { SceneEdit, SceneState } from '../../scene/types';
 import { canDropConnection } from '../../scene/linkEditing';
@@ -915,6 +916,7 @@ export class MooringController {
     kind: EnvMode,
     opts: { replayStartUtc?: string; speed?: number; rampToKt?: number; rampMinutes?: number } = {},
   ): Promise<void> {
+    if (kind !== 'manual' && credentialState.get().configured) { this.state.set({ notice: GATEWAY_REQUIRED }); return; }
     this.envStream?.close();
     this.envStream = null;
     if (kind === 'manual') {
@@ -977,6 +979,7 @@ export class MooringController {
   }
 
   startAlerts(): void {
+    if (credentialState.get().configured) { this.state.set({ alertsStatus: 'error', notice: GATEWAY_REQUIRED }); return; }
     this.alertStream?.close();
     this.state.set({ alerts: [], alertsStatus: 'connecting' });
     this.alertStream = openJsonStream<Alert>(

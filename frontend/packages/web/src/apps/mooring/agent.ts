@@ -1,4 +1,5 @@
 import { Store } from '../../lib/store';
+import { openAgentEvents } from './events';
 import { agents, AGENTS_BASE, awaitJob, modeling, unwrap, describeError } from './api';
 import type { MooringController } from './controller';
 import type {
@@ -82,7 +83,7 @@ export const REVIEW_TARGET_PCT_WLL = 80;
 /** The planning agent and safety sheet flow. Reads and writes the mooring plan through the controller. */
 export class AgentSession {
   readonly state = new Store<AgentState>(INITIAL);
-  private source: EventSource | null = null;
+  private source: ReturnType<typeof openAgentEvents> | null = null;
   private disposed = false;
   private context: string | null = null;
   private sheetRequest = 0;
@@ -186,7 +187,7 @@ export class AgentSession {
 
   private listen(eventsUrl: string, planId: string): void {
     this.source?.close();
-    const source = new EventSource(`${AGENTS_BASE}${eventsUrl}`);
+    const source = openAgentEvents(`${AGENTS_BASE}${eventsUrl}`);
     this.source = source;
     const request = this.planRequest;
     const current = () => !this.disposed && this.source === source && request === this.planRequest;

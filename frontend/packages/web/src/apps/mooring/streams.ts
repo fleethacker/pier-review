@@ -1,3 +1,5 @@
+import { credentialState } from '../../lib/credentials';
+
 export type StreamStatus = 'connecting' | 'open' | 'closed' | 'error';
 
 export interface StreamHandle {
@@ -16,6 +18,10 @@ export function openJsonStream<T>(
   onMessage: (message: T) => void,
   onStatus: (status: StreamStatus) => void,
 ): StreamHandle {
+  if (credentialState.get().configured) {
+    onStatus('error');
+    return { close() {}, send() { return false; } };
+  }
   let socket: WebSocket | null = null;
   let closedByUs = false;
   let attempt = 0;

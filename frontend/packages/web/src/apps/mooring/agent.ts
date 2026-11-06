@@ -161,7 +161,13 @@ export class AgentSession {
     });
     try {
       const inputs = this.parent.planningKey();
-      const intakeReportId = this.parent.intake.reportId();
+      let intakeReportId = this.parent.intake.reportId();
+      if (this.parent.forecastSelection && !intakeReportId) {
+        await this.parent.intake.run();
+        if (!current()) return;
+        intakeReportId = this.parent.intake.reportId();
+        if (!intakeReportId) throw new Error(this.parent.intake.state.get().error ?? 'The selected forecast must be assessed before planning.');
+      }
       const scenarioId = await this.parent.ensureScenario(`Agent run ${new Date().toISOString().slice(11, 19)}Z`);
       if (!current()) return;
       if (inputs !== this.parent.planningKey()) throw new Error('Inputs changed while saving. Run a new plan.');

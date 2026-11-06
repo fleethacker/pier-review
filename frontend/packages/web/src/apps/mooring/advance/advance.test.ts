@@ -21,11 +21,11 @@ const snap = (t: number) => ({ valid_at_utc: isoMinute(t), source: 'scenario', w
 const series = (fromMs: number, hours: number) => Array.from({ length: hours + 1 }, (_, k) => snap(fromMs + k * H));
 
 describe('logic', () => {
-  it('defaults to an arrival window 24 to 30 h after an hourly as-of', () => {
+  it('defaults to an arrival window 25 to 31 h after an hourly as-of, allowing explicit public acquisition', () => {
     const i = defaultInputs(NOW);
     expect(i.asOfUtc).toBe('2026-11-05T16:00:00Z');
-    expect(i.arrivalFromUtc).toBe('2026-11-06T16:00:00Z');
-    expect(i.arrivalToUtc).toBe('2026-11-06T22:00:00Z');
+    expect(i.arrivalFromUtc).toBe('2026-11-06T17:00:00Z');
+    expect(i.arrivalToUtc).toBe('2026-11-06T23:00:00Z');
     expect(inputProblems(i)).toEqual([]);
   });
 
@@ -37,10 +37,10 @@ describe('logic', () => {
   });
 
   it('requires coverage through docking and holding after the latest arrival', () => {
-    const i = defaultInputs(NOW); // needs 16:00 day+1 to 22:00 + 8 h = 06:00 day+2
+    const i = defaultInputs(NOW); // needs 17:00 day+1 to 23:00 + 8 h = 07:00 day+2
     const asOf = Date.parse(i.asOfUtc);
-    expect(coverage(series(asOf, 38), i)).toMatchObject({ covered: true, neededToUtc: '2026-11-07T06:00:00Z', maxGapMin: 60, count: 39 });
-    expect(coverage(series(asOf, 37), i)?.covered).toBe(false);
+    expect(coverage(series(asOf, 39), i)).toMatchObject({ covered: true, neededToUtc: '2026-11-07T07:00:00Z', maxGapMin: 60, count: 40 });
+    expect(coverage(series(asOf, 38), i)?.covered).toBe(false);
     expect(coverage([snap(asOf)], i)).toBeNull();
   });
 
@@ -112,7 +112,7 @@ describe('advance session', () => {
     const body = vi.mocked(modeling.POST).mock.calls.find((k) => k[0] === '/api/v1/mooring/forecast-plan')![1] as { body: Record<string, unknown> };
     expect(body.body).toMatchObject({
       ship_class_id: 'DDG', berth_id: 'B', mst: 'II', as_of_utc: '2026-11-05T16:00:00Z',
-      arrival_from_utc: '2026-11-06T16:00:00Z', holding_hours: 6, operation_hours: 2, target_pct_wll: 80,
+      arrival_from_utc: '2026-11-06T17:00:00Z', holding_hours: 6, operation_hours: 2, target_pct_wll: 80,
       config: { side_to: 'starboard', ship_x_ft: 650, lines: [line] },
       forecast_binding: { source: 'supplied', revision: expect.stringContaining('seed7') },
     });

@@ -64,7 +64,7 @@ describe('explicit public forecast binding', () => {
   it('requires an explicit exact current layer and binds the complete docking/holding horizon', () => {
     expect(publicRequest('B', defaultInputs(NOW), { currentDepthFt: null, currentBin: '' })).toBeNull();
     expect(c.advance.publicBody()).toMatchObject({ source: { mode: 'public' }, current_depth_ft: 21, current_bin: 'fixture-bin',
-      as_of_utc: '2026-11-05T16:00:00Z', horizon_start_utc: '2026-11-06T16:00:00Z', horizon_end_utc: '2026-11-07T06:00:00.000Z' });
+      as_of_utc: '2026-11-05T16:00:00Z', horizon_start_utc: '2026-11-06T17:00:00Z', horizon_end_utc: '2026-11-07T07:00:00.000Z' });
   });
   it('retains manifest/provenance, resolves canonical content, and pins that hash in planning', async () => {
     await c.advance.fetchPublicSeries();
@@ -195,6 +195,8 @@ it('settles a revision comparison when the parent layout changes', async () => {
 
 
 it('offers an explicit retrieval cutoff retry without silently moving arrivals or extending coverage (T03)', async () => {
+  c.advance.setInputs({ arrivalFromUtc: '2026-11-06T16:00:00Z' }); // explicit user choice at exactly 24 h
+  currentAcquisition = acquisition(c.advance.publicBody()!);
   const initial = structuredClone(c.advance.state.get().inputs);
   currentAcquisition.manifest.status = 'unavailable';
   currentAcquisition.snapshots = [];
@@ -213,4 +215,19 @@ it('offers an explicit retrieval cutoff retry without silently moving arrivals o
   expect(request.body).toMatchObject({ as_of_utc: '2026-11-05T16:05:00Z', horizon_start_utc: initial.arrivalFromUtc,
     current_depth_ft: 21, current_bin: 'fixture-bin' });
   expect(c.advance.problems()).toContain('Earliest arrival must be at least 24 h after the as-of time.');
+});
+
+
+it('default arrival keeps the 24 h planning lead after explicit acquisition later in the as-of hour', async () => {
+  const before = structuredClone(c.advance.state.get().inputs);
+  currentAcquisition.manifest.status = 'unavailable'; currentAcquisition.snapshots = [];
+  currentAcquisition.manifest.components.forEach((component) => { component.availability.state = 'unavailable'; component.availability.retrieved_at_utc = '2026-11-05T16:47:12Z'; });
+  await c.advance.fetchPublicSeries();
+  await c.advance.retryAtRetrievalCutoff();
+  expect(c.advance.state.get().inputs).toEqual({ ...before, asOfUtc: '2026-11-05T16:47:12Z' });
+  expect(c.advance.problems().filter((problem) => problem.includes('24 h'))).toEqual([]);
+  const bodies = vi.mocked(modeling.POST).mock.calls.filter((entry) => entry[0] === '/api/v1/env/forecast/compose')
+    .map((entry) => (entry[1] as { body: ComposeRequest }).body);
+  expect(bodies).toHaveLength(2);
+  expect(bodies[1]).toEqual({ ...bodies[0], as_of_utc: '2026-11-05T16:47:12Z' });
 });

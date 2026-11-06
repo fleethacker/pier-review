@@ -481,6 +481,7 @@ export class MooringController {
   }
 
   async setBerth(berthId: string): Promise<void> {
+    this.setForecastSelection(null);
     ++this.scenarioLoadSeq;
     void this.setEnvMode('manual');
     this.alertStream?.close();
@@ -876,6 +877,7 @@ export class MooringController {
   }
 
   async loadScenario(id: string): Promise<void> {
+    this.setForecastSelection(null);
     // A previous automatic plan must not apply while this newer selection waits for its scenario/environment.
     this.recommendAbort?.abort();
     this.agent.resetForSelection();

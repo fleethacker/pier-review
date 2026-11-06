@@ -334,11 +334,14 @@ export function MotionCanvas({ frame: authoritativeFrame, scene, trail, faceBear
     <div className="pointer-events-none absolute bottom-14 right-3 rounded-sm border border-mil-border bg-mil-panel/90"><GeographyScale faceBearingDeg={faceBearingDeg} scale={scaleBar(viewport.w, viewport.h, size.width, size.height)} /></div>
     <div className="absolute right-2 top-2 max-h-[38%] max-w-[38%] overflow-y-auto rounded-sm border border-mil-border bg-mil-panel/90 px-2 py-1 text-right text-[9px] text-mil-text">
       <BasemapCredit kind={basemap} />
-      {basemap !== 'schematic' && <p className="text-mil-dim">{origin ? imageryStatus : 'Geographic origin unavailable · schematic shown'}</p>}
+      {basemap !== 'schematic' && (!origin || /incomplete|unavailable/i.test(imageryStatus)) && <p className="text-mil-amber">{origin ? imageryStatus : 'Geographic origin unavailable · schematic shown'}</p>}
+      <details><summary className="cursor-pointer text-mil-dim">Map information · {scene?.geographic_context ? 'partial shoreline' : 'shoreline unavailable'}{basemap === 'satellite' && ' · archived imagery'}</summary>
+      {basemap !== 'schematic' && origin && !/incomplete|unavailable/i.test(imageryStatus) && <p className="text-mil-dim">{imageryStatus}</p>}
       {basemap === 'satellite' && <p className="text-mil-amber">Photographed ships are archived background, not current traffic. Imagery date unknown.</p>}
       <p className="text-mil-amber">{scene?.geographic_context ? 'Geography: partial source coverage · blank areas unknown; runtime land collisions not checked.' : 'Shoreline geometry unavailable · blank areas are unknown, not confirmed water.'}</p>
       {scene?.geographic_context && <details><summary className="cursor-pointer">Geographic source and limits</summary><a className="underline" href={scene.geographic_context.source} target="_blank" rel="noreferrer">{scene.geographic_context.attribution}</a><p>Retrieved {scene.geographic_context.retrieved_at_utc}</p><p>Dashed violet boundary: partial dataset extent; clipped edges are not surveyed coastline.</p>{scene.geographic_context.limitations.map((limit) => <p key={limit}>{limit}</p>)}</details>}
       {route && <details><summary className="cursor-pointer text-[#d1cdf8]">Authored route · {route.title}</summary><p>{route.source}</p>{route.limitations.map((limit) => <p key={limit}>{limit}</p>)}{!origin && <p>Route projection unavailable without a geographic origin.</p>}</details>}
+      </details>
     </div>
     <details open={!compactHud} className="pointer-events-auto absolute bottom-2 left-3 max-h-[45%] max-w-[60%] overflow-y-auto rounded-sm border border-mil-border bg-mil-panel/85 p-2 text-[10px] text-mil-text">
       <summary className="cursor-pointer text-[9px]">Vector / line key · lbf, ft/s, ft/s²</summary>

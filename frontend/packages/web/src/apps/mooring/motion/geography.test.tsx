@@ -34,6 +34,10 @@ describe('Bounded Motion geography', () => {
     expect(land.getAttribute('fill-rule')).toBe('evenodd');
     expect(land.getAttribute('fill')).toBe('#47534d');
     expect(screen.getByLabelText('Geographic dataset boundary — coverage inside remains partial').getAttribute('fill')).toBe('none');
+    const information = screen.getByText('Map information · partial shoreline').closest('details')!;
+    expect(information.open).toBe(false);
+    fireEvent.click(screen.getByText('Map information · partial shoreline'));
+    expect(information.open).toBe(true);
     expect(result.container.querySelector('rect[fill="#3b4a5c"]')).toBeNull();
     expect(screen.getByText(/runtime land collisions not checked/)).toBeTruthy();
     result.rerender(<MotionCanvas frame={adaptFrame(raw)} scene={{ ...scene, geographic_context: context, berth_outline: [] }} trail={[]} faceBearingDeg={90} basemap="satellite" />);

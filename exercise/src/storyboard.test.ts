@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { storyboardHtml } from './exportResults';
 import { exportScenario, parseScenario } from './scenarioJson';
 import { PRESET_SCENARIOS } from './scenarios';
 import { runScenario, unitStateAt } from './sim';
@@ -372,26 +371,5 @@ describe('the storyboard in a scenario file', () => {
     const beatAboutIt = s.storyboard!.find((m) => /hit/i.test(m.title))!;
     expect(beatAboutIt.unitId).toBe('cvn1');
     expect(Math.abs(beatAboutIt.atS - hit.tS)).toBeLessThan(30);
-  });
-});
-
-describe('the storyboard as a page to print', () => {
-  it('lays every moment out in order with its picture and words, and escapes what it is given', () => {
-    const s = scenario([unit({ id: 'u1', name: 'Ship <one>' })], {
-      name: 'Exercise <sharp>',
-      storyboard: [beat({ id: 'b', atS: 90, title: 'Second' }), beat({ id: 'a', atS: 10, unitId: 'u1', title: 'First & best', caption: 'A caption', image: 'p.jpg' })],
-    });
-    const html = storyboardHtml(s);
-    expect(html.indexOf('First &amp; best')).toBeLessThan(html.indexOf('Second'));
-    expect(html).toContain('Exercise &lt;sharp&gt;');
-    expect(html).not.toContain('<sharp>');
-    expect(html).toContain('Ship &lt;one&gt;');
-    expect(html).toContain('src="p.jpg"');
-    expect(html).toContain('No picture');
-    expect(html).toContain('2 moments');
-  });
-
-  it('says so when there is no storyboard at all', () => {
-    expect(storyboardHtml(scenario([unit({ id: 'u1' })]))).toContain('no storyboard yet');
   });
 });

@@ -237,24 +237,39 @@ describe('the storyboard panel', () => {
     expect(c.state.get().view.showStory).toBe(false);
   });
 
-  it('opens a printable page, says when the browser blocks it, and downloads it instead', () => {
+  it('saves the brief as a PowerPoint and as slides, and opens it to print', async () => {
     const { c } = open();
-    const doc = { open: vi.fn(), write: vi.fn(), close: vi.fn() };
-    vi.spyOn(window, 'open').mockReturnValueOnce({ document: doc } as unknown as Window);
-    fireEvent.click(dialog().getByRole('button', { name: 'Storyboard to print' }));
-    expect(doc.write.mock.calls[0][0]).toContain('Storyboard:');
-    vi.spyOn(window, 'open').mockReturnValueOnce(null);
-    fireEvent.click(dialog().getByRole('button', { name: 'Storyboard to print' }));
-    expect(dialog().getByRole('alert').textContent).toContain('blocked the window');
-
     const names: string[] = [];
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => undefined }));
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
       names.push(this.download);
     });
-    fireEvent.click(dialog().getByRole('button', { name: 'Download the page' }));
-    expect(names[0]).toMatch(/^storyboard-.+\.html$/);
+
+    fireEvent.click(dialog().getByRole('button', { name: 'Brief to PowerPoint' }));
+    await waitFor(() => expect(names).toHaveLength(1), { timeout: 20_000 });
+    expect(names[0]).toMatch(/^brief-.+\.pptx$/);
+
+    fireEvent.click(dialog().getByRole('button', { name: 'Download the slides' }));
+    await waitFor(() => expect(names).toHaveLength(2));
+    expect(names[1]).toMatch(/^brief-.+\.html$/);
     expect(c.storyboard().length).toBeGreaterThan(0);
+
+    // Print opens the same slides in a window, and says so when the browser will not open one.
+    const doc = { open: vi.fn(), write: vi.fn(), close: vi.fn() };
+    vi.spyOn(window, 'open').mockReturnValueOnce({ document: doc } as unknown as Window);
+    fireEvent.click(dialog().getByRole('button', { name: 'Brief to print' }));
+    expect(doc.write.mock.calls[0][0]).toContain('class="slide');
+    vi.spyOn(window, 'open').mockReturnValueOnce(null);
+    fireEvent.click(dialog().getByRole('button', { name: 'Brief to print' }));
+    expect(dialog().getByRole('alert').textContent).toContain('blocked the window');
+    vi.unstubAllGlobals();
+  });
+
+  it('says so on the panel when the brief cannot be built', async () => {
+    open();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => { throw new Error('no object URLs here'); }, revokeObjectURL: () => undefined }));
+    fireEvent.click(dialog().getByRole('button', { name: 'Brief to PowerPoint' }));
+    await waitFor(() => expect(dialog().getByRole('alert').textContent).toContain('The brief could not be built'), { timeout: 20_000 });
     vi.unstubAllGlobals();
   });
 

@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { cn } from './lib/cn';
 import { Button, Field, Panel, Select, inputClass } from './ui';
 import { useClockSecond, useController, useExercise } from './context';
-import { downloadText, fileSafe, openReport, storyboardHtml } from './exportResults';
+import { briefFilename, buildBrief } from './brief';
+import { briefHtml } from './briefHtml';
+import { downloadBlob, downloadText, openReport } from './exportResults';
 import { formatClock } from './geo';
 import { NumField } from './NumField';
 import { imageBytes, MIN_HOLD_S, readImageFile, scrollIntoViewSafely } from './storyboard';
@@ -192,9 +194,13 @@ export function StoryboardPanel() {
   const c = useController();
   const open = useExercise((s) => s.storyOpen);
   const scenario = useExercise((s) => s.scenario);
+  // The brief is about the run on screen, so it is built from that rather than from edits that have not run yet.
+  const active = useExercise((s) => s.active);
   const showStory = useExercise((s) => s.view.showStory);
   const second = useClockSecond();
+  const [briefError, setBriefError] = useState<string | null>(null);
   const [blocked, setBlocked] = useState(false);
+  const [building, setBuilding] = useState(false);
   const [count, setCount] = useState(14);
   if (!open) return null;
   const moments = scenario.storyboard ?? [];
@@ -259,19 +265,63 @@ export function StoryboardPanel() {
         {moments.length > 0 && (
           <div className="space-y-2 border-t border-mil-border pt-3">
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="secondary" onClick={() => setBlocked(!openReport(storyboardHtml(scenario)))}>
-                Storyboard to print
+              <Button
+                size="sm"
+                disabled={building}
+                onClick={async () => {
+                  setBriefError(null);
+                  setBuilding(true);
+                  try {
+                    // The PowerPoint writer is a large library: load it when a brief is actually asked for, not with the page.
+                    const { briefBlob } = await import('./briefPptx');
+                    const brief = buildBrief(active.scenario, active.trajectory, new Date().toISOString());
+                    downloadBlob(briefFilename(brief, 'pptx'), await briefBlob(brief));
+                  } catch (e) {
+                    setBriefError(e instanceof Error ? e.message : String(e));
+                  } finally {
+                    setBuilding(false);
+                  }
+                }}
+              >
+                {building ? 'Building…' : 'Brief to PowerPoint'}
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => downloadText(`storyboard-${fileSafe(scenario.name)}.html`, 'text/html', storyboardHtml(scenario))}>
-                Download the page
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  const brief = buildBrief(active.scenario, active.trajectory, new Date().toISOString());
+                  setBlocked(!openReport(briefHtml(brief)));
+                }}
+              >
+                Brief to print
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  const brief = buildBrief(active.scenario, active.trajectory, new Date().toISOString());
+                  downloadText(briefFilename(brief, 'html'), 'text/html', briefHtml(brief));
+                }}
+              >
+                Download the slides
               </Button>
               <Button size="sm" variant="ghost" onClick={() => c.clearStoryboardImages()}>
                 Clear every picture
               </Button>
             </div>
+            <p className="text-[10px] leading-snug text-mil-dim">
+              The brief is a deck to read an exercise out from: purpose, order of battle, the weather and sea, every
+              moment of the storyboard, what the run cost, and what the figures cannot tell you. Print opens it as
+              slides, one to a landscape page; PowerPoint saves the same deck to edit.
+            </p>
             {blocked && (
               <p role="alert" className="text-[10px] text-mil-amber">
-                The browser blocked the window. Allow pop-ups for this page, or download the page instead.
+                The browser blocked the window. Allow pop-ups for this page, or use Download the slides.
+              </p>
+            )}
+            {briefError && (
+              <p role="alert" className="text-[10px] text-mil-amber">
+                The brief could not be built: {briefError}
               </p>
             )}
             <p className="text-[10px] leading-snug text-mil-dim">

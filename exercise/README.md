@@ -139,6 +139,26 @@ None of it is a real observation. Each record is synthesised from the simulation
 in question — the range in a radar track is the distance between those two units at that instant — and every feed states
 what it was derived from. Imagery feeds carry frame metadata only; the simulation produces no pictures.
 
+## The brief: the storyboard as a deck
+
+The storyboard panel turns the run on screen into a brief, laid out as an exercise would be read out from: a title slide, the **purpose** in the scenario's own words, the **order of battle** counted by
+side and class, the **conditions** (wind, current, the sea state that follows from the wind, light, and whether sensors
+and rough seas are modelled), a sequence slide, then **one slide per storyboard moment** with its picture, time group,
+unit and caption, then the **outcome** counted off the run — hits, weapons shot down, mine strikes, and who was lost by
+name — and finally the **assumptions and limitations**.
+
+Three ways out, the same deck behind all of them:
+
+- **Brief to print** opens it as a page of 16:9 slides — a card each on screen, one landscape page each on paper.
+- **Download the slides** saves that page as a self-contained `.html` file.
+- **Brief to PowerPoint** saves a `.pptx` to edit. Pictures are carried inside the file, and one that cannot be fetched
+  costs its own slide its picture rather than the whole file. The writer is a large library, so it is a separate chunk
+  that loads only when a brief is asked for.
+
+Every figure in it is read off the scenario and the trajectory; nothing is written for effect. The deck carries an
+exercise marking on every slide, and the last slide says plainly that the figures are illustrative, that one run is a
+single roll of the dice, and that any collected record shown beside an event is synthesised rather than observed.
+
 ## Storyboard: pictures that come up as it plays
 
 Exercises are usually storyboarded by hand, as images on slides. This does the same job against the running simulation.

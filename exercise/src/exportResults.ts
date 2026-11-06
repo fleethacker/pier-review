@@ -1,7 +1,6 @@
 import { formatClock } from './geo';
 import { compareResults } from './montecarlo';
 import type { McResult } from './montecarlo';
-import { inOrder } from './storyboard';
 import type { RedTeamSpec, ScenarioConfig } from './types';
 
 const csvCell = (v: string | number | undefined): string => {
@@ -98,41 +97,3 @@ export function openReport(html: string): boolean {
  * The storyboard laid out as a page: every beat in order with its picture, its time and its words. This is the thing that
  * replaces a deck of slides, so it is built to print: a card per beat, two to a row, breaking cleanly between pages.
  */
-export function storyboardHtml(scenario: ScenarioConfig): string {
-  const moments = inOrder(scenario.storyboard ?? []);
-  const name = (id: string | undefined) => (id ? (scenario.units.find((u) => u.id === id)?.name ?? id) : '');
-  const cards = moments
-    .map((m, i) => {
-      const who = name(m.unitId);
-      return `<figure class="card">
-  ${m.image ? `<img src="${esc(m.image)}" alt=""/>` : '<div class="noimg">No picture</div>'}
-  <figcaption>
-    <div class="when">${i + 1} &middot; T+${formatClock(m.atS)}${who ? ` &middot; ${esc(who)}` : ''}</div>
-    <h2>${esc(m.title)}</h2>
-    ${m.caption ? `<p>${esc(m.caption)}</p>` : ''}
-  </figcaption>
-</figure>`;
-    })
-    .join('\n');
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/><title>Storyboard: ${esc(scenario.name)}</title>
-<style>
- body{font:14px/1.5 system-ui,sans-serif;max-width:1000px;margin:2rem auto;padding:0 1rem;color:#111}
- h1{margin:0 0 .25rem}
- .lede{color:#555;margin:0 0 1.5rem}
- .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem}
- .card{margin:0;border:1px solid #bbb;border-radius:6px;overflow:hidden;break-inside:avoid;page-break-inside:avoid}
- .card img{display:block;width:100%;height:210px;object-fit:cover;background:#eee}
- .noimg{height:210px;background:#f3f3f3;color:#999;display:flex;align-items:center;justify-content:center;font-size:12px}
- figcaption{padding:.5rem .7rem .7rem}
- .when{font:600 11px/1.4 ui-monospace,monospace;color:#666;letter-spacing:.04em;text-transform:uppercase}
- .card h2{font-size:14px;margin:.15rem 0 .3rem}
- .card p{margin:0;color:#444;font-size:12.5px}
- footer{margin-top:1.5rem;color:#666;font-size:11.5px}
- @media print{body{margin:0;max-width:none}.grid{gap:.6rem}}
-</style></head><body>
-<h1>${esc(scenario.name)}</h1>
-<p class="lede">${esc(scenario.description)}</p>
-${moments.length ? `<div class="grid">\n${cards}\n</div>` : '<p>This scenario has no storyboard yet.</p>'}
-<footer>${moments.length} moment${moments.length === 1 ? '' : 's'} over ${formatClock(scenario.durationS)} of exercise time. Simulated on illustrative data, not a record of a real exercise. Exported ${new Date().toISOString()}.</footer>
-</body></html>`;
-}

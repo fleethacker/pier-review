@@ -69,13 +69,7 @@ them, and lists whatever the frame did not supply. Those displays do not qualify
   changing inputs clears it. A completed report is not reused against a different environment or arrangement.
 - **Resilience:** every panel sits in an error boundary (a broken panel shows a message and Try again, the rest keeps
   working), API failures read as plain sentences, and decorative motion follows `prefers-reduced-motion`.
-- **Bearer token (optional):** set `VITE_API_BEARER_TOKEN` to send `Authorization: Bearer ...` on REST and job polling
-  for services run with `MOORING_AUTH_REQUIRED=1`. The token is built into the bundle, so use it for local or trusted
-  networks. Browsers cannot attach headers to WebSocket or EventSource, so the live streams, the planner's SSE steps
-  and motion sessions still need a trusted gateway in front of an authenticated deployment.
-- **Mission playback:** playback uses a complete recorded track, separately from the thinned display geometry.
-  Gaps and nonunique antipodal paths remain unlocated; dateline crossings use the short arc. Protected images and
-  GeoJSON downloads use authenticated fetches and temporary object URLs, never bearer tokens in URLs.
+- **Direct API credentials (optional):** use **Access** in the header to enter your own runtime credential. It lives only in this tab's memory, is cleared on refresh, and is sent in HTTP headers for REST, polling, media and Planner streaming events. Changing access restarts all workspaces; save drafts first. Never put backend keys in `VITE_*` values or URLs. For WebSocket environment streams and interactive motion, use an authenticated gateway; direct API-key mode blocks these connections and session creation. The private Domino deployment uses its gateway session with internal backend bearer auth unset. This is a shared demonstrator, not per-user resource isolation or operational authorization.
 
 ## Run it
 
@@ -461,3 +455,11 @@ DEMO_CHECK_BROWSER_EXECUTABLE="/Applications/Google Chrome.app/Contents/MacOS/Go
 DEMO_CHECK_SCREEN_DIR=/tmp/mooring-demo-screens \
 uv run --all-packages --with playwright python scripts/demo_check.py
 ```
+
+
+Audit workflow safeguards (F01/F02/F09/F10/F12/F13/F23/F27/F28):
+
+- Applying an Advance arrival binds its exact forecast revision, content hash, arrival time and operation/holding interval to Intake. Planner and Safety inherit that Intake report. Changing the selected times or source clears the binding; current manual conditions remain explicitly a steady scenario. Layout, environment and tug edits invalidate prior Planner/Safety evidence and close its sheet.
+- Public acquisition can offer **Use retrieval cutoff and retry** when provider retrieval followed the chosen as-of time. This explicit action preserves the requested source layer and forecast horizon for cached re-use. It does not shift arrival times or grant a shorter-than-24-hour planning lead; the planning form reports a lead violation until the user chooses a compliant operation.
+- The transit camera uses the completed run's environment, loading and simulation clock. Other vessels come from the same series with catalog dimensions; missing dimensions prevent a request rather than silently dropping traffic. A future path ending early is sent without extrapolation and remains a backend validity limitation. Changing the selected vessel cancels/clears its previous prediction; the panel labels which vessel and time its returned prediction describes.
+- Exercise-library draft baselines and shared revision tokens live with the controller across tabs. Failed report saves preserve drafts. Spreadsheet exports neutralize formula-leading text. Vessel selection uses native keyboard-operable buttons.

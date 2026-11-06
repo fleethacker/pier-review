@@ -16,7 +16,8 @@ import {
   toObservedState,
   withWhatIf,
 } from './camera';
-import { samplePredictRequest, samplePrediction, sampleSeries } from './fixtures';
+import * as api from './api';
+import { samplePreset, sampleResponse, samplePredictRequest, samplePrediction, sampleSeries } from './fixtures';
 import { makeProjector } from './scene';
 import type { PredictionAlternative, TransitVesselState } from './types';
 
@@ -223,4 +224,54 @@ it('shows unavailable uncertainty and hazard limitations instead of an all-clear
   expect(screen.getByText(/OTHER_VESSEL_PATH_SHORT/)).toBeTruthy();
   c.dispose();
   cleanup();
+});
+
+
+describe('transit camera identity and forcing (F09/F10/T02)', () => {
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+  it('preserves completed-run forcing, aligns traffic, and renders only the newly selected vessel despite a late response', async () => {
+    const pending: { body: import('./types').PredictionRequest; resolve: (response: Response) => void; signal?: AbortSignal | null }[] = [];
+    vi.spyOn(api, 'runTransit').mockResolvedValue(structuredClone(sampleResponse));
+    vi.spyOn(api.missionsApi, 'series').mockResolvedValue(structuredClone(sampleSeries));
+    vi.stubGlobal('fetch', vi.fn((url: string | URL | Request, init?: RequestInit) => {
+      if (String(url).includes('/ships/')) return Promise.resolve(new Response(JSON.stringify({ loa_ft: 500, beam_ft: 60 })));
+      if (String(url).includes('/predict/trajectory')) return new Promise<Response>((resolve) => pending.push({ body: JSON.parse(String(init?.body)), resolve, signal: init?.signal }));
+      throw new Error(`Unexpected fetch ${url}`);
+    }));
+    const c = new MissionsController({ store: new SceneStore() });
+    const request = structuredClone(samplePreset.request);
+    request.environment = { ...samplePredictRequest.environment!, source: 'scenario', wind_speed_kt: 27, wind_gust_kt: 35, wind_from_true_deg: 81,
+      current_speed_kt: 1.8, current_set_true_deg: 249, water_level_mllw_ft: 2 };
+    request.vessels[0].loading = 'light';
+    c.store.setState({ request, sampleTransit: false, tab: 'transit' });
+    await c.run();
+    await waitFor(() => expect(c.buildCameraRequest()).not.toBeNull());
+    // Editing the next run must not rewrite the evidence underlying the completed one.
+    c.setRequestText(JSON.stringify({ ...request, environment: { ...request.environment, wind_speed_kt: 0 } }));
+    c.setPlayhead(12.5);
+    const built = c.buildCameraRequest()!;
+    expect(built.environment).toEqual(request.environment);
+    expect(built.vessel.loading).toBe('light');
+    expect(built.as_of_utc).toBe('2026-11-05T12:00:12.500Z');
+    expect(built.others).toHaveLength(1);
+    expect(built.others![0]).toMatchObject({ vessel_id: 'MOCK-B', length_ft: 500, beam_ft: 60 });
+    expect(built.others![0].path[0].t_utc).toBe(built.as_of_utc);
+    expect(built.others![0].path.at(-1)!.t_utc <= new Date(Date.parse(built.as_of_utc!) + 300000).toISOString()).toBe(true);
+    render(<ControllerContext.Provider value={c}><CameraStatus /></ControllerContext.Provider>);
+    act(() => c.setCameraOn(true));
+    await waitFor(() => expect(pending).toHaveLength(1));
+    act(() => c.selectVessel('MOCK-B'));
+    await waitFor(() => expect(pending).toHaveLength(2));
+    expect(pending[0].signal?.aborted).toBe(true);
+    expect(pending[1].body.vessel.vessel_id).toBe('MOCK-B');
+    expect(pending[1].body.others![0].vessel_id).toBe('MOCK-A');
+    const reply = (id: string) => { const value = structuredClone(samplePrediction); value.result.vessel_id = id; return new Response(JSON.stringify(value)); };
+    await act(async () => { pending[1].resolve(reply('MOCK-B')); });
+    await waitFor(() => expect(screen.getByText(/Prediction for MOCK-B/)).toBeTruthy());
+    await act(async () => { pending[0].resolve(reply('MOCK-A')); });
+    expect(screen.queryByText(/Prediction for MOCK-A/)).toBeNull();
+    expect(c.state.camResult?.result.vessel_id).toBe('MOCK-B');
+    expect(c.state.clock.playing).toBe(false);
+    c.dispose();
+  });
 });

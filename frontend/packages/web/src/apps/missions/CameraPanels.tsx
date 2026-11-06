@@ -48,6 +48,7 @@ export function CameraStatus() {
   const missing = missingHazards(res);
   return (
     <div className="space-y-2">
+      <p className="text-[11px] text-mil-text">Prediction for {res.result.vessel_id} at {res.result.as_of_utc}</p>
       {sample && (
         <p
           role="status"

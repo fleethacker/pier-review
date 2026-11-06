@@ -37,6 +37,20 @@
         "affected_components": []
       },
       {
+        "code": "ENVIRONMENT_SUSPECT",
+        "message": "Provider marks environmental inputs as suspect; values are diagnostic, not qualified.",
+        "affected_components": [
+          "environment"
+        ]
+      },
+      {
+        "code": "WIND_BASIS_UNVERIFIED",
+        "message": "Public/sensor wind duration or reference height is undocumented.",
+        "affected_components": [
+          "wind"
+        ]
+      },
+      {
         "code": "INPUT_AGE",
         "message": "Input age 2 s (as_of - observed); environment age 1020 s.",
         "affected_components": []

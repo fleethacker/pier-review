@@ -83,8 +83,9 @@ def test_replay_uncovered_stop_rejects():
 def test_replay_uncovered_invalidate_truncates_with_reason():
     r = engine.predict(req(forcing=replay(70, "invalidate")))
     b = r.result.forcing_basis
-    assert b.truncated and b.requested_horizon_s == 120 and b.horizon_s == 60
-    assert r.result.alternatives[0].ticks[-1].t_s == 60
+    # The covered final partial tick is predicted, rather than silently rounding coverage down to 60 s.
+    assert b.truncated and b.requested_horizon_s == 120 and b.horizon_s == 70
+    assert r.result.alternatives[0].ticks[-1].t_s == 70
     assert "FORCING_HORIZON_TRUNCATED" in codes(r) and "FORCING_SUPPLIED_UNVERIFIED" in codes(r)
 
 

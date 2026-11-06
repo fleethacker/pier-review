@@ -28,9 +28,10 @@ def run(req, series: ForcingSeries, xform=None, job_id: str = "predict") -> sim.
     plane, _env, _rho, vessels = sim.prepare(req)
     sample = req.sample_interval_s or sim.DEFAULT_SAMPLE_S
     dt, every = sim.effective_step(req.dt_s, sample)
-    n_frames = int(math.floor(req.duration_s / sample + 1e-9))
     start = req.start_utc or sim.EPOCH
     frames = []
+    environment_issues = []
+    environment_spread = False
 
     def set_env(t):
         try:
@@ -40,10 +41,10 @@ def run(req, series: ForcingSeries, xform=None, job_id: str = "predict") -> sim.
         env = xform(env) if xform else env
         for v in vessels:
             _apply(v, env)
+        return env
 
-    def emit(k):
-        t = k * sample
-        set_env(t)
+    def emit(t):
+        environment_issues.extend(sim.environment_evidence(set_env(t)))
         for v in vessels:
             v.wind = v.wind_wrench(v.s)
             st = v.state_model(t)
@@ -55,16 +56,18 @@ def run(req, series: ForcingSeries, xform=None, job_id: str = "predict") -> sim.
 
     emit(0)
     last = 0
-    for step in range(1, n_frames * every + 1):
-        set_env((step - 1) * dt)
+    for _, t, step_dt, report in sim.integration_schedule(req.duration_s, dt, every):
+        env = set_env(t - step_dt)
+        environment_spread |= env.wind_speed_kt > 0 or env.current_speed_kt > 0
         for v in vessels:
-            v.step(dt)
-        last = step
-        if step % every == 0:
-            emit(step // every)
+            v.step(step_dt)
+        last = t
+        if report:
+            emit(t)
             if all(v.invalid or v.status != "underway" for v in vessels):
                 break
     r = sim.Run(frames, sorted((e for v in vessels for e in v.events), key=lambda e: (e.t_s, e.vessel_id)), vessels, plane, start,
-                req.start_utc is None, sample, last * dt)
+                req.start_utc is None, sample, last, environment_issues=environment_issues,
+                environment_spread=environment_spread)
     r.dt_s = dt
     return r

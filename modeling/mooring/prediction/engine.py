@@ -84,9 +84,9 @@ def _resolve_forcing(req: PredictionRequest):
         if spec.on_uncovered == "stop":
             raise RequestInvalid(f"FORCING_UNCOVERED: forcing series {series.revision} covers t={series.start:g}..{series.end:g} s but the "
                                  f"horizon is {horizon:g} s (on_uncovered='stop'); shorten the horizon or set on_uncovered='invalidate' to truncate")
-        horizon = math.floor(series.end / req.tick_s + 1e-9) * req.tick_s
-        if horizon < req.tick_s:
-            raise RequestInvalid(f"FORCING_UNCOVERED: forcing series {series.revision} covers less than one output tick ({series.end:g} s)")
+        horizon = series.end
+        if horizon <= 0:
+            raise RequestInvalid(f"FORCING_UNCOVERED: forcing series {series.revision} covers no future prediction time")
         req = req.model_copy(update={"horizon_s": horizon})
         series = ForcingSeries(spec, base, horizon)
     basis = ForcingBasis(kind="time_varying", revision=series.revision, synthetic=series.synthetic, series_kind=spec.kind,
@@ -215,7 +215,16 @@ def _split(tick_s: float, target_s: float) -> tuple[int, float]:
 
 
 def _sub(tr: Track, k: int) -> Track:
-    return Track(tr.t[::k], tr.x[::k], tr.y[::k], tr.heading[::k], tr.sog[::k], tr.cog[::k], tr.rudder[::k], tr.order[::k])
+    indices = list(range(0, len(tr.t), k))
+    if indices and indices[-1] != len(tr.t) - 1:
+        indices.append(len(tr.t) - 1)
+    return Track(*([values[i] for i in indices] for values in
+                   (tr.t, tr.x, tr.y, tr.heading, tr.sog, tr.cog, tr.rudder, tr.order)))
+
+
+def _breached(distance: float, margin: float) -> bool:
+    # Geometry distances cannot be negative. Contact/intersection is a breach even when no stand-off is requested.
+    return distance <= 0 or distance < margin
 
 
 def _other_hull(rows, t, ol, ob) -> Polygon:
@@ -330,7 +339,8 @@ def predict(req: PredictionRequest) -> PredictionResponse:
     u = v.uncertainty
     env0 = req.environment
     spread = bool((u and (u.position_sd_ft or u.heading_sd_deg or u.speed_sd_kt))
-                  or (env0 and (env0.wind_speed_kt > 0 or env0.current_speed_kt > 0)) or series is not None)
+                  or (env0 and series is None and (env0.wind_speed_kt > 0 or env0.current_speed_kt > 0))
+                  or central["hold"][1].environment_spread)
     # With no spread source (or a single sample) every sample would equal the central path: report the uncertainty as
     # unavailable (null corridor, spread and probability) instead of a corridor of zero width.
     n_s = n_req if (n_req >= 2 and spread) else 0
@@ -369,11 +379,11 @@ def predict(req: PredictionRequest) -> PredictionResponse:
         thr = req.hazards.min_clearance_ft * FT
         if worst:
             if n_s:
-                breach_p = sum(any(c and min(x[0] for x in c) < thr for c in _iter_clearances(s, hz, loa, beam))
+                breach_p = sum(any(c and _breached(min(x[0] for x in c), thr) for c in _iter_clearances(s, hz, loa, beam))
                                for s in samples[aid]) / n_s
             wi = min(worst, key=lambda w: w[0][0])
             closest = _approach(plane, tr_fine.t[wi[1]], wi[0], breach_p)
-            fb = next((w for w in worst if w[0][0] < thr), None)
+            fb = next((w for w in worst if _breached(w[0][0], thr)), None)
             if fb:
                 first = _approach(plane, tr_fine.t[fb[1]], fb[0], breach_p)
         # corridor and spread

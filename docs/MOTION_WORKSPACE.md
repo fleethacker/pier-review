@@ -56,7 +56,8 @@ assigned hull point, an authored demo placement, not a recommended clearance. Tu
 and general hull-impact response are absent; unsupported overlap is invalid, not successful penetration.
 
 The route controller issues ordinary bounded actuator orders on simulation time, never overwrites pose/velocity,
-and remains in synthetic holding at the final approach point. Any manual helm order disables it. This is not an
+and remains in synthetic holding at the final approach point. Its authored orientation supports starboard side to;
+automatic port-side following is rejected, while manual port-side maneuvers remain available. Any manual helm order disables it. This is not an
 autonomous docking or pilotage system. The approximately 14-nautical-mile channel demo permits four simulated hours;
 the speed control changes wall-time playback without skipping physics. Actual final line handling remains explicit.
 
@@ -98,14 +99,18 @@ The final PR records exact full-suite counts and the additional fresh acceptance
 ## Completion ledger
 
 - [x] Direct Motion workspace, paused first frame and reliable session replacement/release.
-- [ ] Multi-class catalog, four demos and saved scenario builder (final saved-reopening/engine-authoring acceptance pending).
+- [x] Multi-class catalog, four demos, saved scenario reopening and explicit engine authoring.
 - [x] Engine/helm/thruster, independent tug and line controls with authoritative feedback.
 - [x] Cargo placement, mass/CG/inertia and depth/trim/heel readouts within stated model bounds.
 - [x] Same-engine prediction and what-if updates during the run, with stale-output rejection.
 - [x] Channel-to-pier demonstration with geographic and hull-track evidence; no autonomous navigation claim.
 - [x] Animated wind/current from active frame conditions and explicit source states.
 - [x] Public data acquisition and future ship/tug state boundary, without synthetic fallback under live labels.
-- [ ] Independent review; full Python/frontend/contract checks; CI; dev merge; Domino target verification.
+- [x] Independent review and local Python/frontend/contract acceptance; final PR checks record exact head/counts.
+
+CI, `dev` merge and Domino target verification are release steps, recorded on
+[PR #33](https://github.com/fleethacker/pier-review/pull/33) after their completion. A checked implementation row does
+not establish deployment or operational qualification.
 
 Unresolved items stay unchecked until their evidence is recorded. Engineering qualification, calibrated trajectory
 uncertainty, complete hydrographic/traffic coverage and operational navigation approval remain separate project gates.

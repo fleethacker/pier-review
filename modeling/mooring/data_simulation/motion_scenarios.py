@@ -82,5 +82,6 @@ def norfolk_route(berth) -> MotionRoute:
                    for name, lat, lon, speed in stations],
         source="Repository Norfolk transit demonstration; OSM open-water coastline and NOAA ENC Online US5ORFCC shoreline fixture; authored final approach around pier ends.",
         limitations=["Not charted channel centerlines or a pilot-approved passage plan.",
+                     "The automatic approach and holding orientation support starboard side to only; a port-side approach is manual.",
                      "Depth, bridges, exclusion zones and changing traffic are not established by this route.",
                      "Route guidance is synthetic training assistance; final docking requires explicit controls."])

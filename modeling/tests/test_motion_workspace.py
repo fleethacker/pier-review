@@ -175,6 +175,7 @@ def test_live_provider_failure_is_not_replaced_by_synthetic_values(client, monke
     {"start": "channel", "route_id": None},
     {"start": "approach", "initial_lines_attached": True},
     {"route_follow": True, "route_id": None}, {"route_id": "unknown"},
+    {"route_follow": True, "route_id": "norfolk-channel-to-pier12", "side_to": "port"},
     {"dt_s": 0}, {"duration_s": 14401},
 ])
 def test_invalid_or_ambiguous_scenarios_are_rejected(client, change):

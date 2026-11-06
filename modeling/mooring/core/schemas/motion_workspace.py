@@ -55,6 +55,8 @@ class MotionWorkspaceSpec(Model):
             raise ValueError("tug identifiers must be unique")
         if self.route_follow and not self.route_id:
             raise ValueError("route following requires an explicit demonstration route")
+        if self.route_follow and self.side_to != "starboard":
+            raise ValueError("The authored automatic route supports starboard side to only; use manual controls for a port-side approach")
         if self.initial_lines_attached and self.start != "berth":
             raise ValueError("start with lines detached during channel/approach maneuvers")
         return self
